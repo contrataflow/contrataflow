@@ -4,14 +4,22 @@ import type { CatalogType } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  Checkbox,
+  DatePicker,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Input,
+  Label,
+  PageHeader,
   Skeleton,
-  Stepper,
+  Textarea,
+  WizardShell,
   cx,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import { PRIORITIES } from '@contrataflow/validation';
@@ -37,7 +45,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { DuplicateWarningPanel } from './duplicate-warning-panel';
-import { FormField, INPUT_CLASS, SelectField, TEXTAREA_CLASS } from './form-field';
+import { FormField, SelectField } from './form-field';
 import type { SelectGroup, SelectOption } from './form-field';
 import { toDecimalMoney } from './money';
 import { MoneyInput } from './money-input';
@@ -862,11 +870,9 @@ function WizardBody({ inProgressDelayMs = IN_PROGRESS_RETRY_MS }: ProcessWizardP
       required={required}
     >
       {(control) => (
-        <input
+        <Input
           {...control}
-          type="text"
           autoComplete="off"
-          className={INPUT_CLASS}
           value={values.internalCode}
           onChange={(event) => {
             set('internalCode', event.target.value);
@@ -879,471 +885,472 @@ function WizardBody({ inProgressDelayMs = IN_PROGRESS_RETRY_MS }: ProcessWizardP
   const moreId = fieldId('more');
   const numberingNote = readNumberingByOrganization(publicSettings.data);
 
+  const footerActions = (
+    <>
+      {step === 'identification' ? null : (
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={pending}
+          onClick={() => {
+            goTo(step === 'review' ? 'origin' : 'identification');
+          }}
+        >
+          {t('wizard.actions.back')}
+        </Button>
+      )}
+      <Button
+        key={step}
+        type="submit"
+        aria-busy={pending}
+        disabled={step === 'review' ? createDisabled : false}
+      >
+        {step !== 'review'
+          ? t('wizard.actions.next')
+          : pending
+            ? t('wizard.actions.creating')
+            : t('wizard.actions.create')}
+      </Button>
+    </>
+  );
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{t('wizard.title')}</h1>
-        <p className="text-muted-foreground">{t('wizard.description')}</p>
-      </header>
-
-      <Stepper
-        label={t('wizard.stepperLabel')}
-        steps={WIZARD_STEPS.map((id) => ({ id, label: stepLabel(id) }))}
-        current={stepIndex}
-        progressLabel={t('wizard.progress', { current: stepIndex + 1, total: WIZARD_STEPS.length })}
-        completeLabel={t('wizard.stepDone')}
-        onStepSelect={(index) => {
-          const target = WIZARD_STEPS[index];
-          if (target) goTo(target);
-        }}
-      />
-
-      {recovered ? (
-        <Alert tone="info" title={t('draft.recovered')}>
-          <p>{t('draft.recoveredHint')}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={restart}>
-              {t('draft.discard')}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setRecovered(false);
-              }}
-            >
-              {t('draft.dismiss')}
-            </Button>
-          </div>
-        </Alert>
-      ) : null}
-
+    <>
       <form
         noValidate
         aria-label={t('wizard.title')}
-        className="flex min-w-0 flex-col gap-6"
         onSubmit={(event) => {
           event.preventDefault();
           if (step === 'review') void submit(false);
           else goNext();
         }}
       >
-        <section aria-labelledby={fieldId('step-title')} className="flex min-w-0 flex-col gap-4">
-          <div>
-            <h2
-              id={fieldId('step-title')}
-              ref={headingRef}
-              tabIndex={-1}
-              className="text-lg font-semibold outline-none"
-            >
-              {stepLabel(step)}
-            </h2>
-            <p className="text-sm text-muted-foreground">{t(`wizard.stepHints.${step}`)}</p>
-          </div>
+        <WizardShell
+          header={<PageHeader title={t('wizard.title')} description={t('wizard.description')} />}
+          steps={WIZARD_STEPS.map((id) => ({ id, label: stepLabel(id) }))}
+          current={stepIndex}
+          stepsLabel={t('wizard.stepperLabel')}
+          stepLabels={{
+            done: t('wizard.stepDone'),
+            position: (current, total) => t('wizard.progress', { current, total }),
+          }}
+          onStepSelect={(index) => {
+            const target = WIZARD_STEPS[index];
+            if (target) goTo(target);
+          }}
+          notices={
+            recovered ? (
+              <Alert tone="info" title={t('draft.recovered')}>
+                <p>{t('draft.recoveredHint')}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" onClick={restart}>
+                    {t('draft.discard')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setRecovered(false);
+                    }}
+                  >
+                    {t('draft.dismiss')}
+                  </Button>
+                </div>
+              </Alert>
+            ) : null
+          }
+          autosave={
+            <Button type="button" variant="ghost" disabled={pending} onClick={cancel}>
+              {t('wizard.actions.cancel')}
+            </Button>
+          }
+          actions={footerActions}
+          actionsLabel={t('wizard.footerLabel')}
+        >
+          <section aria-labelledby={fieldId('step-title')} className="flex min-w-0 flex-col gap-4">
+            <div>
+              <h2
+                id={fieldId('step-title')}
+                ref={headingRef}
+                tabIndex={-1}
+                className="text-lg font-semibold outline-none"
+              >
+                {stepLabel(step)}
+              </h2>
+              <p className="text-sm text-muted-foreground">{t(`wizard.stepHints.${step}`)}</p>
+            </div>
 
-          {bannerView()}
-          {notice === 'inProgress' ? <Alert tone="info" title={t('errors.inProgress')} /> : null}
+            {bannerView()}
+            {notice === 'inProgress' ? <Alert tone="info" title={t('errors.inProgress')} /> : null}
 
-          {step === 'identification' ? (
-            <div className="grid gap-4">
-              <FormField
-                id={fieldId('title')}
-                label={t('fields.title')}
-                hint={t('fields.titleHint')}
-                error={errorOf('title')}
-                required
-              >
-                {(control) => (
-                  <input
-                    {...control}
-                    type="text"
-                    autoComplete="off"
-                    className={INPUT_CLASS}
-                    value={values.title}
-                    onChange={(event) => {
-                      set('title', event.target.value);
-                    }}
-                  />
-                )}
-              </FormField>
-              <FormField
-                id={fieldId('object')}
-                label={t('fields.object')}
-                hint={t('fields.objectHint')}
-                error={errorOf('object')}
-                required
-              >
-                {(control) => (
-                  <textarea
-                    {...control}
-                    rows={4}
-                    className={TEXTAREA_CLASS}
-                    value={values.object}
-                    onChange={(event) => {
-                      set('object', event.target.value);
-                    }}
-                  />
-                )}
-              </FormField>
-              <FormField
-                id={fieldId('description')}
-                label={t('fields.description')}
-                hint={t('fields.descriptionHint')}
-                error={errorOf('description')}
-              >
-                {(control) => (
-                  <textarea
-                    {...control}
-                    rows={3}
-                    className={TEXTAREA_CLASS}
-                    value={values.description}
-                    onChange={(event) => {
-                      set('description', event.target.value);
-                    }}
-                  />
-                )}
-              </FormField>
-              <SelectField
-                {...selectProps}
-                id={fieldId('contractingTypeId')}
-                label={t('fields.contractingTypeId')}
-                value={values.contractingTypeId}
-                onChange={(value) => {
-                  set('contractingTypeId', value);
-                }}
-                options={catalogOptions(contractingTypes.data)}
-                status={contractingStatus}
-                emptyMessage={t('empty.contractingType')}
-                onRetry={() => {
-                  void contractingTypes.refetch();
-                }}
-                error={errorOf('contractingTypeId')}
-                required
-              />
-              <div className="grid gap-4 sm:grid-cols-2">
+            {step === 'identification' ? (
+              <div className="grid gap-4">
+                <FormField
+                  id={fieldId('title')}
+                  label={t('fields.title')}
+                  hint={t('fields.titleHint')}
+                  error={errorOf('title')}
+                  required
+                >
+                  {(control) => (
+                    <Input
+                      {...control}
+                      autoComplete="off"
+                      value={values.title}
+                      onChange={(event) => {
+                        set('title', event.target.value);
+                      }}
+                    />
+                  )}
+                </FormField>
+                <FormField
+                  id={fieldId('object')}
+                  label={t('fields.object')}
+                  hint={t('fields.objectHint')}
+                  error={errorOf('object')}
+                  required
+                >
+                  {(control) => (
+                    <Textarea
+                      {...control}
+                      rows={4}
+                      value={values.object}
+                      onChange={(event) => {
+                        set('object', event.target.value);
+                      }}
+                    />
+                  )}
+                </FormField>
+                <FormField
+                  id={fieldId('description')}
+                  label={t('fields.description')}
+                  hint={t('fields.descriptionHint')}
+                  error={errorOf('description')}
+                >
+                  {(control) => (
+                    <Textarea
+                      {...control}
+                      rows={3}
+                      value={values.description}
+                      onChange={(event) => {
+                        set('description', event.target.value);
+                      }}
+                    />
+                  )}
+                </FormField>
                 <SelectField
                   {...selectProps}
-                  id={fieldId('modalityId')}
-                  label={t('fields.modalityId')}
-                  placeholder={t('fields.modalityUndefined')}
-                  value={values.modalityId}
+                  id={fieldId('contractingTypeId')}
+                  label={t('fields.contractingTypeId')}
+                  value={values.contractingTypeId}
                   onChange={(value) => {
-                    set('modalityId', value);
+                    set('contractingTypeId', value);
                   }}
-                  options={catalogOptions(modalities.data)}
-                  status={lookupStatus(modalities)}
+                  options={catalogOptions(contractingTypes.data)}
+                  status={contractingStatus}
+                  emptyMessage={t('empty.contractingType')}
                   onRetry={() => {
-                    void modalities.refetch();
+                    void contractingTypes.refetch();
                   }}
-                  error={errorOf('modalityId')}
+                  error={errorOf('contractingTypeId')}
+                  required
                 />
-                <div className="flex min-w-0 items-start gap-2 sm:pt-6">
-                  <input
-                    id={fieldId('isPriceRegistration')}
-                    type="checkbox"
-                    className="mt-1 size-4 flex-none"
-                    checked={values.isPriceRegistration}
-                    aria-describedby={fieldId('isPriceRegistration-hint')}
-                    onChange={(event) => {
-                      set('isPriceRegistration', event.target.checked);
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <SelectField
+                    {...selectProps}
+                    id={fieldId('modalityId')}
+                    label={t('fields.modalityId')}
+                    placeholder={t('fields.modalityUndefined')}
+                    clearLabel={t('fields.modalityUndefined')}
+                    value={values.modalityId}
+                    onChange={(value) => {
+                      set('modalityId', value);
                     }}
+                    options={catalogOptions(modalities.data)}
+                    status={lookupStatus(modalities)}
+                    onRetry={() => {
+                      void modalities.refetch();
+                    }}
+                    error={errorOf('modalityId')}
                   />
-                  <div className="flex min-w-0 flex-col">
-                    <label htmlFor={fieldId('isPriceRegistration')} className="text-sm font-medium">
-                      {t('fields.isPriceRegistration')}
-                    </label>
-                    <p
-                      id={fieldId('isPriceRegistration-hint')}
-                      className="text-xs text-muted-foreground"
-                    >
-                      {t('fields.isPriceRegistrationHint')}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-2 sm:pt-7">
+                    <Checkbox
+                      id={fieldId('isPriceRegistration')}
+                      className="mt-0.5"
+                      checked={values.isPriceRegistration}
+                      aria-describedby={fieldId('isPriceRegistration-hint')}
+                      onCheckedChange={(checked) => {
+                        set('isPriceRegistration', checked === true);
+                      }}
+                    />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <Label htmlFor={fieldId('isPriceRegistration')}>
+                        {t('fields.isPriceRegistration')}
+                      </Label>
+                      <p
+                        id={fieldId('isPriceRegistration-hint')}
+                        className="text-xs text-muted-foreground"
+                      >
+                        {t('fields.isPriceRegistrationHint')}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {step === 'origin' ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {organizationStatus === 'ready' && activeOrganizations.length === 0 ? (
-                <p
-                  role="status"
-                  className="rounded-card border border-dashed border-border p-3 text-sm text-muted-foreground md:col-span-2"
-                >
-                  {t('empty.organization')}
-                </p>
-              ) : null}
-              {organizationStatus !== 'ready' || activeOrganizations.length > 1 ? (
+            {step === 'origin' ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {organizationStatus === 'ready' && activeOrganizations.length === 0 ? (
+                  <p
+                    role="status"
+                    className="rounded-card border border-dashed border-border p-3 text-sm text-muted-foreground md:col-span-2"
+                  >
+                    {t('empty.organization')}
+                  </p>
+                ) : null}
+                {organizationStatus !== 'ready' || activeOrganizations.length > 1 ? (
+                  <SelectField
+                    {...selectProps}
+                    id={fieldId('organizationId')}
+                    label={t('fields.organizationId')}
+                    value={values.organizationId}
+                    onChange={onOrganizationChange}
+                    options={activeOrganizations.map((organization) => ({
+                      value: organization.id,
+                      label: organization.name,
+                    }))}
+                    status={organizationStatus}
+                    onRetry={() => {
+                      void organizations.refetch();
+                    }}
+                    error={errorOf('organizationId')}
+                    required
+                    className="md:col-span-2"
+                  />
+                ) : null}
+                {departmentsStatus === 'ready' &&
+                secretariats.length === 0 &&
+                organizationStatus === 'ready' &&
+                activeOrganizations.length > 0 ? (
+                  <p
+                    role="status"
+                    className="rounded-card border border-dashed border-border p-3 text-sm text-muted-foreground md:col-span-2"
+                  >
+                    {t('empty.departments')}
+                  </p>
+                ) : (
+                  <>
+                    <SelectField
+                      {...selectProps}
+                      id={fieldId('requestingSecretariatId')}
+                      label={t('fields.requestingSecretariatId', {
+                        secretariat: labels.secretariat,
+                      })}
+                      value={values.requestingSecretariatId}
+                      onChange={onSecretariatChange}
+                      options={secretariats.map((unit) => ({ value: unit.id, label: unit.name }))}
+                      status={departmentsStatus}
+                      onRetry={() => {
+                        void (organizationStatus === 'error'
+                          ? organizations.refetch()
+                          : departments.refetch());
+                      }}
+                      error={errorOf('requestingSecretariatId')}
+                      required
+                    />
+                    <SelectField
+                      {...selectProps}
+                      id={fieldId('requestingDepartmentId')}
+                      label={t('fields.requestingDepartmentId', { department: labels.department })}
+                      value={values.requestingDepartmentId}
+                      onChange={(value) => {
+                        set('requestingDepartmentId', value);
+                      }}
+                      options={sectorFlat}
+                      groups={sectorGroups}
+                      status={departmentsStatus}
+                      onRetry={() => {
+                        void (organizationStatus === 'error'
+                          ? organizations.refetch()
+                          : departments.refetch());
+                      }}
+                      error={errorOf('requestingDepartmentId')}
+                      required
+                    />
+                  </>
+                )}
                 <SelectField
                   {...selectProps}
-                  id={fieldId('organizationId')}
-                  label={t('fields.organizationId')}
-                  value={values.organizationId}
-                  onChange={onOrganizationChange}
-                  options={activeOrganizations.map((organization) => ({
-                    value: organization.id,
-                    label: organization.name,
-                  }))}
-                  status={organizationStatus}
-                  onRetry={() => {
-                    void organizations.refetch();
+                  id={fieldId('priority')}
+                  label={t('fields.priority')}
+                  value={values.priority}
+                  onChange={(value) => {
+                    set('priority', value);
                   }}
-                  error={errorOf('organizationId')}
+                  options={priorityOptions}
+                  status="ready"
+                  onRetry={() => undefined}
+                  error={errorOf('priority')}
                   required
-                  className="md:col-span-2"
                 />
-              ) : null}
-              {departmentsStatus === 'ready' &&
-              secretariats.length === 0 &&
-              organizationStatus === 'ready' &&
-              activeOrganizations.length > 0 ? (
-                <p
-                  role="status"
-                  className="rounded-card border border-dashed border-border p-3 text-sm text-muted-foreground md:col-span-2"
+                <FormField
+                  id={fieldId('targetDate')}
+                  label={t('fields.targetDate')}
+                  hint={t('fields.targetDateHint')}
+                  error={errorOf('targetDate')}
                 >
-                  {t('empty.departments')}
-                </p>
-              ) : (
-                <>
-                  <SelectField
-                    {...selectProps}
-                    id={fieldId('requestingSecretariatId')}
-                    label={t('fields.requestingSecretariatId', { secretariat: labels.secretariat })}
-                    value={values.requestingSecretariatId}
-                    onChange={onSecretariatChange}
-                    options={secretariats.map((unit) => ({ value: unit.id, label: unit.name }))}
-                    status={departmentsStatus}
-                    onRetry={() => {
-                      void (organizationStatus === 'error'
-                        ? organizations.refetch()
-                        : departments.refetch());
-                    }}
-                    error={errorOf('requestingSecretariatId')}
-                    required
-                  />
-                  <SelectField
-                    {...selectProps}
-                    id={fieldId('requestingDepartmentId')}
-                    label={t('fields.requestingDepartmentId', { department: labels.department })}
-                    value={values.requestingDepartmentId}
-                    onChange={(value) => {
-                      set('requestingDepartmentId', value);
-                    }}
-                    options={sectorFlat}
-                    groups={sectorGroups}
-                    status={departmentsStatus}
-                    onRetry={() => {
-                      void (organizationStatus === 'error'
-                        ? organizations.refetch()
-                        : departments.refetch());
-                    }}
-                    error={errorOf('requestingDepartmentId')}
-                    required
-                  />
-                </>
-              )}
-              <SelectField
-                {...selectProps}
-                id={fieldId('priority')}
-                label={t('fields.priority')}
-                value={values.priority}
-                onChange={(value) => {
-                  set('priority', value);
-                }}
-                options={priorityOptions}
-                status="ready"
-                onRetry={() => undefined}
-                error={errorOf('priority')}
-                required
-              />
-              <FormField
-                id={fieldId('targetDate')}
-                label={t('fields.targetDate')}
-                hint={t('fields.targetDateHint')}
-                error={errorOf('targetDate')}
-              >
-                {(control) => (
-                  <input
-                    {...control}
-                    type="date"
-                    min={context.today}
-                    className={INPUT_CLASS}
-                    value={values.targetDate}
-                    onChange={(event) => {
-                      set('targetDate', event.target.value);
-                    }}
-                  />
-                )}
-              </FormField>
-              <FormField
-                id={fieldId('estimatedValue')}
-                label={t('fields.estimatedValue')}
-                hint={t('fields.estimatedValueHint')}
-                error={errorOf('estimatedValue')}
-              >
-                {(control) => (
-                  <MoneyInput
-                    {...control}
-                    value={values.estimatedValue}
-                    onValueChange={(text) => {
-                      set('estimatedValue', text);
-                    }}
-                  />
-                )}
-              </FormField>
-              <SelectField
-                {...selectProps}
-                id={fieldId('originId')}
-                label={t('fields.originId')}
-                value={values.originId}
-                onChange={(value) => {
-                  set('originId', value);
-                }}
-                options={catalogOptions(origins.data)}
-                status={originStatus}
-                emptyMessage={t('empty.origin')}
-                onRetry={() => {
-                  void origins.refetch();
-                }}
-                error={errorOf('originId')}
-                required
-              />
-              <PcaFieldset
-                idPrefix={ids}
-                values={values}
-                errors={{
-                  pcaStatus: errorOf('pcaStatus'),
-                  pcaYear: errorOf('pcaYear'),
-                  pcaItemCode: errorOf('pcaItemCode'),
-                  pcaJustification: errorOf('pcaJustification'),
-                }}
-                currentYear={currentYear}
-                onChange={(field, value) => {
-                  set(field, value);
-                }}
-              />
-            </div>
-          ) : null}
-
-          {step === 'review' ? (
-            <div className="flex min-w-0 flex-col gap-4">
-              {invalidStep !== null && invalidStep !== 'review' ? stepAttention(invalidStep) : null}
-              <ReviewSummary sections={summarySections()} onEdit={goTo} />
-              {numberingNote ? (
-                <p className="text-sm text-muted-foreground">
-                  {t('review.numberingByOrganization')}
-                </p>
-              ) : null}
-              {showDuplicates ? (
-                <DuplicateWarningPanel
-                  ref={duplicatePanelRef}
-                  candidates={candidates}
-                  timeZone={session.activeTenant.timezone}
-                  pending={pending}
-                  onCreateAnyway={() => {
-                    void submit(true);
+                  {(control) => (
+                    <DatePicker
+                      {...control}
+                      clearable
+                      value={fromIsoDate(values.targetDate)}
+                      disabledDays={{ before: fromIsoDate(context.today) ?? now }}
+                      onValueChange={(date) => {
+                        set('targetDate', date ? toIsoDate(date) : '');
+                      }}
+                      labels={{
+                        placeholder: t('fields.datePlaceholder'),
+                        clear: t('fields.dateClear', { label: t('fields.targetDate') }),
+                        calendar: t('fields.dateCalendar', { label: t('fields.targetDate') }),
+                      }}
+                    />
+                  )}
+                </FormField>
+                <FormField
+                  id={fieldId('estimatedValue')}
+                  label={t('fields.estimatedValue')}
+                  hint={t('fields.estimatedValueHint')}
+                  error={errorOf('estimatedValue')}
+                >
+                  {(control) => (
+                    <MoneyInput
+                      {...control}
+                      value={values.estimatedValue}
+                      onValueChange={(text) => {
+                        set('estimatedValue', text);
+                      }}
+                    />
+                  )}
+                </FormField>
+                <SelectField
+                  {...selectProps}
+                  id={fieldId('originId')}
+                  label={t('fields.originId')}
+                  value={values.originId}
+                  onChange={(value) => {
+                    set('originId', value);
+                  }}
+                  options={catalogOptions(origins.data)}
+                  status={originStatus}
+                  emptyMessage={t('empty.origin')}
+                  onRetry={() => {
+                    void origins.refetch();
+                  }}
+                  error={errorOf('originId')}
+                  required
+                />
+                <PcaFieldset
+                  idPrefix={ids}
+                  values={values}
+                  errors={{
+                    pcaStatus: errorOf('pcaStatus'),
+                    pcaYear: errorOf('pcaYear'),
+                    pcaItemCode: errorOf('pcaItemCode'),
+                    pcaJustification: errorOf('pcaJustification'),
+                  }}
+                  currentYear={currentYear}
+                  onChange={(field, value) => {
+                    set(field, value);
                   }}
                 />
-              ) : duplicates.isFetching ? (
-                <p role="status" className="sr-only">
-                  {t('duplicates.checking')}
-                </p>
-              ) : null}
-              <WorkflowPreviewCard state={workflowState} />
-              {requireInternalCode ? internalCodeField(true) : null}
-              <div className="rounded-card border border-border bg-surface">
-                <h3 className="text-sm font-semibold">
-                  <button
-                    type="button"
-                    aria-expanded={moreOpen}
-                    aria-controls={moreId}
-                    className="flex min-h-10 w-full items-center justify-between gap-2 px-4 text-left"
-                    onClick={() => {
-                      setMoreOpen((open) => !open);
+              </div>
+            ) : null}
+
+            {step === 'review' ? (
+              <div className="flex min-w-0 flex-col gap-4">
+                {invalidStep !== null && invalidStep !== 'review'
+                  ? stepAttention(invalidStep)
+                  : null}
+                <ReviewSummary sections={summarySections()} onEdit={goTo} />
+                {numberingNote ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t('review.numberingByOrganization')}
+                  </p>
+                ) : null}
+                {showDuplicates ? (
+                  <DuplicateWarningPanel
+                    ref={duplicatePanelRef}
+                    candidates={candidates}
+                    timeZone={session.activeTenant.timezone}
+                    pending={pending}
+                    onCreateAnyway={() => {
+                      void submit(true);
                     }}
-                  >
-                    <span>
-                      {t('review.moreInfo')}
-                      <span className="block text-xs font-normal text-muted-foreground">
-                        {t('review.moreInfoHint')}
-                      </span>
-                    </span>
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className={cx(
-                        'size-4 flex-none transition-transform',
-                        moreOpen && 'rotate-180',
-                      )}
+                  />
+                ) : duplicates.isFetching ? (
+                  <p role="status" className="sr-only">
+                    {t('duplicates.checking')}
+                  </p>
+                ) : null}
+                <WorkflowPreviewCard state={workflowState} />
+                {requireInternalCode ? internalCodeField(true) : null}
+                <div className="rounded-card border border-border bg-surface">
+                  <h3 className="text-sm font-semibold">
+                    <button
+                      type="button"
+                      aria-expanded={moreOpen}
+                      aria-controls={moreId}
+                      className="flex min-h-10 w-full items-center justify-between gap-2 px-4 text-left"
+                      onClick={() => {
+                        setMoreOpen((open) => !open);
+                      }}
                     >
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                </h3>
-                <div id={moreId} hidden={!moreOpen} className="grid gap-4 px-4 pb-4">
-                  {requireInternalCode ? null : internalCodeField(false)}
-                  <FormField
-                    id={fieldId('notes')}
-                    label={t('fields.notes')}
-                    error={errorOf('notes')}
-                  >
-                    {(control) => (
-                      <textarea
-                        {...control}
-                        rows={3}
-                        className={TEXTAREA_CLASS}
-                        value={values.notes}
-                        onChange={(event) => {
-                          set('notes', event.target.value);
-                        }}
-                      />
-                    )}
-                  </FormField>
+                      <span>
+                        {t('review.moreInfo')}
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {t('review.moreInfoHint')}
+                        </span>
+                      </span>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className={cx(
+                          'size-4 flex-none transition-transform',
+                          moreOpen && 'rotate-180',
+                        )}
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+                  </h3>
+                  <div id={moreId} hidden={!moreOpen} className="grid gap-4 px-4 pb-4">
+                    {requireInternalCode ? null : internalCodeField(false)}
+                    <FormField
+                      id={fieldId('notes')}
+                      label={t('fields.notes')}
+                      error={errorOf('notes')}
+                    >
+                      {(control) => (
+                        <Textarea
+                          {...control}
+                          rows={3}
+                          value={values.notes}
+                          onChange={(event) => {
+                            set('notes', event.target.value);
+                          }}
+                        />
+                      )}
+                    </FormField>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
-        </section>
-
-        <div
-          role="group"
-          aria-label={t('wizard.footerLabel')}
-          className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface px-4 py-3 sm:-mx-6 sm:px-6 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0"
-        >
-          <Button type="button" variant="ghost" disabled={pending} onClick={cancel}>
-            {t('wizard.actions.cancel')}
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            {step === 'identification' ? null : (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={pending}
-                onClick={() => {
-                  goTo(step === 'review' ? 'origin' : 'identification');
-                }}
-              >
-                {t('wizard.actions.back')}
-              </Button>
-            )}
-            <Button
-              key={step}
-              type="submit"
-              aria-busy={pending}
-              disabled={step === 'review' ? createDisabled : false}
-            >
-              {step !== 'review'
-                ? t('wizard.actions.next')
-                : pending
-                  ? t('wizard.actions.creating')
-                  : t('wizard.actions.create')}
-            </Button>
-          </div>
-        </div>
+            ) : null}
+          </section>
+        </WizardShell>
       </form>
 
       <Dialog
@@ -1375,6 +1382,6 @@ function WizardBody({ inProgressDelayMs = IN_PROGRESS_RETRY_MS }: ProcessWizardP
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

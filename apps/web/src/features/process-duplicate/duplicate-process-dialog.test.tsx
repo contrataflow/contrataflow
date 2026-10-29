@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { optionLabels } from '@test/support/kit';
 import {
   ID,
   MANUTENCAO,
@@ -147,9 +148,13 @@ describe('SCR-113 · Diálogo "Duplicar processo" (US-011)', () => {
       expect(document.activeElement).toBe(title);
     });
     await waitFor(() => {
-      expect(valueOf(screen.getByLabelText(/^Setor solicitante/))).toBe(MANUTENCAO.id);
+      expect(screen.getByRole('combobox', { name: /^Setor solicitante/ }).textContent).toContain(
+        MANUTENCAO.name,
+      );
     });
-    expect(valueOf(screen.getByLabelText(/^Secretaria solicitante/))).toBe(OBRAS.id);
+    expect(screen.getByRole('combobox', { name: /^Secretaria solicitante/ }).textContent).toContain(
+      OBRAS.name,
+    );
 
     const copyDocuments = screen.getByRole('switch', { name: /Copiar documentos estruturados/ });
     await waitFor(() => {
@@ -199,14 +204,15 @@ describe('SCR-113 · Diálogo "Duplicar processo" (US-011)', () => {
   });
 
   it('FA-05: o seletor de setor só mostra as unidades cobertas pelo PROCESS_CREATE', async () => {
+    const user = userEvent.setup();
     renderDialog({ scopes: [{ type: 'OWN_DEPARTMENTS', includeSubtree: false }] });
-    const sector = await screen.findByLabelText(/^Setor solicitante/);
+    const sector = await screen.findByRole('combobox', { name: /^Setor solicitante/ });
     await waitFor(() => {
-      expect(valueOf(sector)).toBe(MANUTENCAO.id);
+      expect(sector.textContent).toContain(MANUTENCAO.name);
     });
-    const options = Array.from(sector.querySelectorAll('option')).map((option) => option.value);
-    expect(options).toContain(MANUTENCAO.id);
-    expect(options).not.toContain(PROJETOS.id);
+    const options = (await optionLabels(user, /^Setor solicitante/)).join(' | ');
+    expect(options).toContain(MANUTENCAO.name);
+    expect(options).not.toContain(PROJETOS.name);
   });
 
   it('[Validação] título curto não chega à API; referência inativa da origem pede ajuste (FA-01)', async () => {

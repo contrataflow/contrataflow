@@ -266,7 +266,11 @@
       "status": "Status",
       "responsible": "Responsável",
       "all": "Todos",
-      "clear": "Limpar filtros"
+      "clear": "Limpar filtros",
+      "open": "Filtros",
+      "active": "Filtros aplicados",
+      "chip": "{label}: {value}",
+      "remove": "Remover o filtro {label}"
     },
     "errors": {
       "notFound": "Processo não encontrado.",

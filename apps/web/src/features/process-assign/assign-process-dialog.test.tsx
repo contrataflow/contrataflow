@@ -121,9 +121,14 @@ function Harness({ onOpenChange }: { readonly onOpenChange: (open: boolean) => v
 
 const render = (onOpenChange = vi.fn()) =>
   renderWithShell(<Harness onOpenChange={onOpenChange} />, { queryClient: noRetryClient() });
-const assigneeField = () => screen.getByLabelText('Novo responsável');
-const reasonField = () => screen.getByLabelText('Motivo');
-const juliana = () => screen.findByRole('option', { name: JULIANA.name });
+const assigneeField = () => screen.getByRole('combobox', { name: 'Novo responsável' });
+const reasonField = () => screen.getByRole('textbox', { name: 'Motivo' });
+/** O seletor só aparece depois que os membros da unidade carregam. */
+const juliana = () => screen.findByRole('combobox', { name: 'Novo responsável' });
+const choose = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  await user.click(assigneeField());
+  await user.click(await screen.findByRole('option', { name }));
+};
 
 describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
   it('[Sucesso] reatribui com motivo: lista os membros da unidade (sem o atual), envia o PRC-22 com If-Match, avisa e devolve o foco', async () => {
@@ -137,13 +142,16 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(assigneeField());
     });
+    await user.click(assigneeField());
+    expect(await screen.findByRole('option', { name: JULIANA.name })).toBeTruthy();
     expect(screen.queryByRole('option', { name: FELIPE.name })).toBeNull();
     expect(screen.getByRole('option', { name: 'Deixar na fila da unidade' })).toBeTruthy();
+    await user.keyboard('{Escape}');
     expect(reasonField().getAttribute('aria-required')).toBe('true');
     const [lookup] = callsTo(api, 'GET', LOOKUP_URL);
     expect(lookup?.url).toContain('departmentId=');
 
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
 
@@ -169,9 +177,14 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     render();
     expect(await screen.findByRole('dialog', { name: 'Atribuir responsável' })).toBeTruthy();
     await juliana();
+    await user.click(assigneeField());
+    expect(await screen.findByRole('option', { name: JULIANA.name })).toBeTruthy();
     expect(screen.queryByRole('option', { name: 'Deixar na fila da unidade' })).toBeNull();
-    expect(screen.getByLabelText('Motivo (opcional)').getAttribute('aria-required')).toBeNull();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await user.keyboard('{Escape}');
+    expect(
+      screen.getByRole('textbox', { name: 'Motivo (opcional)' }).getAttribute('aria-required'),
+    ).toBeNull();
+    await choose(user, JULIANA.name);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     await waitFor(() => {
       expect(callsTo(api, 'POST', ASSIGN_URL)).toHaveLength(1);
@@ -186,7 +199,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), 'queue');
+    await choose(user, 'Deixar na fila da unidade');
     await user.type(reasonField(), 'Redistribuir na equipe');
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     await waitFor(() => {
@@ -204,7 +217,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     const api = mockApi();
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(await screen.findByText('Informe o motivo da troca de responsável.')).toBeTruthy();
     expect(document.activeElement).toBe(reasonField());
@@ -240,7 +253,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(await screen.findByText('Informe o motivo da troca de responsável.')).toBeTruthy();
@@ -252,15 +265,19 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     const api = mockApi({ assign: () => problemResponse(422, 'ASSIGNEE_NOT_ELIGIBLE') });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(
       await screen.findByText('Esta pessoa não pode ser responsável por este processo.'),
     ).toBeTruthy();
     await waitFor(() => {
-      expect(screen.queryByRole('option', { name: JULIANA.name })).toBeNull();
+      expect(callsTo(api, 'GET', LOOKUP_URL).length).toBeGreaterThan(1);
     });
+    await user.click(assigneeField());
+    expect(await screen.findByRole('option', { name: 'Deixar na fila da unidade' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: JULIANA.name })).toBeNull();
+    await user.keyboard('{Escape}');
     await waitFor(() => {
       expect(callsTo(api, 'GET', LOOKUP_URL).length).toBeGreaterThan(1);
     });
@@ -282,7 +299,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(await screen.findByText('Selecione um responsável válido.')).toBeTruthy();
@@ -296,7 +313,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     mockApi({ assign: () => problemResponse(412, 'VERSION_CONFLICT') });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(
@@ -312,7 +329,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     mockApi({ assign: () => problemResponse(403, 'PERMISSION_DENIED') });
     render(onOpenChange);
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(
@@ -338,7 +355,7 @@ describe('SCR-115 · Diálogo "Atribuir responsável" (US-050)', () => {
     });
     render();
     await juliana();
-    await user.selectOptions(assigneeField(), JULIANA.id);
+    await choose(user, JULIANA.name);
     await user.type(reasonField(), REASON);
     await user.click(screen.getByRole('button', { name: 'Atribuir' }));
     expect(

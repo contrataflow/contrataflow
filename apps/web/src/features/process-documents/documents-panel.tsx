@@ -12,9 +12,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   EmptyState,
+  Field,
+  FilterToolbar,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   toast,
 } from '@contrataflow/ui';
+import type { FilterToolbarChip } from '@contrataflow/ui';
 import { DOCUMENT_STATUSES } from '@contrataflow/validation';
 import type { DocumentStatus, ProcessDocumentDto } from '@contrataflow/validation';
 import Link from 'next/link';
@@ -278,7 +286,13 @@ function CreateDocumentMenu({
   );
 }
 
-/** Filtros sobre a lista carregada (RN-DOC-20): tipo, status, responsável e busca (≥ 2). */
+/** "Todos" nos `Select` do popover (o Radix não aceita valor vazio). */
+const ANY = 'all';
+
+/**
+ * Filtros sobre a lista carregada (RN-DOC-20): busca inline (≥ 2) e, no popover "Filtros", tipo,
+ * status e responsável — o que estiver ativo aparece como chip removível.
+ */
 function PanelFilters({
   filter,
   onChange,
@@ -292,81 +306,110 @@ function PanelFilters({
 }) {
   const t = useTranslations('documents.panel.filters');
   const tStatus = useTranslations('documents.statuses');
-  const id = useId();
-  const select =
-    'h-9 rounded-control border border-border bg-surface px-2 text-sm focus-visible:outline-2 focus-visible:outline-primary';
+  const chips: FilterToolbarChip[] = [];
+  const addChip = (id: string, label: string, value: string, next: PanelFilter) => {
+    chips.push({
+      id,
+      label: t('chip', { label, value }),
+      removeLabel: t('remove', { label: `${label}: ${value}` }),
+      onRemove: () => {
+        onChange(next);
+      },
+    });
+  };
+  if (filter.typeId !== null) {
+    const name = types.find((type) => type.id === filter.typeId)?.name ?? '…';
+    addChip('type', t('type'), name, { ...filter, typeId: null });
+  }
+  if (filter.status !== null) {
+    addChip('status', t('status'), tStatus(filter.status), { ...filter, status: null });
+  }
+  if (filter.responsibleId !== null) {
+    const name = responsibles.find((person) => person.id === filter.responsibleId)?.name ?? '…';
+    addChip('responsible', t('responsible'), name, { ...filter, responsibleId: null });
+  }
+
   return (
-    <div role="search" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-      <label className="flex flex-col gap-1 text-xs" htmlFor={`${id}-q`}>
-        {t('search')}
-        <input
-          id={`${id}-q`}
-          type="search"
-          value={filter.q}
-          placeholder={t('searchPlaceholder')}
-          className={select}
-          onChange={(event) => {
-            onChange({ ...filter, q: event.target.value });
-          }}
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs" htmlFor={`${id}-type`}>
-        {t('type')}
-        <select
-          id={`${id}-type`}
-          value={filter.typeId ?? ''}
-          className={select}
-          onChange={(event) => {
-            onChange({ ...filter, typeId: event.target.value === '' ? null : event.target.value });
-          }}
-        >
-          <option value="">{t('all')}</option>
-          {types.map((type) => (
-            <option key={type.id} value={type.id}>
-              {type.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs" htmlFor={`${id}-status`}>
-        {t('status')}
-        <select
-          id={`${id}-status`}
-          value={filter.status ?? ''}
-          className={select}
-          onChange={(event) => {
-            const value = event.target.value;
-            onChange({ ...filter, status: value === '' ? null : (value as DocumentStatus) });
-          }}
-        >
-          <option value="">{t('all')}</option>
-          {DOCUMENT_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {tStatus(status)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-xs" htmlFor={`${id}-responsible`}>
-        {t('responsible')}
-        <select
-          id={`${id}-responsible`}
-          value={filter.responsibleId ?? ''}
-          className={select}
-          onChange={(event) => {
-            const value = event.target.value;
-            onChange({ ...filter, responsibleId: value === '' ? null : value });
-          }}
-        >
-          <option value="">{t('all')}</option>
-          {responsibles.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
+    <FilterToolbar
+      search={{
+        value: filter.q,
+        onChange: (q) => {
+          onChange({ ...filter, q });
+        },
+        label: t('search'),
+        placeholder: t('searchPlaceholder'),
+      }}
+      filters={
+        <>
+          <Field label={t('type')}>
+            <Select
+              value={filter.typeId ?? ANY}
+              onValueChange={(value) => {
+                onChange({ ...filter, typeId: value === ANY ? null : value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>{t('all')}</SelectItem>
+                {types.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('status')}>
+            <Select
+              value={filter.status ?? ANY}
+              onValueChange={(value) => {
+                onChange({ ...filter, status: value === ANY ? null : (value as DocumentStatus) });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>{t('all')}</SelectItem>
+                {DOCUMENT_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {tStatus(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('responsible')}>
+            <Select
+              value={filter.responsibleId ?? ANY}
+              onValueChange={(value) => {
+                onChange({ ...filter, responsibleId: value === ANY ? null : value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>{t('all')}</SelectItem>
+                {responsibles.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
+                    {person.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </>
+      }
+      activeCount={chips.length}
+      chips={chips}
+      onClearAll={() => {
+        onChange(EMPTY_FILTER);
+      }}
+      labels={{ filters: t('open'), clearAll: t('clear'), activeFilters: t('active') }}
+    />
   );
 }
 

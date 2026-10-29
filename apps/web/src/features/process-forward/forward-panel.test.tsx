@@ -29,6 +29,7 @@ import {
   violation,
 } from '@test/support/forward-fixtures';
 import type { ForwardApiOptions } from '@test/support/forward-fixtures';
+import { pickDate } from '@test/support/kit';
 import {
   ID,
   ORG_MAIN,
@@ -105,6 +106,11 @@ function renderPanel(options: ForwardApiOptions = {}, props: Partial<ForwardPane
 
 const posts = (api: ReturnType<typeof mockForwardApi>) => callsTo(api, 'POST', FORWARD_URL);
 const submit = () => screen.getByRole('button', { name: 'Encaminhar' });
+/** Radix (Checkbox/Radio): o estado vai em `aria-checked`, não em `checked`. */
+const isChecked = (control: HTMLElement | undefined) =>
+  control?.getAttribute('aria-checked') === 'true';
+const isDisabled = (control: HTMLElement) => (control as HTMLButtonElement).disabled;
+
 const loaded = async () => (await screen.findAllByRole('radio'))[0];
 /** Parágrafo cujo texto (com os trechos em negrito) é exatamente `text`. */
 const paragraph = (text: string) =>
@@ -120,7 +126,7 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
       forward: () => jsonResponse({ data: forwardedDto() }, { headers: { ETag: '"15"' } }),
     });
     const radio = await loaded();
-    expect((radio as HTMLInputElement).checked).toBe(true);
+    expect(isChecked(radio)).toBe(true);
     expect(
       screen.getByText('Etapa: Pesquisa de preços · Unidade: Departamento de Compras'),
     ).toBeTruthy();
@@ -206,8 +212,8 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
       ],
     });
     await loaded();
-    const radios = screen.getAllByRole<HTMLInputElement>('radio');
-    expect(radios.map((radio) => [radio.checked, radio.disabled])).toEqual([
+    const radios = screen.getAllByRole('radio');
+    expect(radios.map((radio) => [isChecked(radio), isDisabled(radio)])).toEqual([
       [true, false],
       [false, false],
       [false, true],
@@ -243,9 +249,7 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
       { initialTransitionKey: 'OUTRA' },
     );
     await loaded();
-    expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Outro caminho' }).checked).toBe(
-      true,
-    );
+    expect(isChecked(screen.getByRole('radio', { name: 'Outro caminho' }))).toBe(true);
   });
 
   it('[Pendências] bloqueante da saída: link "Resolver", botão desabilitado; regra de outra transição não aparece', async () => {
@@ -513,9 +517,7 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
     await loaded();
     await user.click(screen.getByRole('button', { name: 'Alterar prazo' }));
 
-    fireEvent.change(screen.getByLabelText('Novo prazo'), {
-      target: { value: addDays(today, -1) },
-    });
+    // Dias fora de hoje..limite ficam desabilitados no calendário; sem data, o erro de faixa vale.
     await user.type(screen.getByLabelText('Motivo da alteração do prazo'), 'curto');
     await user.click(submit());
     expect(
@@ -527,7 +529,7 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
     expect(posts(api)).toHaveLength(0);
 
     const due = addDays(today, 10);
-    fireEvent.change(screen.getByLabelText('Novo prazo'), { target: { value: due } });
+    await pickDate(user, 'Novo prazo', due);
     await user.clear(screen.getByLabelText('Motivo da alteração do prazo'));
     await user.type(screen.getByLabelText('Motivo da alteração do prazo'), 'Volume alto de itens');
     await user.click(submit());
@@ -561,9 +563,9 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
     expect(
       screen.getByText('Aprovador: Carlos Lima (titular da Secretaria de Obras)'),
     ).toBeTruthy();
-    const box = screen.getByRole<HTMLInputElement>('checkbox', { name: /DFD — cimento/ });
-    expect(box.checked).toBe(true);
-    expect(box.disabled).toBe(true);
+    const box = screen.getByRole('checkbox', { name: /DFD — cimento/ });
+    expect(isChecked(box)).toBe(true);
+    expect(isDisabled(box)).toBe(true);
     expect(screen.getByText('Será submetido para aprovação')).toBeTruthy();
     expect(
       paragraph('O processo irá para aprovação de Carlos Lima (titular da Secretaria de Obras).'),
@@ -581,10 +583,10 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
     const user = userEvent.setup();
     const { api } = renderPanel();
     await loaded();
-    const etp = screen.getByRole<HTMLInputElement>('checkbox', { name: /ETP — cimento/ });
-    const risks = screen.getByRole<HTMLInputElement>('checkbox', { name: /Mapa de riscos/ });
-    const dfd = screen.getByRole<HTMLInputElement>('checkbox', { name: /DFD — cimento/ });
-    expect([etp.checked, risks.checked, dfd.checked]).toEqual([true, true, false]);
+    const etp = screen.getByRole('checkbox', { name: /ETP — cimento/ });
+    const risks = screen.getByRole('checkbox', { name: /Mapa de riscos/ });
+    const dfd = screen.getByRole('checkbox', { name: /DFD — cimento/ });
+    expect([etp, risks, dfd].map(isChecked)).toEqual([true, true, false]);
     expect(screen.getByText('2 documentos selecionados (máx. 50)')).toBeTruthy();
 
     await user.click(risks);
@@ -742,9 +744,7 @@ describe('SCR-103 · Painel "Encaminhar processo" (US-047)', () => {
       });
       await loaded();
       await user.click(screen.getByRole('button', { name: 'Alterar prazo' }));
-      fireEvent.change(screen.getByLabelText('Novo prazo'), {
-        target: { value: addDays(today, 5) },
-      });
+      await pickDate(user, 'Novo prazo', addDays(today, 5));
       await user.type(
         screen.getByLabelText('Motivo da alteração do prazo'),
         'Volume alto de itens',

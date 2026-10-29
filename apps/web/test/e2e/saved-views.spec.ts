@@ -50,7 +50,8 @@ test('salvar a visão → aplicar → definir como padrão → exportar o CSV �
   // Soltar a visão (volta ao padrão da tela) e reaplicá-la pelo seletor.
   await page.getByRole('button', { name: new RegExp(`^Limpar a visão ${VIEW_NAME}`) }).click();
   await expect(rows(page)).toHaveCount(4);
-  await page.getByRole('combobox', { name: 'Visão' }).selectOption({ label: VIEW_NAME });
+  await page.getByRole('combobox', { name: 'Visão' }).click();
+  await page.getByRole('option', { name: VIEW_NAME }).click();
   await expect(page).toHaveURL(/overdue=true/);
   await expect(rows(page)).toHaveCount(2);
   await expect(page.getByText(`Visão: ${VIEW_NAME}`)).toBeVisible();
@@ -105,9 +106,8 @@ test('visão compartilhada com unidade removida: filtro ignorado, aviso e sem ed
   page,
 }) => {
   await openList(page);
-  await page
-    .getByRole('combobox', { name: 'Visão' })
-    .selectOption({ label: 'Devolvidos da Saúde (de Beatriz Lima)' });
+  await page.getByRole('combobox', { name: 'Visão' }).click();
+  await page.getByRole('option', { name: 'Devolvidos da Saúde (de Beatriz Lima)' }).click();
   await expect(
     page.getByText('Alguns filtros desta visão não estão mais disponíveis e foram ignorados.'),
   ).toBeVisible();

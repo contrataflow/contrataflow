@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import type { MovementItemDto } from '@contrataflow/validation';
 import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { pickDate } from '@test/support/kit';
 import { PROCESS_ID, mockProcessApi } from '@test/support/process-fixtures';
 import { jsonResponse, problem, renderWithShell } from '@test/support/render';
 
@@ -156,6 +158,23 @@ function mockMovements(handler: (params: URLSearchParams) => Response = () => pa
   return calls;
 }
 
+const HISTORY = { name: 'Histórico de tramitações' };
+
+/** Linhas de tramitação (os `listitem` com nome "Ação nº N, em …"), em todos os grupos de dia. */
+function movementRows(): HTMLElement[] {
+  return screen.getAllByRole('listitem', { name: / nº \d+, em / });
+}
+
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Abre o popover "Filtros" da barra (fechado por padrão — prd-5 · regra 2). */
+async function openFilters(user: User): Promise<HTMLElement> {
+  const open = screen.queryByRole('dialog', { name: 'Filtros' });
+  if (open) return open;
+  await user.click(screen.getByRole('button', { name: /^Filtros/ }));
+  return screen.findByRole('dialog', { name: 'Filtros' });
+}
+
 beforeEach(() => {
   push.mockClear();
 });
@@ -172,10 +191,13 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
       screen.getByRole('status', { name: 'Carregando o histórico de tramitações…' }),
     ).toBeTruthy();
 
-    const list = await screen.findByRole('list', { name: 'Histórico de tramitações' });
-    const rows = within(list)
-      .getAllByRole('listitem')
-      .filter((row) => row.parentElement === list);
+    const history = await screen.findByRole('region', HISTORY);
+    // Agrupadas por dia (um cabeçalho por data local do tenant), na ordem da API.
+    expect(within(history).getAllByRole('heading', { level: 3 })[0]?.textContent).toMatch(
+      /5 de setembro de 2026/,
+    );
+    expect(within(history).getAllByRole('heading', { level: 3 })).toHaveLength(5);
+    const rows = movementRows();
     expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
       'Aprovação nº 5, em 05/09/2026, 09:00',
       'Encaminhamento nº 4, em 04/09/2026, 09:00',
@@ -209,7 +231,7 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
   it('[FA-02 · Permissão] sem AUDIT_VIEW a informação de IP não aparece', async () => {
     mockMovements(() => page(ITEMS.map((item) => ({ ...item, ip: null }))));
     renderWithShell(<MovementTimeline processId={PROCESS_ID} />);
-    await screen.findByRole('list', { name: 'Histórico de tramitações' });
+    await screen.findByRole('region', HISTORY);
     expect(screen.queryByText(/IP de origem/)).toBeNull();
   });
 
@@ -222,7 +244,7 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
       ),
     );
     renderWithShell(<MovementTimeline processId={PROCESS_ID} />);
-    await screen.findByRole('list', { name: 'Histórico de tramitações' });
+    await screen.findByRole('region', HISTORY);
     expect(screen.getAllByText('IP de origem: 200.10.20.30')).toHaveLength(4);
     expect(screen.getByText('IP de origem não registrado')).toBeTruthy();
   });
@@ -247,38 +269,42 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
   });
 
   it('[FA-01] filtros por ação (OU), unidade e ator (já vistos) e período reiniciam a paginação', async () => {
+    const user = userEvent.setup();
     const calls = mockMovements((params) =>
       params.has('action') || params.has('toDepartmentId') || params.has('occurredFrom')
         ? page(ITEMS.slice(1, 2))
         : page(ITEMS),
     );
     renderWithShell(<MovementTimeline processId={PROCESS_ID} />);
-    await screen.findByRole('list', { name: 'Histórico de tramitações' });
-    const filters = screen.getByRole('region', { name: 'Filtros do histórico' });
+    await screen.findByRole('region', HISTORY);
+    // Filtros fechados por padrão (prd-5 · regra 2).
+    expect(screen.queryByRole('checkbox', { name: 'Encaminhamento' })).toBeNull();
+    const filters = await openFilters(user);
 
-    fireEvent.click(within(filters).getByRole('checkbox', { name: 'Encaminhamento' }));
-    fireEvent.click(within(filters).getByRole('checkbox', { name: 'Devolução' }));
+    await user.click(within(filters).getByRole('checkbox', { name: 'Encaminhamento' }));
+    await user.click(within(filters).getByRole('checkbox', { name: 'Devolução' }));
     await waitFor(() => {
       expect(calls.at(-1)?.get('action')).toBe('FORWARD,RETURN');
     });
-    const destination = within(filters).getByLabelText<HTMLSelectElement>('Unidade de destino');
-    expect([...destination.options].map((option) => option.textContent)).toEqual([
+    await user.click(within(filters).getByRole('combobox', { name: 'Unidade de destino' }));
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'Todas',
       'Almoxarifado',
       'Setor de Cotações',
       'Setor de Manutenção',
     ]);
-    fireEvent.change(destination, { target: { value: ALMOX } });
+    await user.click(screen.getByRole('option', { name: 'Almoxarifado' }));
     await waitFor(() => {
       expect(calls.at(-1)?.get('toDepartmentId')).toBe(ALMOX);
     });
-    const actor = within(filters).getByLabelText<HTMLSelectElement>('Ator');
-    expect([...actor.options].map((option) => option.textContent)).toEqual([
+    await user.click(within(filters).getByRole('combobox', { name: 'Ator' }));
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
       'Todos',
       'Ana Souza',
       'Lúcia Matos',
     ]);
-    fireEvent.change(within(filters).getByLabelText('De'), { target: { value: '2026-09-02' } });
+    await user.keyboard('{Escape}');
+    await pickDate(user, 'Data inicial', '2026-09-02');
     await waitFor(() => {
       expect(calls.at(-1)?.get('occurredFrom')).toBe('2026-09-02T03:00:00.000Z');
     });
@@ -286,20 +312,28 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
     expect(last?.get('action')).toBe('FORWARD,RETURN');
     expect(last?.get('cursor')).toBeNull();
     expect(last?.get('limit')).toBe('50');
+    // O que está ativo vira chip removível.
+    const chips = screen.getByRole('list', { name: 'Filtros aplicados' });
+    expect(within(chips).getByText('Unidade de destino: Almoxarifado')).toBeTruthy();
+    expect(within(chips).getByText('Período: a partir de 02/09/2026')).toBeTruthy();
   });
 
   it('[Validação] V-02: período invertido marca os campos e não é enviado', async () => {
+    const user = userEvent.setup();
     const calls = mockMovements();
     renderWithShell(<MovementTimeline processId={PROCESS_ID} />);
-    await screen.findByRole('list', { name: 'Histórico de tramitações' });
-    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-09-05' } });
+    await screen.findByRole('region', HISTORY);
+    await openFilters(user);
+    await pickDate(user, 'Data inicial', '2026-09-05');
     await waitFor(() => {
       expect(calls.at(-1)?.get('occurredFrom')).not.toBeNull();
     });
     const before = calls.length;
-    fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-09-01' } });
+    await pickDate(user, 'Data final', '2026-09-01');
     expect(await screen.findByText('O período inicial deve ser anterior ao final.')).toBeTruthy();
-    expect(screen.getByLabelText('Até').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Data final' }).getAttribute('aria-invalid')).toBe(
+      'true',
+    );
     expect(calls).toHaveLength(before);
   });
 
@@ -319,21 +353,26 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
   });
 
   it('[FA-06] nenhum resultado para os filtros, com "Limpar filtros" que volta à lista completa', async () => {
+    const user = userEvent.setup();
     const calls = mockMovements((params) => (params.has('action') ? page([]) : page(ITEMS)));
     renderWithShell(<MovementTimeline processId={PROCESS_ID} />);
-    await screen.findByRole('list', { name: 'Histórico de tramitações' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Cancelamento' }));
+    await screen.findByRole('region', HISTORY);
+    await user.click(
+      within(await openFilters(user)).getByRole('checkbox', { name: 'Cancelamento' }),
+    );
     expect(
       await screen.findByText('Nenhuma tramitação encontrada para os filtros selecionados.'),
     ).toBeTruthy();
+    await user.keyboard('{Escape}');
     const clear = screen.getAllByRole('button', { name: 'Limpar filtros' }).at(-1);
     if (!clear) throw new Error('botão ausente');
-    fireEvent.click(clear);
-    expect(await screen.findByRole('list', { name: 'Histórico de tramitações' })).toBeTruthy();
+    await user.click(clear);
+    expect(await screen.findByRole('region', HISTORY)).toBeTruthy();
     expect(calls.some((params) => params.get('action') === 'CANCEL')).toBe(true);
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Cancelamento' }).checked).toBe(
-      false,
-    );
+    const filters = await openFilters(user);
+    expect(
+      within(filters).getByRole('checkbox', { name: 'Cancelamento' }).getAttribute('aria-checked'),
+    ).toBe('false');
   });
 
   it('[Paginação · Concorrência] "Carregar mais" segue o cursor, acrescenta sem repetir e anuncia', async () => {
@@ -397,7 +436,7 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
     expect(await screen.findByText('Não foi possível carregar o histórico agora.')).toBeTruthy();
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(await screen.findByRole('list', { name: 'Histórico de tramitações' })).toBeTruthy();
+    expect(await screen.findByRole('region', HISTORY)).toBeTruthy();
     expect(calls.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -424,7 +463,7 @@ describe('SCR-006 · aba "Tramitação" (US-054)', () => {
     fireEvent.click(tab);
     expect(tab.getAttribute('aria-selected')).toBe('true');
     expect(nav.get()).toBe('aba=tramitacao');
-    expect(await screen.findByRole('list', { name: 'Histórico de tramitações' })).toBeTruthy();
+    expect(await screen.findByRole('region', HISTORY)).toBeTruthy();
     expect(screen.getByRole('tabpanel', { name: 'Tramitação' })).toBeTruthy();
   });
 });

@@ -13,24 +13,6 @@ const NATIVE_CONTROL = /<select\b|type="(checkbox|radio|date)"/;
  * zero no card 11 (varredura final); o teste reprova entrada que já não tem controle nativo.
  */
 const NOT_MIGRATED: Readonly<Record<string, string>> = {
-  // Card 4 — processo: página, lista e novo processo.
-  'comments/comment-composer.tsx': 'card 4',
-  'movements/movement-filter-bar.tsx': 'card 4',
-  'process-assign/assign-process-dialog.tsx': 'card 4',
-  'process-documents/documents-panel.tsx': 'card 4',
-  'process-edit/edit-process-sheet.tsx': 'card 4',
-  'process-forward/forward-panel.tsx': 'card 4',
-  'process-forward/forward-sections.tsx': 'card 4',
-  'process-items/process-item-form.tsx': 'card 4',
-  'process-list/process-filters-panel.tsx': 'card 4',
-  'process-list/save-view-dialog.tsx': 'card 4',
-  'process-list/saved-view-select.tsx': 'card 4',
-  'process-participants/add-participant-dialog.tsx': 'card 4',
-  'process-return/return-process-dialog.tsx': 'card 4',
-  'processes/form-field.tsx': 'card 4',
-  'processes/pca-fieldset.tsx': 'card 4',
-  'processes/process-wizard.tsx': 'card 4',
-  'timeline/timeline-filter-bar.tsx': 'card 4',
   // Card 5 — DFD, ETP e TR.
   'dfd-duplicate/duplicate-dfd-dialog.tsx': 'card 5',
   'dfd/dfd-conclusion-step.tsx': 'card 5',

@@ -1,6 +1,15 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Field,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@contrataflow/ui';
 import type { CommentDto, CommentTargetType, MentionCandidateDto } from '@contrataflow/validation';
 import { useMutation } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -29,6 +38,9 @@ import {
 import type { ComposerProblem, ComposerProblemKey } from './comments-model';
 import { createComment, updateComment, useMentionCandidates } from './comments.api';
 import { MentionAutocomplete } from './mention-autocomplete';
+
+/** "Sem seção" no `Select` (o Radix não aceita valor vazio). */
+const NO_SECTION = '__none__';
 
 export interface ComposerTarget {
   readonly targetType: CommentTargetType;
@@ -353,23 +365,26 @@ export function CommentComposer(props: CommentComposerProps) {
         </span>
       </div>
       {sections.length > 0 ? (
-        <label className="flex flex-col gap-1 text-sm">
-          <span>{t('section')}</span>
-          <select
-            value={sectionKey}
-            className="rounded-control border border-border bg-surface p-2 text-sm"
-            onChange={(event) => {
-              setSectionKey(event.target.value);
+        <Field label={t('section')}>
+          <Select
+            value={sectionKey === '' ? NO_SECTION : sectionKey}
+            onValueChange={(value) => {
+              setSectionKey(value === NO_SECTION ? '' : value);
             }}
           >
-            <option value="">{t('noSection')}</option>
-            {sections.map((section) => (
-              <option key={section.key} value={section.key}>
-                {section.title}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_SECTION}>{t('noSection')}</SelectItem>
+              {sections.map((section) => (
+                <SelectItem key={section.key} value={section.key}>
+                  {section.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       ) : null}
       <div aria-live="assertive">
         {problem ? (

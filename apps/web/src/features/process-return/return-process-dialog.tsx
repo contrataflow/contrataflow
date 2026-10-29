@@ -8,8 +8,16 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  DatePicker,
+  Field,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
   Skeleton,
+  Textarea,
   cx,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import { PROCESS_RETURN_LIMITS } from '@contrataflow/validation';
@@ -35,7 +43,6 @@ import type { ReturnField, ReturnFieldMessages, ReturnProblem, ReturnTarget } fr
 import { useAvailableActions } from '../process-actions/process-actions.api';
 import { formatDueDate, localToday } from '../process-forward/forward-model';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 
 /** Listas que a devolução muda além do processo: caixa de tarefas, lista e painel inicial. */
@@ -148,6 +155,12 @@ export function ReturnProcessDialog({
   );
 }
 
+/** Opção marcada do grupo de etapas (ou a primeira): é nela que o foco entra. */
+function focusableTarget(groupId: string): HTMLElement | null {
+  const items = document.querySelectorAll<HTMLElement>(`[role="radio"][id^="${groupId}-"]`);
+  return Array.from(items).find((item) => item.dataset.state === 'checked') ?? items[0] ?? null;
+}
+
 function ReturnForm({
   process,
   targets,
@@ -197,9 +210,7 @@ function ReturnForm({
     const element =
       field === 'comment'
         ? document.getElementById(fieldId('comment'))
-        : document.querySelector<HTMLInputElement>(
-            `input[name="${fieldId('targetStageId')}"]:checked, input[name="${fieldId('targetStageId')}"]`,
-          );
+        : focusableTarget(fieldId('targetStageId'));
     element?.focus();
     // `fieldId` só depende de `ids`, estável.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -210,7 +221,7 @@ function ReturnForm({
     for (const field of focusRequest.fields) {
       const element =
         field === 'targetStageId'
-          ? document.querySelector<HTMLInputElement>(`input[name="${fieldId(field)}"]`)
+          ? focusableTarget(fieldId(field))
           : document.getElementById(fieldId(field));
       if (element !== null) {
         element.focus();
@@ -322,7 +333,6 @@ function ReturnForm({
     );
   }
 
-  const commentHintId = `${fieldId('comment')}-hint`;
   const commentLength = comment.trim().length;
 
   return (
@@ -346,123 +356,95 @@ function ReturnForm({
         )}
       </div>
 
-      <fieldset
-        className="flex min-w-0 flex-col gap-2"
-        aria-describedby={errors.targetStageId ? `${fieldId('targetStageId')}-error` : undefined}
+      <Field
+        group
+        id={fieldId('targetStageId')}
+        label={t('target.legend')}
+        error={errors.targetStageId}
       >
-        <legend className="text-sm font-medium">{t('target.legend')}</legend>
-        {targets.map((option) => {
-          const optionId = `${fieldId('targetStageId')}-${option.stageId}`;
-          return (
-            <label
-              key={option.stageId}
-              htmlFor={optionId}
-              className={cx(
-                'flex cursor-pointer items-start gap-3 rounded-control border p-3',
-                option.stageId === selectedId ? 'border-primary bg-muted' : 'border-border',
-              )}
-            >
-              <input
-                type="radio"
-                id={optionId}
-                name={fieldId('targetStageId')}
-                value={option.stageId}
-                checked={option.stageId === selectedId}
-                className="mt-1"
-                onChange={() => {
-                  setStageChoice(option.stageId);
-                  if (!option.allowDueDateOverride) setDueAt('');
-                  clearError('targetStageId');
-                }}
-              />
-              <span className="flex min-w-0 flex-col">
-                <span className="text-sm font-medium">{option.stageName}</span>
-                {option.lastPassedAt === null ? null : (
-                  <span className="text-xs text-muted-foreground">
-                    {t('target.lastPassed', {
-                      date: formatDueDate(option.lastPassedAt, timeZone),
-                    })}
-                  </span>
+        <RadioGroup
+          name={fieldId('targetStageId')}
+          value={selectedId ?? ''}
+          onValueChange={(stageId) => {
+            const option = targets.find((candidate) => candidate.stageId === stageId);
+            if (option === undefined) return;
+            setStageChoice(option.stageId);
+            if (!option.allowDueDateOverride) setDueAt('');
+            clearError('targetStageId');
+          }}
+        >
+          {targets.map((option) => {
+            const optionId = `${fieldId('targetStageId')}-${option.stageId}`;
+            return (
+              <Label
+                key={option.stageId}
+                htmlFor={optionId}
+                className={cx(
+                  'flex cursor-pointer items-start gap-3 rounded-control border p-3 font-normal',
+                  option.stageId === selectedId ? 'border-primary bg-muted' : 'border-border',
                 )}
-              </span>
-            </label>
-          );
-        })}
-        {errors.targetStageId ? (
-          <p id={`${fieldId('targetStageId')}-error`} className="text-xs text-destructive">
-            {errors.targetStageId}
-          </p>
-        ) : null}
-      </fieldset>
+              >
+                <RadioGroupItem id={optionId} value={option.stageId} className="mt-0.5" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-sm font-medium">{option.stageName}</span>
+                  {option.lastPassedAt === null ? null : (
+                    <span className="text-xs text-muted-foreground">
+                      {t('target.lastPassed', {
+                        date: formatDueDate(option.lastPassedAt, timeZone),
+                      })}
+                    </span>
+                  )}
+                </span>
+              </Label>
+            );
+          })}
+        </RadioGroup>
+      </Field>
 
-      <div className="flex min-w-0 flex-col gap-1">
-        <label htmlFor={fieldId('comment')} className="text-sm font-medium">
-          {t('comment.label')}
-        </label>
-        <textarea
-          id={fieldId('comment')}
+      <Field
+        id={fieldId('comment')}
+        label={t('comment.label')}
+        required
+        description={
+          <span className="flex justify-between gap-2">
+            <span>{t('comment.hint')}</span>
+            <span>
+              {t('comment.counter', {
+                count: commentLength,
+                max: PROCESS_RETURN_LIMITS.commentMax,
+              })}
+            </span>
+          </span>
+        }
+        error={errors.comment}
+      >
+        <Textarea
           value={comment}
           maxLength={PROCESS_RETURN_LIMITS.commentMax}
-          aria-required
-          aria-invalid={errors.comment ? true : undefined}
-          aria-describedby={
-            [commentHintId, errors.comment ? `${fieldId('comment')}-error` : undefined]
-              .filter(Boolean)
-              .join(' ') || undefined
-          }
-          className={TEXTAREA_CLASS}
           onChange={(event) => {
             setComment(event.target.value);
             clearError('comment');
           }}
         />
-        <p id={commentHintId} className="flex justify-between gap-2 text-xs text-muted-foreground">
-          <span>{t('comment.hint')}</span>
-          <span>
-            {t('comment.counter', {
-              count: commentLength,
-              max: PROCESS_RETURN_LIMITS.commentMax,
-            })}
-          </span>
-        </p>
-        {errors.comment ? (
-          <p id={`${fieldId('comment')}-error`} className="text-xs text-destructive">
-            {errors.comment}
-          </p>
-        ) : null}
-      </div>
+      </Field>
 
       {target?.allowDueDateOverride === true ? (
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor={fieldId('dueAt')} className="text-sm font-medium">
-            {t('due.label')}
-          </label>
-          <input
-            id={fieldId('dueAt')}
-            type="date"
-            value={dueAt}
-            min={today}
-            aria-invalid={errors.dueAt ? true : undefined}
-            aria-describedby={
-              [`${fieldId('dueAt')}-hint`, errors.dueAt ? `${fieldId('dueAt')}-error` : undefined]
-                .filter(Boolean)
-                .join(' ') || undefined
-            }
-            className={INPUT_CLASS}
-            onChange={(event) => {
-              setDueAt(event.target.value);
+        <Field
+          id={fieldId('dueAt')}
+          label={t('due.label')}
+          description={t('due.hint')}
+          error={errors.dueAt}
+        >
+          <DatePicker
+            clearable
+            value={fromIsoDate(dueAt)}
+            disabledDays={{ before: fromIsoDate(today) ?? new Date() }}
+            onValueChange={(date) => {
+              setDueAt(date === undefined ? '' : toIsoDate(date));
               clearError('dueAt');
             }}
           />
-          <p id={`${fieldId('dueAt')}-hint`} className="text-xs text-muted-foreground">
-            {t('due.hint')}
-          </p>
-          {errors.dueAt ? (
-            <p id={`${fieldId('dueAt')}-error`} className="text-xs text-destructive">
-              {errors.dueAt}
-            </p>
-          ) : null}
-        </div>
+        </Field>
       ) : null}
 
       <DialogFooter>

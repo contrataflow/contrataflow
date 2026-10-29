@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { Toaster, clearToasts } from '@contrataflow/ui';
-import { configure, screen, waitFor } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +28,7 @@ configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   clearToasts();
 });
@@ -81,7 +82,8 @@ function renderDialog(
 
 const posts = (api: ReturnType<typeof mockReturnApi>) => callsTo(api, 'POST', RETURN_URL);
 const submitButton = () => screen.getByRole('button', { name: 'Devolver' });
-const reasonField = () => screen.getByLabelText('Motivo da devolução');
+const reasonField = () => screen.getByRole('textbox', { name: 'Motivo da devolução' });
+const dueField = () => screen.getByRole('button', { name: 'Prazo (opcional)' });
 
 describe('SCR-104 · Diálogo "Devolver processo" (US-048)', () => {
   it('[Sucesso] FA-03: destino único pré-selecionado e foco no motivo; envia o PRC-20 com If-Match, Idempotency-Key e etapa esperada; fecha, avisa e leva o foco ao cabeçalho', async () => {
@@ -90,7 +92,7 @@ describe('SCR-104 · Diálogo "Devolver processo" (US-048)', () => {
       giveBack: () => jsonResponse({ data: returnedDto() }, { headers: { ETag: '"15"' } }),
     });
     const radio = await screen.findByRole('radio', { name: /Formalização da demanda/ });
-    expect((radio as HTMLInputElement).checked).toBe(true);
+    expect(radio.getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Última passagem em 30/09/2026')).toBeTruthy();
     await waitFor(() => {
       expect(document.activeElement).toBe(reasonField());
@@ -134,13 +136,16 @@ describe('SCR-104 · Diálogo "Devolver processo" (US-048)', () => {
   });
 
   it('Vários destinos: nenhum pré-selecionado, foco no seletor; o prazo só aparece quando a transição permite', async () => {
+    // Só a data é simulada: o calendário abre em outubro de 2026 e o prazo precisa ser futuro.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-15T15:00:00Z'));
     const user = userEvent.setup();
     const { api } = renderDialog({ actions: [returnEntry(), secondReturnEntry()] });
     const [first, second] = await screen.findAllByRole('radio');
     await waitFor(() => {
       expect(document.activeElement).toBe(first);
     });
-    expect(screen.queryByLabelText('Prazo (opcional)')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Prazo (opcional)' })).toBeNull();
     await user.type(reasonField(), REASON);
     await user.click(submitButton());
     expect(await screen.findByText('Informe a etapa de destino.')).toBeTruthy();
@@ -148,10 +153,14 @@ describe('SCR-104 · Diálogo "Devolver processo" (US-048)', () => {
     // FA-02: a aprovação não permite sobrescrita — o campo não aparece.
     if (!second || !first) throw new Error('destinos ausentes');
     await user.click(second);
-    expect(screen.queryByLabelText('Prazo (opcional)')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Prazo (opcional)' })).toBeNull();
     await user.click(first);
-    const due = screen.getByLabelText('Prazo (opcional)');
-    await user.type(due, '2026-10-30');
+    await user.click(dueField());
+    const calendar = await screen.findByRole('dialog', { name: 'Escolher data' });
+    const [day] = within(calendar).getAllByRole('button', { name: /, 30 de outubro de 2026/ });
+    if (!day) throw new Error('dia 30 não encontrado no calendário');
+    await user.click(day);
+    expect(dueField().textContent).toContain('30/10/2026');
     await user.click(submitButton());
     await waitFor(() => {
       expect(posts(api)).toHaveLength(1);
@@ -168,7 +177,7 @@ describe('SCR-104 · Diálogo "Devolver processo" (US-048)', () => {
       { initialStageId: STAGE_APROVACAO },
     );
     const radio = await screen.findByRole('radio', { name: /Aprovação da demanda/ });
-    expect((radio as HTMLInputElement).checked).toBe(true);
+    expect(radio.getAttribute('aria-checked')).toBe('true');
   });
 
   it('Vazio defensivo: sem etapa anterior disponível', async () => {

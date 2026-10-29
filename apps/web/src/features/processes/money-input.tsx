@@ -1,9 +1,8 @@
 'use client';
 
-import { cx } from '@contrataflow/ui';
+import { Input, cx } from '@contrataflow/ui';
 import type { ComponentPropsWithoutRef } from 'react';
 
-import { INPUT_CLASS } from './form-field';
 import { normalizeMoneyText } from './money';
 
 export interface MoneyInputProps extends Omit<
@@ -29,13 +28,13 @@ export function MoneyInput({ value, onValueChange, onBlur, className, ...props }
       >
         R$
       </span>
-      <input
+      <Input
         type="text"
         inputMode="decimal"
         autoComplete="off"
         placeholder="0,00"
         {...props}
-        className={cx(INPUT_CLASS, 'pl-10', className)}
+        className={cx('pl-10', className)}
         value={value}
         onChange={(event) => {
           onValueChange(event.target.value);

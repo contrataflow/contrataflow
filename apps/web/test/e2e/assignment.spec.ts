@@ -36,7 +36,8 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   const first = page.getByRole('dialog', { name: 'Atribuir responsável' });
   await expect(first.getByLabel('Novo responsável')).toBeFocused();
   await expectNoSeriousA11yViolations(page, 'diálogo Atribuir responsável');
-  await first.getByLabel('Novo responsável').selectOption({ label: 'Juliana Prado' });
+  await first.getByRole('combobox', { name: 'Novo responsável' }).click();
+  await page.getByRole('option', { name: 'Juliana Prado' }).click();
   let processRefetched = refetchOf(page, ASSIGNED);
   await first.getByRole('button', { name: 'Atribuir' }).click();
   await expect(first).toBeHidden();
@@ -49,8 +50,9 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   await page.getByRole('button', { name: 'Mais ações do processo' }).click();
   await page.getByRole('menuitem', { name: 'Atribuir responsável' }).click();
   const second = page.getByRole('dialog', { name: 'Reatribuir responsável' });
-  await expect(second.getByRole('option', { name: 'Juliana Prado' })).toHaveCount(0);
-  await second.getByLabel('Novo responsável').selectOption({ label: 'Tiago Reis' });
+  await second.getByRole('combobox', { name: 'Novo responsável' }).click();
+  await expect(page.getByRole('option', { name: 'Juliana Prado' })).toHaveCount(0);
+  await page.getByRole('option', { name: 'Tiago Reis' }).click();
   await second.getByRole('button', { name: 'Atribuir' }).click();
   await expect(second.getByText('Informe o motivo da troca de responsável.')).toBeVisible();
   await second.getByLabel('Motivo').fill('Juliana está de férias');
@@ -64,7 +66,8 @@ test('atribuir da fila, reatribuir com motivo e devolver à fila da unidade', as
   await page.getByRole('button', { name: 'Mais ações do processo' }).click();
   await page.getByRole('menuitem', { name: 'Atribuir responsável' }).click();
   const third = page.getByRole('dialog', { name: 'Reatribuir responsável' });
-  await third.getByLabel('Novo responsável').selectOption({ label: 'Deixar na fila da unidade' });
+  await third.getByRole('combobox', { name: 'Novo responsável' }).click();
+  await page.getByRole('option', { name: 'Deixar na fila da unidade' }).click();
   await third.getByLabel('Motivo').fill('Redistribuir na equipe');
   await third.getByRole('button', { name: 'Atribuir' }).click();
   await expect(third).toBeHidden();

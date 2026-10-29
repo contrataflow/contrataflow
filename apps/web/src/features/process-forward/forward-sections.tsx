@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, cx } from '@contrataflow/ui';
+import { Button, Checkbox, Label, RadioGroup, RadioGroupItem, cx } from '@contrataflow/ui';
 import type { ActionEntry, ProcessDocumentDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
@@ -59,58 +59,54 @@ export function TransitionGroup({
       aria-describedby={error ? errorId : undefined}
     >
       <legend className="mb-1 text-sm font-semibold">{t('legend')}</legend>
-      {entries.map((entry, index) => {
-        const transitionId = entry.transitionId ?? '';
-        const checked = transitionId === selectedId;
-        const disabled = !entry.enabled;
-        const detailId = `${name}-detail-${String(index)}`;
-        const details = [
-          entry.toStageName === undefined ? null : t('stage', { stage: entry.toStageName }),
-          entry.departmentResolution?.departmentName === undefined
-            ? null
-            : t('department', { department: entry.departmentResolution.departmentName }),
-          (entry.approverPreview ?? null) === null
-            ? null
-            : t('approver', { approver: entry.approverPreview?.label ?? '' }),
-        ].filter((text) => text !== null);
-        const radioId = entry === focusable ? id : `${name}-${String(index)}`;
-        return (
-          <div
-            key={transitionId}
-            className={cx(
-              'flex min-w-0 items-start gap-3 rounded-control border p-3 text-sm',
-              checked ? 'border-primary bg-primary-soft' : 'border-border',
-              disabled && 'cursor-not-allowed opacity-70',
-            )}
-          >
-            <input
-              type="radio"
-              name={name}
-              id={radioId}
-              value={transitionId}
-              className="mt-1 size-4 flex-none"
-              checked={checked}
-              disabled={disabled}
-              aria-describedby={detailId}
-              onChange={() => {
-                onSelect(transitionId);
-              }}
-            />
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <label htmlFor={radioId} className="font-medium break-words">
-                {entry.label}
-              </label>
-              <span id={detailId} className="text-xs break-words text-muted-foreground">
-                {disabled
-                  ? t('unavailable', { reasons: reasonsText(entry) })
-                  : details.length > 0
-                    ? details.join(' · ')
-                    : null}
-              </span>
+      <RadioGroup name={name} value={selectedId ?? ''} className="gap-2" onValueChange={onSelect}>
+        {entries.map((entry, index) => {
+          const transitionId = entry.transitionId ?? '';
+          const checked = transitionId === selectedId;
+          const disabled = !entry.enabled;
+          const detailId = `${name}-detail-${String(index)}`;
+          const details = [
+            entry.toStageName === undefined ? null : t('stage', { stage: entry.toStageName }),
+            entry.departmentResolution?.departmentName === undefined
+              ? null
+              : t('department', { department: entry.departmentResolution.departmentName }),
+            (entry.approverPreview ?? null) === null
+              ? null
+              : t('approver', { approver: entry.approverPreview?.label ?? '' }),
+          ].filter((text) => text !== null);
+          const radioId = entry === focusable ? id : `${name}-${String(index)}`;
+          return (
+            <div
+              key={transitionId}
+              className={cx(
+                'flex min-w-0 items-start gap-3 rounded-control border p-3 text-sm',
+                checked ? 'border-primary bg-primary-soft' : 'border-border',
+                disabled && 'cursor-not-allowed opacity-70',
+              )}
+            >
+              <RadioGroupItem
+                id={radioId}
+                value={transitionId}
+                className="mt-0.5"
+                disabled={disabled}
+                aria-describedby={detailId}
+              />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <Label htmlFor={radioId} className="font-medium break-words">
+                  {entry.label}
+                </Label>
+                <span id={detailId} className="text-xs break-words text-muted-foreground">
+                  {disabled
+                    ? t('unavailable', { reasons: reasonsText(entry) })
+                    : details.length > 0
+                      ? details.join(' · ')
+                      : null}
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </RadioGroup>
       {error ? (
         <p id={errorId} className="text-sm text-destructive" aria-live="polite">
           {error}
@@ -217,10 +213,7 @@ export function LookupPicker({
               ) : items.length === 0 ? (
                 <p className="text-muted-foreground">{t('noResults')}</p>
               ) : (
-                <ul
-                  aria-label={t('results', { label })}
-                  className="flex max-h-48 flex-col gap-1 overflow-y-auto"
-                >
+                <ul aria-label={t('results', { label })} className="flex flex-col gap-1">
                   {items.map((item) => (
                     <li key={item.id}>
                       <button
@@ -289,19 +282,19 @@ export function DocumentsChecklist({
       <ul className="flex flex-col gap-1">
         {documents.map((document, index) => {
           const isLocked = locked.includes(document.id);
+          const checkboxId = index === 0 ? id : `${id}-${document.id}`;
           return (
-            <li key={document.id}>
-              <label className="flex min-w-0 items-start gap-2 rounded-control p-1 text-sm">
-                <input
-                  type="checkbox"
-                  id={index === 0 ? id : undefined}
-                  className="mt-1 size-4 flex-none"
-                  checked={selected.includes(document.id)}
-                  disabled={isLocked}
-                  onChange={(event) => {
-                    onToggle(document.id, event.target.checked);
-                  }}
-                />
+            <li key={document.id} className="flex min-w-0 items-start gap-2 rounded-control p-1">
+              <Checkbox
+                id={checkboxId}
+                className="mt-0.5"
+                checked={selected.includes(document.id)}
+                disabled={isLocked}
+                onCheckedChange={(checked) => {
+                  onToggle(document.id, checked === true);
+                }}
+              />
+              <Label htmlFor={checkboxId} className="min-w-0 text-sm font-normal">
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="break-words">{document.title}</span>
                   <span className="text-xs break-words text-muted-foreground">
@@ -316,7 +309,7 @@ export function DocumentsChecklist({
                     <span className="text-xs font-medium text-warning">{t('inApproval')}</span>
                   )}
                 </span>
-              </label>
+              </Label>
             </li>
           );
         })}
@@ -421,18 +414,19 @@ export function RulesSection({
                 <span id={messageId} className="break-words">
                   {rule.message}
                 </span>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="size-4 flex-none"
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${id}-ack-${rule.ruleId}`}
                     checked={acknowledged.includes(rule.ruleId)}
                     aria-describedby={messageId}
-                    onChange={(event) => {
-                      onAcknowledge(rule.ruleId, event.target.checked);
+                    onCheckedChange={(checked) => {
+                      onAcknowledge(rule.ruleId, checked === true);
                     }}
                   />
-                  {acknowledgeLabel ?? t('acknowledge')}
-                </label>
+                  <Label htmlFor={`${id}-ack-${rule.ruleId}`} className="font-normal">
+                    {acknowledgeLabel ?? t('acknowledge')}
+                  </Label>
+                </div>
               </li>
             );
           })}

@@ -1,3 +1,4 @@
+import { addCalendarDays, localDateOf } from '@contrataflow/types';
 import type { MovementAction, MovementItemDto } from '@contrataflow/validation';
 
 import { endOfLocalDay, isPeriodInverted, startOfLocalDay } from '../timeline/timeline-model';
@@ -119,4 +120,32 @@ export function mergeFilterOptions(
 /** A tramitação mudou o status do processo (exibe "Situação: de → para"). */
 export function statusChanged(item: Pick<MovementItemDto, 'statusFrom' | 'statusTo'>): boolean {
   return item.statusTo !== null && item.statusFrom !== item.statusTo;
+}
+
+export interface MovementDay {
+  /** Data local `YYYY-MM-DD` no fuso do tenant. */
+  readonly date: string;
+  readonly relative: 'today' | 'yesterday' | null;
+  readonly items: readonly MovementItemDto[];
+}
+
+/** Agrupa as tramitações (já na ordem da API) por dia local, mantendo a ordem. */
+export function groupMovementsByDay(
+  items: readonly MovementItemDto[],
+  timeZone: string,
+  now: Date,
+): MovementDay[] {
+  const today = localDateOf(now, timeZone);
+  const yesterday = addCalendarDays(today, -1);
+  const days: { date: string; items: MovementItemDto[] }[] = [];
+  for (const item of items) {
+    const date = localDateOf(new Date(item.occurredAt), timeZone);
+    const last = days.at(-1);
+    if (last?.date === date) last.items.push(item);
+    else days.push({ date, items: [item] });
+  }
+  return days.map((day) => ({
+    ...day,
+    relative: day.date === today ? 'today' : day.date === yesterday ? 'yesterday' : null,
+  }));
 }

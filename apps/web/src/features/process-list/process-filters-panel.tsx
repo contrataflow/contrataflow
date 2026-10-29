@@ -1,6 +1,24 @@
 'use client';
 
-import { Button, Dialog, DialogContent, DialogFooter, DialogTitle } from '@contrataflow/ui';
+import {
+  Button,
+  Checkbox,
+  DatePicker,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
 import { PRIORITIES, PROCESS_STATUSES } from '@contrataflow/validation';
 import type {
   CatalogItemDto,
@@ -10,7 +28,6 @@ import type {
 } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { formatMoneyText, toDecimalMoney } from '@/features/processes/money';
 
@@ -20,8 +37,8 @@ import type { UnitOption } from './process-list.api';
 
 /*
  * `ProcessFiltersPanel` (SCR-004 · US-002): formulário rotulado com os filtros da tabela "Campos".
- * Painel lateral no desktop e inferior no mobile (FA-09); "Aplicar" grava na URL e volta à página
- * 1; o foco volta ao gatilho ao fechar (Radix). Intervalos invertidos e valores inválidos são
+ * Diálogo do kit (folha inferior no mobile, FA-09) com os controles do kit (`Select`, `Checkbox`,
+ * `DatePicker`); "Aplicar" grava na URL e volta à página 1; o foco volta ao gatilho ao fechar (Radix). Intervalos invertidos e valores inválidos são
  * recusados aqui (V-06/V-07) antes de irem para a URL.
  */
 
@@ -61,25 +78,8 @@ const FILTER_KEYS: readonly ProcessListParamKey[] = [
   'targetDateTo',
 ];
 
-function Field({
-  label,
-  children,
-}: {
-  readonly label: string;
-  readonly children: (id: string) => ReactNode;
-}) {
-  const id = useId();
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      {children(id)}
-    </div>
-  );
-}
-
-const inputClass = 'h-11 rounded-control border border-border bg-surface px-3 text-sm md:h-9';
+/** "Qualquer" nos `Select` (o Radix não aceita valor vazio). */
+const ANY = 'any';
 
 function Checkboxes({
   legend,
@@ -92,28 +92,33 @@ function Checkboxes({
   readonly selected: readonly string[];
   readonly onChange: (values: string[]) => void;
 }) {
+  const id = useId();
   return (
-    <fieldset className="flex flex-col gap-1">
-      <legend className="text-sm font-medium">{legend}</legend>
+    <Field group label={legend}>
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-        {options.map((option) => (
-          <label key={option.value} className="flex min-h-11 items-center gap-2 text-sm md:min-h-0">
-            <input
-              type="checkbox"
-              checked={selected.includes(option.value)}
-              onChange={(event) => {
-                onChange(
-                  event.target.checked
-                    ? [...selected, option.value]
-                    : selected.filter((value) => value !== option.value),
-                );
-              }}
-            />
-            {option.label}
-          </label>
-        ))}
+        {options.map((option) => {
+          const optionId = `${id}-${option.value}`;
+          return (
+            <div key={option.value} className="flex min-h-9 items-center gap-2">
+              <Checkbox
+                id={optionId}
+                checked={selected.includes(option.value)}
+                onCheckedChange={(checked) => {
+                  onChange(
+                    checked === true
+                      ? [...selected, option.value]
+                      : selected.filter((value) => value !== option.value),
+                  );
+                }}
+              />
+              <Label htmlFor={optionId} className="font-normal">
+                {option.label}
+              </Label>
+            </div>
+          );
+        })}
       </div>
-    </fieldset>
+    </Field>
   );
 }
 
@@ -138,6 +143,7 @@ export function ProcessFiltersPanel({
   const [minText, setMinText] = useState(() => moneyText(params.estimatedValueMin));
   const [maxText, setMaxText] = useState(() => moneyText(params.estimatedValueMax));
   const [error, setError] = useState<string | null>(null);
+  const flagsId = useId();
 
   const set = (key: ProcessListParamKey, value: string | undefined) => {
     setDraft((current) => ({ ...current, [key]: value === '' ? undefined : value }));
@@ -174,23 +180,24 @@ export function ProcessFiltersPanel({
     choices: readonly { readonly value: string; readonly label: string }[],
   ) => (
     <Field label={label}>
-      {(id) => (
-        <select
-          id={id}
-          className={inputClass}
-          value={single(key)}
-          onChange={(event) => {
-            set(key, event.target.value);
-          }}
-        >
-          <option value="">{t('any')}</option>
+      <Select
+        value={single(key) || ANY}
+        onValueChange={(value) => {
+          set(key, value === ANY ? undefined : value);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{t('any')}</SelectItem>
           {choices.map((choice) => (
-            <option key={choice.value} value={choice.value}>
+            <SelectItem key={choice.value} value={choice.value}>
               {choice.label}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-      )}
+        </SelectContent>
+      </Select>
     </Field>
   );
   const units = options.units.map((unit) => ({ value: unit.id, label: unit.name }));
@@ -297,81 +304,72 @@ export function ProcessFiltersPanel({
             ])}
             {select('originId', t('origin'), catalog(options.origins))}
             <Field label={t('year')}>
-              {(id) => (
-                <input
-                  id={id}
-                  type="number"
-                  inputMode="numeric"
-                  min={2000}
-                  max={2100}
-                  className={inputClass}
-                  value={single('year')}
-                  onChange={(event) => {
-                    set('year', event.target.value);
-                  }}
-                />
-              )}
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={2000}
+                max={2100}
+                value={single('year')}
+                onChange={(event) => {
+                  set('year', event.target.value);
+                }}
+              />
             </Field>
           </div>
           <div className="flex flex-col gap-1">
             {(['overdue', 'targetDateOverdue'] as const).map((key) => (
-              <label key={key} className="flex min-h-11 items-center gap-2 text-sm md:min-h-0">
-                <input
-                  type="checkbox"
+              <div key={key} className="flex min-h-9 items-center gap-2">
+                <Checkbox
+                  id={`${flagsId}-${key}`}
                   checked={draft[key] === 'true'}
-                  onChange={(event) => {
-                    set(key, event.target.checked ? 'true' : undefined);
+                  onCheckedChange={(checked) => {
+                    set(key, checked === true ? 'true' : undefined);
                   }}
                 />
-                {t(key)}
-              </label>
+                <Label htmlFor={`${flagsId}-${key}`} className="font-normal">
+                  {t(key)}
+                </Label>
+              </div>
             ))}
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {(['createdFrom', 'createdTo', 'targetDateFrom', 'targetDateTo'] as const).map(
               (key) => (
                 <Field key={key} label={t(key)}>
-                  {(id) => (
-                    <input
-                      id={id}
-                      type="date"
-                      className={inputClass}
-                      value={draft[key] ?? ''}
-                      onChange={(event) => {
-                        set(key, event.target.value);
-                      }}
-                    />
-                  )}
+                  <DatePicker
+                    clearable
+                    value={fromIsoDate(draft[key])}
+                    onValueChange={(date) => {
+                      set(key, date ? toIsoDate(date) : undefined);
+                    }}
+                    labels={{
+                      placeholder: t('datePlaceholder'),
+                      clear: t('dateClear'),
+                      calendar: t('dateCalendar', { label: t(key) }),
+                    }}
+                  />
                 </Field>
               ),
             )}
             <Field label={t('estimatedValueMin')}>
-              {(id) => (
-                <input
-                  id={id}
-                  inputMode="decimal"
-                  placeholder={t('valueHint')}
-                  className={inputClass}
-                  value={minText}
-                  onChange={(event) => {
-                    setMinText(event.target.value);
-                  }}
-                />
-              )}
+              <Input
+                inputMode="decimal"
+                placeholder={t('valueHint')}
+                value={minText}
+                onChange={(event) => {
+                  setMinText(event.target.value);
+                }}
+              />
             </Field>
             <Field label={t('estimatedValueMax')}>
-              {(id) => (
-                <input
-                  id={id}
-                  inputMode="decimal"
-                  placeholder={t('valueHint')}
-                  className={inputClass}
-                  value={maxText}
-                  onChange={(event) => {
-                    setMaxText(event.target.value);
-                  }}
-                />
-              )}
+              <Input
+                inputMode="decimal"
+                placeholder={t('valueHint')}
+                value={maxText}
+                onChange={(event) => {
+                  setMaxText(event.target.value);
+                }}
+              />
             </Field>
           </div>
           <div aria-live="polite">

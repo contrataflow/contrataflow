@@ -72,7 +72,8 @@ test('filtrar a lista de processos pela etiqueta', async ({ page }) => {
   const table = page.getByRole('table', { name: TABLE });
   await expect(table).toBeVisible();
   await expect(table.getByRole('row')).toHaveCount(4); // cabeçalho + 3 processos
-  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
+  // A lista abre com o filtro padrão de situação: o botão traz o contador ("Filtros, 1 filtro ativo").
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   const filters = page.getByRole('dialog');
   await filters
     .getByRole('group', { name: 'Etiquetas', exact: true })

@@ -1,19 +1,32 @@
 'use client';
 
-import { Button, cx } from '@contrataflow/ui';
+import {
+  Checkbox,
+  DatePicker,
+  Field,
+  FilterToolbar,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
+import type { FilterToolbarChip } from '@contrataflow/ui';
 import { MOVEMENT_ACTIONS } from '@contrataflow/validation';
 import type { MovementAction } from '@contrataflow/validation';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
-import {
-  EMPTY_MOVEMENT_FILTERS,
-  activeFilterCount,
-  isMovementPeriodInverted,
-} from './movements-model';
+import { EMPTY_MOVEMENT_FILTERS, isMovementPeriodInverted } from './movements-model';
 import type { MovementFilterOptions, MovementFilters } from './movements-model';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+/** "Todas/Todos" nos `Select` (o Radix não aceita valor vazio). */
+const ANY = '__any__';
+
+type PartyField = 'fromDepartmentId' | 'toDepartmentId' | 'actorId';
 
 function toggle<T>(values: readonly T[], value: T, checked: boolean): T[] {
   return checked ? [...values, value] : values.filter((item) => item !== value);
@@ -27,165 +40,165 @@ export interface MovementFilterBarProps {
 }
 
 /**
- * `MovementFilterBar` (SCR-006 · US-054 · FA-01): ação (várias, OU), unidade de origem e de
- * destino e ator (as já vistas no histórico carregado) e período em datas locais do tenant,
- * combinados por E. Período invertido marca os campos e não é enviado (V-02). Abaixo de 768 px vira
- * painel colapsável. Navegável por teclado (controles nativos em `fieldset`/`legend`).
+ * `MovementFilterBar` (SCR-006 · US-054 · FA-01) na `FilterToolbar` do kit: o botão "Filtros" abre
+ * um popover com ação (várias, OU), unidade de origem e de destino, ator (as já vistas no histórico
+ * carregado) e período em datas locais do tenant, combinados por E; o que está ativo aparece em
+ * chips removíveis. Período invertido marca o campo e não é enviado (V-02).
  */
 export function MovementFilterBar({ filters, options, onChange }: MovementFilterBarProps) {
   const t = useTranslations('movements.filters');
   const tActions = useTranslations('movements.actions');
+  const format = useFormatter();
   const id = useId();
-  const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState({ from: filters.from, to: filters.to });
   const inverted = isMovementPeriodInverted(period);
-  const panelId = `${id}-panel`;
-  const errorId = `${id}-period-error`;
-  const count = activeFilterCount(filters);
+
+  const date = (iso: string) =>
+    format.dateTime(new Date(`${iso}T12:00:00Z`), { dateStyle: 'short', timeZone: 'UTC' });
 
   const changePeriod = (next: { from: string; to: string }) => {
     setPeriod(next);
     if (!isMovementPeriodInverted(next)) onChange({ ...filters, ...next });
   };
 
-  const select = (
-    field: 'fromDepartmentId' | 'toDepartmentId' | 'actorId',
-    label: string,
-    choices: MovementFilterOptions['departments'],
-    any: string,
-  ) => (
-    <div className="flex min-w-0 flex-col gap-1">
-      <label htmlFor={`${id}-${field}`} className="text-sm font-medium">
-        {label}
-      </label>
-      <select
-        id={`${id}-${field}`}
-        className={cx(INPUT, 'max-w-64')}
-        value={filters[field]}
-        onChange={(event) => {
-          onChange({ ...filters, [field]: event.target.value });
+  const choicesOf = (field: PartyField) =>
+    field === 'actorId' ? options.actors : options.departments;
+  const nameOf = (field: PartyField, value: string) =>
+    choicesOf(field).find((choice) => choice.id === value)?.name ?? '…';
+  const labelOf: Readonly<Record<PartyField, string>> = {
+    fromDepartmentId: t('fromDepartment'),
+    toDepartmentId: t('toDepartment'),
+    actorId: t('actor'),
+  };
+
+  const chips: FilterToolbarChip[] = [];
+  const addChip = (key: string, label: string, value: string, onRemove: () => void) => {
+    chips.push({
+      id: key,
+      label: t('chip', { label, value }),
+      removeLabel: t('remove', { label: `${label}: ${value}` }),
+      onRemove,
+    });
+  };
+  for (const action of filters.actions) {
+    addChip(`action-${action}`, t('action'), tActions(action), () => {
+      onChange({ ...filters, actions: toggle(filters.actions, action, false) });
+    });
+  }
+  for (const field of ['fromDepartmentId', 'toDepartmentId', 'actorId'] as const) {
+    if (filters[field] === '') continue;
+    addChip(field, labelOf[field], nameOf(field, filters[field]), () => {
+      onChange({ ...filters, [field]: '' });
+    });
+  }
+  if (filters.from !== '' || filters.to !== '') {
+    const value =
+      filters.from !== '' && filters.to !== ''
+        ? t('periodRange', { from: date(filters.from), to: date(filters.to) })
+        : filters.from !== ''
+          ? t('periodFrom', { date: date(filters.from) })
+          : t('periodTo', { date: date(filters.to) });
+    addChip('period', t('period'), value, () => {
+      setPeriod({ from: '', to: '' });
+      onChange({ ...filters, from: '', to: '' });
+    });
+  }
+
+  const partyField = (field: PartyField, any: string) => (
+    <Field label={labelOf[field]}>
+      <Select
+        value={filters[field] === '' ? ANY : filters[field]}
+        onValueChange={(value) => {
+          onChange({ ...filters, [field]: value === ANY ? '' : value });
         }}
       >
-        <option value="">{any}</option>
-        {choices.map((choice) => (
-          <option key={choice.id} value={choice.id}>
-            {choice.name}
-          </option>
-        ))}
-      </select>
-    </div>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ANY}>{any}</SelectItem>
+          {choicesOf(field).map((choice) => (
+            <SelectItem key={choice.id} value={choice.id}>
+              {choice.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
   );
 
   return (
-    <section aria-label={t('label')} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 md:hidden">
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => {
-            setOpen((current) => !current);
-          }}
-        >
-          {count > 0 ? t('toggleActive', { count }) : t('toggle')}
-        </Button>
-      </div>
-      <div
-        id={panelId}
-        className={cx(
-          'flex-col gap-4 rounded-card border border-border bg-surface p-4 md:flex md:flex-row md:flex-wrap md:items-start',
-          open ? 'flex' : 'hidden',
-        )}
-      >
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('action')}</legend>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {MOVEMENT_ACTIONS.map((action: MovementAction) => (
-              <label key={action} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4"
-                  checked={filters.actions.includes(action)}
-                  onChange={(event) => {
-                    onChange({
-                      ...filters,
-                      actions: toggle(filters.actions, action, event.target.checked),
-                    });
-                  }}
-                />
-                {tActions(action)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          {select('fromDepartmentId', t('fromDepartment'), options.departments, t('any'))}
-          {select('toDepartmentId', t('toDepartment'), options.departments, t('any'))}
-          {select('actorId', t('actor'), options.actors, t('anyActor'))}
+    <FilterToolbar
+      filters={
+        <>
+          <Field label={t('action')} group>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {MOVEMENT_ACTIONS.map((action: MovementAction) => (
+                <div key={action} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${id}-${action}`}
+                    checked={filters.actions.includes(action)}
+                    onCheckedChange={(checked) => {
+                      onChange({
+                        ...filters,
+                        actions: toggle(filters.actions, action, checked === true),
+                      });
+                    }}
+                  />
+                  <Label htmlFor={`${id}-${action}`} className="font-normal">
+                    {tActions(action)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </Field>
+          {partyField('fromDepartmentId', t('any'))}
+          {partyField('toDepartmentId', t('any'))}
+          {partyField('actorId', t('anyActor'))}
           {options.departments.length === 0 && options.actors.length === 0 ? (
-            <p className="max-w-64 text-xs text-muted-foreground">{t('optionsHint')}</p>
+            <p className="text-xs text-muted-foreground">{t('optionsHint')}</p>
           ) : null}
-        </div>
-
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('period')}</legend>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-from`} className="text-sm">
-                {t('from')}
-              </label>
-              <input
-                id={`${id}-from`}
-                type="date"
-                className={INPUT}
-                value={period.from}
-                aria-invalid={inverted ? true : undefined}
-                aria-describedby={inverted ? errorId : undefined}
-                onChange={(event) => {
-                  changePeriod({ ...period, from: event.target.value });
-                }}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-to`} className="text-sm">
-                {t('to')}
-              </label>
-              <input
-                id={`${id}-to`}
-                type="date"
-                className={INPUT}
-                value={period.to}
-                aria-invalid={inverted ? true : undefined}
-                aria-describedby={inverted ? errorId : undefined}
-                onChange={(event) => {
-                  changePeriod({ ...period, to: event.target.value });
-                }}
-              />
-            </div>
-          </div>
-          {inverted ? (
-            <p id={errorId} role="alert" className="text-xs text-destructive">
-              {t('periodInverted')}
-            </p>
-          ) : null}
-        </fieldset>
-
-        {count > 0 || period.from !== '' || period.to !== '' ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="self-start"
-            onClick={() => {
-              setPeriod({ from: '', to: '' });
-              onChange(EMPTY_MOVEMENT_FILTERS);
-            }}
-          >
-            {t('clear')}
-          </Button>
-        ) : null}
-      </div>
-    </section>
+          <Field label={t('from')}>
+            <DatePicker
+              clearable
+              value={fromIsoDate(period.from)}
+              onValueChange={(value) => {
+                changePeriod({ ...period, from: value ? toIsoDate(value) : '' });
+              }}
+              labels={{
+                placeholder: t('datePlaceholder'),
+                clear: t('dateClear', { label: t('from') }),
+                calendar: t('dateCalendar', { label: t('from') }),
+              }}
+            />
+          </Field>
+          <Field label={t('to')} error={inverted ? t('periodInverted') : undefined}>
+            <DatePicker
+              clearable
+              value={fromIsoDate(period.to)}
+              onValueChange={(value) => {
+                changePeriod({ ...period, to: value ? toIsoDate(value) : '' });
+              }}
+              labels={{
+                placeholder: t('datePlaceholder'),
+                clear: t('dateClear', { label: t('to') }),
+                calendar: t('dateCalendar', { label: t('to') }),
+              }}
+            />
+          </Field>
+        </>
+      }
+      activeCount={chips.length}
+      chips={chips}
+      onClearAll={() => {
+        setPeriod({ from: '', to: '' });
+        onChange(EMPTY_MOVEMENT_FILTERS);
+      }}
+      labels={{
+        filters: t('open'),
+        clearAll: t('clear'),
+        activeFilters: t('active'),
+      }}
+    />
   );
 }

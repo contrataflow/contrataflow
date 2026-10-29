@@ -57,6 +57,14 @@ export const DATE_PICKER_LABELS: DatePickerLabels = {
 interface PickerShellProps {
   readonly id?: string | undefined;
   readonly 'aria-label'?: string | undefined;
+  /** Ligações de um rótulo/erro externo ao `Field` do kit (ex.: campo próprio de um formulário). */
+  readonly 'aria-describedby'?: string | undefined;
+  readonly 'aria-invalid'?: boolean | undefined;
+  /**
+   * Aceito para repassar as ligações de um campo, mas não vai ao gatilho: `aria-required` não é
+   * permitido num botão (axe `aria-allowed-attr`); o asterisco do rótulo e a validação o indicam.
+   */
+  readonly 'aria-required'?: boolean | undefined;
   readonly disabled?: boolean | undefined;
   /** Mostra o botão de limpar quando há valor. */
   readonly clearable?: boolean | undefined;
@@ -101,13 +109,21 @@ export function DatePicker({
   disabledDays,
   id,
   'aria-label': ariaLabel,
+  'aria-describedby': describedBy,
+  'aria-invalid': invalid,
+  'aria-required': _required,
   disabled,
   className,
 }: DatePickerProps) {
   const text = { ...DATE_PICKER_LABELS, ...labels };
   const [open, setOpen] = useState(false);
   const field = useFieldControl();
-  const control = fieldControlProps(field, { id, disabled });
+  const { 'aria-required': _fieldRequired, ...control } = fieldControlProps(field, {
+    id,
+    disabled,
+    'aria-describedby': describedBy,
+    'aria-invalid': invalid,
+  });
   const showClear = clearable && value !== undefined && !control.disabled;
 
   return (
@@ -193,6 +209,9 @@ export function DateRangePicker({
   disabledDays,
   id,
   'aria-label': ariaLabel,
+  'aria-describedby': describedBy,
+  'aria-invalid': invalid,
+  'aria-required': _required,
   disabled,
   className,
 }: DateRangePickerProps) {
@@ -201,7 +220,12 @@ export function DateRangePicker({
   // Cliques desde que o calendário abriu: o primeiro marca o início, o segundo fecha o período.
   const picks = useRef(0);
   const field = useFieldControl();
-  const control = fieldControlProps(field, { id, disabled });
+  const { 'aria-required': _fieldRequired, ...control } = fieldControlProps(field, {
+    id,
+    disabled,
+    'aria-describedby': describedBy,
+    'aria-invalid': invalid,
+  });
   const hasValue = value?.from !== undefined;
   const showClear = clearable && hasValue && !control.disabled;
 

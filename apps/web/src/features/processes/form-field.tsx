@@ -1,6 +1,18 @@
 'use client';
 
-import { Button, Skeleton, cx } from '@contrataflow/ui';
+import {
+  Button,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  Select as KitSelect,
+  SelectGroup as KitSelectGroup,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  cx,
+} from '@contrataflow/ui';
 import type { ReactNode } from 'react';
 
 export const INPUT_CLASS =
@@ -68,6 +80,9 @@ export function FormField({
   );
 }
 
+/** Valor da opção que limpa o campo (o Radix não aceita `SelectItem value=""`). */
+const CLEAR_VALUE = '__clear__';
+
 export interface SelectOption {
   readonly value: string;
   readonly label: string;
@@ -83,10 +98,12 @@ export interface SelectFieldProps {
   readonly label: ReactNode;
   readonly value: string;
   readonly onChange: (value: string) => void;
-  /** Opções soltas ou agrupadas (`<optgroup>`). */
+  /** Opções soltas ou agrupadas (`SelectGroup` com rótulo). */
   readonly options: readonly SelectOption[];
   readonly groups?: readonly SelectGroup[] | undefined;
   readonly placeholder: string;
+  /** Campo opcional: texto da primeira opção, que devolve o campo a vazio (ex.: "A definir"). */
+  readonly clearLabel?: string | undefined;
   readonly status: 'pending' | 'error' | 'ready';
   /** Lista pronta porém vazia: mensagem no lugar do campo (ex.: "Nenhum tipo de contratação ativo"). */
   readonly emptyMessage?: string | undefined;
@@ -158,32 +175,39 @@ export function SelectField(props: SelectFieldProps) {
       className={props.className}
     >
       {(control) => (
-        <select
-          {...control}
-          className={INPUT_CLASS}
+        <KitSelect
           value={props.value}
-          onChange={(event) => {
-            props.onChange(event.target.value);
+          onValueChange={(value) => {
+            props.onChange(value === CLEAR_VALUE ? '' : value);
           }}
         >
-          <option value="">{props.placeholder}</option>
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-          {(groups ?? [])
-            .filter((group) => group.options.length > 0)
-            .map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </optgroup>
+          <SelectTrigger {...control}>
+            <SelectValue placeholder={props.placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {props.clearLabel ? (
+              <SelectItem value={CLEAR_VALUE}>{props.clearLabel}</SelectItem>
+            ) : null}
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
             ))}
-        </select>
+            {(groups ?? [])
+              .filter((group) => group.options.length > 0)
+              .map((group, index) => (
+                <KitSelectGroup key={group.label}>
+                  {index > 0 || options.length > 0 ? <SelectSeparator /> : null}
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </KitSelectGroup>
+              ))}
+          </SelectContent>
+        </KitSelect>
       )}
     </FormField>
   );

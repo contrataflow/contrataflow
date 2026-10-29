@@ -52,6 +52,12 @@ import {
   processKeys,
 } from '../processes/processes.api';
 
+/** "Sem sistema" no `Select` (o Radix não aceita valor vazio). */
+const NO_SYSTEM = '__none__';
+
+/** As opções fixas já estão prontas: não há nova tentativa. */
+const noop = () => undefined;
+
 type Problem =
   | { readonly kind: 'formErrors' }
   | { readonly kind: 'stale' }
@@ -293,31 +299,24 @@ function ItemForm({
             />
           )}
         </FormField>
-        <FormField
+        <SelectField
           id={fieldId('kind')}
           label={t('form.fields.kind')}
+          value={values.kind}
+          onChange={(value) => {
+            set('kind', value as ItemKind);
+          }}
+          options={kindOptions}
+          placeholder={t('form.select')}
+          status="ready"
+          loadingLabel={t('form.loadingOptions')}
+          errorLabel={t('form.loadError')}
+          retryLabel={t('form.retry')}
+          onRetry={noop}
+          hint={unusual ? t('form.unusualKind', { type: contractingTypeLabel }) : undefined}
           error={messages.kind}
           required
-          hint={unusual ? t('form.unusualKind', { type: contractingTypeLabel }) : undefined}
-        >
-          {(control) => (
-            <select
-              {...control}
-              className={INPUT_CLASS}
-              value={values.kind}
-              onChange={(event) => {
-                set('kind', event.target.value as ItemKind | '');
-              }}
-            >
-              <option value="">{t('form.select')}</option>
-              {kindOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          )}
-        </FormField>
+        />
         {unitLocked && item !== null ? (
           <FormField
             id={fieldId('unitOfMeasureId')}
@@ -395,29 +394,22 @@ function ItemForm({
           </FormField>
         </div>
         <div className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-          <FormField
+          <SelectField
             id={fieldId('catalogSystem')}
             label={t('form.fields.catalogSystem')}
+            value={values.catalogSystem === '' ? NO_SYSTEM : values.catalogSystem}
+            onChange={(value) => {
+              set('catalogSystem', value === NO_SYSTEM ? '' : (value as ItemCatalogSystem));
+            }}
+            options={[{ value: NO_SYSTEM, label: t('form.noSystem') }, ...systemOptions]}
+            placeholder={t('form.noSystem')}
+            status="ready"
+            loadingLabel={t('form.loadingOptions')}
+            errorLabel={t('form.loadError')}
+            retryLabel={t('form.retry')}
+            onRetry={noop}
             error={messages.catalogSystem}
-          >
-            {(control) => (
-              <select
-                {...control}
-                className={INPUT_CLASS}
-                value={values.catalogSystem}
-                onChange={(event) => {
-                  set('catalogSystem', event.target.value as ItemCatalogSystem | '');
-                }}
-              >
-                <option value="">{t('form.noSystem')}</option>
-                {systemOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </FormField>
+          />
           <FormField
             id={fieldId('catalogCode')}
             label={t('form.fields.catalogCode')}

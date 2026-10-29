@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   ID,
   PROCESS_ID,
@@ -149,7 +150,12 @@ describe('SCR-006 · aba "Participantes" (US-012 · SCR-112)', () => {
     await user.type(search, 'Die');
     await user.click(await within(dialog).findByRole('button', { name: /Diego Alves/ }));
     expect(within(dialog).getByText('Selecionado: Diego Alves')).toBeTruthy();
-    expect(within(dialog).getByLabelText<HTMLSelectElement>(/^Papel/).value).toBe('CONSULTANT');
+    expect(within(dialog).getByRole('combobox', { name: /^Papel/ }).textContent).toBe('Consultor');
+    expect(
+      within(dialog)
+        .getByRole('switch', { name: /Notificar/ })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
 
     await user.click(within(dialog).getByRole('button', { name: 'Adicionar' }));
     expect(
@@ -191,7 +197,7 @@ describe('SCR-006 · aba "Participantes" (US-012 · SCR-112)', () => {
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText(/^Buscar usuário/), 'Die');
     await user.click(await within(dialog).findByRole('button', { name: /Diego Alves/ }));
-    await user.selectOptions(within(dialog).getByLabelText(/^Papel/), 'OBSERVER');
+    await chooseOption(user, /^Papel/, 'Observador', dialog);
     await user.click(within(dialog).getByRole('button', { name: 'Adicionar' }));
     expect(
       await within(dialog).findByText(/já participa do processo como Colaborador/),

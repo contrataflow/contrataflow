@@ -7,6 +7,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 // Os processos e a numeração da API simulada são globais: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -26,7 +27,7 @@ async function openWizard(page: Page): Promise<void> {
 async function fillIdentification(page: Page, contractingType = 'Aquisição de bens') {
   await page.getByLabel('Título *').fill(TITLE);
   await page.getByLabel('Objeto *').fill(OBJECT);
-  await page.getByLabel('Tipo de contratação *').selectOption({ label: contractingType });
+  await chooseOption(page, 'Tipo de contratação *', contractingType);
 }
 
 async function toOrigin(page: Page, contractingType?: string): Promise<void> {
@@ -39,7 +40,7 @@ async function toOrigin(page: Page, contractingType?: string): Promise<void> {
 
 async function toReview(page: Page, contractingType?: string): Promise<void> {
   await toOrigin(page, contractingType);
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
+  await chooseOption(page, 'Origem *', 'Demanda não prevista');
   await page.getByRole('radio', { name: 'Não se aplica' }).check();
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Revisão' })).toBeVisible();
@@ -63,19 +64,17 @@ test('jornada completa: Identificação → Origem e planejamento → Revisão �
   await expect(
     page.getByRole('heading', { level: 2, name: 'Origem e planejamento' }),
   ).toBeFocused();
-  await expect(page.getByLabel('Secretaria solicitante *').locator('option:checked')).toHaveText(
+  await expect(page.getByRole('combobox', { name: 'Secretaria solicitante *' })).toHaveText(
     'Gabinete',
   );
-  await expect(page.getByLabel('Setor solicitante *').locator('option:checked')).toHaveText(
-    'Gabinete',
-  );
-  await expect(page.getByLabel('Prioridade *').locator('option:checked')).toHaveText('Média');
-  await expect(page.getByLabel('Órgão/entidade *').locator('option:checked')).toHaveText(
+  await expect(page.getByRole('combobox', { name: 'Setor solicitante *' })).toHaveText('Gabinete');
+  await expect(page.getByRole('combobox', { name: 'Prioridade *' })).toHaveText('Média');
+  await expect(page.getByRole('combobox', { name: 'Órgão/entidade *' })).toHaveText(
     'Prefeitura Municipal de São José',
   );
 
   // PCA "Não previsto" exige a justificativa (mensagem exata) e bloqueia o avanço.
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
+  await chooseOption(page, 'Origem *', 'Demanda não prevista');
   await page.getByRole('radio', { name: 'Não previsto no PCA' }).check();
   await expect(
     page.getByText(
@@ -142,14 +141,27 @@ test('processo parecido: aviso de duplicidade com link e "Criar mesmo assim"', a
 test('retomada do rascunho após recarregar a página', async ({ page }) => {
   await openWizard(page);
   await toOrigin(page);
-  await page.getByLabel('Prazo alvo').fill('2030-12-31');
+  // Prazo alvo no DatePicker do kit: dia 15 do mês seguinte.
+  await page.getByRole('button', { name: 'Prazo alvo', exact: true }).click();
+  const calendar = page.getByRole('dialog', { name: /^Escolher/ });
+  await calendar.getByRole('button', { name: 'Ir para o próximo mês' }).click();
+  await calendar
+    .locator('td[role="gridcell"]:not([data-outside]) button')
+    .getByText('15', { exact: true })
+    .click();
+  const targetDate = await page
+    .getByRole('button', { name: 'Prazo alvo', exact: true })
+    .textContent();
+  expect(targetDate).toMatch(/^15\/\d{2}\/\d{4}$/);
 
   await page.reload();
   await expect(page.getByText('Recuperamos o que você estava preenchendo')).toBeVisible();
   await expect(
     page.getByRole('heading', { level: 2, name: 'Origem e planejamento' }),
   ).toBeVisible();
-  await expect(page.getByLabel('Prazo alvo')).toHaveValue('2030-12-31');
+  await expect(page.getByRole('button', { name: 'Prazo alvo', exact: true })).toHaveText(
+    targetDate ?? '',
+  );
   await expectNoSeriousA11yViolations(page, 'wizard · rascunho recuperado');
 
   await page.getByRole('button', { name: 'Voltar' }).click();
@@ -208,7 +220,10 @@ test('em 360 px: indicador "Passo N de 3", coluna única e sem rolagem horizonta
 
   await openWizard(page);
   await expect(page.getByText('Passo 1 de 3')).toBeVisible();
-  await expect(page.getByRole('list').filter({ hasText: 'Origem e planejamento' })).toBeHidden();
+  // No WizardShell estreito os passos viram a barra de progresso (StageProgress), não a coluna.
+  await expect(
+    page.getByRole('listitem').filter({ hasText: 'Identificação (etapa atual)' }),
+  ).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
   // O botão global continua acessível (só o ícone, com nome acessível).
   await expect(page.getByRole('link', { name: 'Novo processo' })).toBeVisible();
@@ -216,7 +231,7 @@ test('em 360 px: indicador "Passo N de 3", coluna única e sem rolagem horizonta
   await toOrigin(page);
   await expect(page.getByText('Passo 2 de 3')).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
+  await chooseOption(page, 'Origem *', 'Demanda não prevista');
   await page.getByRole('radio', { name: 'Não previsto no PCA' }).check();
   expect(await overflow()).toBeLessThanOrEqual(0);
   await page.getByRole('radio', { name: 'Não se aplica' }).check();

@@ -3,12 +3,15 @@
 import {
   Alert,
   Button,
+  Combobox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
   Skeleton,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import { PROCESS_ASSIGN_LIMITS, assignReasonRequired } from '@contrataflow/validation';
@@ -30,7 +33,6 @@ import {
 import type { AssignFormErrors, AssignProblem } from './assign-model';
 import { useAssignMutation, useDepartmentMembers } from './process-assign.api';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 
 /** Listas que a atribuição muda além do processo: caixa de tarefas, lista e painel inicial. */
@@ -141,6 +143,7 @@ export function AssignProcessDialog({
   const [problem, setProblem] = useState<AssignProblem | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const submitting = mutation.isPending;
+  const membersLoading = members.isPending && members.fetchStatus !== 'idle';
 
   const currentResponsible = process?.currentResponsible ?? null;
   const currentResponsibleId = currentResponsible?.id ?? null;
@@ -148,10 +151,16 @@ export function AssignProcessDialog({
   const options = memberOptions(members.data ?? [], currentResponsibleId).filter(
     (member) => !removed.has(member.id),
   );
+  const comboOptions = [
+    ...options.map((member) => ({ value: member.id, label: member.name })),
+    ...(canQueue(currentResponsibleId)
+      ? [{ value: QUEUE_OPTION, label: t('assignee.queue') }]
+      : []),
+  ];
 
   // Foco inicial no seletor de responsável (story · Acessibilidade), assim que o processo carrega.
   const focused = useRef(false);
-  const ready = process !== undefined;
+  const ready = process !== undefined && !membersLoading;
   useEffect(() => {
     if (!open) {
       focused.current = false;
@@ -239,11 +248,6 @@ export function AssignProcessDialog({
     handleOpenChange(false);
   };
 
-  const selectHint = `${selectId}-hint`;
-  const selectError = `${selectId}-error`;
-  const reasonHint = `${reasonId}-hint`;
-  const reasonCounter = `${reasonId}-counter`;
-  const reasonError = `${reasonId}-error`;
   const title = currentResponsibleId === null ? t('title.assign') : t('title.reassign');
 
   return (
@@ -292,14 +296,19 @@ export function AssignProcessDialog({
                 />
               )}
             </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={selectId} className="text-sm font-medium">
-                {t('assignee.label')}
-              </label>
-              {members.isPending && members.fetchStatus !== 'idle' ? (
+            <Field
+              id={selectId}
+              label={t('assignee.label')}
+              required
+              description={
+                members.isSuccess && options.length === 0 ? t('assignee.empty') : t('assignee.hint')
+              }
+              error={errors.assignee}
+            >
+              {membersLoading ? (
                 <div role="status">
                   <span className="sr-only">{t('assignee.loading')}</span>
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-11 w-full" />
                 </div>
               ) : null}
               {members.isError ? (
@@ -316,61 +325,44 @@ export function AssignProcessDialog({
                   </Button>
                 </Alert>
               ) : null}
-              <select
-                id={selectId}
-                value={selection}
-                aria-required
-                aria-invalid={errors.assignee ? true : undefined}
-                aria-describedby={[selectHint, errors.assignee ? selectError : undefined]
-                  .filter(Boolean)
-                  .join(' ')}
-                className={`${INPUT_CLASS} min-h-11`}
-                onChange={(event) => {
-                  setSelection(event.target.value);
-                  setErrors(({ reason: current }) =>
-                    current === undefined ? {} : { reason: current },
-                  );
-                }}
-              >
-                <option value="">{t('assignee.placeholder')}</option>
-                {options.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-                {canQueue(currentResponsibleId) ? (
-                  <option value={QUEUE_OPTION}>{t('assignee.queue')}</option>
-                ) : null}
-              </select>
-              <p id={selectHint} className="text-xs text-muted-foreground">
-                {members.isSuccess && options.length === 0
-                  ? t('assignee.empty')
-                  : t('assignee.hint')}
-              </p>
-              {errors.assignee ? (
-                <p id={selectError} className="text-xs text-destructive">
-                  {errors.assignee}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={reasonId} className="text-sm font-medium">
-                {reasonRequired ? t('reason.label') : t('reason.optionalLabel')}
-              </label>
-              <textarea
-                id={reasonId}
+              {membersLoading ? null : (
+                <Combobox
+                  options={comboOptions}
+                  value={selection}
+                  labels={{
+                    placeholder: t('assignee.placeholder'),
+                    search: t('assignee.search'),
+                    empty: t('assignee.noResults'),
+                  }}
+                  onValueChange={(value) => {
+                    setSelection(value ?? '');
+                    setErrors(({ reason: current }) =>
+                      current === undefined ? {} : { reason: current },
+                    );
+                  }}
+                />
+              )}
+            </Field>
+            <Field
+              id={reasonId}
+              label={reasonRequired ? t('reason.label') : t('reason.optionalLabel')}
+              required={reasonRequired}
+              description={
+                <span className="flex justify-between gap-2">
+                  <span>{t('reason.hint')}</span>
+                  <span aria-live="polite">
+                    {t('counter', {
+                      count: reason.trim().length,
+                      max: PROCESS_ASSIGN_LIMITS.reasonMax,
+                    })}
+                  </span>
+                </span>
+              }
+              error={errors.reason}
+            >
+              <Textarea
                 value={reason}
                 maxLength={PROCESS_ASSIGN_LIMITS.reasonMax}
-                aria-required={reasonRequired ? true : undefined}
-                aria-invalid={errors.reason ? true : undefined}
-                aria-describedby={[
-                  reasonHint,
-                  reasonCounter,
-                  errors.reason ? reasonError : undefined,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                className={TEXTAREA_CLASS}
                 onChange={(event) => {
                   setReason(event.target.value);
                   setErrors(({ assignee: current }) =>
@@ -378,21 +370,7 @@ export function AssignProcessDialog({
                   );
                 }}
               />
-              <p className="flex justify-between gap-2 text-xs text-muted-foreground">
-                <span id={reasonHint}>{t('reason.hint')}</span>
-                <span id={reasonCounter} aria-live="polite">
-                  {t('counter', {
-                    count: reason.trim().length,
-                    max: PROCESS_ASSIGN_LIMITS.reasonMax,
-                  })}
-                </span>
-              </p>
-              {errors.reason ? (
-                <p id={reasonError} className="text-xs text-destructive">
-                  {errors.reason}
-                </p>
-              ) : null}
-            </div>
+            </Field>
             <DialogFooter>
               <Button
                 type="button"

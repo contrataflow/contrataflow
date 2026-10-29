@@ -4,6 +4,8 @@ import type { CatalogType } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  Checkbox,
+  DatePicker,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -12,6 +14,8 @@ import {
   SheetContent,
   Skeleton,
   cx,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import {
@@ -762,13 +766,12 @@ function EditForm({
               error={errorOf('modalityId')}
             />
             <div className="flex min-w-0 items-start gap-2 sm:pt-6">
-              <input
+              <Checkbox
                 id={fieldId('isPriceRegistration')}
-                type="checkbox"
-                className="mt-1 size-4 flex-none"
+                className="mt-0.5"
                 checked={values.isPriceRegistration}
-                onChange={(event) => {
-                  set('isPriceRegistration', event.target.checked);
+                onCheckedChange={(checked) => {
+                  set('isPriceRegistration', checked === true);
                 }}
               />
               <label htmlFor={fieldId('isPriceRegistration')} className="text-sm font-medium">
@@ -797,13 +800,17 @@ function EditForm({
               error={errorOf('targetDate')}
             >
               {(control) => (
-                <input
+                <DatePicker
                   {...control}
-                  type="date"
-                  className={INPUT_CLASS}
-                  value={values.targetDate}
-                  onChange={(event) => {
-                    set('targetDate', event.target.value);
+                  clearable
+                  value={fromIsoDate(values.targetDate)}
+                  onValueChange={(date) => {
+                    set('targetDate', date ? toIsoDate(date) : '');
+                  }}
+                  labels={{
+                    placeholder: t('fields.datePlaceholder'),
+                    clear: t('fields.dateClear', { label: plain(t('fields.targetDate')) }),
+                    calendar: t('fields.dateCalendar', { label: plain(t('fields.targetDate')) }),
                   }}
                 />
               )}

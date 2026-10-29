@@ -5,7 +5,7 @@ import type { MovementAction, MovementItemDto } from '@contrataflow/validation';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useNow, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -18,12 +18,13 @@ import { MovementFilterBar } from './movement-filter-bar';
 import {
   EMPTY_FILTER_OPTIONS,
   EMPTY_MOVEMENT_FILTERS,
+  groupMovementsByDay,
   hasActiveFilters,
   mergeFilterOptions,
   movementQueryOf,
   statusChanged,
 } from './movements-model';
-import type { MovementFilterOptions, MovementFilters } from './movements-model';
+import type { MovementDay, MovementFilterOptions, MovementFilters } from './movements-model';
 import { MOVEMENTS_STALE_TIME_MS, fetchMovements, movementKeys } from './movements.api';
 
 /** Ícone por ação (`MovementRow` — fluxo principal 5). */
@@ -114,7 +115,6 @@ export function ApprovalLinkBadge({ item }: { readonly item: MovementItemDto }) 
   );
 }
 
-/** `MovementRow`: ícone da ação, de → para, ator, comentário, prazo, documentos e (FA-02) IP. */
 /** Marcador colorido por ação: avanço em azul, devolução em âmbar, decisão e encerramento. */
 const ACTION_TONES: Readonly<Record<MovementAction, string>> = {
   CREATE: 'bg-neutral-soft text-neutral-soft-foreground',
@@ -130,6 +130,7 @@ const ACTION_TONES: Readonly<Record<MovementAction, string>> = {
   RESUME: 'bg-approval-soft text-approval-soft-foreground',
 };
 
+/** `MovementRow`: marcador da ação, de → para, ator, comentário, prazo, documentos e (FA-02) IP. */
 export function MovementRow({
   item,
   processId,
@@ -154,7 +155,7 @@ export function MovementRow({
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- cada item focável (lista navegável por teclado — US-054)
       tabIndex={0}
       aria-label={t('label', { action, sequence: item.sequence, date: when })}
-      className="relative flex min-w-0 gap-3 rounded-control pb-5 before:absolute before:top-9 before:bottom-1 before:left-4 before:w-px before:bg-border last:pb-0 last:before:hidden focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:outline-none"
+      className="relative flex min-w-0 gap-3 rounded-control pb-4 before:absolute before:top-9 before:bottom-1 before:left-4 before:w-px before:bg-border last:pb-0 last:before:hidden focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:outline-none"
     >
       <span
         aria-hidden="true"
@@ -250,6 +251,50 @@ export function MovementRow({
   );
 }
 
+/** Data completa de um dia local (`YYYY-MM-DD`), sem depender do fuso do navegador. */
+function formatDay(date: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: 'UTC' }).format(
+    new Date(`${date}T12:00:00Z`),
+  );
+}
+
+/** Cabeçalho `<h3>` do dia ("Hoje", "Ontem" ou data completa) e as tramitações dele. */
+function MovementDayGroup({
+  day,
+  processId,
+  timeZone,
+  canViewIp,
+}: {
+  readonly day: MovementDay;
+  readonly processId: string;
+  readonly timeZone: string;
+  readonly canViewIp: boolean;
+}) {
+  const t = useTranslations('movements');
+  const label =
+    day.relative === 'today'
+      ? t('today')
+      : day.relative === 'yesterday'
+        ? t('yesterday')
+        : formatDay(day.date);
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="text-label font-semibold text-muted-foreground uppercase">{label}</h3>
+      <ol className="flex flex-col">
+        {day.items.map((item) => (
+          <MovementRow
+            key={item.id}
+            item={item}
+            processId={processId}
+            timeZone={timeZone}
+            canViewIp={canViewIp}
+          />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 type ErrorKey = 'unavailable' | 'rateLimited' | 'unexpected' | 'filters';
 
 /** Mensagem por falha ("Casos de erro" da US-054). */
@@ -310,6 +355,7 @@ export function MovementTimeline({ processId }: { readonly processId: string }) 
   const session = useShellSession();
   const tenantId = session.activeTenant.id;
   const timeZone = session.activeTenant.timezone;
+  const now = useNow({ updateInterval: 60_000 });
   const [filters, setFilters] = useState<MovementFilters>(EMPTY_MOVEMENT_FILTERS);
   const [options, setOptions] = useState<MovementFilterOptions>(EMPTY_FILTER_OPTIONS);
   const [cursorReset, setCursorReset] = useState(false);
@@ -345,6 +391,7 @@ export function MovementTimeline({ processId }: { readonly processId: string }) 
   });
 
   const items = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);
+  const days = useMemo(() => groupMovementsByDay(items, timeZone, now), [items, timeZone, now]);
   const canViewIp = feed.data?.pages[0]?.canViewIp === true;
   const pageCount = feed.data?.pages.length ?? 0;
 
@@ -399,21 +446,23 @@ export function MovementTimeline({ processId }: { readonly processId: string }) 
     );
   } else {
     body = (
-      <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-5 shadow-card">
+      <div
+        role="region"
+        aria-label={t('listLabel')}
+        className="flex flex-col gap-5 rounded-card border border-border bg-surface p-5 shadow-card"
+      >
         {feed.isError && !isCursorError(feed.error) ? (
           <FeedError error={feed.error} onRetry={() => void feed.fetchNextPage()} />
         ) : null}
-        <ol aria-label={t('listLabel')} className="flex flex-col">
-          {items.map((item) => (
-            <MovementRow
-              key={item.id}
-              item={item}
-              processId={processId}
-              timeZone={timeZone}
-              canViewIp={canViewIp}
-            />
-          ))}
-        </ol>
+        {days.map((day) => (
+          <MovementDayGroup
+            key={day.date}
+            day={day}
+            processId={processId}
+            timeZone={timeZone}
+            canViewIp={canViewIp}
+          />
+        ))}
         <p aria-live="polite" className="sr-only">
           {pageCount > 1 ? t('loadedMore', { count: items.length }) : ''}
         </p>

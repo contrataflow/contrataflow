@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import { ProcessListPage } from './process-list-page';
@@ -293,8 +294,10 @@ function alertBox(node: HTMLElement): HTMLElement {
 
 const select = () => screen.findByRole('combobox', { name: 'Visão' });
 
-async function applyView(id: string) {
-  await userEvent.selectOptions(await select(), id);
+/** Escolhe a visão no seletor (combobox do kit) pelo nome exibido na opção. */
+async function applyView(name: string) {
+  await select();
+  await chooseOption(userEvent.setup(), 'Visão', name);
 }
 
 const createObjectURL = vi.fn(() => 'blob:x');
@@ -362,7 +365,9 @@ describe('Feature: salvar visão (US-003 · PRC-36)', () => {
     });
     // A visão nova fica aplicada: chip de origem e seletor nela, sem "Alterações não salvas".
     expect(await screen.findByText('Visão: Atrasados por prioridade')).toBeTruthy();
-    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Visão' }).value).not.toBe('');
+    expect(screen.getByRole('combobox', { name: 'Visão' }).textContent).toBe(
+      'Atrasados por prioridade',
+    );
     expect(screen.queryByText('Alterações não salvas')).toBeNull();
     expect(await screen.findByText('Visão Atrasados por prioridade salva.')).toBeTruthy();
   });
@@ -506,13 +511,21 @@ describe('Feature: aplicar visão (US-003)', () => {
     expect(within(table).getByRole('columnheader', { name: /Etapa/ })).toBeTruthy();
 
     const picker = await select();
-    const groups = Array.from(picker.querySelectorAll('optgroup')).map((group) => group.label);
+    const user = userEvent.setup();
+    await user.click(picker);
+    const listbox = await screen.findByRole('listbox');
+    const groups = within(listbox)
+      .getAllByRole('group')
+      .map(
+        (group) =>
+          document.getElementById(group.getAttribute('aria-labelledby') ?? '')?.textContent,
+      );
     expect(groups).toEqual(['Minhas visões', 'Compartilhadas']);
     expect(
-      within(picker).getByRole('option', { name: 'Devolvidos da Saúde (de Beatriz)' }),
+      within(listbox).getByRole('option', { name: 'Devolvidos da Saúde (de Beatriz)' }),
     ).toBeTruthy();
 
-    await userEvent.selectOptions(picker, ID(900));
+    await user.click(within(listbox).getByRole('option', { name: 'Atrasados por prioridade' }));
     const search = new URLSearchParams(nav.get());
     expect(search.get('status')).toBe('IN_PROGRESS,RETURNED');
     expect(search.get('overdue')).toBe('true');
@@ -539,7 +552,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     mockApi({ views: [view()] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(
       await screen.findByRole('button', {
         name: 'Limpar a visão Atrasados por prioridade e voltar ao padrão da tela',
@@ -588,8 +601,8 @@ describe('Feature: aplicar visão (US-003)', () => {
     });
     nav.push.mockImplementationOnce(() => undefined);
     renderPage();
-    await screen.findByRole('option', { name: 'Atrasados por prioridade' });
-    await applyView(ID(900));
+    await select();
+    await applyView('Atrasados por prioridade');
     expect(screen.getByText('Visão: Atrasados por prioridade')).toBeTruthy();
 
     releaseUnits(undefined);
@@ -652,7 +665,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     mockApi({ views: [stale] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(stale.id);
+    await applyView('Atrasados por prioridade');
     const search = new URLSearchParams(nav.get());
     expect(search.get('currentDepartmentId')).toBe(ID(4));
     expect(search.get('overdue')).toBe('true');
@@ -670,7 +683,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     mockApi({ views: [stale] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(stale.id);
+    await applyView('Atrasados por prioridade');
     expect(new URLSearchParams(nav.get()).get('requestingSecretariatId')).toBeNull();
     expect(
       await screen.findByText(
@@ -685,7 +698,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     const { fetchMock } = mockApi({ views: [view()] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     expect(screen.queryByText('Alterações não salvas')).toBeNull();
 
     await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
@@ -710,7 +723,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     mockApi({ views: [view()] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('button', { name: 'Colunas' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Prioridade' }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
@@ -725,7 +738,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
 
@@ -749,7 +762,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     mockApi({ views: [view()], patch: () => problem(403, 'PERMISSION_DENIED') });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
     const message = await screen.findByText('Somente quem criou a visão pode alterá-la.');
@@ -765,7 +778,7 @@ describe('Feature: alterações não salvas (US-003 · FA-02)', () => {
     });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     state.views = [];
     await userEvent.click(await screen.findByRole('button', { name: 'Atualizar visão' }));
@@ -784,7 +797,7 @@ describe('Feature: visão compartilhada por outro dono (US-003 · FA-04)', () =>
     const { fetchMock } = mockApi({ views: [view(), SHARED] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(SHARED.id);
+    await applyView('Devolvidos da Saúde (de Beatriz)');
     expect(new URLSearchParams(nav.get()).get('status')).toBe('RETURNED');
     await userEvent.click(screen.getByRole('link', { name: /^Atrasados/ }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
@@ -930,7 +943,7 @@ describe('Feature: gerenciar visões (US-003 · FA-03)', () => {
     mockApi({ views: [view()] });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     expect(await screen.findByText('Visão: Atrasados por prioridade')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Ações da visão' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Gerenciar visões' }));
@@ -956,7 +969,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     });
     await select();
     expect(screen.queryByRole('button', { name: 'Exportar CSV' })).toBeNull();
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('button', { name: 'Ações da visão' }));
     expect(await screen.findByRole('menuitem', { name: 'Gerenciar visões' })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: 'Exportar CSV' })).toBeNull();
@@ -1009,7 +1022,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(await screen.findByRole('button', { name: 'Exportar CSV' }));
     const dialog = await screen.findByRole('dialog', { name: 'Exportar CSV' });
     await waitFor(() => {
@@ -1032,7 +1045,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     mockApi({ views: [view()], permissions: ['PROCESS_EXPORT'], export: () => csvResponse(CSV) });
     renderPage();
     await screen.findByText('0012/2026');
-    await applyView(ID(900));
+    await applyView('Atrasados por prioridade');
     await userEvent.click(screen.getByRole('link', { name: /^Devolvidos/ }));
     expect(await screen.findByText('Alterações não salvas')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Ações da visão' }));

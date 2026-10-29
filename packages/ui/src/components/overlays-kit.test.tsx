@@ -70,6 +70,26 @@ describe('DatePicker', () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it('fora do Field do kit, aceita as ligações aria de um rótulo e erro próprios (sem aria-required)', () => {
+    render(
+      <DatePicker
+        id="prazo"
+        aria-label="Prazo alvo"
+        aria-describedby="prazo-erro"
+        aria-invalid
+        aria-required
+        value={undefined}
+        onValueChange={vi.fn()}
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Prazo alvo' });
+    expect(trigger.id).toBe('prazo');
+    expect(trigger.getAttribute('aria-describedby')).toBe('prazo-erro');
+    expect(trigger.getAttribute('aria-invalid')).toBe('true');
+    // `aria-required` não é permitido em botão (axe `aria-allowed-attr`).
+    expect(trigger.hasAttribute('aria-required')).toBe(false);
+  });
+
   it('sem valor mostra o placeholder; limpar devolve undefined', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

@@ -7,9 +7,13 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DatePicker,
   DialogTitle,
+  Field,
   SheetContent,
   Skeleton,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import { PROCESS_FORWARD_LIMITS } from '@contrataflow/validation';
@@ -79,7 +83,7 @@ import {
 import { useProcessDocuments } from '../process-documents/process-documents.api';
 import { useInvalidateProcess, useProcessStages } from '../process-panel/process-panel.api';
 import { lookupUsers } from '../process-participants/process-participants.api';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
+import { FormField, TEXTAREA_CLASS } from '../processes/form-field';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 
 /** Consultas do tenant invalidadas depois do encaminhamento (a caixa e o painel mudam de contagem). */
@@ -635,28 +639,27 @@ function ForwardContent({
             {overrideAllowed ? (
               dueOverride.enabled ? (
                 <div className="flex flex-col gap-3">
-                  <FormField
+                  <Field
                     id={fieldId('dueAt')}
                     label={t('due.date')}
-                    hint={t('due.dateHint', { limit: formatLocalDate(dueLimit) })}
+                    description={t('due.dateHint', { limit: formatLocalDate(dueLimit) })}
                     error={errors.dueAt}
-                    required
                   >
-                    {(control) => (
-                      <input
-                        {...control}
-                        type="date"
-                        min={today}
-                        max={dueLimit}
-                        className={INPUT_CLASS}
-                        value={dueOverride.date}
-                        onChange={(event) => {
-                          setDueOverride({ ...dueOverride, date: event.target.value });
-                          clearError('dueAt');
-                        }}
-                      />
-                    )}
-                  </FormField>
+                    <DatePicker
+                      value={fromIsoDate(dueOverride.date)}
+                      disabledDays={{
+                        before: fromIsoDate(today) ?? new Date(),
+                        after: fromIsoDate(dueLimit) ?? new Date(),
+                      }}
+                      onValueChange={(date) => {
+                        setDueOverride({
+                          ...dueOverride,
+                          date: date === undefined ? '' : toIsoDate(date),
+                        });
+                        clearError('dueAt');
+                      }}
+                    />
+                  </Field>
                   <FormField
                     id={fieldId('dueReason')}
                     label={t('due.reason')}

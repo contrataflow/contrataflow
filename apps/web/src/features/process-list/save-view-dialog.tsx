@@ -3,11 +3,14 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Input,
+  Label,
 } from '@contrataflow/ui';
 import { SAVED_VIEW_NAME_MAX } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
@@ -156,11 +159,9 @@ function SaveViewForm({
     >
       {formError !== null ? <Alert tone="error" title={formError} /> : null}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={nameId} className="text-sm font-medium">
-          {t('name')} *
-        </label>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={nameId}>{t('name')} *</Label>
+        <Input
           id={nameId}
           ref={nameRef}
           type="text"
@@ -174,7 +175,6 @@ function SaveViewForm({
             setName(event.target.value);
             setNameError(null);
           }}
-          className="h-11 rounded-control border border-border bg-surface px-3 text-sm md:h-9"
         />
         {nameError !== null ? (
           <p id={errorId} role="alert" className="text-xs text-destructive">
@@ -192,40 +192,40 @@ function SaveViewForm({
       </div>
 
       <div className="flex flex-col gap-3">
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4"
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id={`${id}-default`}
+            className="mt-0.5"
             checked={isDefault}
             aria-describedby={`${id}-default-hint`}
-            onChange={(event) => {
-              setIsDefault(event.target.checked);
+            onCheckedChange={(checked) => {
+              setIsDefault(checked === true);
             }}
           />
-          <span>
+          <Label htmlFor={`${id}-default`} className="flex flex-col gap-0.5 font-normal">
             {t('isDefault')}
-            <span id={`${id}-default-hint`} className="block text-xs text-muted-foreground">
+            <span id={`${id}-default-hint`} className="text-xs text-muted-foreground">
               {t('isDefaultHint')}
             </span>
-          </span>
-        </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4"
+          </Label>
+        </div>
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id={`${id}-shared`}
+            className="mt-0.5"
             checked={isShared}
             aria-describedby={`${id}-shared-hint`}
-            onChange={(event) => {
-              setIsShared(event.target.checked);
+            onCheckedChange={(checked) => {
+              setIsShared(checked === true);
             }}
           />
-          <span>
+          <Label htmlFor={`${id}-shared`} className="flex flex-col gap-0.5 font-normal">
             {t('isShared')}
-            <span id={`${id}-shared-hint`} className="block text-xs text-muted-foreground">
+            <span id={`${id}-shared-hint`} className="text-xs text-muted-foreground">
               {t('isSharedHint')}
             </span>
-          </span>
-        </label>
+          </Label>
+        </div>
       </div>
 
       <DialogFooter>

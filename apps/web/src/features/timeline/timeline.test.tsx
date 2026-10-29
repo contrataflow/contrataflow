@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import type { TimelineEntryDto } from '@contrataflow/validation';
 import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { pickDate } from '@test/support/kit';
 import { PROCESS_ID, mockProcessApi } from '@test/support/process-fixtures';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
@@ -129,6 +131,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Abre o popover "Filtros" da barra (fechado por padrão — prd-5 · regra 2). */
+async function openFilters(user: User): Promise<HTMLElement> {
+  const open = screen.queryByRole('dialog', { name: 'Filtros' });
+  if (open) return open;
+  await user.click(screen.getByRole('button', { name: /^Filtros/ }));
+  return screen.findByRole('dialog', { name: 'Filtros' });
+}
+
 describe('SCR-006 · aba "Timeline" (US-060)', () => {
   it('[Sucesso] skeleton, dias "Hoje"/"Ontem"/data completa como <h3> e mensagens do dicionário', async () => {
     const calls = mockTimeline();
@@ -159,6 +171,7 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
   });
 
   it('[Sucesso] filtros por grupo, autor (atores já carregados) e período reiniciam a paginação', async () => {
+    const user = userEvent.setup();
     const calls = mockTimeline((params) =>
       params.has('group') || params.has('actorId') || params.has('occurredFrom')
         ? feedResponse(ENTRIES.slice(0, 1))
@@ -166,9 +179,11 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
     );
     renderWithShell(<TimelineFeed processId={PROCESS_ID} />);
     await screen.findByRole('heading', { level: 3, name: 'Hoje' });
-    const filters = screen.getByRole('region', { name: 'Filtros da timeline' });
+    // Filtros fechados por padrão (prd-5 · regra 2).
+    expect(screen.queryByRole('checkbox', { name: 'Aprovações' })).toBeNull();
+    const filters = await openFilters(user);
 
-    fireEvent.click(within(filters).getByRole('checkbox', { name: 'Aprovações' }));
+    await user.click(within(filters).getByRole('checkbox', { name: 'Aprovações' }));
     await waitFor(() => {
       expect(calls.at(-1)?.get('group')).toBe('APROVACOES');
     });
@@ -177,13 +192,13 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
     expect(
       within(actor)
         .getAllByRole('checkbox')
-        .map((box) => box.parentElement?.textContent),
+        .map((box) => document.querySelector(`label[for="${box.id}"]`)?.textContent),
     ).toEqual(['Carlos Lima', 'Paula Reis']);
-    fireEvent.click(within(actor).getByRole('checkbox', { name: 'Carlos Lima' }));
+    await user.click(within(actor).getByRole('checkbox', { name: 'Carlos Lima' }));
     await waitFor(() => {
       expect(calls.at(-1)?.get('actorId')).toBe(CARLOS);
     });
-    fireEvent.change(within(filters).getByLabelText('De'), { target: { value: '2026-09-28' } });
+    await pickDate(user, 'Data inicial', '2026-09-28');
     await waitFor(() => {
       expect(calls.at(-1)?.get('occurredFrom')).toBe('2026-09-28T03:00:00.000Z');
     });
@@ -191,22 +206,30 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
     expect(last?.get('group')).toBe('APROVACOES');
     expect(last?.get('cursor')).toBeNull();
     expect(last?.get('limit')).toBe('50');
+    // O que está ativo vira chip removível.
+    const chips = screen.getByRole('list', { name: 'Filtros aplicados' });
+    expect(within(chips).getByText('Autor: Carlos Lima')).toBeTruthy();
+    expect(within(chips).getByText('Período: a partir de 28/09/2026')).toBeTruthy();
   });
 
   it('[Validação] período invertido marca os campos e não é enviado (V-01)', async () => {
+    const user = userEvent.setup();
     const calls = mockTimeline();
     renderWithShell(<TimelineFeed processId={PROCESS_ID} />);
     await screen.findByRole('heading', { level: 3, name: 'Hoje' });
-    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-10-05' } });
+    await openFilters(user);
+    await pickDate(user, 'Data inicial', '2026-10-05');
     await waitFor(() => {
       expect(calls.at(-1)?.get('occurredFrom')).not.toBeNull();
     });
     const before = calls.length;
-    fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-10-01' } });
+    await pickDate(user, 'Data final', '2026-10-01');
     expect(
       await screen.findByText('O período final deve ser igual ou posterior ao inicial.'),
     ).toBeTruthy();
-    expect(screen.getByLabelText('Até').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Data final' }).getAttribute('aria-invalid')).toBe(
+      'true',
+    );
     expect(calls).toHaveLength(before);
   });
 
@@ -217,24 +240,30 @@ describe('SCR-006 · aba "Timeline" (US-060)', () => {
   });
 
   it('[FA-02] filtro sem resultados com "Limpar filtros", que volta à lista completa', async () => {
+    const user = userEvent.setup();
     const calls = mockTimeline((params) =>
       params.has('group') ? feedResponse([]) : feedResponse(ENTRIES),
     );
     renderWithShell(<TimelineFeed processId={PROCESS_ID} />);
     await screen.findByRole('heading', { level: 3, name: 'Hoje' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Comentários e anexos' }));
+    await user.click(
+      within(await openFilters(user)).getByRole('checkbox', { name: 'Comentários e anexos' }),
+    );
     expect(
       await screen.findByText('Nenhum evento encontrado para os filtros selecionados.'),
     ).toBeTruthy();
+    await user.keyboard('{Escape}');
     const clear = screen.getAllByRole('button', { name: 'Limpar filtros' });
     const last = clear.at(-1);
     if (!last) throw new Error('botão ausente');
-    fireEvent.click(last);
+    await user.click(last);
     expect(await screen.findByRole('heading', { level: 3, name: 'Hoje' })).toBeTruthy();
     expect(calls.some((params) => params.get('group') === 'COMENTARIOS')).toBe(true);
     expect(
-      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Comentários e anexos' }).checked,
-    ).toBe(false);
+      within(await openFilters(user))
+        .getByRole('checkbox', { name: 'Comentários e anexos' })
+        .getAttribute('aria-checked'),
+    ).toBe('false');
   });
 
   it('[Paginação] "Carregar mais" busca a próxima página pelo cursor e acrescenta as entradas', async () => {

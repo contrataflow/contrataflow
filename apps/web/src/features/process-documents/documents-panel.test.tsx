@@ -325,7 +325,10 @@ describe('SCR-006 · aba "Documentos" (US-062)', () => {
     expect(listCalls(api)).toHaveLength(calls);
 
     await user.clear(search);
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'CANCELED');
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(screen.getByRole('combobox', { name: 'Status' }));
+    await user.click(await screen.findByRole('option', { name: 'Cancelado' }));
+    expect(screen.getByRole('button', { name: 'Remover o filtro Status: Cancelado' })).toBeTruthy();
     expect(await screen.findByText('Nenhum documento corresponde aos filtros.')).toBeTruthy();
   });
 

@@ -99,8 +99,6 @@ const PENDING: Readonly<Record<string, string>> = {
   'apps/web/src/features/price-research/comparative-map-grid.tsx':
     'card 6 — mapa comparativo com altura máxima e rolagem nos dois eixos',
   'apps/web/src/features/price-research/price-research-view.tsx': 'card 6 — abas roláveis',
-  'apps/web/src/features/process-forward/forward-sections.tsx':
-    'card 4 — lista com altura máxima dentro da gaveta de encaminhamento',
   'apps/web/src/features/risks/risks-screen.tsx': 'card 6 — abas roláveis',
   'apps/web/src/features/roles/permission-matrix.tsx':
     'card 8 — matriz com altura máxima e rolagem nos dois eixos',

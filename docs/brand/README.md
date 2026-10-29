@@ -156,6 +156,14 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Aprovações (card 3) | `aprovacoes.png` | `aprovacoes-escuro.png` | `aprovacoes-celular.png` |
 | Aprovações vazia | `aprovacoes-vazia.png` | `aprovacoes-vazia-escuro.png` | `aprovacoes-vazia-celular.png` |
 | Decisão da aprovação | `decisao-da-aprovacao.png` | `decisao-da-aprovacao-escuro.png` | `decisao-da-aprovacao-celular.png` |
+| Novo processo · passo 1 (card 4) | `novo-processo-passo-1.png` | `novo-processo-passo-1-escuro.png` | `novo-processo-passo-1-celular.png` |
+| Novo processo · passo 2 | `novo-processo-passo-2.png` | `novo-processo-passo-2-escuro.png` | `novo-processo-passo-2-celular.png` |
+| Menu "Mais" do processo | `processo-menu-mais.png` | `processo-menu-mais-escuro.png` | `processo-menu-mais-celular.png` |
+| Diálogo Atribuir responsável | `dialogo-atribuir.png` | `dialogo-atribuir-escuro.png` | `dialogo-atribuir-celular.png` |
+| Diálogo Suspender processo | `dialogo-suspender.png` | `dialogo-suspender-escuro.png` | `dialogo-suspender-celular.png` |
+| Diálogo Cancelar processo | `dialogo-cancelar.png` | `dialogo-cancelar-escuro.png` | `dialogo-cancelar-celular.png` |
+| Aba Tramitação | `aba-tramitacao.png` | `aba-tramitacao-escuro.png` | `aba-tramitacao-celular.png` |
+| Aba Itens | `aba-itens.png` | `aba-itens-escuro.png` | `aba-itens-celular.png` |
 
 Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
 editores (DFD, ETP, TR, pesquisa de preços, riscos, documentos), fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram

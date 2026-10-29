@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   AQUISICAO,
   CATALOGS,
@@ -125,11 +126,9 @@ describe('SCR-006 · aba "Itens" (US-006)', () => {
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText(/^Descrição/), 'Areia média');
     // Natureza padrão = primeira de `itemKinds` do tipo (Bem).
-    expect(within(dialog).getByLabelText<HTMLSelectElement>(/^Natureza/).value).toBe('GOOD');
-    await user.selectOptions(
-      await within(dialog).findByLabelText(/^Unidade de medida/),
-      METRO_CUBICO.id,
-    );
+    expect(within(dialog).getByRole('combobox', { name: /^Natureza/ }).textContent).toBe('Bem');
+    await within(dialog).findByRole('combobox', { name: /^Unidade de medida/ });
+    await chooseOption(user, /^Unidade de medida/, METRO_CUBICO.label, dialog);
     await user.type(within(dialog).getByLabelText(/^Lote \(número\)/), '1');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar item' }));
 
@@ -156,16 +155,14 @@ describe('SCR-006 · aba "Itens" (US-006)', () => {
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Adicionar item' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText(/^Natureza/), 'WORK');
+    await chooseOption(user, /^Natureza/, 'Obra', dialog);
     expect(
       within(dialog).getByText('Natureza incomum para o tipo de contratação Aquisição de bens.'),
     ).toBeTruthy();
     await user.type(within(dialog).getByLabelText(/^Descrição/), 'Cimento');
-    await user.selectOptions(
-      await within(dialog).findByLabelText(/^Unidade de medida/),
-      UNIDADE.id,
-    );
-    await user.selectOptions(within(dialog).getByLabelText(/^Sistema de catálogo/), 'CATMAT');
+    await within(dialog).findByRole('combobox', { name: /^Unidade de medida/ });
+    await chooseOption(user, /^Unidade de medida/, UNIDADE.label, dialog);
+    await chooseOption(user, /^Sistema de catálogo/, 'CATMAT', dialog);
     await user.type(within(dialog).getByLabelText(/^Código CATMAT/), 'AB12');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar item' }));
     expect(

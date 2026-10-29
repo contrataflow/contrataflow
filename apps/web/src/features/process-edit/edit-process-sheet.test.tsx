@@ -7,8 +7,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   PROCESS_ID,
+  PROJETOS,
   callsTo,
   mockProcessApi,
   problemResponse,
@@ -67,7 +69,8 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
     const title = await field(/^Título/);
     await user.clear(title);
     await user.type(title, 'Aquisição de cimento CP-II para manutenção de vias');
-    await user.selectOptions(await field(/^Prioridade/), 'HIGH');
+    await field(/^Prioridade/);
+    await chooseOption(user, /^Prioridade/, 'Alta');
     expect(screen.getAllByText('Alterado')).toHaveLength(2);
     await user.click(save());
 
@@ -83,6 +86,41 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
     expect(await screen.findByText('Dados do processo atualizados')).toBeTruthy();
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('[Sucesso] marca o registro de preços e escolhe o prazo alvo nos controles do kit', async () => {
+    const user = userEvent.setup();
+    const { api } = renderSheet(inProgress(), {
+      update: () => jsonResponse({ data: inProgress({ version: 9 }) }),
+    });
+
+    const srp = await screen.findByRole('checkbox', { name: /Registro de preços/ });
+    expect(srp.getAttribute('aria-checked')).toBe('false');
+    await user.click(srp);
+    expect(srp.getAttribute('aria-checked')).toBe('true');
+    // Dentro do painel o foco do calendário cai em "mês anterior": avança um mês pelo botão.
+    await user.click(screen.getByRole('button', { name: /^Prazo alvo/ }));
+    const calendar = await screen.findByRole('dialog', { name: /^Escolher Prazo alvo/ });
+    await user.click(within(calendar).getByRole('button', { name: 'Ir para o próximo mês' }));
+    const day = within(calendar)
+      .getAllByRole('gridcell')
+      .find((cell) => !cell.hasAttribute('data-outside') && cell.textContent === '15');
+    await user.click(day?.querySelector('button') as HTMLElement);
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth() + 1, 15);
+    const iso = `${String(target.getFullYear())}-${String(target.getMonth() + 1).padStart(2, '0')}-15`;
+    expect(screen.getByRole('button', { name: /^Prazo alvo/ }).textContent).toContain(
+      `15/${String(target.getMonth() + 1).padStart(2, '0')}/${String(target.getFullYear())}`,
+    );
+    await user.click(save());
+
+    await waitFor(() => {
+      expect(callsTo(api, 'PATCH', PATH)).toHaveLength(1);
+    });
+    expect(callsTo(api, 'PATCH', PATH)[0]?.body).toEqual({
+      isPriceRegistration: true,
+      targetDate: iso,
     });
   });
 
@@ -174,7 +212,8 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
           : jsonResponse({ data: { ...current, version: 10, priority: 'HIGH' } });
       },
     });
-    await user.selectOptions(await field(/^Prioridade/), 'HIGH');
+    await field(/^Prioridade/);
+    await chooseOption(user, /^Prioridade/, 'Alta');
     await user.type(await field(/^Observações/), 'Minha observação');
     await user.click(save());
 
@@ -238,7 +277,8 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
           detail: 'Não é possível editar enquanto o processo aguarda aprovação.',
         }),
     });
-    await user.selectOptions(await field(/^Prioridade/), 'HIGH');
+    await field(/^Prioridade/);
+    await chooseOption(user, /^Prioridade/, 'Alta');
     await user.click(save());
     expect(
       await screen.findByText('Não é possível editar enquanto o processo aguarda aprovação.'),
@@ -249,14 +289,8 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
   it('[Sucesso] rascunho: troca do setor solicitante com os avisos do DFD e da custódia (FA-04)', async () => {
     const user = userEvent.setup();
     const { api } = renderSheet(processDto());
-    const department = await field(/Setor solicitante/);
-    await waitFor(() => {
-      expect(within(department).getAllByRole('option').length).toBeGreaterThan(2);
-    });
-    const other = within(department)
-      .getAllByRole('option')
-      .find((option) => option.textContent === 'Departamento de Projetos');
-    await user.selectOptions(department, other?.getAttribute('value') ?? '');
+    await field(/Setor solicitante/);
+    await chooseOption(user, /Setor solicitante/, /Departamento de Projetos/);
     expect(
       screen.getByText(
         'O DFD já criado não é alterado automaticamente; revise o campo Setor no DFD.',
@@ -268,7 +302,7 @@ describe('SCR-006 · Painel "Editar dados" (US-005)', () => {
     await user.click(save());
     await waitFor(() => {
       expect(callsTo(api, 'PATCH', PATH)[0]?.body).toEqual({
-        requestingDepartmentId: other?.getAttribute('value'),
+        requestingDepartmentId: PROJETOS.id,
       });
     });
   });

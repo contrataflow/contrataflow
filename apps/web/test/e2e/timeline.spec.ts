@@ -38,13 +38,17 @@ test('aba "Timeline": dias agrupados, filtro por grupo e scroll infinito até o 
   await expect(page.getByRole('heading', { level: 3, name: 'Ontem' })).toBeVisible();
 
   // Filtro por grupo reinicia a paginação só com aprovações.
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Aprovações' }).check();
+  await page.keyboard.press('Escape');
   await expect(feed.getByRole('listitem')).toHaveCount(19);
   for (const text of await feed.getByRole('listitem').allTextContents()) {
     expect(text).toContain('aprovou');
   }
-  await page.getByRole('button', { name: 'Limpar filtros' }).click();
+  await page.getByRole('button', { name: 'Remover filtro Grupo: Aprovações' }).click();
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Aprovações' })).not.toBeChecked();
+  await page.keyboard.press('Escape');
   await expect(feed.getByText('encaminhou para', { exact: false }).first()).toBeVisible();
 });
 

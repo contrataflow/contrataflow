@@ -2,6 +2,8 @@
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { chooseOption } from './kit';
+
 const PANEL_URL = /\/processos\/[0-9a-f-]{36}$/;
 
 /**
@@ -21,12 +23,12 @@ export async function createProcessViaWizard(
   });
   await page.getByLabel('Título *').fill(title);
   await page.getByLabel('Objeto *').fill(object);
-  await page.getByLabel('Tipo de contratação *').selectOption({ label: 'Aquisição de bens' });
+  await chooseOption(page, 'Tipo de contratação *', 'Aquisição de bens');
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(
     page.getByRole('heading', { level: 2, name: 'Origem e planejamento' }),
   ).toBeVisible();
-  await page.getByLabel('Origem *').selectOption({ label: 'Demanda não prevista' });
+  await chooseOption(page, 'Origem *', 'Demanda não prevista');
   await page.getByRole('radio', { name: 'Não se aplica' }).check();
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Revisão' })).toBeVisible();

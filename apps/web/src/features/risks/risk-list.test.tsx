@@ -122,7 +122,8 @@ function renderList(
 
 async function fillRequired(dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) {
   await user.type(within(dialog).getByLabelText(/^Título/), 'Atraso na entrega');
-  await user.selectOptions(await within(dialog).findByLabelText(/^Categoria/), CATEGORY.id);
+  await user.click(await within(dialog).findByRole('combobox', { name: /^Categoria/ }));
+  await user.click(await screen.findByRole('option', { name: /Risco de mercado/ }));
   await user.type(within(dialog).getByLabelText(/^Causa/), 'Fornecedor com pouca capacidade');
   await user.type(within(dialog).getByLabelText(/^Consequência/), 'Obra parada por semanas');
 }

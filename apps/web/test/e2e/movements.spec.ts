@@ -24,8 +24,9 @@ test('aba "Tramitação": mais recente primeiro, filtro por ação, scroll infin
   await createProcess(page);
   await page.getByRole('tab', { name: 'Tramitação' }).click();
 
-  const list = page.getByRole('list', { name: 'Histórico de tramitações' });
-  const rows = list.locator(':scope > li');
+  // Agrupadas por dia: cada grupo é uma lista; as linhas são os itens "Ação nº N, em …".
+  const list = page.getByRole('region', { name: 'Histórico de tramitações' });
+  const rows = list.getByRole('listitem', { name: / nº \d+, em / });
   await expect(rows.first()).toHaveAccessibleName(/^Aprovação nº 60/);
   // Sem AUDIT_VIEW, nenhuma informação de IP (FA-02).
   await expect(page.getByText(/IP de origem/)).toHaveCount(0);
@@ -43,23 +44,26 @@ test('aba "Tramitação": mais recente primeiro, filtro por ação, scroll infin
   await expect(decision).toHaveAttribute('href', /^\/aprovacoes\/[0-9a-f-]{36}$/);
 
   // FA-01: filtro por ação reinicia a paginação só com devoluções.
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Devolução' }).check();
+  await page.keyboard.press('Escape');
   await expect(rows).toHaveCount(29);
   for (const name of await rows.evaluateAll((items) =>
     items.map((item) => item.getAttribute('aria-label') ?? ''),
   )) {
     expect(name).toMatch(/^Devolução/);
   }
-  await page.getByRole('button', { name: 'Limpar filtros' }).click();
-  await expect(page.getByRole('checkbox', { name: 'Devolução' })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Remover filtro Ação: Devolução' }).click();
   await expect(rows.first()).toHaveAccessibleName(/^Aprovação nº 60/);
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Devolução' })).not.toBeChecked();
 });
 
 test('em 360 px: filtros colapsáveis e sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await createProcess(page);
   await page.getByRole('tab', { name: 'Tramitação' }).click();
-  await expect(page.getByRole('list', { name: 'Histórico de tramitações' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Histórico de tramitações' })).toBeVisible();
 
   await expect(page.getByRole('checkbox', { name: 'Devolução' })).toBeHidden();
   await page.getByRole('button', { name: 'Filtros', exact: true }).click();

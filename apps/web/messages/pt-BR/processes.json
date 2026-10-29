@@ -54,6 +54,9 @@
     "priority": "Prioridade *",
     "targetDate": "Prazo alvo",
     "targetDateHint": "Opcional. Não pode ser anterior a hoje.",
+    "datePlaceholder": "Selecione a data",
+    "dateClear": "Limpar {label}",
+    "dateCalendar": "Escolher {label}",
     "estimatedValue": "Valor estimado",
     "estimatedValueHint": "Opcional. Em reais, com até 2 casas decimais.",
     "originId": "Origem *",
@@ -199,6 +202,11 @@
       "label": "Ações do processo",
       "more": "Mais",
       "moreLabel": "Mais ações do processo",
+      "groups": {
+        "flow": "Tramitação",
+        "manage": "Gestão",
+        "lifecycle": "Situação do processo"
+      },
       "withResponsible": "Com {name} — {department}",
       "inQueue": "Na fila de {department}",
       "readOnly": "Processo em modo leitura.",
@@ -642,6 +650,8 @@
     "assignee": {
       "label": "Novo responsável",
       "placeholder": "Selecione…",
+      "search": "Buscar pessoa",
+      "noResults": "Nenhuma pessoa encontrada.",
       "queue": "Deixar na fila da unidade",
       "hint": "Pessoas com vínculo ativo lotadas na unidade atual do processo.",
       "empty": "Nenhum outro membro ativo nesta unidade.",

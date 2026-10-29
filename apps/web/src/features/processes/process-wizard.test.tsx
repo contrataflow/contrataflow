@@ -5,6 +5,7 @@ import type { UserEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption, optionLabels, pickDate } from '@test/support/kit';
 import {
   AQUISICAO,
   CANDIDATE,
@@ -66,7 +67,32 @@ afterEach(() => {
 
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const stepHeading = (name: string) => screen.findByRole('heading', { level: 2, name });
-const select = (label: string) => screen.getByLabelText<HTMLSelectElement>(label);
+const combobox = (label: string) => screen.getByRole('combobox', { name: label });
+/** Texto escolhido no Select do kit; vazio quando o gatilho mostra o placeholder. */
+const shown = (label: string) => {
+  const trigger = combobox(label);
+  return trigger.hasAttribute('data-placeholder') ? '' : trigger.textContent.trim();
+};
+/** Grupos (rótulo e opções) do Select aberto de nome `label`; fecha com Esc. */
+async function groupsOf(user: UserEvent, label: string) {
+  await user.click(combobox(label));
+  const groups = (await screen.findAllByRole('group')).map((group) => {
+    const labelId = group.getAttribute('aria-labelledby') ?? '';
+    return {
+      label: document.getElementById(labelId)?.textContent ?? '',
+      options: within(group)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    };
+  });
+  await user.keyboard('{Escape}');
+  return groups;
+}
+/** Escolhe a opção num Select que pode ainda estar carregando. */
+async function choose(user: UserEvent, label: string, option: string) {
+  await screen.findByRole('combobox', { name: label });
+  await chooseOption(user, label, option);
+}
 
 async function paste(user: UserEvent, element: HTMLElement, text: string) {
   await user.click(element);
@@ -76,10 +102,7 @@ async function paste(user: UserEvent, element: HTMLElement, text: string) {
 async function fillIdentification(user: UserEvent) {
   await user.type(await screen.findByLabelText('Título *'), TITLE);
   await paste(user, screen.getByLabelText('Objeto *'), OBJECT);
-  await user.selectOptions(
-    await screen.findByLabelText('Tipo de contratação *'),
-    'Aquisição de bens',
-  );
+  await choose(user, 'Tipo de contratação *', 'Aquisição de bens');
 }
 
 async function toStep2(user: UserEvent) {
@@ -87,13 +110,13 @@ async function toStep2(user: UserEvent) {
   await user.click(button('Continuar'));
   await stepHeading('Origem e planejamento');
   await waitFor(() => {
-    expect(select('Setor solicitante *').value).toBe(MANUTENCAO.id);
+    expect(shown('Setor solicitante *')).toBe(MANUTENCAO.name);
   });
 }
 
 async function toReview(user: UserEvent) {
   await toStep2(user);
-  await user.selectOptions(await screen.findByLabelText('Origem *'), 'Demanda não prevista');
+  await choose(user, 'Origem *', 'Demanda não prevista');
   await user.click(screen.getByRole('radio', { name: 'Não se aplica' }));
   await user.click(button('Continuar'));
   await stepHeading('Revisão');
@@ -195,11 +218,21 @@ describe('[Validação] passo 1 · Identificação', () => {
   });
 
   it('modalidade vazia significa "A definir"', async () => {
+    const user = userEvent.setup();
     mockProcessApi();
     renderWithShell(<ProcessWizard />);
-    const modality = await screen.findByLabelText<HTMLSelectElement>('Modalidade prevista');
-    expect(modality.value).toBe('');
-    expect(within(modality).getByRole('option', { name: 'A definir' })).toBeTruthy();
+    const modality = await screen.findByRole('combobox', { name: 'Modalidade prevista' });
+    // Sem escolha o gatilho mostra "A definir" como placeholder (valor vazio).
+    expect(modality.hasAttribute('data-placeholder')).toBe(true);
+    expect(modality.textContent).toBe('A definir');
+    expect(shown('Modalidade prevista')).toBe('');
+    // A primeira opção da lista devolve o campo a "A definir" depois de uma escolha.
+    const labels = await optionLabels(user, 'Modalidade prevista');
+    expect(labels[0]).toBe('A definir');
+    await chooseOption(user, 'Modalidade prevista', labels[1] ?? '');
+    expect(shown('Modalidade prevista')).toBe(labels[1]);
+    await chooseOption(user, 'Modalidade prevista', 'A definir');
+    expect(shown('Modalidade prevista')).toBe('');
   });
 });
 
@@ -213,17 +246,15 @@ describe('passo 2 · Origem e planejamento', () => {
     await stepHeading('Origem e planejamento');
 
     await waitFor(() => {
-      expect(select('Secretaria solicitante *').value).toBe(OBRAS.id);
+      expect(shown('Secretaria solicitante *')).toBe(OBRAS.name);
     });
-    expect(select('Setor solicitante *').value).toBe(MANUTENCAO.id);
-    expect(select('Prioridade *').value).toBe('MEDIUM');
+    expect(shown('Setor solicitante *')).toBe(MANUTENCAO.name);
+    expect(shown('Prioridade *')).toBe('Média');
     expect(screen.queryByLabelText('Órgão/entidade *')).toBeNull();
     // FA-05: as lotações do usuário no topo da lista de setores.
-    const groups = Array.from(select('Setor solicitante *').querySelectorAll('optgroup'));
+    const groups = await groupsOf(user, 'Setor solicitante *');
     expect(groups.map((group) => group.label)).toEqual(['Suas lotações', 'Demais unidades']);
-    expect(
-      Array.from(groups[0]?.querySelectorAll('option') ?? []).map((o) => o.textContent),
-    ).toEqual(['Setor de Manutenção']);
+    expect(groups[0]?.options).toEqual(['Setor de Manutenção']);
     // Exercício do PCA = ano corrente.
     await user.click(screen.getByRole('radio', { name: 'Previsto no PCA' }));
     expect(screen.getByLabelText<HTMLInputElement>('Exercício do PCA *').value).toBe(
@@ -249,13 +280,11 @@ describe('passo 2 · Origem e planejamento', () => {
     mockProcessApi();
     renderWithShell(<ProcessWizard />);
     await toStep2(user);
-    await user.selectOptions(select('Secretaria solicitante *'), 'Secretaria de Saúde');
-    expect(select('Setor solicitante *').value).toBe('');
-    expect(
-      within(select('Setor solicitante *')).queryByRole('option', { name: 'Setor de Manutenção' }),
-    ).toBeNull();
-    await user.selectOptions(select('Setor solicitante *'), FARMACIA.id);
-    expect(select('Setor solicitante *').value).toBe(FARMACIA.id);
+    await chooseOption(user, 'Secretaria solicitante *', 'Secretaria de Saúde');
+    expect(shown('Setor solicitante *')).toBe('');
+    expect(await optionLabels(user, 'Setor solicitante *')).not.toContain('Setor de Manutenção');
+    await chooseOption(user, 'Setor solicitante *', FARMACIA.name);
+    expect(shown('Setor solicitante *')).toBe(FARMACIA.name);
   });
 
   it('FA-04: com vários órgãos, trocar o órgão limpa secretaria e setor e recarrega as opções', async () => {
@@ -267,23 +296,17 @@ describe('passo 2 · Origem e planejamento', () => {
     });
     renderWithShell(<ProcessWizard />);
     await toStep2(user);
-    expect(select('Órgão/entidade *').value).toBe(ORG_MAIN.id);
-    await user.selectOptions(select('Órgão/entidade *'), 'Fundo Municipal de Saúde');
+    expect(shown('Órgão/entidade *')).toBe(ORG_MAIN.name);
+    await chooseOption(user, 'Órgão/entidade *', 'Fundo Municipal de Saúde');
 
-    await waitFor(() => {
-      expect(
-        within(select('Secretaria solicitante *')).getByRole('option', {
-          name: 'Secretaria do Fundo',
-        }),
-      ).toBeTruthy();
+    await waitFor(async () => {
+      expect(await optionLabels(user, 'Secretaria solicitante *')).toContain('Secretaria do Fundo');
     });
-    expect(select('Secretaria solicitante *').value).toBe('');
-    expect(select('Setor solicitante *').value).toBe('');
-    expect(
-      within(select('Secretaria solicitante *')).queryByRole('option', {
-        name: 'Secretaria de Obras',
-      }),
-    ).toBeNull();
+    expect(shown('Secretaria solicitante *')).toBe('');
+    expect(shown('Setor solicitante *')).toBe('');
+    expect(await optionLabels(user, 'Secretaria solicitante *')).not.toContain(
+      'Secretaria de Obras',
+    );
     expect(
       api.mock.calls.filter(([url]) => requestUrl(url).includes(`organizationId=${ORG_FUND.id}`)),
     ).toHaveLength(1);
@@ -294,16 +317,8 @@ describe('passo 2 · Origem e planejamento', () => {
     mockProcessApi({ scopes: [{ type: 'OWN_DEPARTMENTS', includeSubtree: false }] });
     renderWithShell(<ProcessWizard />);
     await toStep2(user);
-    expect(
-      within(select('Secretaria solicitante *'))
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Selecione', 'Secretaria de Obras']);
-    expect(
-      within(select('Setor solicitante *'))
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Selecione', 'Setor de Manutenção']);
+    expect(await optionLabels(user, 'Secretaria solicitante *')).toEqual(['Secretaria de Obras']);
+    expect(await optionLabels(user, 'Setor solicitante *')).toEqual(['Setor de Manutenção']);
   });
 
   it('sem nenhuma unidade coberta pelo escopo: mensagem de estado vazio', async () => {
@@ -331,7 +346,7 @@ describe('passo 2 · Origem e planejamento', () => {
     await stepHeading('Origem e planejamento');
     await screen.findByLabelText('Secretaria solicitante *');
     await waitFor(() => {
-      expect(select('Secretaria solicitante *').value).toBe('');
+      expect(shown('Secretaria solicitante *')).toBe('');
     });
   });
 
@@ -340,7 +355,7 @@ describe('passo 2 · Origem e planejamento', () => {
     mockProcessApi();
     renderWithShell(<ProcessWizard />);
     await toStep2(user);
-    await user.selectOptions(await screen.findByLabelText('Origem *'), 'Demanda não prevista');
+    await choose(user, 'Origem *', 'Demanda não prevista');
     await user.click(screen.getByRole('radio', { name: 'Não previsto no PCA' }));
 
     const justification = screen.getByLabelText('Justificativa *');
@@ -362,19 +377,56 @@ describe('passo 2 · Origem e planejamento', () => {
 
   it('prazo alvo anterior a hoje e valor inválido são recusados no passo', async () => {
     const user = userEvent.setup();
+    // O calendário não deixa escolher dia passado; a regra continua valendo para o rascunho.
+    seedDraft('origin', validValues({ targetDate: '2020-01-01' }));
     mockProcessApi();
     renderWithShell(<ProcessWizard />);
-    await toStep2(user);
-    await user.selectOptions(await screen.findByLabelText('Origem *'), 'Plano anual');
-    await user.click(screen.getByRole('radio', { name: 'Não se aplica' }));
-    await paste(user, screen.getByLabelText('Prazo alvo'), '2020-01-01');
-    await paste(user, screen.getByLabelText('Valor estimado'), '10,555');
+    await stepHeading('Origem e planejamento');
+    await paste(user, await screen.findByLabelText('Valor estimado'), '10,555');
     await user.click(button('Continuar'));
     expect(await screen.findByText('O prazo alvo não pode ser anterior a hoje.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Prazo alvo' }).getAttribute('aria-invalid')).toBe(
+      'true',
+    );
     expect(
       screen.getByText('Informe um valor válido, com até 2 casas decimais.', { selector: 'p' }),
     ).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Origem e planejamento' })).toBeTruthy();
+  });
+
+  it('prazo alvo: escolhe a data no calendário, grava no rascunho e não oferece dias passados', async () => {
+    const user = userEvent.setup();
+    mockProcessApi();
+    renderWithShell(<ProcessWizard />);
+    await toStep2(user);
+    const next = new Date();
+    next.setDate(1);
+    next.setMonth(next.getMonth() + 1);
+    next.setDate(28);
+    const iso = `${String(next.getFullYear())}-${String(next.getMonth() + 1).padStart(2, '0')}-28`;
+
+    await pickDate(user, 'Prazo alvo', iso);
+    expect(screen.getByRole('button', { name: 'Prazo alvo' }).textContent).toContain(
+      `28/${iso.slice(5, 7)}/${iso.slice(0, 4)}`,
+    );
+    await waitFor(() => {
+      const saved = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as {
+        values: { targetDate: string };
+      } | null;
+      expect(saved?.values.targetDate).toBe(iso);
+    });
+    // Reabre no mês escolhido; dois meses antes (anterior a hoje) todos os dias ficam desabilitados.
+    await user.click(screen.getByRole('button', { name: 'Prazo alvo' }));
+    const calendar = await screen.findByRole('dialog', { name: /^Escolher/ });
+    const previous = within(calendar).getByRole('button', { name: /anterior|previous/i });
+    await user.click(previous);
+    await user.click(previous);
+    const days = within(calendar)
+      .getAllByRole('gridcell')
+      .filter((cell) => !cell.hasAttribute('data-outside'))
+      .map((cell) => cell.querySelector('button'));
+    expect(days.length).toBeGreaterThan(27);
+    expect(days.every((day) => day?.disabled === true)).toBe(true);
   });
 
   it('valor em reais é normalizado ao sair do campo', async () => {
@@ -491,7 +543,7 @@ describe('[Sucesso] passo 3 · Revisão e criação', () => {
     await user.click(await screen.findByRole('radio', { name: 'Não previsto no PCA' }));
     expect(await seriousA11yViolations()).toEqual([]);
     await user.click(screen.getByRole('radio', { name: 'Não se aplica' }));
-    await user.selectOptions(await screen.findByLabelText('Origem *'), 'Plano anual');
+    await choose(user, 'Origem *', 'Plano anual');
     await user.click(button('Continuar'));
     await stepHeading('Revisão');
     await waitFor(() => {
@@ -762,10 +814,12 @@ describe('[Falhas] criação', () => {
     expect(
       await screen.findByText('Você não tem permissão para abrir processos para este setor.'),
     ).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Origem e planejamento' }));
+    await user.click(
+      within(screen.getByRole('alert')).getByRole('button', { name: 'Origem e planejamento' }),
+    );
     await stepHeading('Origem e planejamento');
     await waitFor(() => {
-      expect(document.activeElement).toBe(select('Setor solicitante *'));
+      expect(document.activeElement).toBe(combobox('Setor solicitante *'));
     });
   });
 
@@ -835,12 +889,11 @@ describe('FA-01 · rascunho local e abandono', () => {
     renderWithShell(<ProcessWizard />);
     expect(await screen.findByText('Recuperamos o que você estava preenchendo')).toBeTruthy();
     await stepHeading('Origem e planejamento');
-    expect((await screen.findByLabelText<HTMLSelectElement>('Origem *')).value).toBe(
-      NAO_PREVISTA.id,
-    );
+    await screen.findByRole('combobox', { name: 'Origem *' });
+    expect(shown('Origem *')).toBe(NAO_PREVISTA.label);
     // A secretaria/o setor escolhidos no rascunho não são sobrescritos pelo pré-preenchimento.
     await waitFor(() => {
-      expect(select('Setor solicitante *').value).toBe(MANUTENCAO.id);
+      expect(shown('Setor solicitante *')).toBe(MANUTENCAO.name);
     });
     await user.click(button('Voltar'));
     await stepHeading('Identificação');

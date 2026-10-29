@@ -625,10 +625,10 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     );
     const dialog = await screen.findByRole('dialog', { name: 'Encaminhar processo' });
     expect(
-      within(dialog).getByRole<HTMLInputElement>('radio', {
-        name: 'Encaminhar para pesquisa de preços',
-      }).checked,
-    ).toBe(true);
+      within(dialog)
+        .getByRole('radio', { name: 'Encaminhar para pesquisa de preços' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
 
     await user.click(within(dialog).getByRole('button', { name: 'Encaminhar' }));
     expect(
@@ -670,11 +670,12 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     await user.click(await screen.findByRole('menuitem', { name: /Devolver à formalização/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Devolver processo' });
     expect(
-      within(dialog).getByRole<HTMLInputElement>('radio', { name: /Formalização da demanda/ })
-        .checked,
-    ).toBe(true);
+      within(dialog)
+        .getByRole('radio', { name: /Formalização da demanda/ })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
     await user.type(
-      within(dialog).getByLabelText('Motivo da devolução'),
+      within(dialog).getByRole('textbox', { name: 'Motivo da devolução' }),
       'Faltou detalhar a justificativa da contratação no DFD',
     );
     await user.click(within(dialog).getByRole('button', { name: 'Devolver' }));
@@ -795,7 +796,7 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Atribuir responsável' }));
 
     expect(await screen.findByRole('dialog', { name: 'Reatribuir responsável' })).toBeTruthy();
-    expect(await screen.findByLabelText('Novo responsável')).toBeTruthy();
+    expect(await screen.findByRole('combobox', { name: 'Novo responsável' })).toBeTruthy();
   });
 });
 

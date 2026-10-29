@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, problem, renderWithShell, requestUrl, TENANT_A } from '@test/support/render';
 
 import { ProcessListPage } from './process-list-page';
@@ -477,7 +478,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
       target: { value: '15.000,00' },
     });
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Somente atrasados' }));
-    await userEvent.selectOptions(within(dialog).getByLabelText('Responsável'), 'none');
+    await chooseOption(userEvent.setup(), 'Responsável', 'Sem responsável', dialog);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Aplicar filtros' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();

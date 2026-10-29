@@ -2,26 +2,24 @@
 
 import { TIMELINE_GROUPS } from '@contrataflow/types';
 import type { TimelineGroup } from '@contrataflow/types';
-import { Button, cx } from '@contrataflow/ui';
-import { useTranslations } from 'next-intl';
+import {
+  Checkbox,
+  DatePicker,
+  Field,
+  FilterToolbar,
+  Label,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
+import type { FilterToolbarChip } from '@contrataflow/ui';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
-import { hasActiveFilters, isPeriodInverted } from './timeline-model';
+import { EMPTY_TIMELINE_FILTERS, isPeriodInverted } from './timeline-model';
 import type { ActorOption, TimelineFilters } from './timeline-model';
-
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 
 function toggle<T>(values: readonly T[], value: T, checked: boolean): T[] {
   return checked ? [...values, value] : values.filter((item) => item !== value);
-}
-
-function activeCount(filters: TimelineFilters): number {
-  return (
-    filters.groups.length +
-    filters.actorIds.length +
-    (filters.from === '' ? 0 : 1) +
-    (filters.to === '' ? 0 : 1)
-  );
 }
 
 export interface TimelineFilterBarProps {
@@ -32,150 +30,151 @@ export interface TimelineFilterBarProps {
 }
 
 /**
- * `TimelineFilterBar` (SCR-006 · US-060): grupo, autor (atores já presentes na timeline —
- * RN-TML-11) e período em datas locais do tenant. Período invertido marca os campos e não é
- * enviado (V-01). Abaixo de 768 px vira painel colapsável. Navegável por teclado (controles
- * nativos em `fieldset`/`legend`).
+ * `TimelineFilterBar` (SCR-006 · US-060) na `FilterToolbar` do kit: o botão "Filtros" abre um
+ * popover com grupo, autor (atores já presentes na timeline — RN-TML-11) e período em datas locais
+ * do tenant; o que está ativo aparece em chips removíveis. Período invertido marca o campo e não é
+ * enviado (V-01).
  */
 export function TimelineFilterBar({ filters, actors, onChange }: TimelineFilterBarProps) {
   const t = useTranslations('timeline.filters');
   const tGroups = useTranslations('timeline.groups');
+  const format = useFormatter();
   const id = useId();
-  const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState({ from: filters.from, to: filters.to });
   const inverted = isPeriodInverted(period);
-  const panelId = `${id}-panel`;
-  const errorId = `${id}-period-error`;
-  const count = activeCount(filters);
+
+  const date = (iso: string) =>
+    format.dateTime(new Date(`${iso}T12:00:00Z`), { dateStyle: 'short', timeZone: 'UTC' });
 
   const changePeriod = (next: { from: string; to: string }) => {
     setPeriod(next);
     if (!isPeriodInverted(next)) onChange({ ...filters, ...next });
   };
 
+  const chips: FilterToolbarChip[] = [];
+  const addChip = (key: string, label: string, value: string, onRemove: () => void) => {
+    chips.push({
+      id: key,
+      label: t('chip', { label, value }),
+      removeLabel: t('remove', { label: `${label}: ${value}` }),
+      onRemove,
+    });
+  };
+  for (const group of filters.groups) {
+    addChip(`group-${group}`, t('group'), tGroups(group), () => {
+      onChange({ ...filters, groups: toggle(filters.groups, group, false) });
+    });
+  }
+  for (const actorId of filters.actorIds) {
+    const name = actors.find((actor) => actor.id === actorId)?.name ?? '…';
+    addChip(`actor-${actorId}`, t('actor'), name, () => {
+      onChange({ ...filters, actorIds: toggle(filters.actorIds, actorId, false) });
+    });
+  }
+  if (filters.from !== '' || filters.to !== '') {
+    const value =
+      filters.from !== '' && filters.to !== ''
+        ? t('periodRange', { from: date(filters.from), to: date(filters.to) })
+        : filters.from !== ''
+          ? t('periodFrom', { date: date(filters.from) })
+          : t('periodTo', { date: date(filters.to) });
+    addChip('period', t('period'), value, () => {
+      setPeriod({ from: '', to: '' });
+      onChange({ ...filters, from: '', to: '' });
+    });
+  }
+
   return (
-    <section aria-label={t('label')} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 md:hidden">
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => {
-            setOpen((current) => !current);
-          }}
-        >
-          {count > 0 ? t('toggleActive', { count }) : t('toggle')}
-        </Button>
-      </div>
-      <div
-        id={panelId}
-        className={cx(
-          'flex-col gap-4 rounded-card border border-border bg-surface p-4 md:flex md:flex-row md:flex-wrap md:items-start',
-          open ? 'flex' : 'hidden',
-        )}
-      >
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('group')}</legend>
-          {TIMELINE_GROUPS.map((group: TimelineGroup) => (
-            <label key={group} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="size-4"
-                checked={filters.groups.includes(group)}
-                onChange={(event) => {
-                  onChange({
-                    ...filters,
-                    groups: toggle(filters.groups, group, event.target.checked),
-                  });
-                }}
-              />
-              {tGroups(group)}
-            </label>
-          ))}
-        </fieldset>
-
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('actor')}</legend>
-          {actors.length === 0 ? (
-            <p className="max-w-56 text-xs text-muted-foreground">{t('noActors')}</p>
-          ) : (
-            actors.map((actor) => (
-              <label key={actor.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4"
-                  checked={filters.actorIds.includes(actor.id)}
-                  onChange={(event) => {
-                    onChange({
-                      ...filters,
-                      actorIds: toggle(filters.actorIds, actor.id, event.target.checked),
-                    });
-                  }}
-                />
-                {actor.name}
-              </label>
-            ))
-          )}
-        </fieldset>
-
-        <fieldset className="flex min-w-0 flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('period')}</legend>
-          <div className="flex flex-wrap gap-3">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-from`} className="text-sm">
-                {t('from')}
-              </label>
-              <input
-                id={`${id}-from`}
-                type="date"
-                className={INPUT}
-                value={period.from}
-                aria-invalid={inverted ? true : undefined}
-                aria-describedby={inverted ? errorId : undefined}
-                onChange={(event) => {
-                  changePeriod({ ...period, from: event.target.value });
-                }}
-              />
+    <FilterToolbar
+      filters={
+        <>
+          <Field label={t('group')} group>
+            <div className="flex flex-col gap-2">
+              {TIMELINE_GROUPS.map((group: TimelineGroup) => (
+                <div key={group} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${id}-group-${group}`}
+                    checked={filters.groups.includes(group)}
+                    onCheckedChange={(checked) => {
+                      onChange({
+                        ...filters,
+                        groups: toggle(filters.groups, group, checked === true),
+                      });
+                    }}
+                  />
+                  <Label htmlFor={`${id}-group-${group}`} className="font-normal">
+                    {tGroups(group)}
+                  </Label>
+                </div>
+              ))}
             </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-to`} className="text-sm">
-                {t('to')}
-              </label>
-              <input
-                id={`${id}-to`}
-                type="date"
-                className={INPUT}
-                value={period.to}
-                aria-invalid={inverted ? true : undefined}
-                aria-describedby={inverted ? errorId : undefined}
-                onChange={(event) => {
-                  changePeriod({ ...period, to: event.target.value });
-                }}
-              />
-            </div>
-          </div>
-          {inverted ? (
-            <p id={errorId} role="alert" className="text-xs text-destructive">
-              {t('periodInverted')}
-            </p>
-          ) : null}
-        </fieldset>
-
-        {hasActiveFilters(filters) || period.from !== '' || period.to !== '' ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="self-start"
-            onClick={() => {
-              setPeriod({ from: '', to: '' });
-              onChange({ groups: [], actorIds: [], from: '', to: '' });
-            }}
-          >
-            {t('clear')}
-          </Button>
-        ) : null}
-      </div>
-    </section>
+          </Field>
+          <Field label={t('actor')} group>
+            {actors.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t('noActors')}</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {actors.map((actor) => (
+                  <div key={actor.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`${id}-actor-${actor.id}`}
+                      checked={filters.actorIds.includes(actor.id)}
+                      onCheckedChange={(checked) => {
+                        onChange({
+                          ...filters,
+                          actorIds: toggle(filters.actorIds, actor.id, checked === true),
+                        });
+                      }}
+                    />
+                    <Label htmlFor={`${id}-actor-${actor.id}`} className="font-normal">
+                      {actor.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
+          <Field label={t('from')}>
+            <DatePicker
+              clearable
+              value={fromIsoDate(period.from)}
+              onValueChange={(value) => {
+                changePeriod({ ...period, from: value ? toIsoDate(value) : '' });
+              }}
+              labels={{
+                placeholder: t('datePlaceholder'),
+                clear: t('dateClear', { label: t('from') }),
+                calendar: t('dateCalendar', { label: t('from') }),
+              }}
+            />
+          </Field>
+          <Field label={t('to')} error={inverted ? t('periodInverted') : undefined}>
+            <DatePicker
+              clearable
+              value={fromIsoDate(period.to)}
+              onValueChange={(value) => {
+                changePeriod({ ...period, to: value ? toIsoDate(value) : '' });
+              }}
+              labels={{
+                placeholder: t('datePlaceholder'),
+                clear: t('dateClear', { label: t('to') }),
+                calendar: t('dateCalendar', { label: t('to') }),
+              }}
+            />
+          </Field>
+        </>
+      }
+      activeCount={chips.length}
+      chips={chips}
+      onClearAll={() => {
+        setPeriod({ from: '', to: '' });
+        onChange(EMPTY_TIMELINE_FILTERS);
+      }}
+      labels={{
+        filters: t('open'),
+        clearAll: t('clear'),
+        activeFilters: t('active'),
+      }}
+    />
   );
 }

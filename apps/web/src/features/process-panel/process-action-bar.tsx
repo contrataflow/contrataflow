@@ -4,15 +4,19 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Ellipsis,
   buttonClassName,
   cx,
 } from '@contrataflow/ui';
 import type { ActionEntry, ProcessSummaryDto, SummaryAction } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
+import { Fragment, useId } from 'react';
 
 /** Mesma ação (avanço por transição, aprovação por id) — a primária não se repete em "Mais". */
 function sameAction(entry: ActionEntry, primary: SummaryAction | null): boolean {
@@ -21,6 +25,56 @@ function sameAction(entry: ActionEntry, primary: SummaryAction | null): boolean 
     entry.action === primary.action &&
     (entry.transitionKey ?? null) === (primary.transitionKey ?? null)
   );
+}
+
+/**
+ * Grupos do menu "Mais" por frequência de uso (prd-5 · card 4): tramitação, gestão do processo e,
+ * por último, as que mudam a situação (suspender, cancelar, concluir). Dentro do grupo vale esta
+ * ordem; ação fora do catálogo vai para o fim de "Gestão".
+ */
+const MENU_GROUPS = {
+  flow: ['FORWARD', 'CLAIM', 'ASSIGN', 'RETURN', 'RESUME', 'DECIDE_APPROVAL'],
+  manage: [
+    'EDIT',
+    'DUPLICATE',
+    'MANAGE_ITEMS',
+    'MANAGE_TAGS',
+    'MANAGE_PARTICIPANTS',
+    'SET_CONFIDENTIALITY',
+    'FOLLOW',
+    'UNFOLLOW',
+  ],
+  lifecycle: ['SUSPEND', 'CANCEL', 'DISCARD', 'COMPLETE'],
+} as const satisfies Record<string, readonly ActionEntry['action'][]>;
+type MenuGroup = keyof typeof MENU_GROUPS;
+const GROUP_ORDER: readonly MenuGroup[] = ['flow', 'manage', 'lifecycle'];
+
+/** Ações que encerram ou interrompem o processo: texto em tom de perigo no menu. */
+const DANGER: ReadonlySet<string> = new Set(['CANCEL', 'DISCARD']);
+
+function groupOf(action: string): MenuGroup {
+  return (
+    GROUP_ORDER.find((group) => (MENU_GROUPS[group] as readonly string[]).includes(action)) ??
+    'manage'
+  );
+}
+
+/** Ações do menu agrupadas e ordenadas; grupos vazios saem. */
+export function groupMenuActions(
+  entries: readonly ActionEntry[],
+): { readonly group: MenuGroup; readonly entries: readonly ActionEntry[] }[] {
+  const rank = (action: string) => {
+    const index = (MENU_GROUPS[groupOf(action)] as readonly string[]).indexOf(action);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return GROUP_ORDER.map((group) => ({
+    group,
+    entries: entries
+      .map((entry, position) => ({ entry, position }))
+      .filter(({ entry }) => groupOf(entry.action) === group)
+      .sort((a, b) => rank(a.entry.action) - rank(b.entry.action) || a.position - b.position)
+      .map(({ entry }) => entry),
+  })).filter(({ entries: list }) => list.length > 0);
 }
 
 /** Verbos com texto próprio na explicação da ação primária ("Encaminhar — há 1 pendência…"). */
@@ -128,37 +182,44 @@ export function ProcessActionBar({ summary, actions, frozen, onAction }: Process
             className={buttonClassName({ variant: 'secondary', size: 'md' })}
             aria-label={t('moreLabel')}
           >
-            <svg aria-hidden="true" viewBox="0 0 16 16" className="size-4 fill-current">
-              <circle cx="3" cy="8" r="1.5" />
-              <circle cx="8" cy="8" r="1.5" />
-              <circle cx="13" cy="8" r="1.5" />
-            </svg>
+            <Ellipsis aria-hidden="true" className="size-4" />
             {t('more')}
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            {others.map((entry) => {
-              const unavailable = frozen || !entry.enabled;
-              return (
-                <DropdownMenuItem
-                  key={`${entry.action}:${entry.transitionKey ?? entry.approvalId ?? ''}`}
-                  disabled={unavailable}
-                  data-action={entry.action}
-                  className="flex-col items-start py-2"
-                  onSelect={() => {
-                    if (!unavailable) onAction(entry);
-                  }}
-                >
-                  <span>{entry.label}</span>
-                  {entry.reasons.length > 0 ? (
-                    <span className="text-xs text-muted-foreground">
-                      {t('unavailable', {
-                        reasons: entry.reasons.map((reason) => reason.message).join(' · '),
-                      })}
-                    </span>
-                  ) : null}
-                </DropdownMenuItem>
-              );
-            })}
+            {groupMenuActions(others).map(({ group, entries }, index) => (
+              <Fragment key={group}>
+                {index > 0 ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>{t(`groups.${group}`)}</DropdownMenuLabel>
+                  {entries.map((entry) => {
+                    const unavailable = frozen || !entry.enabled;
+                    return (
+                      <DropdownMenuItem
+                        key={`${entry.action}:${entry.transitionKey ?? entry.approvalId ?? ''}`}
+                        disabled={unavailable}
+                        data-action={entry.action}
+                        className={cx(
+                          'flex-col items-start py-2',
+                          DANGER.has(entry.action) && 'text-destructive',
+                        )}
+                        onSelect={() => {
+                          if (!unavailable) onAction(entry);
+                        }}
+                      >
+                        <span>{entry.label}</span>
+                        {entry.reasons.length > 0 ? (
+                          <span className="text-xs text-muted-foreground">
+                            {t('unavailable', {
+                              reasons: entry.reasons.map((reason) => reason.message).join(' · '),
+                            })}
+                          </span>
+                        ) : null}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuGroup>
+              </Fragment>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}

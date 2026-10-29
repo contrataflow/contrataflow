@@ -6,6 +6,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Label,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
 } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
@@ -16,7 +24,7 @@ import type { GroupedViews } from './saved-views-model';
 
 /*
  * `SavedViewSelect` (SCR-004 · US-003): seletor de visões com os grupos "Minhas visões" e
- * "Compartilhadas" (com o nome do dono) — um `<select>` nativo rotulado, acessível por teclado e
+ * "Compartilhadas" (com o nome do dono) — um `Select` do kit rotulado, acessível por teclado e
  * leitor de tela e confortável no mobile. Skeleton enquanto carrega, erro com nova tentativa e o
  * estado vazio orientando a salvar a primeira visão. O menu "Ações da visão" reúne exportar a
  * visão (FA-06), "Salvar como minha" (FA-04) e "Gerenciar visões" (FA-03).
@@ -81,39 +89,39 @@ export function SavedViewSelect({
     <div className="flex min-w-0 flex-1 flex-col gap-1 md:max-w-md">
       {hasViews ? (
         <div className="flex items-center gap-2">
-          <label htmlFor={id} className="text-sm font-medium">
-            {t('selectLabel')}
-          </label>
-          <select
-            id={id}
+          <Label htmlFor={id}>{t('selectLabel')}</Label>
+          <Select
             value={appliedId ?? ''}
-            onChange={(event) => {
-              if (event.target.value !== '') onSelect(event.target.value);
+            onValueChange={(value) => {
+              if (value !== '') onSelect(value);
             }}
-            className="h-11 min-w-0 flex-1 rounded-control border border-border bg-surface px-3 text-sm md:h-9"
           >
-            <option value="" disabled>
-              {t('placeholder')}
-            </option>
-            {grouped.mine.length > 0 ? (
-              <optgroup label={t('mine')}>
-                {grouped.mine.map((view) => (
-                  <option key={view.id} value={view.id}>
-                    {view.name}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-            {grouped.shared.length > 0 ? (
-              <optgroup label={t('shared')}>
-                {grouped.shared.map((view) => (
-                  <option key={view.id} value={view.id}>
-                    {t('sharedOption', { name: view.name, owner: view.owner.name })}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-          </select>
+            <SelectTrigger id={id} className="min-w-0 flex-1">
+              <SelectValue placeholder={t('placeholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {grouped.mine.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel>{t('mine')}</SelectLabel>
+                  {grouped.mine.map((view) => (
+                    <SelectItem key={view.id} value={view.id}>
+                      {view.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+              {grouped.shared.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel>{t('shared')}</SelectLabel>
+                  {grouped.shared.map((view) => (
+                    <SelectItem key={view.id} value={view.id}>
+                      {t('sharedOption', { name: view.name, owner: view.owner.name })}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+            </SelectContent>
+          </Select>
         </div>
       ) : null}
       {grouped.mine.length === 0 ? (

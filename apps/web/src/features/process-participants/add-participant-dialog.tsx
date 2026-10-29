@@ -8,6 +8,15 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
   toast,
 } from '@contrataflow/ui';
 import { PARTICIPANT_ROLES } from '@contrataflow/validation';
@@ -273,24 +282,26 @@ export function AddParticipantDialog({
             if (Object.keys(found).length === 0) submit.mutate();
           }}
         >
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-sm font-medium">{t('dialog.targetType')}</legend>
-            <div className="flex gap-4">
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">{t('dialog.targetType')}</legend>
+            <RadioGroup
+              orientation="horizontal"
+              className="flex flex-wrap gap-4"
+              value={values.targetType}
+              onValueChange={(type) => {
+                setValues((current) => withTargetType(current, type as 'USER' | 'DEPARTMENT'));
+                setErrors({});
+              }}
+            >
               {(['USER', 'DEPARTMENT'] as const).map((type) => (
-                <label key={type} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name={`${id}-target-type`}
-                    checked={values.targetType === type}
-                    onChange={() => {
-                      setValues((current) => withTargetType(current, type));
-                      setErrors({});
-                    }}
-                  />
-                  {type === 'USER' ? t('dialog.targetUser') : t('dialog.targetDepartment')}
-                </label>
+                <div key={type} className="flex items-center gap-2">
+                  <RadioGroupItem id={`${id}-target-${type}`} value={type} />
+                  <Label htmlFor={`${id}-target-${type}`} className="font-normal">
+                    {type === 'USER' ? t('dialog.targetUser') : t('dialog.targetDepartment')}
+                  </Label>
+                </div>
               ))}
-            </div>
+            </RadioGroup>
           </fieldset>
           <TargetSearch
             key={values.targetType}
@@ -323,25 +334,25 @@ export function AddParticipantDialog({
             required
           >
             {(control) => (
-              <select
-                {...control}
-                className={INPUT_CLASS}
+              <Select
                 value={values.role}
-                onChange={(event) => {
-                  setValues((current) => ({
-                    ...current,
-                    role: event.target.value as ParticipantRole,
-                  }));
+                onValueChange={(role) => {
+                  setValues((current) => ({ ...current, role: role as ParticipantRole }));
                 }}
               >
-                {PARTICIPANT_ROLES.filter(
-                  (role) => role !== 'CONSULTANT' || values.targetType === 'USER',
-                ).map((role) => (
-                  <option key={role} value={role}>
-                    {t(`roles.${role}`)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger {...control}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARTICIPANT_ROLES.filter(
+                    (role) => role !== 'CONSULTANT' || values.targetType === 'USER',
+                  ).map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {t(`roles.${role}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </FormField>
           {consultant ? (
@@ -371,17 +382,18 @@ export function AddParticipantDialog({
               )}
             </FormField>
           ) : null}
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              role="switch"
+          <div className="flex items-center gap-3">
+            <Switch
+              id={`${id}-notify`}
               checked={values.notify}
-              onChange={(event) => {
-                setValues((current) => ({ ...current, notify: event.target.checked }));
+              onCheckedChange={(notify) => {
+                setValues((current) => ({ ...current, notify }));
               }}
             />
-            {t('dialog.notify')}
-          </label>
+            <Label htmlFor={`${id}-notify`} className="font-normal">
+              {t('dialog.notify')}
+            </Label>
+          </div>
           <FormField id={`${id}-reason`} label={t('dialog.reason')} error={errors.reason}>
             {(control) => (
               <textarea

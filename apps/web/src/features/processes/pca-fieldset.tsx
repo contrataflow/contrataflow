@@ -1,10 +1,11 @@
 'use client';
 
+import { Input, Label, RadioGroup, RadioGroupItem, Textarea } from '@contrataflow/ui';
 import { PCA_STATUSES, pcaIssues } from '@contrataflow/validation';
 import type { PcaStatus } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from './form-field';
+import { FormField } from './form-field';
 import type { ProcessFormValues } from './process-form-model';
 
 export interface PcaFieldsetProps {
@@ -33,6 +34,7 @@ export function PcaFieldset({ idPrefix, values, errors, currentYear, onChange }:
   const t = useTranslations('processes');
   const statusError = errors.pcaStatus;
   const statusErrorId = `${idPrefix}-pcaStatus-error`;
+  const legendId = `${idPrefix}-pcaStatus-legend`;
   const liveJustificationError =
     values.pcaStatus === 'NOT_PLANNED'
       ? (errors.pcaJustification ??
@@ -48,28 +50,31 @@ export function PcaFieldset({ idPrefix, values, errors, currentYear, onChange }:
         className="flex min-w-0 flex-col gap-2"
         aria-describedby={statusError ? statusErrorId : undefined}
       >
-        <legend className="mb-1 text-sm font-medium">{t('fields.pcaStatus')}</legend>
-        <div className="flex flex-wrap gap-x-6 gap-y-2">
+        <legend id={legendId} className="mb-1 text-sm font-semibold">
+          {t('fields.pcaStatus')}
+        </legend>
+        <RadioGroup
+          aria-labelledby={legendId}
+          aria-invalid={statusError ? true : undefined}
+          aria-describedby={statusError ? statusErrorId : undefined}
+          value={values.pcaStatus}
+          className="flex-row flex-wrap gap-x-6 gap-y-2"
+          onValueChange={(status) => {
+            onChange('pcaStatus', status);
+          }}
+        >
           {PCA_STATUSES.map((status: PcaStatus, index) => {
             const id = index === 0 ? `${idPrefix}-pcaStatus` : `${idPrefix}-pcaStatus-${status}`;
             return (
-              <label key={status} htmlFor={id} className="flex min-h-8 items-center gap-2 text-sm">
-                <input
-                  id={id}
-                  type="radio"
-                  name={`${idPrefix}-pcaStatus-group`}
-                  value={status}
-                  checked={values.pcaStatus === status}
-                  className="size-4"
-                  onChange={() => {
-                    onChange('pcaStatus', status);
-                  }}
-                />
-                {t(`pcaStatuses.${status}`)}
-              </label>
+              <div key={status} className="flex min-h-8 items-center gap-2">
+                <RadioGroupItem id={id} value={status} />
+                <Label htmlFor={id} className="font-normal">
+                  {t(`pcaStatuses.${status}`)}
+                </Label>
+              </div>
             );
           })}
-        </div>
+        </RadioGroup>
         {statusError ? (
           <p id={statusErrorId} className="text-sm text-destructive" aria-live="polite">
             {statusError}
@@ -86,13 +91,12 @@ export function PcaFieldset({ idPrefix, values, errors, currentYear, onChange }:
             required
           >
             {(control) => (
-              <input
+              <Input
                 {...control}
                 type="number"
                 inputMode="numeric"
                 min={currentYear}
                 max={currentYear + 1}
-                className={INPUT_CLASS}
                 value={values.pcaYear}
                 onChange={(event) => {
                   onChange('pcaYear', event.target.value);
@@ -107,10 +111,8 @@ export function PcaFieldset({ idPrefix, values, errors, currentYear, onChange }:
             error={errors.pcaItemCode}
           >
             {(control) => (
-              <input
+              <Input
                 {...control}
-                type="text"
-                className={INPUT_CLASS}
                 value={values.pcaItemCode}
                 onChange={(event) => {
                   onChange('pcaItemCode', event.target.value);
@@ -130,10 +132,9 @@ export function PcaFieldset({ idPrefix, values, errors, currentYear, onChange }:
           required
         >
           {(control) => (
-            <textarea
+            <Textarea
               {...control}
               rows={4}
-              className={TEXTAREA_CLASS}
               value={values.pcaJustification}
               onChange={(event) => {
                 onChange('pcaJustification', event.target.value);
