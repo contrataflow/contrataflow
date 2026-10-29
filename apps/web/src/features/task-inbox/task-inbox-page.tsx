@@ -203,7 +203,7 @@ function InboxTabs({
     <div
       role="tablist"
       aria-label={t('label')}
-      className="flex gap-1 overflow-x-auto border-b border-border"
+      className="flex flex-wrap gap-1 border-b border-border"
     >
       {tabs.map((view) => {
         const selected = view === active;

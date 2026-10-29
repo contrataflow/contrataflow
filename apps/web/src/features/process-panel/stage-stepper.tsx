@@ -1,9 +1,15 @@
 'use client';
 
-import { Skeleton, cx } from '@contrataflow/ui';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Skeleton,
+  StageProgress,
+  cx,
+} from '@contrataflow/ui';
 import type { ProcessStageEntryDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
 
 import { formatDate } from '@/lib/i18n/format';
 
@@ -22,6 +28,18 @@ export function groupStages(
   return groups;
 }
 
+/**
+ * Posição da etapa atual na barra: a marcada como atual; sem ela, todas concluídas (processo
+ * encerrado) ou nenhuma começada (rascunho).
+ */
+export function currentStageIndex(stages: readonly ProcessStageEntryDto[]): number {
+  const current = stages.findIndex((stage) => stage.isCurrent);
+  if (current >= 0) return current;
+  return stages.length > 0 && stages.every((stage) => stage.lastPassStatus === 'COMPLETED')
+    ? stages.length
+    : -1;
+}
+
 const MARKS: Readonly<Record<string, string>> = {
   COMPLETED: '✓',
   RETURNED: '↩',
@@ -37,6 +55,13 @@ const MARK_TONES: Readonly<Record<string, string>> = {
   ACTIVE: 'border-primary bg-primary text-primary-foreground',
 };
 
+function useSlaText(stage: ProcessStageEntryDto): string | null {
+  const t = useTranslations('processes.panel.stepper');
+  if (stage.slaDays === null) return null;
+  return t(stage.slaType === 'CALENDAR' ? 'slaCalendar' : 'sla', { days: stage.slaDays });
+}
+
+/** Uma etapa no histórico: situação da última passagem e cada passagem (idas e voltas). */
 function StageItem({
   stage,
   timeZone,
@@ -46,18 +71,9 @@ function StageItem({
 }) {
   const t = useTranslations('processes.panel.stepper');
   const status = stage.lastPassStatus;
-  const sla =
-    stage.slaDays === null
-      ? null
-      : t(stage.slaType === 'CALENDAR' ? 'slaCalendar' : 'sla', { days: stage.slaDays });
+  const sla = useSlaText(stage);
   return (
-    <li
-      aria-current={stage.isCurrent ? 'step' : undefined}
-      className={cx(
-        'flex min-w-0 flex-col gap-1 rounded-control border p-3 text-sm md:min-w-44',
-        stage.isCurrent ? 'border-primary bg-primary-soft' : 'border-border bg-surface',
-      )}
-    >
+    <li className="flex min-w-0 flex-col gap-1 text-sm">
       <span className="flex items-center gap-2 font-medium">
         <span
           aria-hidden="true"
@@ -72,39 +88,63 @@ function StageItem({
         </span>
         {stage.name}
       </span>
-      <span className="text-xs text-muted-foreground">
+      <span className="pl-7 text-xs text-muted-foreground">
         {stage.isCurrent ? `${t('current')} · ` : ''}
         {status === null ? t('notStarted') : t(`statuses.${status}`)}
         {status === null && sla ? ` · ${sla}` : ''}
+        {stage.passes.length > 0 ? ` · ${t('passes', { count: stage.passes.length })}` : ''}
       </span>
       {stage.passes.length > 0 ? (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-primary">
-            {t('passes', { count: stage.passes.length })}
-          </summary>
-          <ol className="mt-1 flex flex-col gap-1">
-            {stage.passes.map((pass) => (
-              <li key={pass.processStageId}>
-                {t('pass', {
-                  sequence: pass.sequence,
-                  department: pass.department.name,
-                  entered: formatDate(pass.enteredAt, timeZone),
-                })}
-                {pass.exitedAt
-                  ? ` · ${t('exited', { date: formatDate(pass.exitedAt, timeZone) })}`
-                  : ''}
-                {` · ${t(`statuses.${pass.status}`)}`}
-                {pass.assignee ? ` · ${t('assignee', { name: pass.assignee.name })}` : ''}
-                {pass.dueDateOverridden ? ` · ${t('overridden')}` : ''}
-                {pass.overdueSince
-                  ? ` · ${t('overdue', { date: formatDate(pass.overdueSince, timeZone) })}`
-                  : ''}
-              </li>
-            ))}
-          </ol>
-        </details>
+        <ol className="flex flex-col gap-1 pl-7 text-xs">
+          {stage.passes.map((pass) => (
+            <li key={pass.processStageId}>
+              {t('pass', {
+                sequence: pass.sequence,
+                department: pass.department.name,
+                entered: formatDate(pass.enteredAt, timeZone),
+              })}
+              {pass.exitedAt
+                ? ` · ${t('exited', { date: formatDate(pass.exitedAt, timeZone) })}`
+                : ''}
+              {` · ${t(`statuses.${pass.status}`)}`}
+              {pass.assignee ? ` · ${t('assignee', { name: pass.assignee.name })}` : ''}
+              {pass.dueDateOverridden ? ` · ${t('overridden')}` : ''}
+              {pass.overdueSince
+                ? ` · ${t('overdue', { date: formatDate(pass.overdueSince, timeZone) })}`
+                : ''}
+            </li>
+          ))}
+        </ol>
       ) : null}
     </li>
+  );
+}
+
+/** Histórico completo (RN-PROC-52): etapas agrupadas por `groupLabel`, com todas as passagens. */
+function StageHistory({
+  stages,
+  timeZone,
+}: {
+  readonly stages: readonly ProcessStageEntryDto[];
+  readonly timeZone: string;
+}) {
+  return (
+    <ol className="grid gap-x-8 gap-y-4 pt-2 sm:grid-cols-2 xl:grid-cols-3">
+      {groupStages(stages).map((group, index) => (
+        <li key={`${String(index)}:${group.label ?? ''}`} className="flex min-w-0 flex-col gap-2">
+          {group.label ? (
+            <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {group.label}
+            </span>
+          ) : null}
+          <ol className="flex flex-col gap-3">
+            {group.stages.map((stage) => (
+              <StageItem key={stage.workflowStageId} stage={stage} timeZone={timeZone} />
+            ))}
+          </ol>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -117,55 +157,50 @@ export interface StageStepperProps {
 }
 
 /**
- * `StageStepper` (SCR-006 · RN-PROC-52 · PRC-10): lista ordenada das etapas da versão fixada,
- * agrupadas por `groupLabel`, a atual com `aria-current="step"` e as passagens (idas e voltas) em
- * detalhe recolhível. Horizontal no desktop; vertical e recolhível no mobile (FA-12).
+ * `StageStepper` (SCR-006 · RN-PROC-52 · PRC-10 · prd-5 regra 6): as etapas da versão fixada como
+ * barra fina de pontos ligados (`StageProgress`), a atual com `aria-current="step"` e o detalhe só
+ * nela; o histórico com grupos e passagens (idas e voltas) fica em "Ver histórico das etapas".
+ * Quebra linha em vez de rolar (regra 8).
  */
 export function StageStepper({ stages, isPending, error, onRetry, timeZone }: StageStepperProps) {
   const t = useTranslations('processes.panel.stepper');
-  const headingId = useId();
-  let body;
-  if (stages === undefined && isPending) {
-    body = <Skeleton className="h-16 w-full" />;
-  } else if (stages === undefined) {
-    body = <PanelError error={error} onRetry={onRetry} />;
-  } else {
-    body = (
-      <details open className="group md:[&>summary]:hidden">
-        <summary className="cursor-pointer text-sm font-medium text-muted-foreground md:hidden">
-          {t('toggle')}
-        </summary>
-        <ol className="flex flex-col gap-3 md:flex-row md:items-start md:overflow-x-auto md:pb-1">
-          {groupStages(stages).map((group, index) => (
-            <li
-              key={`${String(index)}:${group.label ?? ''}`}
-              className="flex min-w-0 flex-col gap-1"
-            >
-              {group.label ? (
-                <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {group.label}
-                </span>
-              ) : null}
-              <ol className="flex flex-col gap-2 md:flex-row md:flex-nowrap">
-                {group.stages.map((stage) => (
-                  <StageItem key={stage.workflowStageId} stage={stage} timeZone={timeZone} />
-                ))}
-              </ol>
-            </li>
-          ))}
-        </ol>
-      </details>
-    );
-  }
+  if (stages === undefined && isPending) return <Skeleton className="h-12 w-full" />;
+  if (stages === undefined) return <PanelError error={error} onRetry={onRetry} />;
+  if (stages.length === 0) return null;
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-5 shadow-card"
-    >
-      <h2 id={headingId} className="text-section-title text-brand-ink">
-        {t('title')}
-      </h2>
-      {body}
-    </section>
+    <div className="flex min-w-0 flex-col gap-2">
+      <StageProgress
+        label={t('title')}
+        current={currentStageIndex(stages)}
+        steps={stages.map((stage) => ({
+          id: stage.workflowStageId,
+          label: stage.name,
+          detail: <CurrentDetail stage={stage} />,
+        }))}
+        labels={{
+          done: t('done'),
+          current: t('current'),
+          upcoming: t('upcoming'),
+          position: (current, total) => t('position', { current, total }),
+        }}
+      />
+      <Collapsible>
+        <CollapsibleTrigger>{t('history')}</CollapsibleTrigger>
+        <CollapsibleContent>
+          <StageHistory stages={stages} timeZone={timeZone} />
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+/** Detalhe da etapa atual: o nome e o SLA (o prazo colorido fica nos fatos do cabeçalho). */
+function CurrentDetail({ stage }: { readonly stage: ProcessStageEntryDto }) {
+  const sla = useSlaText(stage);
+  return (
+    <>
+      {stage.name}
+      {sla ? ` · ${sla}` : ''}
+    </>
   );
 }

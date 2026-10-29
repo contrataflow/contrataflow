@@ -112,11 +112,38 @@ o seletor de data com `next/dynamic` quando ele não aparece de cara.
 Capturas das histórias do kit (Storybook estático, 720 px): `screenshots/kit-2026-10/kit-claro.png`
 e `kit-escuro.png`.
 
+### Modelos de página (prd-5 · Leva 2 · 2/11)
+
+Cada tela adota o modelo da sua família (`packages/ui/src/components/*-page.tsx`, com histórias e
+axe). Os modelos só arrumam o layout: recebem os blocos prontos (cabeçalho, abas, barra de filtros,
+tabela) e não buscam dados.
+
+| Modelo | Quando usar | Estrutura |
+|---|---|---|
+| `ListPage` | Listas e caixas (processos, tarefas, aprovações, fornecedores, auditoria, cadastros) | `PageHeader` → `ViewTabs` → `FilterToolbar` → avisos → `TableContainer` com rodapé de contagem/paginação; props `loading` (esqueleto `ListPageSkeleton`), `error` e `empty` |
+| `DetailPage` | Uma entidade com etapas e abas (processo, aprovação, documento) | Faixa de cabeçalho (trilha, título, chips, linha de identificação, "Mais" + ação primária) → cartão com `StageProgress` e fatos-chave em linha → avisos → abas → `DetailGrid` 2/3 + 1/3 (a coluna lateral desce abaixo de 1024 px) |
+| `FormPage` / `WizardShell` | Criar ou editar (novo processo, DFD, ETP, TR, formulários de cadastro) | Coluna de 720 px com `FormSection` e `FormActionBar` fixa no rodapé (Salvar rascunho · Continuar, `AutosaveIndicator` à esquerda, `RecoveredDraftBanner` em `notices`); no assistente, passos à esquerda a partir de 1024 px e `StageProgress` abaixo disso |
+| `SettingsPage` | Configurações em seções (órgão, perfil, notificações) | Seções à esquerda (linha que quebra em tela estreita), formulário da seção à direita, `aria-current` na atual |
+
+Regras verificadas por teste em `apps/web/src/components/templates/`: **só a página rola**
+(`no-nested-scroll.test.ts` — rolagem interna só em tabela larga, corpo de diálogo/gaveta, lista
+suspensa ou bloco de código; as violações restantes estão na lista `PENDING`, com o card que as
+remove) e **nenhum controle nativo** em `features` (`no-native-controls.test.ts` — a lista
+`NOT_MIGRATED` diz qual card migra cada arquivo e chega a zero no card 11). As duas listas só
+encolhem: o teste reprova entrada de arquivo que já foi corrigido.
+
+O shell segue as mesmas regras: "Novo processo" só na barra superior (o cabeçalho das páginas não o
+repete); Ctrl K abre a paleta de comandos (`CommandPalette`: busca de processos pela PRC-01, "Novo
+processo" e "Ir para" as áreas do menu, com as permissões do menu); dicas (`Tooltip`) nos botões só
+de ícone; o menu lateral não rola por dentro (fixo com 768 px de altura ou mais; abaixo disso rola
+com a página).
+
 ### Capturas da primeira leva (2026-10)
 
 Build de produção com a API simulada (`apps/web/test/e2e/support/mock-api.mjs`), em
 `screenshots/repaginacao-2026-10/`. Servem de referência visual para a segunda leva; regenerar
-quando uma tela mudar de aspecto.
+quando uma tela mudar de aspecto. Painel, lista e página do processo foram regeneradas no card 2 da
+segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K aberto, 1280 px).
 
 | Tela | Claro (1280 px) | Escuro | Celular (390 px) |
 |---|---|---|---|

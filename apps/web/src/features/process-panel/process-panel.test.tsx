@@ -153,15 +153,19 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
       within(section('Aprovações pendentes')).getByText('Nenhuma aprovação pendente'),
     ).toBeTruthy();
 
-    // Stepper: lista ordenada com a etapa atual em `aria-current="step"` e as passagens.
-    const stepper = await screen.findByRole('heading', { level: 2, name: 'Etapas do processo' });
+    // Etapas: barra fina com a etapa atual em `aria-current="step"`; o histórico com as passagens
+    // fica em "Ver histórico das etapas" (prd-5 · regras 6 e 7).
+    const stepper = await screen.findByRole('navigation', { name: 'Etapas do processo' });
     const current = await waitFor(() => {
-      const item = stepper.closest('section')?.querySelector('[aria-current="step"]');
+      const item = stepper.querySelector('[aria-current="step"]');
       if (!item) throw new Error('sem etapa atual');
       return item;
     });
     expect(current.textContent).toContain('ETP e mapa de riscos');
-    expect(screen.getAllByText('2 passagens')).toHaveLength(2);
+    expect(within(stepper).getByText(/^Etapa \d de \d$/)).toBeTruthy();
+    expect(screen.queryByText(/2 passagens/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver histórico das etapas' }));
+    expect(screen.getAllByText(/2 passagens/)).toHaveLength(2);
     expect(screen.getAllByText(/Não percorrida/)).toHaveLength(2);
     expect(screen.getByText('Planejamento', { selector: 'span' })).toBeTruthy();
 

@@ -44,7 +44,8 @@ export function AppShell({
       <SkipLink targetId={MAIN_CONTENT_ID}>{t('skipLink')}</SkipLink>
       <RouteFocus targetId={MAIN_CONTENT_ID} />
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-62 flex-none flex-col gap-6 border-r border-border bg-sidebar pt-5 pb-4 text-sidebar-foreground lg:flex">
+        {/* Com 768 px de altura ou mais o menu fica fixo; abaixo disso rola junto com a página. */}
+        <aside className="hidden min-h-screen w-62 flex-none flex-col gap-6 border-r border-border bg-sidebar pt-5 pb-4 text-sidebar-foreground lg:flex [@media(min-height:48rem)]:sticky [@media(min-height:48rem)]:top-0 [@media(min-height:48rem)]:h-screen">
           <Link
             href={HOME_PATH}
             className="mx-3.5 flex flex-none items-center rounded-control px-2.5 py-1 focus-visible:outline-sidebar-accent"
@@ -57,7 +58,7 @@ export function AppShell({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2.5 border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
             <MobileNav showExample={showExample} />
-            <GlobalSearch />
+            <GlobalSearch showExample={showExample} />
             <div className="ml-auto flex flex-none flex-wrap items-center gap-2">
               <NewProcessButton />
               <TenantSwitcher />

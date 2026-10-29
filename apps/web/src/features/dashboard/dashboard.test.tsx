@@ -341,9 +341,6 @@ describe('SCR-003 — Painel (US-076)', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: /^(Bom dia|Boa tarde|Boa noite), Ana$/ }),
     ).toBeTruthy();
-    expect((await screen.findByRole('link', { name: 'Novo processo' })).getAttribute('href')).toBe(
-      '/processos/novo',
-    );
     const overdue = await screen.findByRole('link', { name: /^Atrasados 3 Prazo da etapa/ });
     expect(overdue.getAttribute('href')).toContain('overdue=true');
     expect(screen.getByRole('link', { name: /^Pendências 14/ }).getAttribute('href')).toBe(
@@ -509,20 +506,29 @@ describe('SCR-003 — Painel (US-076)', () => {
   it('filtro de secretaria/unidade: URL atualizada e cartões reconsultados com o recorte', async () => {
     const fetchMock = mockApi();
     renderWithShell(<DashboardPage />);
+    // Filtros fechados por padrão (prd-5 · regra 2): o botão "Filtros" abre secretaria e unidade.
+    expect(screen.queryByRole('combobox', { name: 'Secretaria' })).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Filtros' }));
     const secretariat = await screen.findByRole('combobox', { name: 'Secretaria' });
-    await screen.findByRole('option', { name: 'Secretaria de Obras' });
-    await userEvent.selectOptions(secretariat, OBRAS);
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
+    });
+    await userEvent.click(secretariat);
+    await userEvent.click(await screen.findByRole('option', { name: 'Secretaria de Obras' }));
     expect(nav.replace).toHaveBeenLastCalledWith(`/painel?secretariatId=${OBRAS}`, {
       scroll: false,
     });
+    // O recorte ativo vira chip removível e conta no botão.
+    expect(await screen.findByText('Secretaria: Secretaria de Obras')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
     const department = screen.getByRole('combobox', { name: 'Unidade/Setor' });
+    await userEvent.click(department);
     // Só a subárvore da secretaria escolhida.
-    expect(
-      within(department)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Todas', 'Setor de Manutenção']);
-    await userEvent.selectOptions(department, MANUT);
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+      'Todas',
+      'Setor de Manutenção',
+    ]);
+    await userEvent.click(screen.getByRole('option', { name: 'Setor de Manutenção' }));
     expect(nav.replace).toHaveBeenLastCalledWith(
       `/painel?secretariatId=${OBRAS}&departmentId=${MANUT}`,
       { scroll: false },

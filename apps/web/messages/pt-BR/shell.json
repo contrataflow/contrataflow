@@ -45,8 +45,23 @@
   },
   "search": {
     "label": "Busca global",
-    "placeholder": "Buscar processo, documento ou fornecedor",
+    "placeholder": "Buscar processo ou ir para…",
     "shortcut": "Ctrl K"
+  },
+  "palette": {
+    "title": "Paleta de comandos",
+    "label": "Comandos e resultados",
+    "placeholder": "Buscar processo ou ir para…",
+    "empty": "Nada encontrado.",
+    "goTo": "Ir para",
+    "actions": "Ações",
+    "newProcess": "Novo processo",
+    "processes": "Processos",
+    "searching": "Buscando processos…",
+    "searchFailed": "Não foi possível buscar processos agora.",
+    "tooShort": "Digite ao menos {min} letras para buscar processos.",
+    "seeAll": "Ver todos os processos com “{query}”",
+    "draft": "Rascunho (sem número)"
   },
   "tenant": {
     "label": "Instituição ativa: {name}",

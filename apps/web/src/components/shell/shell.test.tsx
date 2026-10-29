@@ -90,9 +90,8 @@ describe('[Sucesso] AppShell', () => {
     );
     const nav = screen.getByRole('navigation', { name: 'Menu principal' });
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Exemplo do shell');
-    expect(screen.getByRole('search')).toBeTruthy();
-    const search = screen.getByRole('searchbox', { name: 'Busca global' });
-    expect(search.getAttribute('placeholder')).toBe('Buscar processo, documento ou fornecedor');
+    const search = screen.getByRole('button', { name: 'Busca global' });
+    expect(search.getAttribute('aria-haspopup')).toBe('dialog');
     expect(search.getAttribute('aria-keyshortcuts')).toBe('Control+K');
     expect(screen.getByRole('link', { name: 'Notificações' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeTruthy();
@@ -133,17 +132,69 @@ describe('[Sucesso] AppShell', () => {
     );
   });
 
-  it('Ctrl K (e ⌘ K) foca a busca global de qualquer ponto; outras teclas não', async () => {
+  it('Ctrl K (e ⌘ K) abre a paleta de comandos de qualquer ponto; outras teclas não', async () => {
+    stubFetch(() => jsonResponse({ data: { permissions: [] } }));
     renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
-    const search = screen.getByRole('searchbox', { name: 'Busca global' });
-    await userEvent.keyboard('{Control>}k{/Control}');
-    expect(document.activeElement).toBe(search);
-    search.blur();
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}');
-    expect(document.activeElement).not.toBe(search);
+    expect(screen.queryByRole('dialog', { name: 'Paleta de comandos' })).toBeNull();
+    await userEvent.keyboard('{Control>}k{/Control}');
+    const palette = await screen.findByRole('dialog', { name: 'Paleta de comandos' });
+    expect(document.activeElement).toBe(palette.querySelector('input'));
+    expect(document.activeElement?.getAttribute('placeholder')).toBe('Buscar processo ou ir para…');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Paleta de comandos' })).toBeNull();
+    });
     await userEvent.keyboard('{Meta>}K{/Meta}');
-    expect(document.activeElement).toBe(search);
-    expect(search.closest('form')?.getAttribute('action')).toBe('/processos');
+    expect(await screen.findByRole('dialog', { name: 'Paleta de comandos' })).toBeTruthy();
+  });
+
+  it('paleta: "Ir para" filtra as áreas sem acento e navega com Enter', async () => {
+    stubFetch(() => jsonResponse({ data: { permissions: [] } }));
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    await userEvent.click(screen.getByRole('button', { name: 'Busca global' }));
+    const palette = await screen.findByRole('dialog', { name: 'Paleta de comandos' });
+    expect(within(palette).getByRole('option', { name: 'Processos' })).toBeTruthy();
+    await userEvent.keyboard('aprovacoes');
+    expect(within(palette).queryByRole('option', { name: 'Processos' })).toBeNull();
+    // Com a busca, a paleta também oferece "Ver todos os processos com…" (primeiro item).
+    await userEvent.click(within(palette).getByRole('option', { name: 'Aprovações' }));
+    expect(router.push).toHaveBeenCalledWith('/aprovacoes');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Paleta de comandos' })).toBeNull();
+    });
+  });
+
+  it('paleta: busca processos pela API da lista (PRC-01 com q) e abre o escolhido', async () => {
+    const fetchMock = stubFetch((url) =>
+      url.includes('/processes?')
+        ? jsonResponse({
+            data: [
+              {
+                id: '0b9d2d4e-2f47-4d5c-9a51-6d1a7b9c0e11',
+                code: '0002/2026',
+                title: 'Manutenção predial',
+              },
+            ],
+            meta: { page: 1, pageSize: 5, totalItems: 1, totalPages: 1 },
+          })
+        : jsonResponse({ data: { permissions: [] } }),
+    );
+    renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
+    await userEvent.keyboard('{Control>}k{/Control}');
+    const palette = await screen.findByRole('dialog', { name: 'Paleta de comandos' });
+    await userEvent.keyboard('manut');
+    const option = await within(palette).findByRole('option', { name: /Manutenção predial/ });
+    const call = fetchMock.mock.calls
+      .map(([input]) => requestUrl(input))
+      .find((url) => url.includes('/processes?'));
+    expect(call).toContain('q=manut');
+    expect(call).toContain('pageSize=5');
+    expect(
+      within(palette).getByRole('option', { name: 'Ver todos os processos com “manut”' }),
+    ).toBeTruthy();
+    await userEvent.click(option);
+    expect(router.push).toHaveBeenCalledWith('/processos/0b9d2d4e-2f47-4d5c-9a51-6d1a7b9c0e11');
   });
 
   it('contadores da caixa de tarefas e das aprovações vêm de TSK-02 com INBOX_VIEW', async () => {

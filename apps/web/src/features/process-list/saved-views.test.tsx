@@ -356,15 +356,7 @@ describe('Feature: salvar visão (US-003 · PRC-36)', () => {
       name: 'Atrasados por prioridade',
       filters: { v: 1, status: ['IN_PROGRESS', 'RETURNED'], overdue: true },
       sort: '-priority',
-      columns: [
-        'code',
-        'title',
-        'requestingSecretariat',
-        'stage',
-        'currentResponsible',
-        'deadline',
-        'status',
-      ],
+      columns: ['code', 'title', 'stage', 'currentResponsible', 'deadline', 'status'],
       isShared: false,
       isDefault: true,
     });
@@ -509,9 +501,9 @@ describe('Feature: aplicar visão (US-003)', () => {
     const { fetchMock } = mockApi({ views: [view(), SHARED] });
     renderPage();
     await screen.findByText('0012/2026');
-    // Colunas da tela antes: inclui Secretaria e Etapa.
+    // Colunas da tela antes: inclui Etapa (Secretaria saiu do padrão — prd-5 · regra 3).
     const table = screen.getByRole('table');
-    expect(within(table).getByRole('columnheader', { name: /Secretaria/ })).toBeTruthy();
+    expect(within(table).getByRole('columnheader', { name: /Etapa/ })).toBeTruthy();
 
     const picker = await select();
     const groups = Array.from(picker.querySelectorAll('optgroup')).map((group) => group.label);
@@ -532,8 +524,9 @@ describe('Feature: aplicar visão (US-003)', () => {
     });
     // Colunas da visão: code, title, status, responsible — sem Secretaria nem Etapa.
     await waitFor(() => {
-      expect(within(table).queryByRole('columnheader', { name: /Secretaria/ })).toBeNull();
+      expect(within(table).queryByRole('columnheader', { name: /Etapa/ })).toBeNull();
     });
+    expect(within(table).queryByRole('columnheader', { name: /Secretaria/ })).toBeNull();
     expect(within(table).getByRole('columnheader', { name: /Responsável/ })).toBeTruthy();
     expect(within(table).queryByRole('columnheader', { name: /Etapa/ })).toBeNull();
     expect(screen.getByText('Visão: Atrasados por prioridade')).toBeTruthy();
@@ -558,7 +551,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     );
     expect(new URLSearchParams(nav.get()).get('overdue')).toBeNull();
     expect(
-      within(screen.getByRole('table')).getByRole('columnheader', { name: /Secretaria/ }),
+      within(screen.getByRole('table')).getByRole('columnheader', { name: /Etapa/ }),
     ).toBeTruthy();
   });
 
@@ -577,7 +570,7 @@ describe('Feature: aplicar visão (US-003)', () => {
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((url) => url.searchParams.get('overdue') === 'true')).toBe(true);
     expect(
-      within(screen.getByRole('table')).queryByRole('columnheader', { name: /Secretaria/ }),
+      within(screen.getByRole('table')).queryByRole('columnheader', { name: /Etapa/ }),
     ).toBeNull();
   });
 
@@ -990,15 +983,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
       within(columns)
         .getAllByRole('listitem')
         .map((node) => node.textContent),
-    ).toEqual([
-      'Número',
-      'Objeto',
-      'Secretaria',
-      'Etapa atual',
-      'Responsável',
-      'Prazo da etapa',
-      'Situação',
-    ]);
+    ).toEqual(['Número', 'Objeto', 'Etapa atual', 'Responsável', 'Prazo da etapa', 'Situação']);
     expect(await seriousA11yViolations()).toEqual([]);
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Exportar' }));
@@ -1009,9 +994,7 @@ describe('Feature: exportar CSV (US-003 · PRC-34)', () => {
     const [call] = callsTo(fetchMock, '/api/v1/processes/export');
     const query = call?.url.searchParams;
     expect(query?.get('status')).toBe('IN_PROGRESS');
-    expect(query?.get('columns')).toBe(
-      'code,title,requestingSecretariat,stage,currentResponsible,deadline,status',
-    );
+    expect(query?.get('columns')).toBe('code,title,stage,currentResponsible,deadline,status');
     expect(query?.has('page')).toBe(false);
     expect(query?.has('savedViewId')).toBe(false);
     expect(createObjectURL).toHaveBeenCalledTimes(1);

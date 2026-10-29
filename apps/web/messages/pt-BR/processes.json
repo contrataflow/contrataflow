@@ -282,7 +282,10 @@
     },
     "stepper": {
       "title": "Etapas do processo",
-      "toggle": "Etapas",
+      "history": "Ver histórico das etapas",
+      "position": "Etapa {current} de {total}",
+      "done": "concluída",
+      "upcoming": "pendente",
       "current": "etapa atual",
       "notStarted": "Não percorrida",
       "statuses": {

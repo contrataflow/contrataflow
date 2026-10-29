@@ -9,6 +9,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@contrataflow/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -166,17 +169,22 @@ export function NotificationBell() {
         <Badge count={count} />
       </Link>
       <DropdownMenu open={open} onOpenChange={setOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="secondary"
-            size="icon"
-            aria-label={label}
-            className="relative max-md:hidden md:grid md:place-items-center"
-          >
-            <Icon name="bell" className="size-5 text-muted-foreground" />
-            <Badge count={count} />
-          </Button>
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="icon"
+                aria-label={label}
+                className="relative max-md:hidden md:grid md:place-items-center"
+              >
+                <Icon name="bell" className="size-5 text-muted-foreground" />
+                <Badge count={count} />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t('label')}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent className="w-96 max-w-[calc(100vw-2rem)]">
           {open ? <NotificationPanel /> : null}
         </DropdownMenuContent>

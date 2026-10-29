@@ -116,6 +116,14 @@ export type {
   DateRangePickerLabels,
   DateRangePickerProps,
 } from './components/date-picker.js';
+export { DetailGrid, DetailPage } from './components/detail-page.js';
+export type { DetailFact, DetailPageProps } from './components/detail-page.js';
+export { FormActionBar, FormPage, FormSection, WizardShell } from './components/form-page.js';
+export type { FormPageProps, FormSectionProps, WizardShellProps } from './components/form-page.js';
+export { ListPage, ListPageSkeleton } from './components/list-page.js';
+export type { ListPageProps } from './components/list-page.js';
+export { SettingsPage } from './components/settings-page.js';
+export type { SettingsPageProps, SettingsSection } from './components/settings-page.js';
 export { Field, Label, fieldControlProps, useFieldControl } from './components/field.js';
 export type { FieldControlState, FieldProps } from './components/field.js';
 export { FILTER_TOOLBAR_LABELS, FilterToolbar } from './components/filter-toolbar.js';

@@ -22,9 +22,10 @@ test('abrir o painel, filtrar por secretaria e ir à lista filtrada pelo cartão
   await expect(page.getByText('Valores sigilosos não somados')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'painel');
 
-  await page
-    .getByRole('combobox', { name: 'Secretaria', exact: true })
-    .selectOption({ label: 'Gabinete' });
+  // Filtros fechados por padrão (prd-5 · regra 2): "Filtros" abre secretaria e unidade.
+  await page.getByRole('button', { name: 'Filtros', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Secretaria', exact: true }).click();
+  await page.getByRole('option', { name: 'Gabinete' }).click();
   await expect(page).toHaveURL(/\/painel\?secretariatId=[0-9a-f-]{36}$/);
   const overdue = page.getByRole('link', { name: /^Atrasados 3 / });
   await expect(overdue).toHaveAttribute('href', /requestingSecretariatId=/);

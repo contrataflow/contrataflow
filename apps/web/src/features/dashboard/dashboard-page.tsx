@@ -9,7 +9,14 @@ import {
   ColumnChart,
   Donut,
   EmptyState,
+  Field,
+  FilterToolbar,
   KpiTile,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   StatusChip,
   buttonClassName,
@@ -110,21 +117,9 @@ export function DashboardPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <AppPageHeader
-        title={title}
-        description={description}
-        actions={
-          <>
-            {allowed ? <DepartmentFilterBar filters={filters} onChange={navigate} /> : null}
-            {canCreate ? (
-              <Link href="/processos/novo" className={cx(buttonClassName({}), 'gap-2')}>
-                <Icon name="plus" />
-                {t('newProcess')}
-              </Link>
-            ) : null}
-          </>
-        }
-      />
+      {/* "Novo processo" fica só na barra superior (prd-5 · regra 1). */}
+      <AppPageHeader title={title} description={description} />
+      {allowed ? <DepartmentFilterBar filters={filters} onChange={navigate} /> : null}
 
       {status === 'pending' ? (
         <div role="status" className="flex flex-col gap-3">
@@ -166,7 +161,13 @@ export function DashboardPage() {
   );
 }
 
-/** `DepartmentFilterBar`: secretaria e unidade (subárvore), refletidas na URL. */
+/** Valor da opção "Todas" (o `Select` do kit não aceita valor vazio). */
+const ALL = 'todas';
+
+/**
+ * `DepartmentFilterBar` (prd-5 · regra 2): botão "Filtros" com contador que abre secretaria e
+ * unidade (subárvore) num popover, e os chips do recorte ativo; tudo refletido na URL.
+ */
 function DepartmentFilterBar({
   filters,
   onChange,
@@ -178,80 +179,89 @@ function DepartmentFilterBar({
   const units = useDashboardUnits(true);
   const secretariats = secretariatOptions(units.data ?? []);
   const departments = departmentOptions(units.data ?? [], filters.secretariatId);
-  const secretariatId = useId();
-  const departmentId = useId();
-  const field = 'flex min-w-0 flex-1 flex-col gap-1 sm:flex-none';
-  const label = 'text-xs font-semibold text-muted-foreground';
-  const select =
-    'h-11 w-full min-w-0 rounded-control border border-border-strong bg-surface px-3 text-sm text-foreground sm:w-48';
-  return (
-    <form
-      aria-label={t('label')}
-      className="flex w-full flex-wrap items-end gap-2.5 sm:w-auto"
-      onSubmit={(event) => {
-        event.preventDefault();
-      }}
-    >
-      <div className={field}>
-        <label htmlFor={secretariatId} className={label}>
-          {t('secretariat')}
-        </label>
-        <select
-          id={secretariatId}
-          className={select}
-          value={filters.secretariatId ?? ''}
-          aria-busy={units.isPending}
-          onChange={(event) => {
-            const value = event.target.value;
+  const nameOf = (id: string) => units.data?.find((unit) => unit.id === id)?.name ?? '…';
+  const keepSecretariat = filters.secretariatId ? { secretariatId: filters.secretariatId } : {};
+  const chips = [
+    ...(filters.secretariatId
+      ? [
+          {
+            id: 'secretaria',
+            label: t('chip', { label: t('secretariat'), value: nameOf(filters.secretariatId) }),
+            removeLabel: t('remove', { label: t('secretariat') }),
             // A unidade só vale dentro da secretaria escolhida (V-03).
-            onChange(value === '' ? {} : { secretariatId: value });
-          }}
-        >
-          <option value="">{t('all')}</option>
-          {secretariats.map((unit) => (
-            <option key={unit.id} value={unit.id}>
-              {unit.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className={field}>
-        <label htmlFor={departmentId} className={label}>
-          {t('department')}
-        </label>
-        <select
-          id={departmentId}
-          className={select}
-          value={filters.departmentId ?? ''}
-          aria-busy={units.isPending}
-          onChange={(event) => {
-            const value = event.target.value;
-            onChange({
-              ...(filters.secretariatId ? { secretariatId: filters.secretariatId } : {}),
-              ...(value === '' ? {} : { departmentId: value }),
-            });
-          }}
-        >
-          <option value="">{t('all')}</option>
-          {departments.map((unit) => (
-            <option key={unit.id} value={unit.id}>
-              {unit.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {filters.secretariatId || filters.departmentId ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            onChange({});
-          }}
-        >
-          {t('clear')}
-        </Button>
-      ) : null}
-    </form>
+            onRemove: () => {
+              onChange({});
+            },
+          },
+        ]
+      : []),
+    ...(filters.departmentId
+      ? [
+          {
+            id: 'unidade',
+            label: t('chip', { label: t('department'), value: nameOf(filters.departmentId) }),
+            removeLabel: t('remove', { label: t('department') }),
+            onRemove: () => {
+              onChange(keepSecretariat);
+            },
+          },
+        ]
+      : []),
+  ];
+  return (
+    <FilterToolbar
+      labels={{ filters: t('open'), clearAll: t('clear'), activeFilters: t('active') }}
+      activeCount={chips.length}
+      chips={chips}
+      onClearAll={() => {
+        onChange({});
+      }}
+      filters={
+        <>
+          <Field label={t('secretariat')}>
+            <Select
+              value={filters.secretariatId ?? ALL}
+              onValueChange={(value) => {
+                // A unidade só vale dentro da secretaria escolhida (V-03).
+                onChange(value === ALL ? {} : { secretariatId: value });
+              }}
+            >
+              <SelectTrigger aria-busy={units.isPending}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('all')}</SelectItem>
+                {secretariats.map((unit) => (
+                  <SelectItem key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('department')}>
+            <Select
+              value={filters.departmentId ?? ALL}
+              onValueChange={(value) => {
+                onChange({ ...keepSecretariat, ...(value === ALL ? {} : { departmentId: value }) });
+              }}
+            >
+              <SelectTrigger aria-busy={units.isPending}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('all')}</SelectItem>
+                {departments.map((unit) => (
+                  <SelectItem key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </>
+      }
+    />
   );
 }
 
@@ -487,44 +497,40 @@ function SeriesTable({
   readonly valueClassName?: string | undefined;
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-b border-border text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            <th scope="col" className="py-2 pr-3">
-              {itemLabel}
+    <table className="w-full text-sm">
+      <caption className="sr-only">{caption}</caption>
+      <thead>
+        <tr className="border-b border-border text-left text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          <th scope="col" className="py-2 pr-3">
+            {itemLabel}
+          </th>
+          <th scope="col" className="py-2 text-right">
+            {valueLabel}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.key} className="border-b border-border last:border-b-0">
+            <th scope="row" className="py-2.5 pr-3 text-left font-semibold text-brand-ink">
+              {row.href ? (
+                <Link href={row.href} className="hover:text-primary-hover hover:underline">
+                  {row.label}
+                </Link>
+              ) : (
+                row.label
+              )}
+              {row.note ? (
+                <span className="block text-xs font-normal text-muted-foreground">{row.note}</span>
+              ) : null}
             </th>
-            <th scope="col" className="py-2 text-right">
-              {valueLabel}
-            </th>
+            <td className={cx('py-2.5 text-right font-bold tabular-nums', valueClassName)}>
+              {row.display}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} className="border-b border-border last:border-b-0">
-              <th scope="row" className="py-2.5 pr-3 text-left font-semibold text-brand-ink">
-                {row.href ? (
-                  <Link href={row.href} className="hover:text-primary-hover hover:underline">
-                    {row.label}
-                  </Link>
-                ) : (
-                  row.label
-                )}
-                {row.note ? (
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    {row.note}
-                  </span>
-                ) : null}
-              </th>
-              <td className={cx('py-2.5 text-right font-bold tabular-nums', valueClassName)}>
-                {row.display}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

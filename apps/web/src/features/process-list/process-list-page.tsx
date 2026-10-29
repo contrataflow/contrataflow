@@ -4,6 +4,7 @@ import {
   Alert,
   Avatar,
   Button,
+  Checkbox,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -12,8 +13,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
-  FilterChip,
-  Skeleton,
+  FilterToolbar,
+  ListPage,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Table,
   TableBody,
   TableContainer,
@@ -109,7 +113,7 @@ import { useTags } from '../tags/tags.api';
 /*
  * SCR-004 — Processos (`/processos` · US-002): tabela paginada no servidor (modo manual: a API
  * filtra, ordena e pagina), busca com debounce, atalhos em abas com contador, painel de filtros,
- * chips, menu de ordenação e escolha de colunas (repaginação — prd-4). A URL é o estado da consulta
+ * chips, menu de ordenação e escolha de colunas, no modelo `ListPage` (prd-5). A URL é o estado da consulta
  * (link compartilhável); abaixo de 768 px cada linha vira um cartão (FA-09). A API decide
  * visibilidade e sigilo; a tela só apresenta.
  */
@@ -158,7 +162,8 @@ interface ColumnDef {
 export const PROCESS_COLUMNS: readonly ColumnDef[] = [
   { id: 'code', sort: 'code', fixed: true, card: true },
   { id: 'title', sort: 'title', fixed: true, card: true },
-  { id: 'requestingSecretariat', visibleByDefault: true },
+  // Fora do padrão: até 6 colunas visíveis de início (prd-5 · regra 3); disponível em "Colunas".
+  { id: 'requestingSecretariat' },
   { id: 'stage', visibleByDefault: true, card: true },
   { id: 'responsible', visibleByDefault: true, card: true },
   { id: 'deadline', sort: 'currentStageDueAt', visibleByDefault: true, card: true },
@@ -326,7 +331,6 @@ export function ProcessListPage() {
     () => readStoredColumns(tenantId)?.filter(isColumnId) ?? DEFAULT_COLUMNS,
   );
   const [columnsWarning, setColumnsWarning] = useState(false);
-  const [chooserOpen, setChooserOpen] = useState(false);
   const toggleColumn = (id: ColumnId) => {
     const next = columns.includes(id)
       ? columns.filter((column) => column !== id)
@@ -522,345 +526,282 @@ export function ProcessListPage() {
     tab === activeTab ? page?.meta.totalItems : tabCounts[countedTabs.indexOf(tab)]?.data;
 
   return (
-    <div className="flex flex-col gap-5">
-      <AppPageHeader
-        breadcrumbs={[{ label: t('breadcrumbHome'), href: HOME_PATH }, { label: t('title') }]}
-        title={t('title')}
-        description={t('description')}
-        actions={
+    <>
+      <ListPage
+        header={
+          <AppPageHeader
+            breadcrumbs={[{ label: t('breadcrumbHome'), href: HOME_PATH }, { label: t('title') }]}
+            title={t('title')}
+            description={t('description')}
+            // "Novo processo" fica só na barra superior (prd-5 · regra 1).
+            actions={
+              canExport ? (
+                <Button
+                  variant="secondary"
+                  onClick={(event) => {
+                    openExport(event.currentTarget);
+                  }}
+                >
+                  <Icon name="download" />
+                  {tExport('button')}
+                </Button>
+              ) : null
+            }
+          />
+        }
+        tabs={
           <>
-            {canExport ? (
-              <Button
-                variant="secondary"
-                onClick={(event) => {
-                  openExport(event.currentTarget);
-                }}
-              >
-                <Icon name="download" />
-                {tExport('button')}
-              </Button>
+            <SavedViewsToolbar
+              controller={views}
+              canExport={canExport}
+              onExport={openExport}
+              summarize={() => summarizeCriteria(params, criteriaLabels)}
+            />
+
+            <ViewTabs
+              label={t('tabs.label')}
+              value={activeTab ?? ''}
+              linkComponent={RouterLink}
+              tabs={LIST_TABS.map((tab) => ({
+                id: tab,
+                label: t(`tabs.${tab}`),
+                count: countOf(tab),
+                href: `${pathname}?${toSearchString(withTab(params, tab))}`,
+              }))}
+            />
+          </>
+        }
+        toolbar={
+          <FilterToolbar
+            search={{
+              value: searchText,
+              onChange: setSearchText,
+              label: t('search.label'),
+              placeholder: t('search.placeholder'),
+              description: searchTooShort ? t('search.tooShort') : undefined,
+            }}
+            onOpenFilters={() => {
+              setFiltersKey((key) => key + 1);
+              setFiltersOpen(true);
+            }}
+            activeCount={activeKeys.length}
+            chips={activeKeys.map((key) => {
+              const label = chipLabel(key);
+              const value = chipValue(key, params[key] ?? '');
+              return {
+                id: key,
+                label: t('filters.chip', { label, value }),
+                removeLabel: t('filters.remove', { label: `${label}: ${value}` }),
+                onRemove: () => {
+                  navigate(withParam(params, key, undefined));
+                },
+              };
+            })}
+            onClearAll={() => {
+              navigate(clearFilters(params));
+            }}
+            labels={{
+              filters: t('filters.open'),
+              clearAll: t('filters.clear'),
+              activeFilters: t('filters.active'),
+            }}
+            actions={
+              <>
+                <SortMenu
+                  sort={sort}
+                  onSelect={(value) => {
+                    navigate(withParam(params, 'sort', value));
+                  }}
+                />
+                <ColumnChooser offered={offered} columns={columns} onToggle={toggleColumn} />
+              </>
+            }
+          />
+        }
+        notices={
+          <>
+            <div role="status" aria-live="polite" className="sr-only">
+              {page ? t('announce', { count: total }) : ''}
+            </div>
+
+            {invalidLink ? (
+              <Alert tone="warning" title={PROCESS_LIST_MESSAGES.invalidLink} live={false} />
             ) : null}
-            {canCreate && !isExternal ? (
-              <Link href={NEW_PROCESS_PATH} className={buttonClassName({})}>
-                <Icon name="plus" />
-                {t('newProcess')}
+
+            {isQuickFilterActive(params, 'mine') ? (
+              <Link
+                href="/aprovacoes"
+                className="self-start text-sm font-semibold text-primary-soft-foreground underline-offset-2 hover:underline"
+              >
+                {t('quick.pendingApprovals')}
               </Link>
+            ) : null}
+
+            {hasValueFilter(params) && page?.meta.valueFilterExcludesConfidential ? (
+              <Alert tone="info" title={t('notes.valueFilter')} live={false} />
+            ) : null}
+            {page?.meta.confidentialStepUpAvailable ? (
+              <Alert tone="info" title={t('notes.stepUp')} live={false}>
+                <a
+                  href={`/api/auth/step-up?returnTo=${encodeURIComponent(`${pathname}?${toSearchString(params)}`)}`}
+                  className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+                >
+                  {t('notes.stepUpAction')}
+                </a>
+              </Alert>
+            ) : null}
+            {columnsWarning ? (
+              <p role="status" className="text-xs text-muted-foreground">
+                {t('notes.columnsNotSaved')}
+              </p>
             ) : null}
           </>
         }
-      />
-
-      <div role="status" aria-live="polite" className="sr-only">
-        {page ? t('announce', { count: total }) : ''}
-      </div>
-
-      {invalidLink ? (
-        <Alert tone="warning" title={PROCESS_LIST_MESSAGES.invalidLink} live={false} />
-      ) : null}
-
-      <SavedViewsToolbar
-        controller={views}
-        canExport={canExport}
-        onExport={openExport}
-        summarize={() => summarizeCriteria(params, criteriaLabels)}
-      />
-
-      <ViewTabs
-        label={t('tabs.label')}
-        value={activeTab ?? ''}
-        linkComponent={RouterLink}
-        tabs={LIST_TABS.map((tab) => ({
-          id: tab,
-          label: t(`tabs.${tab}`),
-          count: countOf(tab),
-          href: `${pathname}?${toSearchString(withTab(params, tab))}`,
-        }))}
-      />
-
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1 md:max-w-sm">
-          <label className="relative flex items-center">
-            <span className="sr-only">{t('search.label')}</span>
-            <Icon
-              name="search"
-              className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
-            />
-            <input
-              type="search"
-              value={searchText}
-              placeholder={t('search.placeholder')}
-              aria-describedby={searchTooShort ? 'process-search-hint' : undefined}
-              onChange={(event) => {
-                setSearchText(event.target.value);
-              }}
-              className="h-11 w-full rounded-control border border-border-strong bg-surface pr-3 pl-9 text-sm md:h-10"
-            />
-          </label>
-          {searchTooShort ? (
-            <p id="process-search-hint" className="text-xs text-muted-foreground">
-              {t('search.tooShort')}
-            </p>
-          ) : null}
-        </div>
-
-        {activeKeys.length > 0 ? (
-          <ul aria-label={t('filters.active')} className="flex flex-wrap items-center gap-2">
-            {activeKeys.map((key) => {
-              const label = chipLabel(key);
-              const value = chipValue(key, params[key] ?? '');
-              return (
-                <li key={key}>
-                  <FilterChip
-                    removeLabel={t('filters.remove', { label: `${label}: ${value}` })}
-                    onRemove={() => {
-                      navigate(withParam(params, key, undefined));
-                    }}
-                  >
-                    {t('filters.chip', { label, value })}
-                  </FilterChip>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            setFiltersKey((key) => key + 1);
-            setFiltersOpen(true);
-          }}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-dashed border-border-strong bg-surface px-3 text-[0.8125rem] font-semibold text-foreground hover:border-primary hover:text-primary-soft-foreground md:min-h-9"
-        >
-          <Icon name="plus" className="size-3.5" />
-          {t('filters.open')}
-        </button>
-        {activeKeys.length > 0 ? (
-          <button
-            type="button"
-            className="min-h-11 px-1 text-[0.8125rem] font-semibold text-primary-soft-foreground underline-offset-2 hover:underline md:min-h-9"
-            onClick={() => {
-              navigate(clearFilters(params));
-            }}
-          >
-            {t('filters.clear')}
-          </button>
-        ) : null}
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <SortMenu
-            sort={sort}
-            onSelect={(value) => {
-              navigate(withParam(params, 'sort', value));
-            }}
-          />
-          <div className="relative hidden md:block">
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-expanded={chooserOpen}
-              aria-controls="process-column-chooser"
-              onClick={() => {
-                setChooserOpen((open) => !open);
-              }}
-            >
-              {t('columns.choose')}
-            </Button>
-            {chooserOpen ? (
-              <fieldset
-                id="process-column-chooser"
-                className="absolute right-0 z-20 mt-1 flex w-64 flex-col gap-1 rounded-card border border-border bg-surface p-3 shadow-lg"
-              >
-                <legend className="sr-only">{t('columns.chooserTitle')}</legend>
-                {offered.map((column) => (
-                  <label key={column.id} className="flex min-h-8 items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={column.fixed === true || columns.includes(column.id)}
-                      disabled={column.fixed}
-                      onChange={() => {
-                        toggleColumn(column.id);
-                      }}
-                      className="size-4 accent-primary"
-                    />
-                    {column.fixed
-                      ? t('columns.fixed', { label: t(`columns.${column.id}`) })
-                      : t(`columns.${column.id}`)}
-                  </label>
-                ))}
-              </fieldset>
+        error={
+          <>
+            {list.isError && !page ? (
+              <ListError error={error} onRetry={() => void list.refetch()} />
             ) : null}
-          </div>
-        </div>
-      </div>
-
-      {isQuickFilterActive(params, 'mine') ? (
-        <Link
-          href="/aprovacoes"
-          className="self-start text-sm font-semibold text-primary-soft-foreground underline-offset-2 hover:underline"
-        >
-          {t('quick.pendingApprovals')}
-        </Link>
-      ) : null}
-
-      {hasValueFilter(params) && page?.meta.valueFilterExcludesConfidential ? (
-        <Alert tone="info" title={t('notes.valueFilter')} live={false} />
-      ) : null}
-      {page?.meta.confidentialStepUpAvailable ? (
-        <Alert tone="info" title={t('notes.stepUp')} live={false}>
-          <a
-            href={`/api/auth/step-up?returnTo=${encodeURIComponent(`${pathname}?${toSearchString(params)}`)}`}
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
-          >
-            {t('notes.stepUpAction')}
-          </a>
-        </Alert>
-      ) : null}
-      {columnsWarning ? (
-        <p role="status" className="text-xs text-muted-foreground">
-          {t('notes.columnsNotSaved')}
-        </p>
-      ) : null}
-
-      {list.isError && !page ? (
-        <ListError error={error} onRetry={() => void list.refetch()} />
-      ) : null}
-      {list.isError && page ? (
-        <ListError error={error} onRetry={() => void list.refetch()} compact />
-      ) : null}
-
-      {list.isPending ? <ListSkeleton label={t('loading')} /> : null}
-
-      {list.isFetching && page ? (
-        <div
-          role="progressbar"
-          aria-label={t('refreshing')}
-          className="h-1 w-full animate-pulse rounded bg-primary/40"
-        />
-      ) : null}
-
-      {page && items.length === 0 ? (
-        <EmptyState
-          icon={<Icon name="folder" />}
-          title={t('empty.title')}
-          description={
-            showNoProcesses
-              ? isExternal
-                ? t('empty.external')
-                : t('empty.none')
-              : t('empty.filtered')
-          }
-          action={
-            showNoProcesses ? (
-              canCreate && !isExternal ? (
-                <Link href={NEW_PROCESS_PATH} className={buttonClassName({})}>
-                  <Icon name="plus" />
-                  {t('empty.create')}
-                </Link>
-              ) : null
-            ) : (
-              <>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    navigate(clearFilters(params));
-                  }}
-                >
-                  {t('filters.clear')}
-                </Button>
-                {params.q && params.status ? (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      navigate(withParam(params, 'status', undefined));
-                    }}
-                  >
-                    {t('filters.searchAllStatuses')}
-                  </Button>
-                ) : null}
-              </>
-            )
-          }
-        />
-      ) : null}
-
-      {items.length > 0 ? (
-        <TableContainer
-          label={t('table.caption')}
-          footer={
-            <TableFooter
-              summary={t('pagination.showing', {
-                from: firstShown,
-                to: lastShown,
-                total,
-              })}
-            >
-              {totalPages > 1 ? (
-                <Pagination
-                  page={currentPage}
-                  totalPages={totalPages}
-                  onChange={(next) => {
-                    navigate(withParam(params, 'page', String(next)));
-                  }}
-                />
-              ) : null}
-            </TableFooter>
-          }
-        >
-          <Table className="md:min-w-[64rem]">
-            <caption className="sr-only">{t('table.caption')}</caption>
-            <TableHead className="max-md:sr-only">
-              <Tr>
-                {visible.map((column) => {
-                  const sorted = sort?.field === column.sort ? sort : null;
-                  const field = column.sort;
-                  return (
-                    <Th
-                      key={column.id}
-                      sort={
-                        sorted
-                          ? sorted.direction === 'asc'
-                            ? 'ascending'
-                            : 'descending'
-                          : undefined
-                      }
-                      onSort={
-                        field
-                          ? () => {
-                              navigate(toggleSort(params, field));
-                            }
-                          : undefined
-                      }
+            {list.isError && page ? (
+              <ListError error={error} onRetry={() => void list.refetch()} compact />
+            ) : null}
+          </>
+        }
+        loading={list.isPending}
+        loadingLabel={t('loading')}
+        empty={
+          page && items.length === 0 ? (
+            <EmptyState
+              icon={<Icon name="folder" />}
+              title={t('empty.title')}
+              description={
+                showNoProcesses
+                  ? isExternal
+                    ? t('empty.external')
+                    : t('empty.none')
+                  : t('empty.filtered')
+              }
+              action={
+                showNoProcesses ? (
+                  canCreate && !isExternal ? (
+                    <Link href={NEW_PROCESS_PATH} className={buttonClassName({})}>
+                      <Icon name="plus" />
+                      {t('empty.create')}
+                    </Link>
+                  ) : null
+                ) : (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        navigate(clearFilters(params));
+                      }}
                     >
-                      {t(`columns.${column.id}`)}
-                    </Th>
-                  );
-                })}
-                <Th className="w-14">
-                  <span className="sr-only">{t('row.actionsColumn')}</span>
-                </Th>
-              </Tr>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <Tr
-                  key={item.id}
-                  className="max-md:relative max-md:flex max-md:flex-col max-md:gap-1.5 max-md:p-4 max-md:pr-14"
-                >
-                  {visible.map((column) => (
-                    <Td key={column.id} className={column.card ? 'max-md:p-0' : 'max-md:hidden'}>
-                      <Cell column={column.id} item={item} />
-                    </Td>
-                  ))}
-                  <Td className="text-right max-md:absolute max-md:top-2 max-md:right-2 max-md:p-0">
-                    <RowMenu item={item} />
-                  </Td>
-                </Tr>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      ) : null}
+                      {t('filters.clear')}
+                    </Button>
+                    {params.q && params.status ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          navigate(withParam(params, 'status', undefined));
+                        }}
+                      >
+                        {t('filters.searchAllStatuses')}
+                      </Button>
+                    ) : null}
+                  </>
+                )
+              }
+            />
+          ) : null
+        }
+      >
+        {list.isFetching && page ? (
+          <div
+            role="progressbar"
+            aria-label={t('refreshing')}
+            className="h-1 w-full animate-pulse rounded bg-primary/40"
+          />
+        ) : null}
 
+        {items.length > 0 ? (
+          <TableContainer
+            label={t('table.caption')}
+            footer={
+              <TableFooter
+                summary={t('pagination.showing', {
+                  from: firstShown,
+                  to: lastShown,
+                  total,
+                })}
+              >
+                {totalPages > 1 ? (
+                  <Pagination
+                    page={currentPage}
+                    totalPages={totalPages}
+                    onChange={(next) => {
+                      navigate(withParam(params, 'page', String(next)));
+                    }}
+                  />
+                ) : null}
+              </TableFooter>
+            }
+          >
+            <Table className="md:min-w-[52rem]">
+              <caption className="sr-only">{t('table.caption')}</caption>
+              <TableHead className="max-md:sr-only">
+                <Tr>
+                  {visible.map((column) => {
+                    const sorted = sort?.field === column.sort ? sort : null;
+                    const field = column.sort;
+                    return (
+                      <Th
+                        key={column.id}
+                        sort={
+                          sorted
+                            ? sorted.direction === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : undefined
+                        }
+                        onSort={
+                          field
+                            ? () => {
+                                navigate(toggleSort(params, field));
+                              }
+                            : undefined
+                        }
+                      >
+                        {t(`columns.${column.id}`)}
+                      </Th>
+                    );
+                  })}
+                  <Th className="w-14">
+                    <span className="sr-only">{t('row.actionsColumn')}</span>
+                  </Th>
+                </Tr>
+              </TableHead>
+              <TableBody>
+                {items.map((item) => (
+                  <Tr
+                    key={item.id}
+                    className="max-md:relative max-md:flex max-md:flex-col max-md:gap-1.5 max-md:p-4 max-md:pr-14"
+                  >
+                    {visible.map((column) => (
+                      <Td key={column.id} className={column.card ? 'max-md:p-0' : 'max-md:hidden'}>
+                        <Cell column={column.id} item={item} />
+                      </Td>
+                    ))}
+                    <Td className="text-right max-md:absolute max-md:top-2 max-md:right-2 max-md:p-0">
+                      <RowMenu item={item} />
+                    </Td>
+                  </Tr>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : null}
+      </ListPage>
       <ProcessFiltersPanel
         key={filtersKey}
         open={filtersOpen}
@@ -890,7 +831,7 @@ export function ProcessListPage() {
           returnFocusRef={exportReturnFocus}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -911,6 +852,54 @@ function RouterLink({ href, className, children, ...rest }: ComponentProps<LinkC
     >
       {children}
     </a>
+  );
+}
+
+/**
+ * "Colunas" (RN-PROC-32): popover com uma caixa por coluna; as fixas aparecem marcadas e
+ * desabilitadas. Só em telas médias ou maiores (no celular a lista vira cartões).
+ */
+function ColumnChooser({
+  offered,
+  columns,
+  onToggle,
+}: {
+  readonly offered: readonly ColumnDef[];
+  readonly columns: readonly ColumnId[];
+  readonly onToggle: (id: ColumnId) => void;
+}) {
+  const t = useTranslations('processList.columns');
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="secondary" className="max-md:hidden" iconLeft={<Icon name="columns" />}>
+          {t('choose')}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" aria-label={t('chooserTitle')} className="w-64">
+        <fieldset className="flex flex-col gap-1">
+          <legend className="sr-only">{t('chooserTitle')}</legend>
+          {offered.map((column) => {
+            const id = `coluna-${column.id}`;
+            return (
+              <div key={column.id} className="flex min-h-9 items-center gap-2.5 text-sm">
+                <Checkbox
+                  id={id}
+                  checked={column.fixed === true || columns.includes(column.id)}
+                  disabled={column.fixed}
+                  onCheckedChange={() => {
+                    onToggle(column.id);
+                  }}
+                />
+                <label htmlFor={id}>
+                  {column.fixed ? t('fixed', { label: t(column.id) }) : t(column.id)}
+                </label>
+              </div>
+            );
+          })}
+        </fieldset>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1059,32 +1048,6 @@ function Pagination({
         {t('next')}
       </Button>
     </nav>
-  );
-}
-
-/** Esqueleto da tabela enquanto a primeira consulta não volta. */
-function ListSkeleton({ label }: { readonly label: string }) {
-  return (
-    <div
-      role="status"
-      className="overflow-hidden rounded-card border border-border bg-surface shadow-card"
-    >
-      <span className="sr-only">{label}</span>
-      <div className="h-11 border-b border-border bg-muted/60" />
-      {Array.from({ length: 8 }, (_, index) => (
-        <div
-          key={index}
-          className="flex items-center gap-4 border-b border-border px-3.5 py-3.5 last:border-b-0"
-        >
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="hidden h-4 w-28 md:block" />
-          <Skeleton className="size-7 flex-none rounded-full" />
-          <Skeleton className="hidden h-4 w-28 md:block" />
-          <Skeleton className="h-5 w-24 rounded-full" />
-        </div>
-      ))}
-    </div>
   );
 }
 

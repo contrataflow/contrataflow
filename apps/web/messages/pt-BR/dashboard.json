@@ -2,7 +2,6 @@
   "title": "Painel",
   "greeting": "{period, select, morning {Bom dia} afternoon {Boa tarde} other {Boa noite}}, {name}",
   "subtitle": "Como está a operação dos processos que você pode ver · {date}",
-  "newProcess": "Novo processo",
   "loadingPermission": "Verificando seu acesso…",
   "forbidden": {
     "title": "Você não tem permissão para acessar o painel.",
@@ -14,6 +13,10 @@
     "department": "Unidade/Setor",
     "all": "Todas",
     "clear": "Limpar filtros",
+    "open": "Filtros",
+    "active": "Filtros aplicados",
+    "chip": "{label}: {value}",
+    "remove": "Remover filtro de {label}",
     "loading": "Carregando unidades…",
     "invalidReference": "Selecione uma secretaria/unidade válida. Os filtros voltaram para “Todas”.",
     "notInSecretariat": "A unidade deve pertencer à secretaria selecionada."

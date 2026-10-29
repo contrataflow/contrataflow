@@ -54,7 +54,7 @@ export function MainNav({
   const counters = useNavCounters();
   const items = MAIN_NAV.filter((item) => showExample || item.labelKey !== 'example');
   return (
-    <nav aria-label={t('nav.label')} className="flex flex-1 flex-col gap-6 overflow-y-auto px-3.5">
+    <nav aria-label={t('nav.label')} className="flex flex-1 flex-col gap-6 px-3.5">
       {NAV_GROUPS.map((group) => (
         <div key={group} className="flex flex-col gap-1">
           <p

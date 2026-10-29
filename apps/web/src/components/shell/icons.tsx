@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Columns3,
   Download,
   FlaskConical,
   Folder,
@@ -53,6 +54,7 @@ const ICONS = {
   message: MessageSquare,
   alert: TriangleAlert,
   clock: Clock,
+  columns: Columns3,
   archive: Archive,
   settings: Settings,
 } as const satisfies Record<string, IconComponent>;

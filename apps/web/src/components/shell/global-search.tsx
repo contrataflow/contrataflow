@@ -2,11 +2,12 @@
 
 import { Kbd } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
+import { CommandPalette } from './command-palette';
 import { Icon } from './icons';
 
-/** Ctrl K (⌘ K no Mac) leva à busca de qualquer ponto do app. */
+/** Ctrl K (⌘ K no Mac) abre a paleta de comandos de qualquer ponto do app. */
 export function isSearchShortcut(event: KeyboardEvent): boolean {
   return (
     (event.ctrlKey || event.metaKey) &&
@@ -17,19 +18,18 @@ export function isSearchShortcut(event: KeyboardEvent): boolean {
 }
 
 /**
- * Busca global da barra superior (prd-4 · padrão 2): envia `q` para a lista de processos, que
- * busca por número, título e objeto. O atalho Ctrl K foca o campo (sem paleta de comandos). No
- * celular o campo ocupa a segunda linha da barra.
+ * Busca global da barra superior (prd-5 · §4 card 2): parece um campo, mas abre a paleta de
+ * comandos (`CommandPalette`) — busca de processos, "Novo processo" e "Ir para" as áreas do menu.
+ * O atalho Ctrl K abre a mesma paleta. No celular ocupa a segunda linha da barra.
  */
-export function GlobalSearch() {
+export function GlobalSearch({ showExample = false }: { readonly showExample?: boolean }) {
   const t = useTranslations('shell.search');
-  const input = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!isSearchShortcut(event) || !input.current) return;
+      if (!isSearchShortcut(event)) return;
       event.preventDefault();
-      input.current.focus();
-      input.current.select();
+      setOpen(true);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
@@ -37,32 +37,24 @@ export function GlobalSearch() {
     };
   }, []);
   return (
-    <form
-      role="search"
-      action="/processos"
-      className="order-last w-full md:order-none md:w-auto md:max-w-xl md:flex-1"
-    >
-      <div className="relative flex items-center">
-        <label htmlFor="busca-global" className="sr-only">
-          {t('label')}
-        </label>
-        <Icon
-          name="search"
-          className="pointer-events-none absolute left-3.5 size-[1.125rem] text-muted-foreground"
-        />
-        <input
-          ref={input}
-          id="busca-global"
-          type="search"
-          name="q"
-          placeholder={t('placeholder')}
-          aria-keyshortcuts="Control+K"
-          className="h-11 w-full rounded-control border border-border-strong bg-background pr-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground sm:pr-18"
-        />
-        <Kbd aria-hidden="true" className="pointer-events-none absolute right-3 max-sm:hidden">
+    <div className="order-last w-full md:order-none md:w-auto md:max-w-xl md:flex-1">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K"
+        aria-label={t('label')}
+        onClick={() => {
+          setOpen(true);
+        }}
+        className="flex h-11 w-full items-center gap-2.5 rounded-control border border-border-strong bg-background px-3.5 text-left text-sm text-muted-foreground hover:border-primary"
+      >
+        <Icon name="search" className="size-[1.125rem] flex-none" />
+        <span className="min-w-0 flex-1 truncate">{t('placeholder')}</span>
+        <Kbd aria-hidden="true" className="max-sm:hidden">
           {t('shortcut')}
         </Kbd>
-      </div>
-    </form>
+      </button>
+      <CommandPalette open={open} onOpenChange={setOpen} showExample={showExample} />
+    </div>
   );
 }

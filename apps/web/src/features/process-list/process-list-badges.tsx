@@ -100,10 +100,13 @@ export function DueDateText({
   const color =
     tone === 'late' ? 'text-destructive' : today ? 'text-warning' : 'text-muted-foreground';
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap ${color}`}
-    >
-      <svg aria-hidden="true" viewBox="0 0 16 16" className="size-3.5 fill-current">
+    <span className={`inline-flex items-start gap-1.5 text-sm font-semibold ${color}`}>
+      {/* Quebra linha na tabela (prd-5 · regra 8: a tabela cabe em 1280 px sem rolar). */}
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        className="mt-0.5 size-3.5 flex-none fill-current"
+      >
         <path d={ICONS[tone === 'soon' && !today ? 'ok' : tone]} />
       </svg>
       {label}

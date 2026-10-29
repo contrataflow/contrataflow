@@ -417,8 +417,9 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(screen.getByRole('link', { name: 'Criar processo' }).getAttribute('href')).toBe(
       '/processos/novo',
     );
-    // Cabeçalho: "Novo processo" com PROCESS_CREATE (sem PROCESS_EXPORT, sem "Exportar CSV").
-    expect(screen.getByRole('link', { name: 'Novo processo' })).toBeTruthy();
+    // Cabeçalho: "Novo processo" fica só na barra superior (prd-5 · regra 1); sem PROCESS_EXPORT,
+    // sem "Exportar CSV".
+    expect(screen.queryByRole('link', { name: 'Novo processo' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Exportar CSV' })).toBeNull();
   });
 
@@ -463,7 +464,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     mockApi(() => page([item()]));
     renderWithShell(<ProcessListPage />);
     await screen.findByText('0012/2026');
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.change(within(dialog).getByLabelText('Valor estimado mínimo'), {
       target: { value: '10,999' },
@@ -515,7 +516,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(within(table).getByText('(inativa)')).toBeTruthy();
     await userEvent.keyboard('{Escape}');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
     const dialog = await screen.findByRole('dialog');
     const active = await within(dialog).findByRole('group', { name: 'Etiquetas' });
     expect(within(active).getByRole('checkbox', { name: 'Recurso federal' })).toBeTruthy();
@@ -605,7 +606,13 @@ describe('Feature: repaginação da lista (prd-4 · SCR-004)', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Decrescente' }));
     expect(new URLSearchParams(nav.get()).get('sort')).toBe('-currentStageDueAt');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    // Com um chip só, ele mesmo limpa ("Limpar filtros" aparece a partir de dois — FilterToolbar).
+    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Filtros ativos' })).getByRole('button', {
+        name: 'Remover filtro Situação: Devolvido',
+      }),
+    );
     expect(nav.get()).toBe('sort=-currentStageDueAt');
   });
 
@@ -629,7 +636,6 @@ describe('Feature: repaginação da lista (prd-4 · SCR-004)', () => {
     ).toEqual([
       'Número',
       'Objeto',
-      'Secretaria',
       'Etapa atual',
       'Responsável',
       'Prazo da etapa',

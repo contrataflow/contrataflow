@@ -21,7 +21,7 @@ import { useShellSession } from '@/lib/session/session-context';
 import { CancelSuggestionCallout } from './cancel-suggestion-callout';
 import { ProcessActionBar } from './process-action-bar';
 import { ProcessDataCard } from './process-data-card';
-import { PROCESS_STATUS_HEADER_ID, ProcessHeader } from './process-header';
+import { PROCESS_STATUS_HEADER_ID, ProcessDetailPage } from './process-header';
 import {
   isStaleProcessError,
   panelRefetchInterval,
@@ -97,7 +97,7 @@ const ACTIVE_TAB =
 const IDLE_TAB = 'font-medium text-muted-foreground hover:text-foreground';
 
 /**
- * `ProcessTabs` (RN-PROC-57 · V-06): aba ativa na URL (`?aba=`), roláveis na horizontal no mobile,
+ * `ProcessTabs` (RN-PROC-57 · V-06): aba ativa na URL (`?aba=`), quebram linha em vez de rolar (prd-5 · regra 8),
  * padrão WAI-ARIA (setas e Home/End movem o foco e ativam a aba). O contador vai num selo; o nome
  * acessível segue "Documentos (2)".
  */
@@ -134,7 +134,7 @@ function ProcessTabs({
     <div
       role="tablist"
       aria-label={t('label')}
-      className="flex gap-1 overflow-x-auto border-b border-border"
+      className="flex flex-wrap gap-1 border-b border-border"
     >
       {VISIBLE_TABS.map((tab) => {
         const counted = COUNTED[tab];
@@ -202,7 +202,7 @@ function MovementsTab({
       <div
         role="group"
         aria-label={t('label')}
-        className="inline-flex max-w-full self-start overflow-x-auto rounded-control border border-border bg-surface p-1"
+        className="inline-flex max-w-full flex-wrap self-start rounded-control border border-border bg-surface p-1"
       >
         {(['tramitacao', 'timeline'] as const).map((option) => (
           <button
@@ -324,8 +324,8 @@ export function useStaleProcessRecovery(processId: string) {
 }
 
 /**
- * SCR-006 — Detalhe do processo (US-004): cabeçalho, barra de ações (ação primária + "Mais"),
- * stepper das etapas, painel situacional com as 7 perguntas (PRC-07) e as abas Resumo, Documentos,
+ * SCR-006 — Detalhe do processo (US-004) no modelo `DetailPage` (prd-5): faixa de cabeçalho com
+ * "Seguir" e a barra de ações (ação primária + "Mais"), cartão com a barra de etapas e os fatos, painel situacional com as 7 perguntas (PRC-07) e as abas Resumo, Documentos,
  * Itens, Tramitação, Timeline, Comentários e Participantes (`?aba=`). PRC-04/07/08/10 em paralelo;
  * cada bloco falha sozinho; banco fora com dados em cache mostra o aviso e desabilita as ações.
  */
@@ -438,6 +438,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         onOpenDocuments={() => {
           changeTab('documentos');
         }}
+        nextStepActions={
+          <>
+            {/* US-014: "Elaborar DFD" quando o DOC-01 libera o tipo DFD (fluxo principal 1). */}
+            <ElaborateDfdButton processId={processId} />
+            {/* US-019: "Criar ETP" / "Abrir ETP {código}" (DOC-01 + ETP-01). */}
+            <CreateEtpButton processId={processId} />
+            {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
+            <CreatePriceResearchButton processId={processId} />
+            {/* US-036: "Criar Termo de Referência" / "Abrir TR {código}" (DOC-01 + TRM-01). */}
+            <CreateTermButton processId={processId} />
+            {/* US-033: acesso à tela de riscos (SCR-011). */}
+            <RisksLink processId={processId} />
+          </>
+        }
         aside={
           <ProcessDataCard query={detail} timeZone={timeZone}>
             {/* US-013: "Orçamento sigiloso" (PRC-33) com o estado e a versão do PRC-04. */}
@@ -471,16 +485,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const visibleTab = visibleTabOf(tab);
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-6 pb-24 md:pb-0">
-      <ProcessHeader
+    <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col pb-24 md:pb-0">
+      <ProcessDetailPage
         summary={data}
         actions={
-          <ProcessActionBar
-            summary={data}
-            actions={actions.data}
-            frozen={frozen || claiming.isPending}
-            onAction={onAction}
-          />
+          <>
+            {/* US-012 · DEC-180: "Seguir"/"Seguindo" ao lado das ações. */}
+            <FollowToggleButton processId={processId} />
+            <ProcessActionBar
+              summary={data}
+              actions={actions.data}
+              frozen={frozen || claiming.isPending}
+              onAction={onAction}
+            />
+          </>
         }
         tagsAction={
           // US-007: "Etiquetas" (PRC-08 `MANAGE_TAGS`) abre o seletor; PRC-18 grava o conjunto.
@@ -493,41 +511,57 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
             }}
           />
         }
-        toolbar={
+        progress={
+          <StageStepper
+            stages={stages.data}
+            isPending={stages.isPending}
+            error={stages.error}
+            onRetry={() => {
+              void stages.refetch();
+            }}
+            timeZone={timeZone}
+          />
+        }
+        notices={
           <>
-            {/* US-014: "Elaborar DFD" quando o DOC-01 libera o tipo DFD (fluxo principal 1). */}
-            <ElaborateDfdButton processId={processId} />
-            {/* US-019: "Criar ETP" / "Abrir ETP {código}" (DOC-01 + ETP-01). */}
-            <CreateEtpButton processId={processId} />
-            {/* US-024: "Criar pesquisa de preços" / "Abrir pesquisa {código}" (DOC-01 + PRS-01). */}
-            <CreatePriceResearchButton processId={processId} />
-            {/* US-036: "Criar Termo de Referência" / "Abrir TR {código}" (DOC-01 + TRM-01). */}
-            <CreateTermButton processId={processId} />
-            {/* US-033: acesso à tela de riscos (SCR-011). */}
-            <RisksLink processId={processId} />
-            {/* US-012 · DEC-180: "Seguir"/"Seguindo" no cabeçalho do painel. */}
-            <FollowToggleButton processId={processId} />
+            {frozen ? (
+              <Alert tone="warning" title={t('actions.stale', { time: updatedAt })}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-2"
+                  onClick={() => {
+                    void summary.refetch();
+                  }}
+                >
+                  {t('errors.retry')}
+                </Button>
+              </Alert>
+            ) : null}
+            {stale.conflict ? <Alert tone="info" title={t('actions.conflict')} /> : null}
+            <SuspendedBanner where={data.where} timeZone={timeZone} />
+            {/* US-017 · RN-DFD-68: DFD indeferido — sugestão de cancelamento (PEND-02). */}
+            <CancelSuggestionCallout summary={data} />
           </>
         }
-      />
-      {frozen ? (
-        <Alert tone="warning" title={t('actions.stale', { time: updatedAt })}>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="mt-2"
-            onClick={() => {
-              void summary.refetch();
-            }}
-          >
-            {t('errors.retry')}
-          </Button>
-        </Alert>
-      ) : null}
-      {stale.conflict ? <Alert tone="info" title={t('actions.conflict')} /> : null}
-      <SuspendedBanner where={data.where} timeZone={timeZone} />
-      {/* US-017 · RN-DFD-68: DFD indeferido — sugestão de cancelamento (PEND-02). */}
-      <CancelSuggestionCallout summary={data} />
+        tabs={
+          <ProcessTabs
+            active={visibleTab}
+            counts={data.counts}
+            onChange={changeTab}
+            idPrefix={tabsId}
+          />
+        }
+      >
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-${visibleTab}`}
+          aria-labelledby={`${tabsId}-tab-${visibleTab}`}
+          className="min-w-0"
+        >
+          {content}
+        </div>
+      </ProcessDetailPage>
       <EditProcessSheet processId={processId} open={editing} onOpenChange={setEditing} />
       <ForwardPanel
         processId={processId}
@@ -612,29 +646,6 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         open={duplicating}
         onOpenChange={setDuplicating}
       />
-      <StageStepper
-        stages={stages.data}
-        isPending={stages.isPending}
-        error={stages.error}
-        onRetry={() => {
-          void stages.refetch();
-        }}
-        timeZone={timeZone}
-      />
-      <ProcessTabs
-        active={visibleTab}
-        counts={data.counts}
-        onChange={changeTab}
-        idPrefix={tabsId}
-      />
-      <div
-        role="tabpanel"
-        id={`${tabsId}-panel-${visibleTab}`}
-        aria-labelledby={`${tabsId}-tab-${visibleTab}`}
-        className="min-w-0"
-      >
-        {content}
-      </div>
     </div>
   );
 }

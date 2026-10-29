@@ -28,6 +28,7 @@ export {
   CircleX,
   ClipboardList,
   Clock,
+  Columns3,
   Copy,
   CornerDownLeft,
   Download,

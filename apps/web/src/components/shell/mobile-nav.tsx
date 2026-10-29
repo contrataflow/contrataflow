@@ -8,6 +8,9 @@ import {
   DialogContent,
   DialogTitle,
   DialogTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -25,14 +28,19 @@ export function MobileNav({ showExample = false }: { readonly showExample?: bool
   const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t('nav.open')} className="lg:hidden">
-          <Icon name="menu" className="size-5" />
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={t('nav.open')} className="lg:hidden">
+              <Icon name="menu" className="size-5" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{t('nav.open')}</TooltipContent>
+      </Tooltip>
       <DialogContent
         closeLabel={null}
-        className="top-0! left-0! flex! h-dvh max-w-72! translate-x-0! translate-y-0! flex-col gap-6! rounded-none! border-y-0! border-l-0! border-r-border! bg-sidebar! p-0! pb-4! text-sidebar-foreground!"
+        className="top-0! left-0! flex! h-dvh max-w-72! translate-x-0! translate-y-0! flex-col gap-6! overflow-y-auto rounded-none! border-y-0! border-l-0! border-r-border! bg-sidebar! p-0! pb-4! text-sidebar-foreground!"
         aria-describedby={undefined}
       >
         <div className="flex flex-none items-center justify-between gap-2 px-4 pt-4">

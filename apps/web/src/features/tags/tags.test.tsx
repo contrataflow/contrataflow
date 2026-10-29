@@ -21,7 +21,7 @@ import { jsonResponse, renderWithShell } from '@test/support/render';
 import { ProcessTagsButton, ProcessTagsDialog } from './process-tags';
 import type { AppliedTag } from './tag-model';
 import { TagsAdminPanel } from './tags-admin-panel';
-import { ProcessHeader } from '../process-panel/process-header';
+import { ProcessDetailPage } from '../process-panel/process-header';
 
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
@@ -414,7 +414,7 @@ describe('SCR-006 · seletor de etiquetas do processo (US-007)', () => {
 describe('SCR-006 · etiquetas no cabeçalho do processo', () => {
   it('mostra os chips com cor e nome, a inativa esmaecida com "(inativa)", e o botão no slot', () => {
     renderWithShell(
-      <ProcessHeader
+      <ProcessDetailPage
         summary={{
           ...summaryDto(),
           header: {

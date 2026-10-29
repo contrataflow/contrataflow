@@ -4,6 +4,7 @@ import {
   Avatar,
   Button,
   Card as UiCard,
+  DetailGrid,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -261,7 +262,13 @@ function PendingCard({
 }
 
 /** (4) Próximo passo: as instruções da etapa (Markdown sanitizado). */
-function NextStepCard({ summary }: { readonly summary: ProcessSummaryDto }) {
+function NextStepCard({
+  summary,
+  actions,
+}: {
+  readonly summary: ProcessSummaryDto;
+  readonly actions?: ReactNode;
+}) {
   const t = useTranslations('processes.panel.next');
   const instructions = summary.nextStep.instructions?.trim();
   return (
@@ -271,6 +278,7 @@ function NextStepCard({ summary }: { readonly summary: ProcessSummaryDto }) {
       ) : (
         <p className="text-sm text-muted-foreground">{t('none')}</p>
       )}
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </Card>
   );
 }
@@ -450,39 +458,45 @@ function ApprovalsCard({
 
 /**
  * `SituationalPanel` (SCR-006 · DEC-180 · RN-PROC-48 · repaginação prd-4): a visão geral com as
- * 7 perguntas, cada uma numa seção com `h2`. No centro, o que fazer agora (próximo passo, o que
- * falta, documentos e aprovações); no resumo lateral, onde está, responsável, prazos e o que vier
- * em `aside` (dados do processo). Abaixo de 1024 px o resumo lateral desce para depois do centro.
+ * 7 perguntas, cada uma numa seção com `h2`, na grade 2/3 + 1/3 do `DetailPage` (prd-5). No
+ * centro, o que fazer agora (próximo passo com os atalhos dos documentos dentro, o que falta,
+ * documentos e aprovações); no resumo lateral, onde está, responsável, prazos e o que vier em
+ * `aside` (dados do processo). Abaixo de 1024 px o resumo lateral desce para depois do centro.
  */
 export function SituationalPanel({
   summary,
   processId,
   timeZone,
   aside,
+  nextStepActions,
   onOpenDocuments,
 }: {
   readonly summary: ProcessSummaryDto;
   readonly processId: string;
   readonly timeZone: string;
   readonly aside?: ReactNode;
+  /** Atalhos dos documentos da etapa ("Elaborar DFD", "Criar ETP"…), dentro do próximo passo. */
+  readonly nextStepActions?: ReactNode;
   /** "Ver todos os documentos": leva à aba Documentos. */
   readonly onOpenDocuments?: (() => void) | undefined;
 }) {
   const t = useTranslations('processes.panel');
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="flex min-w-0 flex-col gap-6">
-        <NextStepCard summary={summary} />
-        <PendingCard summary={summary} processId={processId} />
-        <DocumentsCard summary={summary} processId={processId} onOpenDocuments={onOpenDocuments} />
-        <ApprovalsCard summary={summary} timeZone={timeZone} />
-      </div>
-      <aside aria-label={t('asideLabel')} className="flex min-w-0 flex-col gap-4">
-        <WhereCard summary={summary} timeZone={timeZone} />
-        <ResponsibleCard summary={summary} timeZone={timeZone} />
-        <DeadlinesCard summary={summary} timeZone={timeZone} />
-        {aside}
-      </aside>
-    </div>
+    <DetailGrid
+      asideLabel={t('asideLabel')}
+      aside={
+        <>
+          <WhereCard summary={summary} timeZone={timeZone} />
+          <ResponsibleCard summary={summary} timeZone={timeZone} />
+          <DeadlinesCard summary={summary} timeZone={timeZone} />
+          {aside}
+        </>
+      }
+    >
+      <NextStepCard summary={summary} actions={nextStepActions} />
+      <PendingCard summary={summary} processId={processId} />
+      <DocumentsCard summary={summary} processId={processId} onOpenDocuments={onOpenDocuments} />
+      <ApprovalsCard summary={summary} timeZone={timeZone} />
+    </DetailGrid>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Search, SlidersHorizontal } from '../icons.js';
@@ -53,10 +53,17 @@ export interface FilterToolbarProps {
         readonly onChange: (value: string) => void;
         readonly label: string;
         readonly placeholder?: string | undefined;
+        /** Dica sob o campo (ex.: "Digite ao menos 2 letras"), ligada por `aria-describedby`. */
+        readonly description?: ReactNode;
       }
     | undefined;
   /** Conteúdo do painel "Filtros" (campos do kit); sem ele, o botão não aparece. */
   readonly filters?: ReactNode;
+  /**
+   * Painel de filtros próprio (ex.: diálogo com "Aplicar"): o botão "Filtros" chama esta função
+   * em vez de abrir o popover. Ignorado quando há `filters`.
+   */
+  readonly onOpenFilters?: ((trigger: HTMLElement) => void) | undefined;
   /** Quantos filtros do painel estão ativos (o número no botão). */
   readonly activeCount?: number | undefined;
   /** Filtros aplicados, como chips removíveis abaixo da barra. */
@@ -84,6 +91,7 @@ export interface FilterToolbarProps {
 export function FilterToolbar({
   search,
   filters,
+  onOpenFilters,
   activeCount = 0,
   chips = [],
   onClearAll,
@@ -94,22 +102,44 @@ export function FilterToolbar({
 }: FilterToolbarProps) {
   const text = { ...FILTER_TOOLBAR_LABELS, ...labels };
   const [open, setOpen] = useState(false);
+  const hintId = useId();
+  const filtersLabel =
+    activeCount > 0 ? `${text.filters}, ${text.activeCount(activeCount)}` : undefined;
+  const filtersContent = (
+    <>
+      {text.filters}
+      {activeCount > 0 ? (
+        <span
+          aria-hidden="true"
+          className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground"
+        >
+          {activeCount}
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
     <div className={cx('flex flex-col gap-3', className)}>
       <div className="flex flex-wrap items-center gap-2.5">
         {search ? (
-          <div className="flex min-w-0 flex-[1_1_16rem] md:max-w-sm">
+          <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-1 md:max-w-sm">
             <Input
               type="search"
               icon={<Search />}
               aria-label={search.label}
+              aria-describedby={search.description ? hintId : undefined}
               placeholder={search.placeholder}
               value={search.value}
               onChange={(event) => {
                 search.onChange(event.target.value);
               }}
             />
+            {search.description ? (
+              <p id={hintId} className="text-xs text-muted-foreground">
+                {search.description}
+              </p>
+            ) : null}
           </div>
         ) : null}
         {filters ? (
@@ -118,25 +148,27 @@ export function FilterToolbar({
               <Button
                 variant="secondary"
                 iconLeft={<SlidersHorizontal />}
-                aria-label={
-                  activeCount > 0 ? `${text.filters}, ${text.activeCount(activeCount)}` : undefined
-                }
+                aria-label={filtersLabel}
               >
-                {text.filters}
-                {activeCount > 0 ? (
-                  <span
-                    aria-hidden="true"
-                    className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground"
-                  >
-                    {activeCount}
-                  </span>
-                ) : null}
+                {filtersContent}
               </Button>
             </PopoverTrigger>
             <PopoverContent aria-label={text.filters} className="flex w-80 flex-col gap-4">
               {filters}
             </PopoverContent>
           </Popover>
+        ) : onOpenFilters ? (
+          <Button
+            variant="secondary"
+            iconLeft={<SlidersHorizontal />}
+            aria-haspopup="dialog"
+            aria-label={filtersLabel}
+            onClick={(event) => {
+              onOpenFilters(event.currentTarget);
+            }}
+          >
+            {filtersContent}
+          </Button>
         ) : null}
         {sort || actions ? (
           <div className="ml-auto flex flex-wrap items-center gap-2.5">

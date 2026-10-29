@@ -122,3 +122,29 @@ type Story = StoryObj<typeof meta>;
 export const Idle: Story = {};
 
 export const WithActiveFilters: Story = { args: { initialStatuses: ['andamento', 'atrasado'] } };
+
+/** "Filtros" que abre um painel próprio (diálogo com "Aplicar") e a dica sob a busca. */
+export const ExternalPanel: Story = {
+  render: () => (
+    <div className="w-[min(56rem,100vw-2rem)]">
+      <FilterToolbar
+        search={{
+          value: 'a',
+          onChange: () => undefined,
+          label: 'Buscar processos',
+          description: 'Digite ao menos 2 letras.',
+        }}
+        onOpenFilters={() => undefined}
+        activeCount={1}
+        chips={[
+          {
+            id: 'situacao',
+            label: 'Situação: Em andamento',
+            removeLabel: 'Remover filtro de situação',
+            onRemove: () => undefined,
+          },
+        ]}
+      />
+    </div>
+  ),
+};

@@ -6761,7 +6761,46 @@ createServer(async (request, response) => {
       });
     }
     if (request.method === 'GET' && listedRoute[2] === '/stages') {
-      return send(response, 200, { data: [] });
+      // PRC-10: três etapas de exemplo (a 1ª concluída, a 2ª atual) para a barra de etapas.
+      const stage = (n, key, name, type, status, current) => ({
+        workflowStageId: `0192a000-0000-7000-8000-0000000e5${String(n).padStart(3, '0')}`,
+        key,
+        name,
+        type,
+        groupLabel: 'Planejamento',
+        displayOrder: n,
+        slaDays: 3,
+        slaType: 'BUSINESS',
+        lastPassStatus: status,
+        isCurrent: current,
+        passes:
+          status === null
+            ? []
+            : [
+                {
+                  processStageId: `0192a000-0000-7000-8000-0000000e6${String(n).padStart(3, '0')}`,
+                  sequence: 1,
+                  status,
+                  department: {
+                    id: '0192e054-0000-7000-8000-0000000000a2',
+                    name: 'Setor de Manutenção',
+                  },
+                  assignee: null,
+                  enteredAt: '2026-10-16T13:00:00.000Z',
+                  exitedAt: status === 'COMPLETED' ? '2026-10-17T13:00:00.000Z' : null,
+                  dueAt: null,
+                  dueDateOverridden: false,
+                  overdueSince: null,
+                },
+              ],
+      });
+      return send(response, 200, {
+        data: [
+          stage(1, 'abertura', 'Abertura', 'START', 'COMPLETED', false),
+          stage(2, 'precos', 'Pesquisa de preços', 'TASK', 'ACTIVE', true),
+          stage(3, 'tr', 'Termo de referência', 'TASK', null, false),
+        ],
+      });
     }
     if (request.method === 'GET' && listedRoute[2] === '/summary') {
       const item = listProcessItem(listedFixture);

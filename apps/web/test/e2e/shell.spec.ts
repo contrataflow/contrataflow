@@ -45,7 +45,7 @@ test('jornada do shell: dados pré-carregados, CSP com nonce, permissões e logo
   await expect(page).toHaveURL(/\/exemplo$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Exemplo do shell' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Menu principal' })).toBeVisible();
-  await expect(page.getByRole('search')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Busca global' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeVisible();
   await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
   // Hidratado: o formulário protegido por <Can> só aparece com o JS rodando sob a CSP.
@@ -118,7 +118,7 @@ test('em 390 px a barra superior mostra um só sino e a busca sem o atalho sobre
       .getByRole('link', { name: /^Notificações/ })
       .or(page.getByRole('button', { name: /^Notificações/ })),
   ).toHaveCount(1);
-  await expect(page.getByRole('search').getByText('Ctrl K')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Busca global' }).getByText('Ctrl K')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -216,3 +216,16 @@ for (const variante of [
     await expectNoSeriousA11yViolations(page, `/erro/${variante}`);
   });
 }
+
+test('Ctrl K abre a paleta de comandos: "Ir para" e busca de processos', async ({ page }) => {
+  await signIn(page);
+  await expect(page.getByRole('main').getByText('item-01')).toBeVisible();
+  await page.keyboard.press('Control+K');
+  const palette = page.getByRole('dialog', { name: 'Paleta de comandos' });
+  await expect(palette).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'paleta de comandos');
+  await page.keyboard.type('process');
+  await expect(palette.getByRole('option', { name: /^Ver todos os processos com/ })).toBeVisible();
+  await palette.getByRole('option', { name: 'Processos', exact: true }).click();
+  await expect(page).toHaveURL(/\/processos$/);
+});
