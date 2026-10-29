@@ -8,6 +8,10 @@ Desde a US-087 (DEC-070):
   `PrismaIdentityRepository` (`UserPort`/`MembershipPort` sobre `users` e `cf_user_memberships`, pelo
   `PlatformTransaction`). Com `OIDC_FAKE_SIGNING_KEY` (local/dev/test) entram o `FakeJwksProvider` e o
   `InMemoryIdentityRepository` (diretório de `shared/testing/fake-directory.ts`).
+- **Chaves de perfil (`roleKeys`, spec-531):** no banco, derivadas das atribuições vigentes de perfil
+  ativo do próprio vínculo — coluna `role_keys` de `cf_user_memberships` e o fragmento
+  `ROLE_KEYS_OF_MEMBERSHIP` de `membersInTenant`/`searchActiveMembers` (a mesma regra nos dois);
+  no modo fake, do diretório. Significado e quem decide por elas: permissions.md §1.3.
 - **Casos de uso:** `StartSessionCommand` (vínculo do `sub` no primeiro login, `lastLoginAt`),
   `RecordSessionTenantCommand` (confere o vínculo e grava `auth.session_start`/`auth.tenant_switch`),
   `ListMyMembershipsQuery` (ME-04) e `GetMyProfileQuery` (ME-01).

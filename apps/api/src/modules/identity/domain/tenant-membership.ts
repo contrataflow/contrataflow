@@ -19,7 +19,7 @@ export interface TenantMembership {
   readonly type: MembershipType;
   readonly status: MembershipStatus;
   readonly expiresAt: Date | null;
-  /** Perfis vigentes (`Role.key`); vazio até as atribuições de perfil existirem (US-096). */
+  /** Perfis vigentes (`Role.key`), derivados das atribuições (permissions.md §2 · spec-531). */
   readonly roleKeys: readonly string[];
 }
 

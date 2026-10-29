@@ -248,16 +248,11 @@ export class AccessFacade {
     return this.authorization.confidentialBudgetAccess();
   }
 
-  /** Algum dos perfis (`Role.key`) concede a permissão — vínculos de terceiros (aprovadores). */
-  rolesGrant(roleKeys: readonly string[], permission: PermissionCode): boolean {
-    return rolesGrant(roleKeys, permission);
-  }
-
   /**
    * Algum dos perfis tem escopo sobre TODAS as unidades do tenant (US-102 · RN-TEN-48: titular e
-   * substituto sem lotação na unidade). PONTE até as atribuições com escopo (US-096): hoje o escopo
-   * é o padrão do perfil (`defaultAssignmentScope = TENANT`); a US-096 troca pela atribuição real
-   * (`DEPARTMENT`/`OWN_DEPARTMENTS`/`ORGANIZATION`/`TENANT` que cubra a unidade) sem mudar quem chama.
+   * substituto sem lotação na unidade). Os perfis são as chaves vigentes do vínculo (permissions.md
+   * §1.3); o escopo ainda é o PADRÃO do perfil (`defaultAssignmentScope = TENANT`), não o da
+   * atribuição real (`DEPARTMENT`/`OWN_DEPARTMENTS`/`ORGANIZATION`/`TENANT` que cubra a unidade).
    */
   rolesCoverAllDepartments(roleKeys: readonly string[]): boolean {
     return roleKeys.some((roleKey) => TENANT_WIDE_ROLE_KEYS.has(roleKey));

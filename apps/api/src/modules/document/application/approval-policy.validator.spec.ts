@@ -7,6 +7,7 @@ import { ApiError } from '#shared/errors/api-error.js';
 import { ApprovalPolicyValidator } from './approval-policy.validator.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import type { RoleForApproval } from '../../access/application/access.facade.js';
+import { rolesGrant } from '../../access/domain/permission-grants.js';
 import type { IdentityFacade, TenantMember } from '../../identity/application/identity.facade.js';
 import type {
   OrganizationFacade,
@@ -51,6 +52,12 @@ function validator(options: {
     ),
     {
       findRoleForApproval: () => Promise.resolve(options.role ?? null),
+      // Permissões efetivas do terceiro: aqui, as concessões padrão dos perfis do vínculo.
+      membershipHoldsIn: (
+        _tx: TenantTx,
+        member: Pick<TenantMember, 'roleKeys'>,
+        permission: Parameters<typeof rolesGrant>[1],
+      ) => Promise.resolve(rolesGrant(member.roleKeys, permission)),
     },
   );
   const organization = {

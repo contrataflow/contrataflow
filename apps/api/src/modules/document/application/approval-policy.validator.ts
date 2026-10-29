@@ -25,8 +25,9 @@ const inactive = (field: string): FieldError => ({
 
 /**
  * RN-DOC-07: a `approvalPolicy` precisa ser resolvível NO MOMENTO da configuração — usuário com
- * vínculo `ACTIVE` e `APPROVAL_DECIDE`, perfil ativo com `APPROVAL_DECIDE`, unidade fixa ativa com
- * titular. Referência de outro tenant é indistinguível de inexistente (`REFERENCE_NOT_FOUND`, V-08).
+ * vínculo `ACTIVE` e `APPROVAL_DECIDE` nas permissões efetivas (atribuições vigentes de perfil ativo,
+ * com as concessões do tenant — permissions.md §1.3), perfil ativo com `APPROVAL_DECIDE`, unidade
+ * fixa ativa com titular. Referência de outro tenant é indistinguível de inexistente (`REFERENCE_NOT_FOUND`, V-08).
  * As resoluções `REQUESTING_*` só podem ser verificadas na solicitação (US-051). A resolução
  * definitiva continua lá: titulares e perfis mudam depois.
  */
@@ -51,7 +52,7 @@ export class ApprovalPolicyValidator {
       if (
         member.status !== 'ACTIVE' ||
         expired ||
-        !this.access.rolesGrant(member.roleKeys, 'APPROVAL_DECIDE')
+        !(await this.access.membershipHoldsIn(tx, member, 'APPROVAL_DECIDE'))
       ) {
         throw validationError([inactive(field)]);
       }

@@ -93,10 +93,6 @@ describe('AccessFacade.assertCan (POL-14)', () => {
       });
     }).not.toThrow();
   });
-
-  it('rolesGrant pelos perfis padrão', () => {
-    expect(facade.rolesGrant(['JURIDICO'], 'APPROVAL_DECIDE')).toBe(true);
-  });
 });
 
 describe('AccessFacade.findRoleForApproval / findRoleByKey (RN-DOC-07 · RN-WF-16 · US-042)', () => {

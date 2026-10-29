@@ -52,8 +52,9 @@ O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[]
   ativo concede; perfil inativo não concede nada (RN-IAM-84); a ponte pelas chaves do vínculo só vale
   sem nenhuma atribuição gravada. Isento do anti-escalonamento: `ADMIN_ORGAO` vigente com escopo
   `TENANT` (`EffectivePermissionsService.holdsTenantWideRole`). `ROLE_VIEW`/`ROLE_MANAGE` são
-  conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`. O vínculo
-  lido do PostgreSQL não traz `roleKeys` (spec-530): nada aqui decide só por elas.
+  conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`. Nada aqui
+  decide só pelas `roleKeys` do vínculo (spec-530); desde o spec-531 elas vêm do banco derivadas das
+  atribuições vigentes (permissions.md §1.3), e quem ainda decide por chave está listado lá.
 - **Protegidas do `ADMIN_ORGAO`:** `ADMIN_ORGAO_SEEDED_PERMISSIONS` (`@contrataflow/validation`, usada
   também pela UI); um teste confere a igualdade com a coluna `ADMIN_ORGAO` de `DEFAULT_ROLE_GRANTS`.
 - **Vínculos ativos:** porta `RoleAssignmentCounter`, implementada pelo repositório de atribuições

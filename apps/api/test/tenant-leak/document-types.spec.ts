@@ -334,7 +334,7 @@ describe('Feature: tipos de documento isolados por tenant sobre PostgreSQL (US-0
         code: 'REFERENCE_NOT_FOUND',
       }),
     ]);
-    // Perfis como registro chegam com a US-096: até lá o vínculo real não traz APPROVAL_DECIDE.
+    // Lúcia não tem atribuição de perfil no tenant: sem APPROVAL_DECIDE efetiva (spec-531).
     const own = await attempt(LUCIA);
     expect(problemDetailsSchema.parse(own.body).errors).toEqual([
       expect.objectContaining({

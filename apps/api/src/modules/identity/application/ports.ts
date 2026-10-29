@@ -26,7 +26,7 @@ export interface TenantMember {
   readonly type: 'INTERNAL' | 'EXTERNAL' | 'SERVICE';
   readonly status: MembershipStatus;
   readonly expiresAt: Date | null;
-  /** Perfis vigentes (`Role.key`); vazio até as atribuições de perfil existirem (US-096). */
+  /** Perfis vigentes (`Role.key`), derivados das atribuições (permissions.md §2 · spec-531). */
   readonly roleKeys: readonly string[];
 }
 
@@ -36,7 +36,7 @@ export interface ActiveMemberMatch {
   readonly membershipId: string;
   /** Nome exibido (social, se houver). */
   readonly name: string;
-  /** Perfis do registro do vínculo (ponte das permissões efetivas — vazio no banco). */
+  /** Perfis vigentes (`Role.key`), derivados das atribuições (permissions.md §2 · spec-531). */
   readonly roleKeys: readonly string[];
 }
 

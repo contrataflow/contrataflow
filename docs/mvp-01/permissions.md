@@ -40,6 +40,21 @@ Para permissões não ligadas a processo (ex.: `USER_MANAGE`), apenas os escopos
 - Cache Redis `cf:{env}:t:{tenantId}:access:eff:{membershipId}` (TTL 5 min), invalidado pelos eventos `RoleUpdated`, `RoleAssigned`, `RoleRevoked`, `MembershipUpdated`, `MembershipSuspended`, `MembershipRevoked`, `DepartmentMoved`. O retrato guarda os tokens de geração lidos antes do cálculo (`access:eff-gen` do tenant e `access:eff-gen:{membershipId}` do vínculo); toda invalidação troca o token, e retrato com token antigo é descartado — um cálculo concorrente a uma revogação nunca volta a conceder o acesso revogado (US-097). Os casos de uso de atribuição, vínculo e perfil invalidam já no commit; o `PermissionCacheInvalidator` repete pelo evento.
 - Toda negação gera auditoria `access.denied` (`result = DENIED`, `reasonCode = <permissão ou política>`), com amostragem de no máximo 1 registro por usuário/rota/minuto para evitar inundação.
 
+### 1.3 Chaves de perfil do vínculo (`roleKeys`)
+`roleKeys` é o conjunto de `Role.key` dos perfis que o vínculo **detém agora**: derivado das atribuições não revogadas, dentro da validade (`validFrom ≤ now < validUntil`) e de perfil ativo — a mesma regra das permissões efetivas (§1.2), sem escopo nem concessões. Não é coluna nem dado editável: muda só pelas atribuições (ROL-11/12) e pelo status do perfil. Vem do próprio tenant do vínculo (nunca de outro) — no banco, pela função `cf_user_memberships` (início de sessão e pipeline) e pela leitura dos membros no tenant da transação (multi-tenancy.md §6); no modo fake, do diretório de usuários (spec-531).
+
+Quem decide pela chave e quem decide pela permissão efetiva:
+
+| Ponto | Decide por | Por quê |
+|---|---|---|
+| Leitura de instituição em `OFFBOARDING` (pipeline de guards e `usable`/`readOnly` do ME-04/início de sessão) | Chave (`ADMIN_ORGAO`/`AUDITOR` — DEC-132) | A regra é por perfil, não por permissão; roda antes do retrato de permissões (o guard de tenant precede o de autorização) e, no ME-04, sem contexto de tenant |
+| Aprovador `USER` da `approvalPolicy` (RN-DOC-07) | Permissão efetiva `APPROVAL_DECIDE` do terceiro, calculada na transação | Respeita a matriz editada do tenant (US-095) e o perfil inativo (RN-IAM-84) |
+| Titular/substituto sem lotação na unidade (RN-TEN-48) | Chave (perfil de escopo padrão `TENANT`, §3.1) | Ponte mantida: o escopo real da atribuição ainda não entra nesta verificação |
+| Aprovador designado por perfil no painel do processo (POL-03, só exibição) | Chave do contexto da requisição | Só exibição; a decisão (POL-03) usa os detentores do perfil com escopo sobre a unidade solicitante (US-051) |
+| Job de geração de IA (POL-18, fora do pipeline HTTP) | Permissão efetiva `AI_GENERATE` sobre o processo, calculada no job; as chaves do vínculo relido entram no contexto só para a ponte e para `AccessFacade.can` | O retrato não vem do guard, mas é calculado das atribuições (`AuthorizationService.current`) |
+
+O vínculo sem **nenhuma** atribuição gravada tem `roleKeys` vazio no banco; a ponte por chave das permissões efetivas (US-097) só tem efeito no modo fake.
+
 ---
 
 ## 2. Catálogo de permissões

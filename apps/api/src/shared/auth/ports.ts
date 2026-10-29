@@ -66,7 +66,8 @@ export interface MembershipRecord {
   readonly expiresAt: Date | null;
   /**
    * Perfis vigentes do vínculo (`Role.key`) — decidem o acesso de leitura a instituição em
-   * `OFFBOARDING` (DEC-132). Vazio até as atribuições de perfil existirem (US-096).
+   * `OFFBOARDING` (DEC-132). Derivados das atribuições não revogadas, dentro da validade e de perfil
+   * ativo (permissions.md §2 · spec-531); não editáveis.
    */
   readonly roleKeys: readonly string[];
 }

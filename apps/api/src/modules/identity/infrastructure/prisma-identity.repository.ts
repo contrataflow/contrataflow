@@ -11,7 +11,8 @@ import type {
 import { TenantTransaction } from '#shared/database/database.module.js';
 import { isUniqueViolation } from '#shared/database/errors.js';
 import { PlatformTransaction } from '#shared/database/platform-transaction.js';
-import type { Prisma, TenantTx } from '#shared/database/prisma.js';
+import { Prisma } from '#shared/database/prisma.js';
+import type { TenantTx } from '#shared/database/prisma.js';
 
 import type {
   ActiveMemberMatch,
@@ -63,7 +64,25 @@ interface MembershipRow {
   readonly membership_type: string;
   readonly membership_status: string;
   readonly expires_at: Date | null;
+  readonly role_keys: string[];
 }
+
+/**
+ * Chaves dos perfis ATIVOS das atribuições vigentes do vínculo `m` — não revogadas e dentro da
+ * validade —, sem repetição e em ordem: a mesma regra de `cf_user_memberships` (spec-531). No `tx`
+ * do tenant, a RLS de `role_assignments` e `roles` confirma o isolamento.
+ */
+const ROLE_KEYS_OF_MEMBERSHIP = Prisma.sql`ARRAY(
+  SELECT DISTINCT r.key
+    FROM role_assignments a
+    JOIN roles r ON r.tenant_id = a.tenant_id AND r.id = a.role_id
+   WHERE a.tenant_id = m.tenant_id
+     AND a.membership_id = m.id
+     AND a.revoked_at IS NULL
+     AND a.valid_from <= now()
+     AND (a.valid_until IS NULL OR a.valid_until > now())
+     AND r.is_active
+   ORDER BY r.key)`;
 
 function toUser(row: UserRow): User {
   const preferences =
@@ -87,8 +106,7 @@ function toMembership(row: MembershipRow): TenantMembership {
     type: row.membership_type as MembershipType,
     status: row.membership_status as MembershipStatus,
     expiresAt: row.expires_at,
-    // Atribuições de perfil chegam com a US-096 (`role_assignments`).
-    roleKeys: [],
+    roleKeys: row.role_keys,
   };
 }
 
@@ -96,7 +114,7 @@ function readMemberships(tx: TenantTx, userId: string): Promise<MembershipRow[]>
   return tx.$queryRaw<MembershipRow[]>`
     SELECT membership_id, tenant_id, tenant_name, tenant_status::text AS tenant_status,
            tenant_timezone, membership_type::text AS membership_type,
-           membership_status::text AS membership_status, expires_at
+           membership_status::text AS membership_status, expires_at, role_keys
       FROM cf_user_memberships(${userId}::uuid)`;
 }
 
@@ -135,7 +153,7 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
         tx.$queryRaw<MembershipRow[]>`
           SELECT membership_id, tenant_id, tenant_name, tenant_status::text AS tenant_status,
                  tenant_timezone, membership_type::text AS membership_type,
-                 membership_status::text AS membership_status, expires_at
+                 membership_status::text AS membership_status, expires_at, role_keys
             FROM cf_user_memberships(${userId}::uuid)
            WHERE tenant_id = ${tenantId}::uuid`,
       { userId },
@@ -284,18 +302,28 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
 
   async membersInTenant(tx: TenantTx, userIds: readonly string[]): Promise<TenantMember[]> {
     if (userIds.length === 0) return [];
-    // A extensão de isolamento injeta o tenant; a RLS confirma. Perfis: US-096 (vazio até lá).
-    const rows = await tx.tenantMembership.findMany({
-      where: { userId: { in: [...userIds] } },
-      select: { id: true, userId: true, type: true, status: true, expiresAt: true },
-    });
+    // A RLS restringe vínculos, atribuições e perfis ao tenant do tx.
+    const rows = await tx.$queryRaw<
+      {
+        id: string;
+        user_id: string;
+        type: TenantMember['type'];
+        status: MembershipStatus;
+        expires_at: Date | null;
+        role_keys: string[];
+      }[]
+    >`
+      SELECT m.id, m.user_id, m.type::text AS type, m.status::text AS status, m.expires_at,
+             ${ROLE_KEYS_OF_MEMBERSHIP} AS role_keys
+        FROM tenant_memberships m
+       WHERE m.user_id = ANY(${[...userIds]}::uuid[])`;
     return rows.map((row) => ({
-      userId: row.userId,
+      userId: row.user_id,
       membershipId: row.id,
       type: row.type,
       status: row.status,
-      expiresAt: row.expiresAt,
-      roleKeys: [],
+      expiresAt: row.expires_at,
+      roleKeys: row.role_keys,
     }));
   }
 
@@ -334,9 +362,16 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
     // `users` é de plataforma (sem RLS): o vínculo, filtrado pela RLS, restringe ao tenant do tx.
     const needle = `%${q.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
     const rows = await tx.$queryRaw<
-      { user_id: string; membership_id: string; name: string; social_name: string | null }[]
+      {
+        user_id: string;
+        membership_id: string;
+        name: string;
+        social_name: string | null;
+        role_keys: string[];
+      }[]
     >`
-      SELECT m.user_id, m.id AS membership_id, u.name, u.social_name
+      SELECT m.user_id, m.id AS membership_id, u.name, u.social_name,
+             ${ROLE_KEYS_OF_MEMBERSHIP} AS role_keys
         FROM tenant_memberships m
         JOIN users u ON u.id = m.user_id AND u.status = 'ACTIVE'
        WHERE m.status = 'ACTIVE'
@@ -350,7 +385,7 @@ export class PrismaIdentityRepository implements IdentityRepository, UserPort, M
       userId: row.user_id,
       membershipId: row.membership_id,
       name: displayName({ name: row.name, socialName: row.social_name }),
-      roleKeys: [],
+      roleKeys: row.role_keys,
     }));
   }
 
