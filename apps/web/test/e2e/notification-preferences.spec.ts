@@ -23,15 +23,16 @@ async function open(page: Page): Promise<void> {
 const emailSwitch = (page: Page) =>
   page.getByRole('group', { name: TYPE }).getByRole('switch', { name: 'Por e-mail' });
 
+/** Item da navegação de seções do perfil (`SettingsPage` — prd-5). */
+const section = (page: Page, name: string) =>
+  page.getByRole('navigation', { name: 'Seções do perfil' }).getByRole('button', { name });
+
 // O estado salvo vive na API simulada, compartilhada entre os testes: rodam em série.
 test.describe.configure({ mode: 'serial' });
 
 test('desliga o e-mail de um tipo, salva e a escolha persiste ao recarregar', async ({ page }) => {
   await open(page);
-  await expect(page.getByRole('tab', { name: 'Notificações' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect(section(page, 'Notificações')).toHaveAttribute('aria-current', 'true');
 
   // Tipos obrigatórios: in-app ligado e travado, com a nota.
   const locked = page
@@ -69,15 +70,10 @@ test('em 360 px: tipos em cartões e sem rolagem horizontal', async ({ page }) =
   await expectNoSeriousA11yViolations(page, 'aba Notificações do perfil (360 px)');
 });
 
-test('sem ?aba=, o perfil abre em "Dados e preferências" e a aba troca por clique', async ({
-  page,
-}) => {
+test('sem ?aba=, o perfil abre em "Dados" e a seção troca por clique', async ({ page }) => {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/perfil')}`);
-  await expect(page.getByRole('tab', { name: 'Dados e preferências' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
-  await page.getByRole('tab', { name: 'Notificações' }).click();
+  await expect(section(page, 'Dados')).toHaveAttribute('aria-current', 'true');
+  await section(page, 'Notificações').click();
   await expect(
     page.getByRole('heading', { level: 2, name: 'Preferências de notificação' }),
   ).toBeVisible();

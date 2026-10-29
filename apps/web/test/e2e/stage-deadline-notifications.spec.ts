@@ -37,8 +37,9 @@ async function expectOverdueAlert(page: Page, persona: string): Promise<void> {
   const bell = page.getByRole('button', { name: /^Notificações \(\d+ não lidas?\)$/ });
   await expect(bell).toBeVisible();
   await bell.click();
-  await expect(page.getByRole('menu')).toBeVisible();
-  const item = page.getByRole('menuitem', { name: /Prazo da etapa vencido/ }).first();
+  const panel = page.getByRole('dialog', { name: 'Notificações recentes' });
+  await expect(panel).toBeVisible();
+  const item = panel.getByRole('link', { name: /Prazo da etapa vencido/ }).first();
   await expect(item).toHaveAttribute('href', `/processos/${PROCESS_ID}`);
   await page.keyboard.press('Escape');
 

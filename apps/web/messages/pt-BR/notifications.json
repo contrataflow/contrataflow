@@ -5,7 +5,8 @@
     "label": "Notificações",
     "labelWithCount": "Notificações ({count, plural, one {# não lida} other {# não lidas}})",
     "announce": "{count, plural, =0 {Nenhuma notificação não lida} one {# notificação não lida} other {# notificações não lidas}}",
-    "overflow": "99+"
+    "overflow": "99+",
+    "panel": "Notificações recentes"
   },
   "panel": {
     "heading": "Notificações recentes",
@@ -16,7 +17,7 @@
     "failed": "Não foi possível carregar as notificações."
   },
   "filters": {
-    "label": "Mostrar",
+    "label": "Visões das notificações",
     "all": "Todas",
     "unread": "Não lidas"
   },
@@ -40,7 +41,9 @@
     "emptyUnread": "Você leu todas as notificações.",
     "emptyHint": "Quando um processo chegar, for devolvido ou precisar de aprovação, o aviso aparece aqui.",
     "loadFailed": "Não foi possível carregar as notificações.",
-    "loading": "Carregando notificações…"
+    "loading": "Carregando notificações…",
+    "today": "Hoje",
+    "yesterday": "Ontem"
   },
   "toast": {
     "allRead": "{count, plural, =0 {Não havia notificações para marcar} one {# notificação marcada como lida} other {# notificações marcadas como lidas}}",

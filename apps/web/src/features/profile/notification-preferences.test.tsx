@@ -356,18 +356,21 @@ describe('SCR-039 — aba Notificações (US-113)', () => {
     });
   });
 
-  it('as abas: "Dados e preferências" é a inicial sem ?aba= e o teclado troca de aba', async () => {
+  it('as seções: "Dados" é a inicial sem ?aba= e a navegação troca de seção', async () => {
     mockApi();
     renderWithShell(<ProfileView links={LINKS} />);
     const user = userEvent.setup();
-    const general = await screen.findByRole('tab', { name: 'Dados e preferências' });
-    expect(general.getAttribute('aria-selected')).toBe('true');
+    const nav = await screen.findByRole('navigation', { name: 'Seções do perfil' });
+    const data = within(nav).getByRole('button', { name: 'Dados' });
+    expect(data.getAttribute('aria-current')).toBe('true');
     expect(screen.queryByRole('heading', { name: 'Preferências de notificação' })).toBeNull();
-    general.focus();
-    await user.keyboard('{ArrowRight}');
-    const notifications = screen.getByRole('tab', { name: 'Notificações' });
-    expect(notifications.getAttribute('aria-selected')).toBe('true');
+    data.focus();
+    await user.tab();
+    await user.tab();
+    const notifications = within(nav).getByRole('button', { name: 'Notificações' });
     expect(document.activeElement).toBe(notifications);
+    await user.keyboard('{Enter}');
+    expect(notifications.getAttribute('aria-current')).toBe('true');
     expect(
       await screen.findByRole('heading', { name: 'Preferências de notificação' }),
     ).toBeTruthy();

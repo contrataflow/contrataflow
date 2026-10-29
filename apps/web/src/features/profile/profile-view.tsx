@@ -1,12 +1,24 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  ExternalLink,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  SettingsPage,
+  Skeleton,
+  toast,
+} from '@contrataflow/ui';
 import type { MyProfileDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState } from 'react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
@@ -26,9 +38,6 @@ import {
 import type { ProfileDraft, ProfileField, ProfileTab } from './profile-model';
 import { PROFILE_STALE_TIME_MS, fetchMyProfile, profileKeys, updateMyProfile } from './profile.api';
 
-const INPUT =
-  'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm aria-invalid:border-destructive';
-
 export interface AuthentikLinks {
   /** Configurações da conta no Authentik (senha); `null` quando o IdP não é conhecido. */
   readonly password: string | null;
@@ -36,22 +45,50 @@ export interface AuthentikLinks {
   readonly mfa: string | null;
 }
 
+/** Cartão de uma seção (prd-5 · regra 4): branco, sem borda, título e conteúdo. */
+function SectionCard({
+  title,
+  description,
+  children,
+}: {
+  readonly title: string;
+  readonly description?: string | undefined;
+  readonly children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <section
+      aria-labelledby={id}
+      className="flex min-w-0 flex-col gap-5 rounded-card bg-surface p-5 shadow-card sm:p-6"
+    >
+      <header className="flex flex-col gap-1">
+        <h2 id={id} className="text-lg font-bold text-brand-ink">
+          {title}
+        </h2>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+      </header>
+      {children}
+    </section>
+  );
+}
+
 /**
- * SCR-039 — Meu perfil (`/perfil` · US-098): lê `GET /me` (ME-01), edita nome, nome social,
- * telefone e preferências de interface e salva só o que mudou em `PATCH /me` (ME-02) com `If-Match`.
- * E-mail e dados do vínculo são somente leitura; senha e MFA são atalhos para o Authentik. A aba
- * "Notificações" traz as preferências de aviso por canal (US-113 · ME-05/ME-06).
+ * SCR-039 — Meu perfil (`/perfil` · US-098) no modelo `SettingsPage` (prd-5): seções Dados,
+ * Preferências, Notificações e Segurança à esquerda, o formulário da seção à direita. Lê `GET /me`
+ * (ME-01) e cada formulário salva só o que mudou em `PATCH /me` (ME-02) com `If-Match`. E-mail e
+ * dados do vínculo são somente leitura; senha e MFA são atalhos para o Authentik. "Notificações"
+ * traz as preferências de aviso por canal (US-113 · ME-05/ME-06).
  */
 export function ProfileView({
   links,
-  initialTab = 'general',
+  initialTab = 'data',
 }: {
   readonly links: AuthentikLinks;
   readonly initialTab?: ProfileTab;
 }) {
   const t = useTranslations('profile');
   const tenantId = useTenantId();
-  const [tab, setTab] = useState<ProfileTab>(initialTab);
+  const [section, setSection] = useState<ProfileTab>(initialTab);
   const profile = useQuery({
     queryKey: profileKeys.me(tenantId),
     queryFn: async ({ signal }) => (await fetchMyProfile(signal)).data,
@@ -60,138 +97,76 @@ export function ProfileView({
     throwOnError: false,
   });
 
-  return (
-    <section className="flex flex-col gap-6">
-      <AppPageHeader title={t('title')} description={t('description')} />
-
-      <ProfileTabs tab={tab} onChange={setTab} />
-
-      <div
-        role="tabpanel"
-        id="profile-panel-notifications"
-        aria-labelledby="profile-tab-notifications"
-        hidden={tab !== 'notifications'}
-      >
-        {/* `key` por instituição: o rascunho nunca atravessa a troca de tenant. */}
-        {tab === 'notifications' ? <NotificationPreferencesGrid key={tenantId} /> : null}
+  let body: ReactNode;
+  if (section === 'notifications') {
+    // `key` por instituição: o rascunho nunca atravessa a troca de tenant.
+    body = <NotificationPreferencesGrid key={tenantId} />;
+  } else if (profile.isPending) {
+    body = (
+      <div role="status" className="flex max-w-xl flex-col gap-3">
+        <span className="sr-only">{t('loading')}</span>
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-2/3" />
       </div>
-
-      <div
-        role="tabpanel"
-        id="profile-panel-general"
-        aria-labelledby="profile-tab-general"
-        hidden={tab !== 'general'}
-        className="flex flex-col gap-6"
-      >
-        {profile.isPending ? (
-          <div role="status" className="flex max-w-xl flex-col gap-3">
-            <span className="sr-only">{t('loading')}</span>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-2/3" />
-          </div>
-        ) : null}
-
-        {profile.isError ? (
-          <Alert tone="error" title={t('loadFailed')}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                void profile.refetch();
-              }}
-            >
-              {t('retry')}
-            </Button>
-          </Alert>
-        ) : null}
-
-        {profile.data ? (
-          // A chave é a versão: salvar ou recarregar depois de um conflito recomeça o rascunho.
-          <ProfileForm key={profile.data.version} profile={profile.data} links={links} />
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-/** `tablist` de SCR-039: setas, Home e End movem o foco e a seleção entre as abas. */
-function ProfileTabs({
-  tab,
-  onChange,
-}: {
-  readonly tab: ProfileTab;
-  readonly onChange: (tab: ProfileTab) => void;
-}) {
-  const t = useTranslations('profile.tabs');
-  const refs = useRef<Record<ProfileTab, HTMLButtonElement | null>>({
-    general: null,
-    notifications: null,
-  });
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const index = PROFILE_TABS.indexOf(tab);
-    const last = PROFILE_TABS.length - 1;
-    const target =
-      event.key === 'ArrowRight'
-        ? (index + 1) % PROFILE_TABS.length
-        : event.key === 'ArrowLeft'
-          ? (index + last) % PROFILE_TABS.length
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : null;
-    if (target === null) return;
-    event.preventDefault();
-    const next = PROFILE_TABS[target];
-    if (!next) return;
-    onChange(next);
-    refs.current[next]?.focus();
-  };
-  return (
-    <div role="tablist" aria-label={t('label')} className="flex gap-2 border-b border-border">
-      {PROFILE_TABS.map((value) => (
-        <button
-          key={value}
-          ref={(element) => {
-            refs.current[value] = element;
-          }}
-          type="button"
-          role="tab"
-          id={`profile-tab-${value}`}
-          aria-selected={tab === value}
-          aria-controls={`profile-panel-${value}`}
-          tabIndex={tab === value ? 0 : -1}
+    );
+  } else if (profile.isError) {
+    body = (
+      <Alert tone="error" title={t('loadFailed')}>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => {
-            onChange(value);
+            void profile.refetch();
           }}
-          onKeyDown={onKeyDown}
-          className={`border-b-2 px-3 py-2 text-sm font-medium ${
-            tab === value ? 'border-primary' : 'border-transparent text-muted-foreground'
-          }`}
         >
-          {t(value)}
-        </button>
-      ))}
-    </div>
+          {t('retry')}
+        </Button>
+      </Alert>
+    );
+  } else if (section === 'security') {
+    body = <SecuritySection links={links} mfaVerified={profile.data.mfaVerified} />;
+  } else {
+    // A chave é a seção e a versão: salvar ou recarregar depois de um conflito recomeça o rascunho.
+    body = (
+      <ProfileForm
+        key={`${section}-${String(profile.data.version)}`}
+        section={section}
+        profile={profile.data}
+      />
+    );
+  }
+
+  return (
+    <SettingsPage
+      header={<AppPageHeader title={t('title')} description={t('description')} />}
+      sections={PROFILE_TABS.map((id) => ({ id, label: t(`tabs.${id}`) }))}
+      current={section}
+      onSectionChange={(id) => {
+        setSection(id as ProfileTab);
+      }}
+      navLabel={t('tabs.label')}
+    >
+      {body}
+    </SettingsPage>
   );
 }
 
 type Banner = 'conflict' | 'precondition' | 'unavailable' | 'generic' | null;
 
+/** Formulário de uma seção ("Dados" ou "Preferências"): o PATCH leva só o que mudou nela. */
 function ProfileForm({
+  section,
   profile,
-  links,
 }: {
+  readonly section: 'data' | 'preferences';
   readonly profile: MyProfileDto;
-  readonly links: AuthentikLinks;
 }) {
   const t = useTranslations('profile');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const ids = useId();
   const [draft, setDraft] = useState<ProfileDraft>(() => toDraft(profile));
   const [touched, setTouched] = useState<Readonly<Partial<Record<ProfileField, boolean>>>>({});
   const [serverErrors, setServerErrors] = useState<Readonly<Partial<Record<ProfileField, string>>>>(
@@ -265,8 +240,8 @@ function ProfileForm({
   };
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex max-w-2xl flex-col gap-8">
-      <div aria-live="polite">
+    <form onSubmit={onSubmit} noValidate className="flex min-w-0 flex-col gap-5">
+      <div aria-live="polite" className="empty:hidden">
         {banner === 'conflict' || banner === 'precondition' ? (
           <Alert
             tone="warning"
@@ -297,91 +272,89 @@ function ProfileForm({
         ) : null}
       </div>
 
-      <fieldset className="flex flex-col gap-4">
-        <legend className="mb-1 text-lg font-semibold">{t('sections.personal')}</legend>
-        <TextField
-          id={`${ids}-name`}
-          label={t('fields.name')}
-          hint={t('fields.nameHint')}
-          value={draft.name}
-          error={messageOf('name')}
-          autoComplete="name"
-          required
-          onChange={(name) => {
-            set({ name });
-          }}
-          onBlur={() => {
-            touch('name');
-          }}
-        />
-        <TextField
-          id={`${ids}-social`}
-          label={t('fields.socialName')}
-          hint={t('fields.socialNameHint')}
-          value={draft.socialName}
-          error={messageOf('socialName')}
-          onChange={(socialName) => {
-            set({ socialName });
-          }}
-          onBlur={() => {
-            touch('socialName');
-          }}
-        />
-        <TextField
-          id={`${ids}-email`}
-          label={t('fields.email')}
-          hint={t('fields.emailHint')}
-          value={profile.email}
-          readOnly
-        />
-        <TextField
-          id={`${ids}-phone`}
-          label={t('fields.phone')}
-          hint={t('fields.phoneHint')}
-          value={draft.phone}
-          error={messageOf('phone')}
-          type="tel"
-          autoComplete="tel"
-          inputMode="tel"
-          onChange={(phone) => {
-            set({ phone });
-          }}
-          onBlur={() => {
-            touch('phone');
-          }}
-        />
-      </fieldset>
+      {section === 'data' ? (
+        <>
+          <SectionCard title={t('sections.personal')}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label={t('fields.name')}
+                description={t('fields.nameHint')}
+                error={messageOf('name')}
+                required
+                className="sm:col-span-2"
+              >
+                <Input
+                  value={draft.name}
+                  autoComplete="name"
+                  onChange={(event) => {
+                    set({ name: event.target.value });
+                  }}
+                  onBlur={() => {
+                    touch('name');
+                  }}
+                />
+              </Field>
+              <Field
+                label={t('fields.socialName')}
+                description={t('fields.socialNameHint')}
+                error={messageOf('socialName')}
+                className="sm:col-span-2"
+              >
+                <Input
+                  value={draft.socialName}
+                  onChange={(event) => {
+                    set({ socialName: event.target.value });
+                  }}
+                  onBlur={() => {
+                    touch('socialName');
+                  }}
+                />
+              </Field>
+              <Field label={t('fields.email')} description={t('fields.emailHint')}>
+                <Input value={profile.email} readOnly className="bg-muted text-muted-foreground" />
+              </Field>
+              <Field
+                label={t('fields.phone')}
+                description={t('fields.phoneHint')}
+                error={messageOf('phone')}
+              >
+                <Input
+                  type="tel"
+                  value={draft.phone}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  onChange={(event) => {
+                    set({ phone: event.target.value });
+                  }}
+                  onBlur={() => {
+                    touch('phone');
+                  }}
+                />
+              </Field>
+            </div>
+          </SectionCard>
 
-      <section aria-labelledby={`${ids}-membership`} className="flex flex-col gap-3">
-        <h2 id={`${ids}-membership`} className="text-lg font-semibold">
-          {t('sections.membership')}
-        </h2>
-        <dl className="grid gap-3 sm:grid-cols-2">
-          <ReadOnlyItem label={t('fields.jobTitle')}>
-            {profile.membership.jobTitle ?? t('fields.none')}
-          </ReadOnlyItem>
-          <ReadOnlyItem label={t('fields.departments')}>
-            {profile.membership.departments.length > 0
-              ? profile.membership.departments.join(', ')
-              : t('fields.none')}
-          </ReadOnlyItem>
-        </dl>
-      </section>
+          <SectionCard title={t('sections.membership')}>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <ReadOnlyItem label={t('fields.jobTitle')}>
+                {profile.membership.jobTitle ?? t('fields.none')}
+              </ReadOnlyItem>
+              <ReadOnlyItem label={t('fields.departments')}>
+                {profile.membership.departments.length > 0
+                  ? profile.membership.departments.join(', ')
+                  : t('fields.none')}
+              </ReadOnlyItem>
+            </dl>
+          </SectionCard>
+        </>
+      ) : (
+        <PreferencesCard density={draft.density} theme={draft.theme} onChange={set} />
+      )}
 
-      <PreferencesFieldset
-        idPrefix={ids}
-        density={draft.density}
-        theme={draft.theme}
-        onChange={set}
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={!canSave || save.isPending}>
-          {save.isPending ? t('actions.saving') : t('actions.save')}
-        </Button>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           disabled={!isDirty(patch) || save.isPending}
           onClick={() => {
             setDraft(toDraft(profile));
@@ -392,72 +365,11 @@ function ProfileForm({
         >
           {t('actions.discard')}
         </Button>
+        <Button type="submit" disabled={!canSave || save.isPending}>
+          {save.isPending ? t('actions.saving') : t('actions.save')}
+        </Button>
       </div>
-
-      <SecuritySection links={links} mfaVerified={profile.mfaVerified} />
     </form>
-  );
-}
-
-interface TextFieldProps {
-  readonly id: string;
-  readonly label: string;
-  readonly hint: string;
-  readonly value: string;
-  readonly error?: string | undefined;
-  readonly readOnly?: boolean;
-  readonly required?: boolean;
-  readonly type?: 'text' | 'tel';
-  readonly autoComplete?: string;
-  readonly inputMode?: 'tel';
-  readonly onChange?: (value: string) => void;
-  readonly onBlur?: () => void;
-}
-
-/** Campo de texto com rótulo, dica e erro associados (`aria-describedby`, erro em `aria-live`). */
-function TextField({
-  id,
-  label,
-  hint,
-  value,
-  error,
-  readOnly = false,
-  required = false,
-  type = 'text',
-  autoComplete,
-  inputMode,
-  onChange,
-  onBlur,
-}: TextFieldProps) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-        {required ? <span aria-hidden="true"> *</span> : null}
-      </label>
-      <input
-        id={id}
-        type={type}
-        className={`${INPUT} ${readOnly ? 'bg-muted text-muted-foreground' : ''}`}
-        value={value}
-        readOnly={readOnly}
-        required={required}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={`${id}-hint${error ? ` ${id}-error` : ''}`}
-        onChange={(event) => {
-          onChange?.(event.target.value);
-        }}
-        onBlur={onBlur}
-      />
-      <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-        {hint}
-      </p>
-      <p id={`${id}-error`} role={error ? 'alert' : undefined} className="text-sm text-destructive">
-        {error}
-      </p>
-    </div>
   );
 }
 
@@ -470,67 +382,75 @@ function ReadOnlyItem({
 }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-sm font-medium">{label}</dt>
+      <dt className="text-sm font-semibold">{label}</dt>
       <dd className="text-sm text-muted-foreground">{children}</dd>
     </div>
   );
 }
 
-/** `PreferencesFieldset` (SCR-039): densidade e tema, com os valores do registro (RN-IAM-111). */
-function PreferencesFieldset({
-  idPrefix,
+/** Opções de uma preferência como `RadioGroup` do kit, com rótulo clicável. */
+function PreferenceOptions({
+  legend,
+  value,
+  options,
+  labelOf,
+  onChange,
+}: {
+  readonly legend: string;
+  readonly value: string;
+  readonly options: readonly string[];
+  readonly labelOf: (option: string) => string;
+  readonly onChange: (value: string) => void;
+}) {
+  const id = useId();
+  return (
+    <Field label={legend} group>
+      <RadioGroup value={value} onValueChange={onChange} className="flex flex-wrap gap-x-6 gap-y-3">
+        {options.map((option) => (
+          <div key={option} className="flex items-center gap-2.5">
+            <RadioGroupItem id={`${id}-${option}`} value={option} />
+            <Label htmlFor={`${id}-${option}`} className="font-normal">
+              {labelOf(option)}
+            </Label>
+          </div>
+        ))}
+      </RadioGroup>
+    </Field>
+  );
+}
+
+/** `PreferencesCard` (SCR-039): tema e densidade, com os valores do registro (RN-IAM-111). */
+function PreferencesCard({
   density,
   theme,
   onChange,
 }: {
-  readonly idPrefix: string;
   readonly density: string;
   readonly theme: string;
   readonly onChange: (changes: Partial<ProfileDraft>) => void;
 }) {
   const t = useTranslations('profile.preferences');
   return (
-    <fieldset className="flex flex-col gap-4">
-      <legend className="mb-1 text-lg font-semibold">{t('legend')}</legend>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-density`} className="text-sm font-medium">
-          {t('density')}
-        </label>
-        <select
-          id={`${idPrefix}-density`}
-          className={INPUT}
-          value={density}
-          onChange={(event) => {
-            onChange({ density: event.target.value });
-          }}
-        >
-          {PROFILE_DENSITIES.map((value) => (
-            <option key={value} value={value}>
-              {t(`densityOptions.${value}`)}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${idPrefix}-theme`} className="text-sm font-medium">
-          {t('theme')}
-        </label>
-        <select
-          id={`${idPrefix}-theme`}
-          className={INPUT}
-          value={theme}
-          onChange={(event) => {
-            onChange({ theme: event.target.value });
-          }}
-        >
-          {PROFILE_THEMES.map((value) => (
-            <option key={value} value={value}>
-              {t(`themeOptions.${value}`)}
-            </option>
-          ))}
-        </select>
-      </div>
-    </fieldset>
+    <SectionCard title={t('legend')} description={t('description')}>
+      <PreferenceOptions
+        legend={t('theme')}
+        value={theme}
+        options={PROFILE_THEMES}
+        labelOf={(option) => t(`themeOptions.${option as (typeof PROFILE_THEMES)[number]}`)}
+        onChange={(next) => {
+          onChange({ theme: next });
+        }}
+      />
+      <PreferenceOptions
+        legend={t('density')}
+        value={density}
+        options={PROFILE_DENSITIES}
+        labelOf={(option) => t(`densityOptions.${option as (typeof PROFILE_DENSITIES)[number]}`)}
+        onChange={(next) => {
+          onChange({ density: next });
+        }}
+      />
+    </SectionCard>
   );
 }
 
@@ -548,44 +468,32 @@ function SecuritySection({
   const t = useTranslations('profile.security');
   const tSections = useTranslations('profile.sections');
   const hasLinks = links.password !== null || links.mfa !== null;
+  const link = (href: string, label: string) => (
+    <a
+      className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-soft-foreground underline underline-offset-2"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {label} <span className="font-normal text-muted-foreground">{t('newTab')}</span>
+      <ExternalLink aria-hidden="true" className="size-3.5" />
+    </a>
+  );
   return (
-    <section aria-labelledby="profile-security" className="flex flex-col gap-3">
-      <h2 id="profile-security" className="text-lg font-semibold">
-        {tSections('security')}
-      </h2>
+    <SectionCard
+      title={tSections('security')}
+      description={hasLinks ? t('description') : undefined}
+    >
       <p className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium">{t('mfaStatus.label')}</span>
+        <span className="font-semibold">{t('mfaStatus.label')}</span>
         <MfaStatusBadge verified={mfaVerified} />
       </p>
-      {hasLinks ? <p className="text-sm text-muted-foreground">{t('description')}</p> : null}
       {hasLinks ? (
-        <ul className="flex flex-wrap gap-3">
-          {links.password ? (
-            <li>
-              <a
-                className="text-sm font-medium text-primary underline underline-offset-2"
-                href={links.password}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {t('password')} <span className="text-muted-foreground">{t('newTab')}</span>
-              </a>
-            </li>
-          ) : null}
-          {links.mfa ? (
-            <li>
-              <a
-                className="text-sm font-medium text-primary underline underline-offset-2"
-                href={links.mfa}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {t('mfa')} <span className="text-muted-foreground">{t('newTab')}</span>
-              </a>
-            </li>
-          ) : null}
+        <ul className="flex flex-wrap gap-x-6 gap-y-3">
+          {links.password ? <li>{link(links.password, t('password'))}</li> : null}
+          {links.mfa ? <li>{link(links.mfa, t('mfa'))}</li> : null}
         </ul>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }

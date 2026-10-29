@@ -84,18 +84,14 @@
     "filters": {
       "label": "Filtros da auditoria",
       "period": "Período",
-      "from": "De",
-      "to": "Até",
       "periodHint": "Obrigatório, até 90 dias, no fuso da instituição ({timeZone}).",
-      "required": "Informe a data e a hora.",
+      "required": "Informe o período.",
       "action": "Ação",
-      "actionHint": "Segure Ctrl (ou Cmd) para selecionar mais de uma.",
       "category": "Categoria",
       "result": "Resultado",
       "any": "Todas",
       "anyResult": "Todos",
-      "advanced": "Filtros avançados",
-      "advancedActive": "Filtros avançados ({count})",
+      "advanced": "Entidade e processo",
       "actor": "Ator",
       "actorHint": "Atores dos registros já carregados.",
       "anyActor": "Qualquer ator",
@@ -105,7 +101,15 @@
       "processId": "ID do processo",
       "invalidId": "Informe um identificador válido.",
       "search": "Pesquisar",
-      "clear": "Limpar filtros"
+      "clear": "Limpar filtros",
+      "title": "Filtros da auditoria",
+      "description": "Escolha o período e refine por ação, ator, entidade ou processo.",
+      "close": "Fechar",
+      "periodPlaceholder": "Selecione o período",
+      "periodCalendar": "Escolher período",
+      "periodClear": "Limpar período",
+      "actorSearch": "Buscar ator",
+      "actorEmpty": "Nenhum ator nos registros carregados."
     },
     "table": {
       "caption": "Registros da trilha de auditoria",
@@ -123,7 +127,9 @@
       "count": "{count, plural, one {# registro carregado} other {# registros carregados}}",
       "empty": "Nenhum registro de auditoria encontrado para os filtros selecionados.",
       "emptyHint": "Amplie o período ou remova filtros.",
-      "process": "Processo"
+      "process": "Processo",
+      "period": "{from} a {to}",
+      "adjust": "Ajustar filtros"
     },
     "detail": {
       "title": "Registro de auditoria",
@@ -183,6 +189,17 @@
       "mfa": "Esta ação exige verificação adicional (MFA).",
       "stepUp": "Confirmar identidade",
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
+    },
+    "chips": {
+      "period": "Período: {value}",
+      "action": "Ação: {value}",
+      "category": "Categoria: {value}",
+      "result": "Resultado: {value}",
+      "actor": "Ator: {value}",
+      "entityType": "Tipo de entidade: {value}",
+      "entityId": "Entidade: {value}",
+      "process": "Processo: {value}",
+      "remove": "Remover o filtro {filter}"
     }
   },
   "categories": {

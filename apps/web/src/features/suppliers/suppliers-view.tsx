@@ -2,20 +2,33 @@
 
 import {
   Alert,
+  Building2,
   Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
-  Skeleton,
+  EmptyState,
+  Field,
+  FilterToolbar,
+  ListPage,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  TableContainer,
+  TableFooter,
   toast,
 } from '@contrataflow/ui';
 import type { SupplierDto } from '@contrataflow/validation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
 import { useTenantId } from '@/lib/session/session-context';
@@ -33,7 +46,8 @@ import {
 import type { SupplierListFilters } from './suppliers.api';
 
 const DEBOUNCE_MS = 300;
-const CONTROL = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+/** O `Select` do kit não aceita valor vazio: "Todos" usa este marcador. */
+const ALL = 'all';
 
 /**
  * SCR-107 (`/fornecedores` · US-025): lista de fornecedores do tenant (SUP-01) com busca (≥ 2
@@ -41,12 +55,13 @@ const CONTROL = 'h-10 rounded-control border border-border bg-surface px-3 text-
  * edição, inativação/reativação (SUP-04, com `If-Match`) e exclusão (SUP-05) só com
  * `SUPPLIER_MANAGE`. Sem `SUPPLIER_VIEW` a API responde 403 e a tela mostra o aviso de acesso
  * (RN-FND-92). Excluir fornecedor em uso (409 `SUPPLIER_IN_USE`) oferece "Inativar" no lugar.
+ * Modelo `ListPage` (prd-5): "Novo fornecedor" no cabeçalho, busca inline e situação no popover
+ * "Filtros" com chip, ações da linha no menu ⋯ e formulário no painel lateral.
  */
 export function SuppliersView() {
   const t = useTranslations('suppliers');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const ids = useId();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<SupplierDto | null>(null);
   const [deactivating, setDeactivating] = useState<SupplierDto | null>(null);
@@ -147,164 +162,200 @@ export function SuppliersView() {
 
   if (suppliers.error && isApiError(suppliers.error) && suppliers.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={<AppPageHeader title={t('title')} description={t('description')} />}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
   const items = suppliers.data?.items ?? [];
   const totalPages = suppliers.data?.totalPages ?? 1;
   const filtered = filters.q !== '' || filters.isActive !== '';
+  const statusLabel = (value: SupplierListFilters['isActive']) =>
+    value === 'true' ? t('filters.active') : t('filters.inactive');
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold">{t('list.title')}</h2>
-        {suppliers.data ? (
-          <Can permission="SUPPLIER_MANAGE">
+    <ListPage
+      header={
+        <AppPageHeader
+          title={t('title')}
+          description={t('description')}
+          actions={
+            suppliers.data ? (
+              <Can permission="SUPPLIER_MANAGE">
+                <Button
+                  iconLeft={<Plus />}
+                  onClick={() => {
+                    setCreating(true);
+                  }}
+                >
+                  {t('list.new')}
+                </Button>
+              </Can>
+            ) : null
+          }
+        />
+      }
+      toolbar={
+        <FilterToolbar
+          search={{
+            value: search,
+            onChange: setSearch,
+            label: t('filters.search'),
+            placeholder: t('filters.searchPlaceholder'),
+            description: t('filters.searchHint'),
+          }}
+          activeCount={isActive === '' ? 0 : 1}
+          filters={
+            <Field label={t('filters.status')}>
+              <Select
+                value={isActive === '' ? ALL : isActive}
+                onValueChange={(value) => {
+                  setIsActive(value === 'true' || value === 'false' ? value : '');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                  <SelectItem value="true">{t('filters.active')}</SelectItem>
+                  <SelectItem value="false">{t('filters.inactive')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          }
+          chips={
+            isActive === ''
+              ? []
+              : [
+                  {
+                    id: 'status',
+                    label: t('filters.chip', { value: statusLabel(isActive) }),
+                    removeLabel: t('filters.removeChip', { value: statusLabel(isActive) }),
+                    onRemove: () => {
+                      setIsActive('');
+                    },
+                  },
+                ]
+          }
+        />
+      }
+      notices={
+        <div aria-live="polite" className="empty:hidden">
+          {actionError && deactivating === null && deleting === null ? (
+            <Alert tone="error" title={actionError} />
+          ) : null}
+        </div>
+      }
+      loading={suppliers.isPending}
+      loadingLabel={t('list.loading')}
+      error={
+        suppliers.isError ? (
+          <Alert tone="error" title={t('list.loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setCreating(true);
+                void suppliers.refetch();
               }}
             >
-              {t('list.new')}
+              {t('list.retry')}
             </Button>
-          </Can>
-        ) : null}
-      </header>
-
-      <form
-        role="search"
-        aria-label={t('list.title')}
-        className="grid gap-3 sm:grid-cols-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-q`} className="text-sm font-medium">
-            {t('filters.search')}
-          </label>
-          <input
-            id={`${ids}-q`}
-            type="search"
-            autoComplete="off"
-            className={CONTROL}
-            value={search}
-            aria-describedby={`${ids}-q-hint`}
-            onChange={(event) => {
-              setSearch(event.target.value);
+          </Alert>
+        ) : null
+      }
+      empty={
+        suppliers.data && items.length === 0 ? (
+          <EmptyState
+            icon={<Building2 />}
+            title={filtered ? t('list.noResults') : t('list.empty')}
+            description={filtered ? t('list.noResultsHint') : t('list.emptyHint')}
+            action={
+              filtered ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setDebouncedQ('');
+                    setIsActive('');
+                  }}
+                >
+                  {t('filters.clear')}
+                </Button>
+              ) : (
+                <Can permission="SUPPLIER_MANAGE">
+                  <Button
+                    iconLeft={<Plus />}
+                    onClick={() => {
+                      setCreating(true);
+                    }}
+                  >
+                    {t('list.new')}
+                  </Button>
+                </Can>
+              )
+            }
+          />
+        ) : null
+      }
+    >
+      {items.length > 0 && suppliers.data ? (
+        <TableContainer
+          label={t('table.caption')}
+          footer={
+            <TableFooter summary={t('list.count', { count: suppliers.data.totalItems })}>
+              {totalPages > 1 ? (
+                <nav aria-label={t('list.pager')} className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => {
+                      goToPage(Math.max(1, page - 1));
+                    }}
+                  >
+                    {t('list.previous')}
+                  </Button>
+                  <span>{t('list.pageOf', { page, total: totalPages })}</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => {
+                      goToPage(page + 1);
+                    }}
+                  >
+                    {t('list.next')}
+                  </Button>
+                </nav>
+              ) : null}
+            </TableFooter>
+          }
+        >
+          <SupplierList
+            suppliers={items}
+            onEdit={setEditing}
+            onDeactivate={(supplier) => {
+              setActionError(null);
+              setDeactivating(supplier);
+            }}
+            onReactivate={(supplier) => {
+              setActionError(null);
+              setActive.mutate({ supplier, active: true });
+            }}
+            onDelete={(supplier) => {
+              setActionError(null);
+              setInUse(false);
+              setDeleting(supplier);
             }}
           />
-          <p id={`${ids}-q-hint`} className="text-xs text-muted-foreground">
-            {t('filters.searchHint')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-status`} className="text-sm font-medium">
-            {t('filters.status')}
-          </label>
-          <select
-            id={`${ids}-status`}
-            className={CONTROL}
-            value={isActive}
-            onChange={(event) => {
-              const value = event.target.value;
-              setIsActive(value === 'true' || value === 'false' ? value : '');
-            }}
-          >
-            <option value="">{t('filters.all')}</option>
-            <option value="true">{t('filters.active')}</option>
-            <option value="false">{t('filters.inactive')}</option>
-          </select>
-        </div>
-      </form>
-
-      <div aria-live="polite">
-        {actionError && deactivating === null && deleting === null ? (
-          <Alert tone="error" title={actionError} />
-        ) : null}
-      </div>
-
-      {suppliers.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('list.loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {suppliers.isError ? (
-        <Alert tone="error" title={t('list.loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void suppliers.refetch();
-            }}
-          >
-            {t('list.retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      {suppliers.data && items.length === 0 ? (
-        <div className="rounded-card border border-dashed border-border p-6 text-center">
-          <p className="font-medium">{filtered ? t('list.noResults') : t('list.empty')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {filtered ? t('list.noResultsHint') : t('list.emptyHint')}
-          </p>
-        </div>
-      ) : null}
-
-      {items.length > 0 ? (
-        <SupplierList
-          suppliers={items}
-          onEdit={setEditing}
-          onDeactivate={(supplier) => {
-            setActionError(null);
-            setDeactivating(supplier);
-          }}
-          onReactivate={(supplier) => {
-            setActionError(null);
-            setActive.mutate({ supplier, active: true });
-          }}
-          onDelete={(supplier) => {
-            setActionError(null);
-            setInUse(false);
-            setDeleting(supplier);
-          }}
-        />
-      ) : null}
-
-      {totalPages > 1 ? (
-        <nav aria-label={t('list.pager')} className="flex items-center justify-between gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => {
-              goToPage(Math.max(1, page - 1));
-            }}
-          >
-            {t('list.previous')}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {t('list.pageOf', { page, total: totalPages })}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => {
-              goToPage(page + 1);
-            }}
-          >
-            {t('list.next')}
-          </Button>
-        </nav>
+        </TableContainer>
       ) : null}
 
       <SupplierFormDialog open={creating} onOpenChange={setCreating} />
@@ -400,6 +451,6 @@ export function SuppliersView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ListPage>
   );
 }

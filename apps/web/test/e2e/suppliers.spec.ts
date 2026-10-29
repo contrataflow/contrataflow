@@ -11,6 +11,12 @@ import { refetchOf } from './support/refetch';
 // O cadastro da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
 
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(page: Page, name: string, action: string): Promise<void> {
+  await page.getByRole('button', { name: `Ações de ${name}` }).click();
+  await page.getByRole('menuitem', { name: action }).click();
+}
+
 async function openScreen(page: Page): Promise<void> {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/fornecedores')}`);
   await expect(page).toHaveURL(/\/fornecedores$/);
@@ -54,7 +60,8 @@ test('CPF: máscara própria e, depois de salvo, aparece mascarado', async ({ pa
   await openScreen(page);
   await page.getByRole('button', { name: 'Novo fornecedor' }).click();
   const dialog = page.getByRole('dialog', { name: 'Novo fornecedor' });
-  await dialog.getByLabel('Tipo de documento *').selectOption('CPF');
+  await dialog.getByRole('combobox', { name: 'Tipo de documento *' }).click();
+  await page.getByRole('option', { name: 'CPF' }).click();
   await dialog.getByLabel('Número do documento *').fill('52998224725');
   await expect(dialog.getByLabel('Número do documento *')).toHaveValue('529.982.247-25');
   await dialog.getByLabel('Razão social / Nome *').fill('Maria Souza');
@@ -99,10 +106,10 @@ test('documento já cadastrado: aviso antecipado com o nome do fornecedor existe
 
 test('edita o telefone com o documento bloqueado e inativa o fornecedor', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Editar Construtora ABC Ltda' }).click();
+  await rowAction(page, 'Construtora ABC Ltda', 'Editar');
   const dialog = page.getByRole('dialog', { name: 'Editar Construtora ABC Ltda' });
   await expect(dialog.getByLabel('Número do documento *')).toHaveAttribute('readonly', '');
-  await expect(dialog.getByLabel('Tipo de documento *')).toBeDisabled();
+  await expect(dialog.getByRole('combobox', { name: 'Tipo de documento *' })).toBeDisabled();
   await dialog.getByLabel('Telefone').fill('4833810000');
   const listRefetched = refetchOf(page, {
     mutation: /^\/api\/v1\/suppliers\/[0-9a-f-]{36}$/,
@@ -114,7 +121,7 @@ test('edita o telefone com o documento bloqueado e inativa o fornecedor', async 
   ).toBeVisible();
   await listRefetched;
 
-  await page.getByRole('button', { name: 'Inativar Construtora ABC Ltda' }).click();
+  await rowAction(page, 'Construtora ABC Ltda', 'Inativar');
   const confirm = page.getByRole('dialog', { name: 'Inativar Construtora ABC Ltda?' });
   await expectNoSeriousA11yViolations(page, 'inativar fornecedor');
   await confirm.getByRole('button', { name: 'Inativar' }).click();
@@ -123,16 +130,21 @@ test('edita o telefone com o documento bloqueado e inativa o fornecedor', async 
   ).toBeVisible();
   const row = page.getByRole('row', { name: /Construtora ABC Ltda/ });
   await expect(row.getByText('Inativo')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Reativar Construtora ABC Ltda' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ações de Construtora ABC Ltda' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Reativar' })).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('filtra por situação e busca por razão social', async ({ page }) => {
   await openScreen(page);
   // Logo após o login o HTML do SSR ainda pode estar no DOM, oculto (<div hidden id="S:0">).
-  await page.getByLabel('Situação').filter({ visible: true }).selectOption('false');
+  await page.getByRole('button', { name: 'Filtros' }).filter({ visible: true }).click();
+  await page.getByRole('combobox', { name: 'Situação' }).click();
+  await page.getByRole('option', { name: 'Inativos' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);
-  await page.getByLabel('Situação').selectOption('');
+  await page.getByRole('button', { name: 'Remover o filtro Situação: Inativos' }).click();
   await page.getByLabel('Buscar', { exact: true }).fill('acme');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);

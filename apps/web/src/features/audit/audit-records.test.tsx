@@ -3,6 +3,7 @@ import { Toaster, clearToasts } from '@contrataflow/ui';
 import type { AuditLogDto } from '@contrataflow/validation';
 import { QueryClient } from '@tanstack/react-query';
 import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
@@ -128,7 +129,11 @@ const urlsTo = (fetchMock: ReturnType<typeof mockApi>, pathname: string) =>
     .map(([input]) => new URL(requestUrl(input), 'http://localhost'))
     .filter((url) => url.pathname === pathname);
 
-const field = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
+/** Abre o painel lateral "Filtros" da barra (prd-5 · regra 2). */
+async function openFilters() {
+  fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+  return screen.findByRole('dialog', { name: 'Filtros da auditoria' });
+}
 
 async function renderRecords(options: { queryClient?: QueryClient } = {}) {
   const view = renderWithShell(
@@ -159,9 +164,8 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     const fetchMock = mockApi();
     await renderRecords();
     expect(screen.getByRole('tab', { name: 'Registros', selected: true })).toBeTruthy();
-    // 09:00 de 17/10 em São Paulo; 7 dias antes.
-    expect(field('De').value).toBe('2026-10-10T09:00');
-    expect(field('Até').value).toBe('2026-10-17T09:00');
+    // 09:00 de 17/10 em São Paulo; 7 dias antes. O período aparece no rodapé da tabela.
+    expect(screen.getByText('· 10/10/2026 a 17/10/2026')).toBeTruthy();
     const [url] = urlsTo(fetchMock, '/api/v1/audit');
     expect(url?.searchParams.get('occurredFrom')).toBe('2026-10-10T12:00:00Z');
     expect(url?.searchParams.get('occurredTo')).toBe('2026-10-17T12:00:00Z');
@@ -174,6 +178,11 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     expect(rows[0]?.textContent).toContain('Sucesso');
     expect(rows[1]?.textContent).toContain('Acesso negado');
     expect(rows[1]?.textContent).toContain('Negado');
+    // No painel "Filtros", o mesmo período no seletor de datas.
+    const panel = await openFilters();
+    expect(within(panel).getByRole('button', { name: 'Período' }).textContent).toContain(
+      '10/10/2026 a 17/10/2026',
+    );
   });
 
   it('filtrar por ação envia a ação e o período; a lista mostra só o que a API devolveu', async () => {
@@ -182,13 +191,11 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
         url.searchParams.get('action') === 'process.create' ? feed([L1]) : feed([L1, L2]),
     });
     await renderRecords();
-    const select = screen.getByLabelText<HTMLSelectElement>('Ação');
-    const option = within(select).getByRole<HTMLOptionElement>('option', {
-      name: 'Processo criado',
-    });
-    option.selected = true;
-    fireEvent.change(select);
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    const user = userEvent.setup();
+    const panel = await openFilters();
+    await user.click(within(panel).getByRole('combobox', { name: 'Ação' }));
+    await user.click(await screen.findByRole('option', { name: 'Processo criado' }));
+    await user.click(within(panel).getByRole('button', { name: 'Pesquisar' }));
     await waitFor(() => {
       expect(urlsTo(fetchMock, '/api/v1/audit').at(-1)?.searchParams.get('action')).toBe(
         'process.create',
@@ -198,6 +205,14 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     await waitFor(() => {
       expect(within(table).queryByText('Acesso negado')).toBeNull();
     });
+    // O painel fecha e o filtro aplicado vira chip removível.
+    expect(screen.queryByRole('dialog', { name: 'Filtros da auditoria' })).toBeNull();
+    await user.click(
+      screen.getByRole('button', { name: 'Remover o filtro Ação: Processo criado' }),
+    );
+    // Sem a ação, volta a consulta anterior (em cache): os dois registros reaparecem.
+    expect(await within(table).findByText('Acesso negado')).toBeTruthy();
+    expect(screen.queryByText('Ação: Processo criado')).toBeNull();
   });
 
   it('abrir um registro mostra o diff mascarado com "Antes"/"Depois" e permite filtrar pelo ator', async () => {
@@ -219,7 +234,8 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     await waitFor(() => {
       expect(urlsTo(fetchMock, '/api/v1/audit').at(-1)?.searchParams.get('actorUserId')).toBe(ANA);
     });
-    expect(screen.getByText('Filtros avançados (1)')).toBeTruthy();
+    expect(screen.getByText('Ator: Ana Souza')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
   });
 
   it('FA-05: registro coalescido com o intervalo de salvamentos no metadata mostra o aviso', async () => {
@@ -263,19 +279,21 @@ describe('[Validação] período (V-01/V-02)', () => {
     const fetchMock = mockApi();
     await renderRecords();
     const before = urlsTo(fetchMock, '/api/v1/audit').length;
-    fireEvent.change(field('De'), { target: { value: '2026-06-01T00:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar' }));
-    expect(await screen.findByText('Selecione um período de até 90 dias.')).toBeTruthy();
-    expect(field('Até').getAttribute('aria-invalid')).toBe('true');
+    const user = userEvent.setup();
+    const panel = await openFilters();
+    await user.click(within(panel).getByRole('button', { name: 'Período' }));
+    const calendar = await screen.findByRole('dialog', { name: 'Escolher período' });
+    for (let month = 0; month < 4; month += 1) {
+      await user.click(within(calendar).getByRole('button', { name: 'Ir para o mês anterior' }));
+    }
+    await user.click(within(calendar).getByRole('button', { name: /, 1 de junho/ }));
+    await user.keyboard('{Escape}');
+    const period = within(panel).getByRole('button', { name: 'Período' });
+    expect(period.textContent).toContain('01/06/2026 a 17/10/2026');
+    await user.click(within(panel).getByRole('button', { name: 'Pesquisar' }));
+    expect(await within(panel).findByText('Selecione um período de até 90 dias.')).toBeTruthy();
+    expect(period.getAttribute('aria-invalid')).toBe('true');
     expect(urlsTo(fetchMock, '/api/v1/audit')).toHaveLength(before);
-  });
-
-  it('data final anterior à inicial', async () => {
-    mockApi();
-    await renderRecords();
-    fireEvent.change(field('Até'), { target: { value: '2026-10-01T00:00' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar' }));
-    expect(await screen.findByText('A data final deve ser posterior à inicial.')).toBeTruthy();
   });
 
   it('FA-01: nenhum registro → estado vazio com sugestão de ampliar o período', async () => {
@@ -320,8 +338,8 @@ describe('ExportDialog (AUD-03)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Exportar registros' });
     expect(
-      within(dialog).getByRole<HTMLInputElement>('radio', { name: 'CSV (planilha)' }).checked,
-    ).toBe(true);
+      within(dialog).getByRole('radio', { name: 'CSV (planilha)' }).getAttribute('aria-checked'),
+    ).toBe('true');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Exportar' }));
     expect(await screen.findByText('Exportação concluída: 2 registros')).toBeTruthy();
     const [url] = urlsTo(fetchMock, '/api/v1/audit/export');
@@ -459,10 +477,11 @@ describe('abas e acessibilidade (SCR-037)', () => {
   it('troca para "Selos" por clique e volta por teclado (setas)', async () => {
     mockApi();
     await renderRecords();
+    const user = userEvent.setup();
     const records = screen.getByRole('tab', { name: 'Registros' });
-    fireEvent.click(screen.getByRole('tab', { name: 'Selos' }));
+    await user.click(screen.getByRole('tab', { name: 'Selos' }));
     expect(screen.getByRole('tab', { name: 'Selos', selected: true })).toBeTruthy();
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Selos' }), { key: 'ArrowLeft' });
+    await user.keyboard('{ArrowLeft}');
     expect(screen.getByRole('tab', { name: 'Registros', selected: true })).toBe(records);
     expect(document.activeElement).toBe(records);
   });

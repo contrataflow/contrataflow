@@ -2,7 +2,7 @@
 
 import { NOTIFICATION_CHANNELS } from '@contrataflow/types';
 import type { NotificationChannel, NotificationType } from '@contrataflow/types';
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import { Alert, Button, Label, Skeleton, Switch, cx, toast } from '@contrataflow/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
@@ -48,9 +48,9 @@ export function NotificationPreferencesGrid() {
   });
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-5">
       <header>
-        <h2 className="text-lg font-semibold">{t('title')}</h2>
+        <h2 className="text-lg font-bold text-brand-ink">{t('title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t('description')}</p>
       </header>
 
@@ -137,7 +137,7 @@ function PreferencesForm({ state }: { readonly state: NotificationPreferencesSta
   };
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-8">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       <div aria-live="polite" className="flex flex-col gap-3">
         {!state.emailEnabled ? <Alert tone="warning" title={t('emailDisabledBanner')} /> : null}
         {banner ? (
@@ -165,13 +165,13 @@ function PreferencesForm({ state }: { readonly state: NotificationPreferencesSta
       </div>
 
       {NOTIFICATION_AREAS.map((area) => (
-        <section key={area} aria-labelledby={`${ids}-${area}`} className="flex flex-col gap-3">
-          <h3 id={`${ids}-${area}`} className="text-base font-semibold">
+        <section key={area} aria-labelledby={`${ids}-${area}`} className="flex flex-col gap-2.5">
+          <h3 id={`${ids}-${area}`} className="text-label text-muted-foreground uppercase">
             {t(`areas.${area}`)}
           </h3>
-          <ul className="flex flex-col gap-3">
+          <ul className="rounded-card bg-surface shadow-card">
             {NOTIFICATION_TYPES_BY_AREA[area].map((type) => (
-              <li key={type}>
+              <li key={type} className="border-b border-border last:border-b-0">
                 <TypeRow
                   idPrefix={ids}
                   type={type}
@@ -244,9 +244,9 @@ function TypeRow({
     <div
       role="group"
       aria-labelledby={groupId}
-      className="flex flex-col gap-3 rounded-control border border-border bg-surface p-4 md:flex-row md:items-center md:justify-between"
+      className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between"
     >
-      <p id={groupId} className="text-sm font-medium md:max-w-xs">
+      <p id={groupId} className="text-sm font-semibold md:max-w-xs">
         {label}
       </p>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
@@ -300,7 +300,7 @@ interface PreferenceSwitchProps {
   readonly onChange: (enabled: boolean) => void;
 }
 
-/** Interruptor acessível (`role="switch"`): rótulo associado, estado anunciado e nota vinculada. */
+/** Interruptor do kit (`role="switch"`): rótulo associado, estado anunciado e nota vinculada. */
 function PreferenceSwitch({
   id,
   label,
@@ -312,33 +312,19 @@ function PreferenceSwitch({
 }: PreferenceSwitchProps) {
   return (
     <div className="flex min-w-36 flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          role="switch"
+      <div className="flex items-center gap-2.5">
+        <Switch
           id={id}
-          aria-checked={checked}
-          aria-labelledby={`${id}-label`}
+          checked={checked}
           aria-describedby={note ? `${id}-note` : undefined}
           aria-busy={busy || undefined}
           disabled={disabled || busy}
-          onClick={() => {
-            onChange(!checked);
-          }}
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60 ${
-            checked ? 'bg-primary' : 'bg-muted'
-          } ${busy ? 'animate-pulse' : ''}`}
-        >
-          <span
-            aria-hidden="true"
-            className={`inline-block size-4 rounded-full bg-surface shadow transition-transform ${
-              checked ? 'translate-x-6' : 'translate-x-1'
-            }`}
-          />
-        </button>
-        <label id={`${id}-label`} htmlFor={id} className="text-sm">
+          onCheckedChange={onChange}
+          className={cx(busy ? 'animate-pulse' : undefined)}
+        />
+        <Label htmlFor={id} className="font-normal">
           {label}
-        </label>
+        </Label>
       </div>
       {note ? (
         <p id={`${id}-note`} className="text-xs text-muted-foreground">

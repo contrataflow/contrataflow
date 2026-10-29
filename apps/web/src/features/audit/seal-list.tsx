@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, Checkbox, Skeleton } from '@contrataflow/ui';
 import type { AuditSealDto } from '@contrataflow/validation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -155,12 +155,10 @@ export function SealList({
                 {items.map((seal) => (
                   <tr key={seal.id} className="border-t border-border align-middle">
                     <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        className="size-4"
+                      <Checkbox
                         checked={selected.has(seal.id)}
                         aria-label={t('selectRow', { period: periodOf(seal) })}
-                        onChange={() => {
+                        onCheckedChange={() => {
                           onToggle(seal);
                         }}
                       />

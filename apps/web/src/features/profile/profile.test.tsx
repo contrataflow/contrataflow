@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { Toaster, clearToasts } from '@contrataflow/ui';
 import type { MyProfileDto } from '@contrataflow/validation';
-import { configure, screen, waitFor } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -103,6 +103,12 @@ const getsOfMe = (api: ReturnType<typeof mockApi>) =>
 
 const saveButton = () => screen.getByRole('button', { name: 'Salvar' });
 
+/** Troca de seção na navegação do `SettingsPage` (prd-5). */
+async function openSection(name: string) {
+  const nav = screen.getByRole('navigation', { name: 'Seções do perfil' });
+  await userEvent.click(within(nav).getByRole('button', { name }));
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   refresh.mockClear();
@@ -139,12 +145,14 @@ describe('profile-model (RN-IAM-109..110)', () => {
     expect(displayNameOf({ name: 'Elisa Prado', socialName: '  ' })).toBe('Elisa Prado');
   });
 
-  it('`?aba=` resolve a aba inicial no servidor; valor desconhecido cai em "Geral" (US-113)', () => {
+  it('`?aba=` resolve a seção inicial no servidor; valor desconhecido cai em "Dados" (US-113)', () => {
     // A página (componente de servidor) chama esta função: ela não pode viver no módulo
     // `'use client'` da tela — no `next start` isso quebrava `/perfil` (spec-497).
     expect(profileTabFromParam('notificacoes')).toBe('notifications');
-    expect(profileTabFromParam(undefined)).toBe('general');
-    expect(profileTabFromParam('outra')).toBe('general');
+    expect(profileTabFromParam('preferencias')).toBe('preferences');
+    expect(profileTabFromParam('seguranca')).toBe('security');
+    expect(profileTabFromParam(undefined)).toBe('data');
+    expect(profileTabFromParam('outra')).toBe('data');
   });
 });
 
@@ -161,7 +169,17 @@ describe('SCR-039 — Meu perfil (US-098)', () => {
     expect(email.readOnly).toBe(true);
     expect(screen.getByText('Analista de Compras')).toBeTruthy();
     expect(screen.getByText('Compras, Licitações')).toBeTruthy();
-    const password = screen.getByRole('link', { name: /Alterar senha/ });
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+    expect(await seriousA11yViolations()).toEqual([]);
+
+    // Senha e MFA ficam na seção "Segurança".
+    await openSection('Segurança');
+    expect(
+      within(screen.getByRole('navigation', { name: 'Seções do perfil' }))
+        .getByRole('button', { name: 'Segurança' })
+        .getAttribute('aria-current'),
+    ).toBe('true');
+    const password = await screen.findByRole('link', { name: /Alterar senha/ });
     expect(password.getAttribute('href')).toBe(LINKS.password);
     expect(password.getAttribute('target')).toBe('_blank');
     expect(password.getAttribute('rel')).toContain('noopener');
@@ -171,13 +189,14 @@ describe('SCR-039 — Meu perfil (US-098)', () => {
     // US-090 · RN-IAM-44: status do segundo fator nesta sessão, sem detalhar o dispositivo.
     expect(screen.getByText('Segundo fator nesta sessão:')).toBeTruthy();
     expect(screen.getByText('Não confirmado')).toBeTruthy();
-    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
   it('[US-090] sessão com o segundo fator comprovado mostra "Confirmado"', async () => {
     mockApi(profile({ mfaVerified: true }));
     renderProfile();
+    await screen.findByRole('textbox', { name: 'Nome' });
+    await openSection('Segurança');
     expect(await screen.findByText('Confirmado')).toBeTruthy();
     expect(screen.queryByText('Não confirmado')).toBeNull();
   });
@@ -188,7 +207,6 @@ describe('SCR-039 — Meu perfil (US-098)', () => {
     await screen.findByRole('textbox', { name: 'Nome' });
 
     await userEvent.type(screen.getByLabelText('Nome social'), 'Eli');
-    await userEvent.selectOptions(screen.getByLabelText('Tema'), 'dark');
     expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
     await userEvent.click(saveButton());
 
@@ -197,20 +215,29 @@ describe('SCR-039 — Meu perfil (US-098)', () => {
     expect(document.querySelector('[aria-live]')).toBeTruthy();
     expect(patches(api)).toHaveLength(1);
     const [, init] = patches(api)[0] ?? [];
-    expect(JSON.parse(bodyOf(init))).toEqual({
-      socialName: 'Eli',
-      preferences: { theme: 'dark' },
-    });
+    expect(JSON.parse(bodyOf(init))).toEqual({ socialName: 'Eli' });
     expect(new Headers(init?.headers).get('If-Match')).toBe('"1"');
-    await waitFor(() => {
-      expect(document.documentElement.dataset.theme).toBe('dark');
-    });
     expect(refresh).toHaveBeenCalled();
     // Com a nova versão carregada, nada pendente: o botão volta a ficar desabilitado.
     await waitFor(() => {
       expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
     });
     expect(screen.getByLabelText<HTMLInputElement>('Nome social').value).toBe('Eli');
+
+    // Seção "Preferências": o tema vai no próprio PATCH, com a versão nova.
+    await openSection('Preferências');
+    await userEvent.click(await screen.findByRole('radio', { name: 'Escuro' }));
+    await userEvent.click(saveButton());
+    await waitFor(() => {
+      expect(patches(api)).toHaveLength(2);
+    });
+    const [, second] = patches(api)[1] ?? [];
+    expect(JSON.parse(bodyOf(second))).toEqual({ preferences: { theme: 'dark' } });
+    expect(new Headers(second?.headers).get('If-Match')).toBe('"2"');
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
+    expect(await seriousA11yViolations()).toEqual([]);
   });
 
   it('[Validação] nome apagado mostra a mensagem da story e mantém "Salvar" desabilitado', async () => {

@@ -162,6 +162,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(name: string, action: string) {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
+/** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
+async function choose(trigger: HTMLElement, option: string) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
 describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
   it('lista razão social, documento (CNPJ mascarado, CPF mascarado pela API), contato e situação; sem violações de a11y', async () => {
     const api = mockApi();
@@ -182,10 +194,13 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     expect(within(acme).getByText('Inativo')).toBeTruthy();
     expect(within(acme).getByText('DE-123456789')).toBeTruthy();
     expect(table.textContent).not.toContain('11144477735');
-    // As ações aparecem quando ME-03 confirma `SUPPLIER_MANAGE`.
-    expect(await within(acme).findByRole('button', { name: 'Reativar Acme GmbH' })).toBeTruthy();
-    expect(within(abc).getByRole('button', { name: 'Excluir Construtora ABC Ltda' })).toBeTruthy();
+    // O menu ⋯ aparece quando ME-03 confirma `SUPPLIER_MANAGE`.
+    expect(await within(acme).findByRole('button', { name: 'Ações de Acme GmbH' })).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
+    await userEvent.click(within(acme).getByRole('button', { name: 'Ações de Acme GmbH' }));
+    expect(await screen.findByRole('menuitem', { name: 'Reativar' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Excluir' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Inativar' })).toBeNull();
   });
 
   it('sem SUPPLIER_MANAGE: consulta sem ações de escrita', async () => {
@@ -195,9 +210,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Novo fornecedor' })).toBeNull();
     });
-    expect(within(table).queryByRole('button', { name: /Editar|Inativar|Reativar|Excluir/ })).toBe(
-      null,
-    );
+    expect(within(table).queryByRole('button', { name: /^Ações de/ })).toBeNull();
     expect(within(table).queryByRole('columnheader', { name: 'Ações' })).toBeNull();
   });
 
@@ -231,7 +244,10 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     await screen.findByRole('table', { name: 'Fornecedores da instituição' });
 
     await userEvent.type(screen.getByLabelText('Buscar'), 'a');
-    await userEvent.selectOptions(screen.getByLabelText('Situação'), 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await choose(await screen.findByRole('combobox', { name: 'Situação' }), 'Inativos');
+    await userEvent.keyboard('{Escape}');
+    expect(await screen.findByText('Situação: Inativos')).toBeTruthy();
     await waitFor(() => {
       expect(api.mock.calls.some(([url]) => requestUrl(url).includes('isActive=false'))).toBe(true);
     });
@@ -299,7 +315,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Novo fornecedor' }));
     const dialog = await screen.findByRole('dialog', { name: 'Novo fornecedor' });
 
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo de documento *'), 'CPF');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo de documento *' }), 'CPF');
     const number = within(dialog).getByLabelText<HTMLInputElement>('Número do documento *');
     await userEvent.type(number, '11144477735');
     expect(number.value).toBe('111.444.777-35');
@@ -324,15 +340,16 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
         ),
     });
     renderWithShell(<SuppliersView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Editar João da Silva' }));
+    await rowAction('João da Silva', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar João da Silva' });
 
     const number = within(dialog).getByLabelText<HTMLInputElement>('Número do documento *');
     expect(number.value).toBe('***.444.777-**');
     expect(number.readOnly).toBe(true);
-    expect(within(dialog).getByLabelText<HTMLSelectElement>('Tipo de documento *').disabled).toBe(
-      true,
-    );
+    expect(
+      within(dialog).getByRole<HTMLButtonElement>('combobox', { name: 'Tipo de documento *' })
+        .disabled,
+    ).toBe(true);
     expect(
       within(dialog).getByText('Documento não pode ser alterado. Cadastre um novo fornecedor.'),
     ).toBeTruthy();
@@ -354,9 +371,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
       patch: () => jsonResponse({ data: { ...ABC, isActive: false, version: 2 } }),
     });
     renderWithShell(<SuppliersView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Inativar Construtora ABC Ltda' }),
-    );
+    await rowAction('Construtora ABC Ltda', 'Inativar');
     const dialog = await screen.findByRole('dialog', { name: 'Inativar Construtora ABC Ltda?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Inativar' }));
     await waitFor(() => {
@@ -364,7 +379,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     });
     expect(bodyOf(callOf(api, 'PATCH').init)).toEqual({ isActive: false });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Reativar Acme GmbH' }));
+    await rowAction('Acme GmbH', 'Reativar');
     await waitFor(() => {
       expect(callsTo(api, 'PATCH')).toHaveLength(2);
     });
@@ -375,7 +390,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
   it('excluir (FA-03): confirma no diálogo e envia DELETE com If-Match', async () => {
     const api = mockApi();
     renderWithShell(<SuppliersView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Excluir João da Silva' }));
+    await rowAction('João da Silva', 'Excluir');
     const dialog = await screen.findByRole('dialog', { name: 'Excluir João da Silva?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Excluir' }));
 
@@ -401,9 +416,7 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
       patch: () => jsonResponse({ data: { ...ABC, isActive: false, version: 2 } }),
     });
     renderWithShell(<SuppliersView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Excluir Construtora ABC Ltda' }),
-    );
+    await rowAction('Construtora ABC Ltda', 'Excluir');
     const dialog = await screen.findByRole('dialog', { name: 'Excluir Construtora ABC Ltda?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Excluir' }));
 
@@ -459,7 +472,7 @@ describe('[Validação] criação de fornecedor', () => {
 
   it('CPF com dígito verificador inválido', async () => {
     const { api, dialog } = await openCreate();
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo de documento *'), 'CPF');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo de documento *' }), 'CPF');
     await userEvent.type(within(dialog).getByLabelText('Número do documento *'), '11144477700');
     await userEvent.tab();
     expect(
@@ -541,9 +554,7 @@ describe('[Concorrência] edição', () => {
       get: () => jsonResponse({ data: fresh }),
     });
     renderWithShell(<SuppliersView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar Construtora ABC Ltda' }),
-    );
+    await rowAction('Construtora ABC Ltda', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Construtora ABC Ltda' });
     await userEvent.type(within(dialog).getByLabelText('Telefone'), '4833');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));

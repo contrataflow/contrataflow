@@ -2,16 +2,14 @@
 
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Skeleton,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  cx,
 } from '@contrataflow/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -62,7 +60,7 @@ function Badge({ count }: { readonly count: number }) {
 }
 
 /** Painel curto do sininho (NTF-01 com os 5 mais recentes), carregado ao abrir. */
-function NotificationPanel() {
+function NotificationPanel({ onNavigate }: { readonly onNavigate: () => void }) {
   const t = useTranslations('notifications');
   const tenantId = useTenantId();
   const actions = useNotificationActions();
@@ -73,82 +71,101 @@ function NotificationPanel() {
     retry: false,
   });
   const items = recent.data?.items ?? [];
-  // Dentro de `role="menu"` só há itens de menu (estados como itens desabilitados — axe).
   const state = (text: string) => (
-    <DropdownMenuItem disabled className="py-3 text-muted-foreground">
-      {text}
-    </DropdownMenuItem>
+    <p className="px-4 py-6 text-center text-sm text-muted-foreground">{text}</p>
   );
   return (
-    <>
-      <DropdownMenuLabel className="normal-case">{t('panel.heading')}</DropdownMenuLabel>
-      {items.some((item) => item.readAt === null) ? (
-        <DropdownMenuItem
-          disabled={actions.busy}
-          onSelect={(event) => {
-            event.preventDefault();
-            actions.markAll();
-          }}
-        >
-          <Icon name="check" />
-          {t('actions.markAllRead')}
-        </DropdownMenuItem>
-      ) : null}
-      <DropdownMenuSeparator />
+    <div className="flex flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h2 className="text-sm font-bold text-brand-ink">{t('panel.heading')}</h2>
+        {items.some((item) => item.readAt === null) ? (
+          <Button variant="link" size="sm" disabled={actions.busy} onClick={actions.markAll}>
+            {t('actions.markAllRead')}
+          </Button>
+        ) : null}
+      </div>
       {recent.isPending ? (
-        <DropdownMenuItem disabled aria-label={t('panel.loading')}>
-          <Skeleton className="h-8 w-full" />
-        </DropdownMenuItem>
+        <div role="status" aria-label={t('panel.loading')} className="flex flex-col gap-2 p-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
       ) : recent.isError ? (
         state(t('panel.failed'))
       ) : items.length === 0 ? (
         state(t('panel.empty'))
       ) : (
-        items.map((item) => (
-          <DropdownMenuItem key={item.id} asChild>
-            <Link
-              href={item.link ?? '/notificacoes'}
-              onClick={() => {
-                actions.open(item);
-              }}
-              className="flex items-start gap-3"
-            >
-              <Icon
-                name={notificationIcon(item.type)}
-                className={item.readAt === null ? 'mt-0.5 size-4 text-primary' : 'mt-0.5 size-4'}
-              />
-              <span className="flex min-w-0 flex-col">
-                <span className={item.readAt === null ? 'font-semibold' : 'text-muted-foreground'}>
-                  {item.title}
-                  {item.readAt === null ? (
-                    <span className="sr-only"> ({t('item.unread')})</span>
+        <ul aria-label={t('panel.heading')} className="flex flex-col py-1">
+          {items.map((item) => {
+            const unread = item.readAt === null;
+            return (
+              <li key={item.id}>
+                <Link
+                  href={item.link ?? '/notificacoes'}
+                  onClick={() => {
+                    actions.open(item);
+                    onNavigate();
+                  }}
+                  className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted focus-visible:bg-muted"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cx(
+                      'mt-0.5 grid size-8 flex-none place-items-center rounded-full',
+                      unread
+                        ? 'bg-primary-soft text-primary-soft-foreground'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    <Icon name={notificationIcon(item.type)} className="size-4" />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span
+                      className={cx(
+                        'text-sm',
+                        unread ? 'font-semibold text-foreground' : 'text-muted-foreground',
+                      )}
+                    >
+                      {item.title}
+                      {unread ? <span className="sr-only"> ({t('item.unread')})</span> : null}
+                    </span>
+                    <RelativeTime value={item.createdAt} />
+                  </span>
+                  {unread ? (
+                    <span
+                      aria-hidden="true"
+                      className="mt-2 size-2 flex-none rounded-full bg-primary"
+                    />
                   ) : null}
-                </span>
-                <RelativeTime value={item.createdAt} />
-              </span>
-            </Link>
-          </DropdownMenuItem>
-        ))
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       )}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem asChild>
-        <Link href="/notificacoes" className="justify-center font-medium">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-sm">
+        <Link
+          href="/notificacoes"
+          onClick={onNavigate}
+          className="font-semibold text-primary-soft-foreground underline-offset-2 hover:underline"
+        >
           {t('panel.seeAll')}
         </Link>
-      </DropdownMenuItem>
-      <DropdownMenuItem asChild>
-        <Link href="/perfil?aba=notificacoes" className="justify-center text-muted-foreground">
+        <Link
+          href="/perfil?aba=notificacoes"
+          onClick={onNavigate}
+          className="text-muted-foreground underline-offset-2 hover:underline"
+        >
           {t('panel.managePreferences')}
         </Link>
-      </DropdownMenuItem>
-    </>
+      </div>
+    </div>
   );
 }
 
 /**
- * `NotificationBell` (SCR-036): sininho global do cabeçalho com o contador de não lidas anunciado
- * por `aria-live="polite"`. A partir de 768 px abre o painel com as mais recentes; abaixo disso o
- * sininho leva direto à página cheia (`/notificacoes`).
+ * `NotificationBell` (SCR-036 · prd-5): sininho global do cabeçalho com o contador de não lidas
+ * anunciado por `aria-live="polite"`. A partir de 768 px abre um `Popover` com as 5 mais recentes
+ * (marcador nas não lidas) e o link para a página; abaixo disso leva direto a `/notificacoes`.
  */
 export function NotificationBell() {
   const t = useTranslations('notifications.bell');
@@ -168,10 +185,10 @@ export function NotificationBell() {
         <Icon name="bell" className="size-5 text-muted-foreground" />
         <Badge count={count} />
       </Link>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
+            <PopoverTrigger asChild>
               <Button
                 variant="secondary"
                 size="icon"
@@ -181,14 +198,20 @@ export function NotificationBell() {
                 <Icon name="bell" className="size-5 text-muted-foreground" />
                 <Badge count={count} />
               </Button>
-            </DropdownMenuTrigger>
+            </PopoverTrigger>
           </TooltipTrigger>
           <TooltipContent>{t('label')}</TooltipContent>
         </Tooltip>
-        <DropdownMenuContent className="w-96 max-w-[calc(100vw-2rem)]">
-          {open ? <NotificationPanel /> : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        <PopoverContent align="end" aria-label={t('panel')} className="w-96 p-0">
+          {open ? (
+            <NotificationPanel
+              onNavigate={() => {
+                setOpen(false);
+              }}
+            />
+          ) : null}
+        </PopoverContent>
+      </Popover>
     </>
   );
 }

@@ -3,10 +3,23 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import type { SupplierDocumentType, SupplierDto } from '@contrataflow/validation';
@@ -14,7 +27,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import type { UseFormRegisterReturn } from 'react-hook-form';
 
 import { isApiError } from '@/lib/api/api-error';
 import { newIdempotencyKey } from '@/lib/api/client';
@@ -39,7 +51,6 @@ import {
   updateSupplier,
 } from './suppliers.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 const FORM_FIELDS = new Set<string>(Object.keys(initialValues()));
 
 export interface SupplierFormDialogProps {
@@ -55,15 +66,14 @@ export interface SupplierFormDialogProps {
  * SUP-02 com `Idempotency-Key`; a edição envia só o que mudou, com `If-Match` — o documento é
  * imutável e fica bloqueado (FA-01); 412 oferece "Recarregar e reaplicar minhas alterações". Ao
  * sair do campo do documento confere o dígito verificador e consulta SUP-06 para avisar da
- * duplicidade. Foco no primeiro campo ao abrir; erros em `aria-live`; tela cheia abaixo de 768 px.
+ * duplicidade. Painel lateral do kit (`Sheet`, prd-5): cabeçalho e rodapé fixos, só o corpo rola;
+ * foco no primeiro campo ao abrir; tela cheia abaixo de 768 px.
  */
 export function SupplierFormDialog({ open, onOpenChange, supplier }: SupplierFormDialogProps) {
+  const t = useTranslations('suppliers');
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="h-dvh max-h-dvh overflow-y-auto md:h-auto md:max-h-[90vh]"
-        style={{ maxWidth: '44rem' }}
-      >
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
         <SupplierFormBody
           key={supplier?.id ?? 'novo'}
           supplier={supplier}
@@ -71,8 +81,8 @@ export function SupplierFormDialog({ open, onOpenChange, supplier }: SupplierFor
             onOpenChange(false);
           }}
         />
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -254,206 +264,182 @@ function SupplierFormBody({
   };
 
   const pending = create.isPending || update.isPending;
-  const fieldId = (name: string) => `${ids}-${name}`;
   const errorOf = (name: FormField) => errors[name]?.message;
-  const describe = (name: FormField, extra?: string) => {
-    const parts = [errorOf(name) ? `${fieldId(name)}-error` : undefined, extra].filter(Boolean);
-    return parts.length > 0 ? parts.join(' ') : undefined;
-  };
-
-  const errorText = (name: FormField) =>
-    errorOf(name) ? (
-      <p id={`${fieldId(name)}-error`} className="text-sm text-destructive" aria-live="polite">
-        {errorOf(name)}
-      </p>
-    ) : null;
 
   const text = (
-    name: FormField,
-    options: {
-      readonly registration?: UseFormRegisterReturn;
-      readonly hint?: string;
-      readonly className?: string;
-      readonly type?: string;
-    } = {},
+    name: Exclude<FormField, 'documentType' | 'documentNumber' | 'isActive' | 'notes'>,
+    options: { readonly hint?: string; readonly className?: string; readonly type?: string } = {},
   ) => (
-    <div className={`flex flex-col gap-1 ${options.className ?? ''}`}>
-      <label htmlFor={fieldId(name)} className="text-sm font-medium">
-        {t(`form.${name}`)}
-      </label>
-      <input
-        id={fieldId(name)}
-        type={options.type ?? 'text'}
-        aria-invalid={errorOf(name) ? true : undefined}
-        aria-describedby={describe(name, options.hint ? `${fieldId(name)}-hint` : undefined)}
-        className={INPUT}
-        {...(options.registration ?? register(name as 'legalName'))}
-      />
-      {options.hint ? (
-        <p id={`${fieldId(name)}-hint`} className="text-xs text-muted-foreground">
-          {options.hint}
-        </p>
-      ) : null}
-      {errorText(name)}
-    </div>
+    <Field
+      label={t(`form.${name}`)}
+      description={options.hint}
+      error={errorOf(name)}
+      className={options.className}
+    >
+      <Input type={options.type ?? 'text'} {...register(name)} />
+    </Field>
   );
 
   return (
-    <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
-      <DialogTitle>
-        {isEdit ? t('form.editTitle', { name: base.legalName }) : t('form.createTitle')}
-      </DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+    <form
+      noValidate
+      onSubmit={(event) => void onSubmit(event)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <SheetHeader>
+        <SheetTitle>
+          {isEdit ? t('form.editTitle', { name: base.legalName }) : t('form.createTitle')}
+        </SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      <div aria-live="polite" className="flex flex-col gap-2">
-        {formError ? <Alert tone="error" title={formError} /> : null}
-        {conflict ? (
-          <Alert tone="warning" title={t('conflict.title')}>
-            <p>{t('conflict.description')}</p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="mt-2"
-              onClick={() => void reapply()}
-            >
-              {t('conflict.reapply')}
-            </Button>
-          </Alert>
-        ) : null}
-        {duplicate ? (
-          <Alert tone="warning" title={t('duplicate.title', { name: duplicate.legalName })}>
-            {t('duplicate.description')}
-          </Alert>
-        ) : null}
-      </div>
+      <SheetBody>
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {formError ? <Alert tone="error" title={formError} /> : null}
+          {conflict ? (
+            <Alert tone="warning" title={t('conflict.title')}>
+              <p>{t('conflict.description')}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-2"
+                onClick={() => void reapply()}
+              >
+                {t('conflict.reapply')}
+              </Button>
+            </Alert>
+          ) : null}
+          {duplicate ? (
+            <Alert tone="warning" title={t('duplicate.title', { name: duplicate.legalName })}>
+              {t('duplicate.description')}
+            </Alert>
+          ) : null}
+        </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('documentType')} className="text-sm font-medium">
-            {t('form.documentType')}
-          </label>
-          <select
-            id={fieldId('documentType')}
-            disabled={isEdit}
-            aria-invalid={errorOf('documentType') ? true : undefined}
-            aria-describedby={describe('documentType')}
-            className={INPUT}
-            {...register('documentType', {
-              onChange: () => {
-                // Trocar o tipo descarta o número digitado (a máscara e o dígito mudam).
-                setValue('documentNumber', '');
-                clearErrors('documentNumber');
-                setDuplicate(null);
-              },
-            })}
+        <section className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('form.documentType')} error={errorOf('documentType')} disabled={isEdit}>
+            <Controller
+              control={control}
+              name="documentType"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  disabled={isEdit}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    // Trocar o tipo descarta o número digitado (a máscara e o dígito mudam).
+                    setValue('documentNumber', '');
+                    clearErrors('documentNumber');
+                    setDuplicate(null);
+                  }}
+                >
+                  <SelectTrigger ref={field.ref}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPLIER_DOCUMENT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {t(`documentTypes.${type}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+          <Field
+            label={t('form.documentNumber')}
+            description={isEdit ? t('form.documentLocked') : t(`form.documentHint.${documentType}`)}
+            error={errorOf('documentNumber')}
           >
-            {SUPPLIER_DOCUMENT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {t(`documentTypes.${type}`)}
-              </option>
-            ))}
-          </select>
-          {errorText('documentType')}
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('documentNumber')} className="text-sm font-medium">
-            {t('form.documentNumber')}
-          </label>
-          <Controller
-            control={control}
-            name="documentNumber"
-            render={({ field }) => (
-              <DocumentNumberInput
-                id={fieldId('documentNumber')}
-                documentType={documentType}
-                value={field.value}
-                onChange={(value) => {
-                  setDuplicate(null);
-                  field.onChange(value);
-                }}
-                readOnly={isEdit}
-                invalid={Boolean(errorOf('documentNumber'))}
-                describedBy={describe('documentNumber', `${fieldId('documentNumber')}-hint`)}
-                onComplete={(value) => void checkDocument(documentType, value)}
-                onIncomplete={() => {
-                  setDuplicate(null);
-                  clearErrors('documentNumber');
-                }}
-              />
-            )}
-          />
-          <p id={`${fieldId('documentNumber')}-hint`} className="text-xs text-muted-foreground">
-            {isEdit ? t('form.documentLocked') : t(`form.documentHint.${documentType}`)}
-          </p>
-          {errorText('documentNumber')}
-        </div>
-        {text('legalName', { className: 'sm:col-span-2' })}
-        {text('tradeName', { className: 'sm:col-span-2' })}
-        {isEdit ? (
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <div className="flex items-center gap-2">
-              <input
-                id={fieldId('isActive')}
-                type="checkbox"
-                className="size-4"
-                aria-describedby={describe('isActive', `${fieldId('isActive')}-hint`)}
-                {...register('isActive')}
-              />
-              <label htmlFor={fieldId('isActive')} className="text-sm font-medium">
-                {t('form.isActive')}
-              </label>
+            <Controller
+              control={control}
+              name="documentNumber"
+              render={({ field }) => (
+                <DocumentNumberInput
+                  documentType={documentType}
+                  value={field.value}
+                  onChange={(value) => {
+                    setDuplicate(null);
+                    field.onChange(value);
+                  }}
+                  readOnly={isEdit}
+                  onComplete={(value) => void checkDocument(documentType, value)}
+                  onIncomplete={() => {
+                    setDuplicate(null);
+                    clearErrors('documentNumber');
+                  }}
+                />
+              )}
+            />
+          </Field>
+          {text('legalName', { className: 'sm:col-span-2' })}
+          {text('tradeName', { className: 'sm:col-span-2' })}
+          {isEdit ? (
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <div className="flex items-center gap-2.5">
+                <Controller
+                  control={control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <Checkbox
+                      id={`${ids}-isActive`}
+                      ref={field.ref}
+                      checked={field.value}
+                      aria-describedby={`${ids}-isActive-hint`}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                      }}
+                    />
+                  )}
+                />
+                <Label htmlFor={`${ids}-isActive`}>{t('form.isActive')}</Label>
+              </div>
+              <p id={`${ids}-isActive-hint`} className="text-[0.8125rem] text-muted-foreground">
+                {t('form.isActiveHint')}
+              </p>
+              {errorOf('isActive') ? (
+                <p className="text-[0.8125rem] font-semibold text-destructive">
+                  {errorOf('isActive')}
+                </p>
+              ) : null}
             </div>
-            <p id={`${fieldId('isActive')}-hint`} className="text-xs text-muted-foreground">
-              {t('form.isActiveHint')}
-            </p>
-            {errorText('isActive')}
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </section>
 
-      <fieldset className="grid gap-3 sm:grid-cols-2">
-        <legend className="mb-1 text-sm font-semibold">{t('form.contact')}</legend>
-        {text('email', { type: 'email' })}
-        {text('phone')}
-        {text('website', { hint: t('form.websiteHint') })}
-        {text('contactName')}
-      </fieldset>
+        <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-2">
+          <legend className="mb-3 text-sm font-bold text-brand-ink">{t('form.contact')}</legend>
+          {text('email', { type: 'email' })}
+          {text('phone')}
+          {text('website', { hint: t('form.websiteHint') })}
+          {text('contactName')}
+        </fieldset>
 
-      <fieldset className="grid gap-3 sm:grid-cols-6">
-        <legend className="mb-1 text-sm font-semibold">{t('form.address')}</legend>
-        {text('addressStreet', { className: 'sm:col-span-4' })}
-        {text('addressNumber', { className: 'sm:col-span-2' })}
-        {text('addressComplement', { className: 'sm:col-span-3' })}
-        {text('addressDistrict', { className: 'sm:col-span-3' })}
-        {text('addressCity', { className: 'sm:col-span-3' })}
-        {text('addressState', { className: 'sm:col-span-1' })}
-        {text('addressZipCode', { className: 'sm:col-span-2' })}
-      </fieldset>
+        <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-6">
+          <legend className="mb-3 text-sm font-bold text-brand-ink">{t('form.address')}</legend>
+          {text('addressStreet', { className: 'sm:col-span-4' })}
+          {text('addressNumber', { className: 'sm:col-span-2' })}
+          {text('addressComplement', { className: 'sm:col-span-3' })}
+          {text('addressDistrict', { className: 'sm:col-span-3' })}
+          {text('addressCity', { className: 'sm:col-span-3' })}
+          {text('addressState', { className: 'sm:col-span-1' })}
+          {text('addressZipCode', { className: 'sm:col-span-2' })}
+        </fieldset>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('notes')} className="text-sm font-medium">
-          {t('form.notes')}
-        </label>
-        <textarea
-          id={fieldId('notes')}
-          rows={3}
-          aria-invalid={errorOf('notes') ? true : undefined}
-          aria-describedby={describe('notes')}
-          className="rounded-control border border-border bg-surface px-3 py-2 text-sm"
-          {...register('notes')}
-        />
-        {errorText('notes')}
-      </div>
+        <Field label={t('form.notes')} error={errorOf('notes')}>
+          <Textarea rows={3} {...register('notes')} />
+        </Field>
+      </SheetBody>
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <SheetFooter>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('form.cancel')}
         </Button>
         <Button type="submit" aria-busy={pending} disabled={pending}>
           {pending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

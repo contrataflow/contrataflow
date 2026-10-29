@@ -2,7 +2,6 @@
   "title": "Fornecedores",
   "description": "Mantenha um cadastro único dos fornecedores da instituição. Os mesmos fornecedores são reutilizados nas pesquisas de preços, sem redigitar nem duplicar dados a cada contratação.",
   "list": {
-    "title": "Fornecedores cadastrados",
     "new": "Novo fornecedor",
     "loading": "Carregando os fornecedores…",
     "loadFailed": "Não foi possível carregar os fornecedores.",
@@ -14,7 +13,8 @@
     "pager": "Páginas de fornecedores",
     "previous": "Anterior",
     "next": "Próxima",
-    "pageOf": "Página {page} de {total}"
+    "pageOf": "Página {page} de {total}",
+    "count": "{count, plural, =0 {Nenhum fornecedor} one {# fornecedor} other {# fornecedores}}"
   },
   "filters": {
     "search": "Buscar",
@@ -22,15 +22,19 @@
     "status": "Situação",
     "all": "Todos",
     "active": "Ativos",
-    "inactive": "Inativos"
+    "inactive": "Inativos",
+    "searchPlaceholder": "Buscar fornecedor",
+    "chip": "Situação: {value}",
+    "removeChip": "Remover o filtro Situação: {value}",
+    "clear": "Limpar busca e filtros"
   },
   "table": {
     "caption": "Fornecedores da instituição",
-    "legalName": "Razão social / Nome",
-    "document": "Documento",
+    "legalName": "Razão social / Documento",
     "contact": "Contato",
     "status": "Situação",
-    "actions": "Ações"
+    "actions": "Ações",
+    "updated": "Atualizado em"
   },
   "badges": {
     "active": "Ativo",
@@ -42,14 +46,11 @@
     "FOREIGN": "Estrangeiro"
   },
   "actions": {
-    "edit": "Editar {name}",
     "editLabel": "Editar",
-    "deactivate": "Inativar {name}",
     "deactivateLabel": "Inativar",
-    "reactivate": "Reativar {name}",
     "reactivateLabel": "Reativar",
-    "delete": "Excluir {name}",
-    "deleteLabel": "Excluir"
+    "deleteLabel": "Excluir",
+    "menu": "Ações de {name}"
   },
   "form": {
     "createTitle": "Novo fornecedor",
@@ -84,7 +85,8 @@
     "notes": "Observações",
     "cancel": "Cancelar",
     "submit": "Salvar",
-    "submitting": "Salvando…"
+    "submitting": "Salvando…",
+    "close": "Fechar"
   },
   "validation": {
     "required": "Informe o campo {field}.",

@@ -123,20 +123,19 @@ describe('NotificationBell (SCR-036 · sininho global)', () => {
     expect(await seriousA11yViolations()).toEqual([]);
 
     await userEvent.click(nth(bells, 0));
-    const menu = await screen.findByRole('menu');
+    // Popover (prd-5) com as 5 mais recentes; a não lida é anunciada como tal.
+    const panel = await screen.findByRole('dialog', { name: 'Notificações recentes' });
+    const unread = await within(panel).findByRole('link', { name: /Processo devolvido para você/ });
+    expect(unread.textContent).toContain('(Não lida)');
+    expect(within(panel).getByRole('link', { name: /Aprovação concluída/ })).toBeTruthy();
     expect(
-      await within(menu).findByRole('menuitem', { name: /Processo devolvido para você/ }),
-    ).toBeTruthy();
-    expect(within(menu).getByRole('menuitem', { name: /Aprovação concluída/ })).toBeTruthy();
-    expect(
-      within(menu)
-        .getByRole('menuitem', { name: 'Ver todas as notificações' })
-        .getAttribute('href'),
+      within(panel).getByRole('link', { name: 'Ver todas as notificações' }).getAttribute('href'),
     ).toBe('/notificacoes');
     // US-113: atalho para a aba de preferências do perfil.
     expect(
-      within(menu).getByRole('menuitem', { name: 'Gerenciar preferências' }).getAttribute('href'),
+      within(panel).getByRole('link', { name: 'Gerenciar preferências' }).getAttribute('href'),
     ).toBe('/perfil?aba=notificacoes');
+    expect(within(panel).getByRole('button', { name: 'Marcar todas como lidas' })).toBeTruthy();
     expect(calls(api, 'GET', '/api/v1/notifications?')).toEqual(['/api/v1/notifications?limit=5']);
     expect(await seriousA11yViolations()).toEqual([]);
   });
@@ -183,9 +182,13 @@ describe('NotificationList (SCR-036 · /notificacoes)', () => {
         jsonResponse({ data: [naoLida, agrupada], meta: { nextCursor: null, hasMore: false } }),
     });
     renderWithShell(<NotificationList />);
-    expect(screen.getByRole('status', { name: 'Carregando notificações…' })).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('Carregando notificações…');
     const list = await screen.findByRole('list', { name: 'Notificações' });
-    const items = within(list).getAllByRole('listitem');
+    // Agrupada por dia: as duas são de hoje, num grupo só.
+    expect(within(list).getByRole('heading', { name: 'Hoje' })).toBeTruthy();
+    const items = within(list)
+      .getAllByRole('listitem')
+      .filter((item) => item.parentElement !== list);
     expect(items).toHaveLength(2);
     expect(within(nth(items, 0)).getByText('Não lida')).toBeTruthy();
     expect(
@@ -214,13 +217,13 @@ describe('NotificationList (SCR-036 · /notificacoes)', () => {
     await screen.findByRole('link', { name: 'Segunda' });
     expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Não lidas' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Não lidas' }));
     await waitFor(() => {
       expect(calls(api, 'GET', '/api/v1/notifications?')).toContain(
         '/api/v1/notifications?limit=20&unreadOnly=true',
       );
     });
-    expect(screen.getByRole('button', { name: 'Não lidas' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('tab', { name: 'Não lidas' }).getAttribute('aria-selected')).toBe(
       'true',
     );
   });

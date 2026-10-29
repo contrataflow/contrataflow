@@ -23,13 +23,6 @@ const NOT_MIGRATED: Readonly<Record<string, string>> = {
   'risks/risk-filter-bar.tsx': 'card 6',
   'risks/risk-form-drawer.tsx': 'card 6',
   'risks/treatment-status-select.tsx': 'card 6',
-  // Card 7 — fornecedores, auditoria, notificações e perfil.
-  'audit/audit-export-dialog.tsx': 'card 7',
-  'audit/audit-filters-panel.tsx': 'card 7',
-  'audit/seal-list.tsx': 'card 7',
-  'profile/profile-view.tsx': 'card 7',
-  'suppliers/supplier-form-dialog.tsx': 'card 7',
-  'suppliers/suppliers-view.tsx': 'card 7',
   // Card 8 — administração A.
   'calendar/calendar-view.tsx': 'card 8',
   'calendar/holiday-form-dialog.tsx': 'card 8',

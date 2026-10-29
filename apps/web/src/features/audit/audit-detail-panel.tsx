@@ -3,10 +3,12 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogDescription,
-  DialogTitle,
+  Sheet,
+  SheetBody,
   SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
   Skeleton,
 } from '@contrataflow/ui';
 import type { AuditLogDto } from '@contrataflow/validation';
@@ -110,21 +112,22 @@ export function AuditDetailPanel({
   const metadataEntries = data ? Object.entries(data.metadata) : [];
 
   return (
-    <Dialog
+    <Sheet
       open={record !== null}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <SheetContent closeLabel={t('close')} className="overflow-y-auto">
-        <div className="flex flex-col gap-4 p-6 pr-12">
-          <DialogTitle className="text-lg font-semibold">{t('title')}</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
+      <SheetContent closeLabel={t('close')}>
+        <SheetHeader>
+          <SheetTitle>{t('title')}</SheetTitle>
+          <SheetDescription>
             {record
               ? `${actionLabel(record.action)} · ${formatDateTime(record.occurredAt, timeZone)}`
               : ''}
-          </DialogDescription>
-
+          </SheetDescription>
+        </SheetHeader>
+        <SheetBody className="gap-4">
           {detail.isPending && id !== null ? (
             <div role="status" className="flex flex-col gap-2">
               <span className="sr-only">{t('loading')}</span>
@@ -343,8 +346,8 @@ export function AuditDetailPanel({
               </section>
             </>
           ) : null}
-        </div>
+        </SheetBody>
       </SheetContent>
-    </Dialog>
+    </Sheet>
   );
 }

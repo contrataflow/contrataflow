@@ -62,7 +62,8 @@ export interface NotificationItemProps {
 
 /**
  * `NotificationItem` (SCR-036): ícone por tipo, título, corpo, tempo relativo e estado lido/não
- * lido (não lido em destaque, lido atenuado — o estado também vai em texto, não só na cor).
+ * lido (não lido com marcador e em destaque, lido atenuado — o estado também vai em texto, não só
+ * na cor).
  * O link leva ao recurso; se ele não existir mais, a tela de destino mostra o próprio 404 (FA-05).
  */
 export function NotificationItem({
@@ -90,15 +91,20 @@ export function NotificationItem({
   return (
     <li
       className={cx(
-        'flex gap-3 border-b border-border px-4 py-3 last:border-b-0',
-        unread ? 'bg-surface' : 'bg-muted/40 text-muted-foreground',
+        'relative flex gap-3 border-b border-border px-5 py-4 last:border-b-0',
+        unread ? undefined : 'text-muted-foreground',
       )}
     >
+      {unread ? (
+        <span aria-hidden="true" className="absolute top-6 left-2 size-2 rounded-full bg-primary" />
+      ) : null}
       <span
         aria-hidden="true"
         className={cx(
-          'mt-0.5 grid size-8 flex-none place-items-center rounded-full',
-          unread ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+          'mt-0.5 grid size-9 flex-none place-items-center rounded-full',
+          unread
+            ? 'bg-primary-soft text-primary-soft-foreground'
+            : 'bg-muted text-muted-foreground',
         )}
       >
         <Icon name={notificationIcon(notification.type)} className="size-4" />
@@ -106,7 +112,12 @@ export function NotificationItem({
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           {heading}
-          <span className={cx('text-xs', unread ? 'font-semibold text-primary' : 'sr-only')}>
+          <span
+            className={cx(
+              'text-xs',
+              unread ? 'font-semibold text-primary-soft-foreground' : 'sr-only',
+            )}
+          >
             {unread ? t('item.unread') : t('item.read')}
           </span>
         </div>

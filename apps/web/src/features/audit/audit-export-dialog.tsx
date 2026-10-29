@@ -8,6 +8,10 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
 } from '@contrataflow/ui';
 import { AUDIT_EXPORT_FORMATS } from '@contrataflow/validation';
 import type { AuditExportFormat } from '@contrataflow/validation';
@@ -55,24 +59,23 @@ export function AuditExportDialog({
             onExport(format);
           }}
         >
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm font-medium">{t('format')}</legend>
-            {AUDIT_EXPORT_FORMATS.map((option) => (
-              <label key={option} className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name={`${id}-format`}
-                  className="size-4"
-                  value={option}
-                  checked={format === option}
-                  onChange={() => {
-                    setFormat(option);
-                  }}
-                />
-                {t(option)}
-              </label>
-            ))}
-          </fieldset>
+          <Field label={t('format')} group>
+            <RadioGroup
+              value={format}
+              onValueChange={(value) => {
+                setFormat(value as AuditExportFormat);
+              }}
+            >
+              {AUDIT_EXPORT_FORMATS.map((option) => (
+                <div key={option} className="flex items-center gap-2.5">
+                  <RadioGroupItem id={`${id}-format-${option}`} value={option} />
+                  <Label htmlFor={`${id}-format-${option}`} className="font-normal">
+                    {t(option)}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
 
           {failure?.kind === 'tooLarge' ? (
             <Alert tone="error" title={failure.message}>

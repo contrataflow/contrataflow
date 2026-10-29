@@ -5,8 +5,10 @@
   "loadFailed": "Não foi possível carregar seu perfil.",
   "tabs": {
     "label": "Seções do perfil",
-    "general": "Dados e preferências",
-    "notifications": "Notificações"
+    "notifications": "Notificações",
+    "data": "Dados",
+    "preferences": "Preferências",
+    "security": "Segurança"
   },
   "retry": "Tentar novamente",
   "sections": {
@@ -40,7 +42,8 @@
       "system": "Seguir o sistema",
       "light": "Claro",
       "dark": "Escuro"
-    }
+    },
+    "description": "Valem para você em todas as telas desta instituição."
   },
   "security": {
     "description": "Senha e autenticação em duas etapas são gerenciadas no Authentik e abrem em uma nova aba.",

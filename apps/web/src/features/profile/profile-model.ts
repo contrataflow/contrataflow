@@ -13,16 +13,22 @@ import type { MyProfileDto, UpdateMyProfile } from '@contrataflow/validation';
  */
 
 /**
- * Abas de SCR-039; `/perfil?aba=notificacoes` abre a segunda (atalho do sininho — US-113).
- * Fica aqui, fora do módulo `'use client'` da tela, porque a página (componente de servidor) resolve
- * a aba inicial a partir do `searchParams`.
+ * Seções de SCR-039 (`SettingsPage` — prd-5); `/perfil?aba=notificacoes` abre as preferências de
+ * notificação (atalho do sininho — US-113). Fica aqui, fora do módulo `'use client'` da tela,
+ * porque a página (componente de servidor) resolve a seção inicial a partir do `searchParams`.
  */
-export const PROFILE_TABS = ['general', 'notifications'] as const;
+export const PROFILE_TABS = ['data', 'preferences', 'notifications', 'security'] as const;
 export type ProfileTab = (typeof PROFILE_TABS)[number];
 
-/** Valor de `?aba=` → aba; qualquer outro valor cai na primeira. */
+const TAB_OF_PARAM: Readonly<Record<string, ProfileTab>> = {
+  preferencias: 'preferences',
+  notificacoes: 'notifications',
+  seguranca: 'security',
+};
+
+/** Valor de `?aba=` → seção; qualquer outro valor cai na primeira ("Dados"). */
 export function profileTabFromParam(param: string | undefined): ProfileTab {
-  return param === 'notificacoes' ? 'notifications' : 'general';
+  return (param === undefined ? undefined : TAB_OF_PARAM[param]) ?? 'data';
 }
 
 export interface ProfileDraft {

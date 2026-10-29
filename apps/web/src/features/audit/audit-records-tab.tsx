@@ -1,20 +1,32 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import type { AuditCategory, AuditResult } from '@contrataflow/types';
+import {
+  Alert,
+  Button,
+  Download,
+  EmptyState,
+  FilterToolbar,
+  History,
+  ListPage,
+  toast,
+} from '@contrataflow/ui';
+import type { FilterToolbarChip } from '@contrataflow/ui';
 import type { AuditExportFormat, AuditLogDto } from '@contrataflow/validation';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import { isApiError } from '@/lib/api/api-error';
+import { formatDate } from '@/lib/i18n/format';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useShellSession } from '@/lib/session/session-context';
 
 import { AuditDetailPanel } from './audit-detail-panel';
 import type { AuditQuickFilter } from './audit-detail-panel';
 import { AuditExportDialog } from './audit-export-dialog';
-import { AuditFiltersPanel } from './audit-filters-panel';
+import { AUDIT_PERIOD_FIELD_ID, AuditFiltersPanel } from './audit-filters-panel';
 import {
   actorOptions,
   classifyAuditError,
@@ -29,7 +41,8 @@ import {
   exportAuditLogs,
   fetchAuditLogs,
 } from './audit-logs.api';
-import { AuditResultsTable } from './audit-results-table';
+import { AuditResultsTable, useActionLabel } from './audit-results-table';
+import { isoToLocalInput } from './seal-model';
 
 /**
  * Exportação pendente durante o step-up de MFA (FA-04): o 403 `MFA_REQUIRED` leva ao step-up
@@ -78,13 +91,22 @@ function inputOfQuery(base: AuditFilterInput, query: AuditQuery): AuditFilterInp
 }
 
 /**
- * Aba "Registros" de SCR-037 (US-075): `AuditFiltersPanel` + `AuditResultsTable` (AUD-01 por
- * cursor) + `AuditDetailPanel` (AUD-02) + `ExportDialog` (AUD-03, só com `AUDIT_EXPORT`). Período
- * padrão: últimos 7 dias. Estados: skeleton, vazio (FA-01), erro com "Tentar novamente" e o
- * `correlationId`, carregando mais. O botão "Exportar" usa os filtros da última pesquisa.
+ * Aba "Registros" de SCR-037 (US-075) no `ListPage` (prd-5): barra com "Filtros" (painel lateral
+ * `AuditFiltersPanel`) e os chips do que está aplicado, `AuditResultsTable` (AUD-01 por cursor),
+ * `AuditDetailPanel` (AUD-02) e `ExportDialog` (AUD-03, só com `AUDIT_EXPORT`, no cabeçalho).
+ * Período padrão: últimos 7 dias. Estados: skeleton, vazio (FA-01), erro com "Tentar novamente" e
+ * o `correlationId`, carregando mais. "Exportar" usa os filtros da última pesquisa.
  */
-export function AuditRecordsTab() {
+export function AuditRecordsTab({
+  actionsSlot,
+}: {
+  /** Espaço de ações do cabeçalho da página, onde entra o "Exportar". */
+  readonly actionsSlot: HTMLElement | null;
+}) {
   const t = useTranslations('audit.records');
+  const tCategories = useTranslations('audit.categories');
+  const tResults = useTranslations('audit.results');
+  const actionLabel = useActionLabel();
   const session = useShellSession();
   const tenantId = session.activeTenant.id;
   const timeZone = session.activeTenant.timezone;
@@ -112,7 +134,14 @@ export function AuditRecordsTab() {
   const [knownActors, setKnownActors] = useState<readonly AuditLogDto[]>([]);
   /** O painel mudou depois da última pesquisa: o 422 da API deixa de valer para o campo. */
   const [inputDirty, setInputDirty] = useState(false);
-  const periodRef = useRef<HTMLInputElement | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  /** Período recusado (V-01/V-02): abre o painel e foca o seletor de datas. */
+  const focusPeriod = useCallback(() => {
+    setFiltersOpen(true);
+    // O painel monta o conteúdo ao abrir: o foco vai depois da renderização.
+    setTimeout(() => document.getElementById(AUDIT_PERIOD_FIELD_ID)?.focus(), 0);
+  }, []);
 
   const feed = useInfiniteQuery({
     queryKey: auditLogKeys.list(tenantId, applied ?? {}),
@@ -124,7 +153,7 @@ export function AuditRecordsTab() {
       } catch (error) {
         // 422 sobre o período (V-01/V-02): foca o seletor de datas.
         if (classifyAuditError(error).kind === 'validation') {
-          queueMicrotask(() => periodRef.current?.focus());
+          queueMicrotask(focusPeriod);
         }
         throw error;
       }
@@ -148,7 +177,6 @@ export function AuditRecordsTab() {
       ? { to: feedFailure.message }
       : errors;
 
-  // 422 da API sobre o período (V-01/V-02): mostra no campo e foca o seletor de datas.
   const exporter = useMutation({
     mutationFn: ({ query, format }: { query: AuditQuery; format: AuditExportFormat }) =>
       exportAuditLogs(query, format),
@@ -181,20 +209,45 @@ export function AuditRecordsTab() {
     runExport(pending.query, pending.format);
   }, [pending, runExport]);
 
-  const search = () => {
-    setNotice(null);
-    const validation = validateAuditFilters(input, timeZone, messages);
+  const apply = (next: AuditFilterInput): boolean => {
+    const validation = validateAuditFilters(next, timeZone, messages);
     if (!validation.ok) {
       setErrors(validation.errors);
       if (validation.errors.from !== undefined || validation.errors.to !== undefined) {
-        periodRef.current?.focus();
+        focusPeriod();
+      } else {
+        setFiltersOpen(true);
       }
-      return;
+      return false;
     }
     setErrors({});
     setInputDirty(false);
     setApplied(validation.query);
     if (JSON.stringify(validation.query) === JSON.stringify(applied)) void feed.refetch();
+    return true;
+  };
+
+  const search = () => {
+    setNotice(null);
+    if (apply(input)) setFiltersOpen(false);
+  };
+
+  /** Remove um filtro aplicado (chip): parte do que está na tela, não do painel em edição. */
+  const removeFilter = (patch: Partial<AuditFilterInput>) => {
+    const base =
+      applied === null
+        ? input
+        : inputOfQuery(
+            {
+              ...initial,
+              from: isoToLocalInput(applied.occurredFrom ?? '', timeZone),
+              to: isoToLocalInput(applied.occurredTo ?? '', timeZone),
+            },
+            applied,
+          );
+    const next = { ...base, ...patch };
+    setInput(next);
+    apply(next);
   };
 
   const applyQuickFilter = (filter: AuditQuickFilter) => {
@@ -218,18 +271,30 @@ export function AuditRecordsTab() {
     setNotice(t('detail.notFound'));
   }, [t]);
 
-  let body: ReactNode = null;
-  if (applied !== null && feed.isPending) {
-    body = (
-      <div role="status" className="flex flex-col gap-2">
-        <span className="sr-only">{t('table.loading')}</span>
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
-  } else if (feedFailure !== null && feedFailure.kind !== 'validation' && records.length === 0) {
-    body = (
+  const chips = appliedChips(applied, {
+    initial: validateAuditFilters(initial, timeZone, messages),
+    timeZone,
+    actorName: (id) => actors.find((actor) => actor.id === id)?.name ?? id,
+    actionLabel,
+    categoryLabel: (category) => tCategories(category),
+    resultLabel: (result) => tResults(result),
+    label: (key, value) => t(`chips.${key}`, { value }),
+    removeLabel: (key, value) => t('chips.remove', { filter: t(`chips.${key}`, { value }) }),
+    onRemove: (key) => {
+      removeFilter(CHIP_RESET[key](initial));
+    },
+  });
+
+  const period =
+    applied?.occurredFrom === undefined || applied.occurredTo === undefined
+      ? null
+      : t('table.period', {
+          from: formatDate(applied.occurredFrom, timeZone),
+          to: formatDate(applied.occurredTo, timeZone),
+        });
+
+  const failureAlert =
+    feedFailure !== null && feedFailure.kind !== 'validation' && records.length === 0 ? (
       <Alert
         tone="error"
         title={
@@ -256,48 +321,83 @@ export function AuditRecordsTab() {
           {t('errors.retry')}
         </Button>
       </Alert>
-    );
-  } else if (feed.data && records.length === 0) {
-    body = (
-      <div className="rounded-card border border-dashed border-border p-6 text-center">
-        <p className="font-medium">{t('table.empty')}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{t('table.emptyHint')}</p>
-      </div>
-    );
-  } else if (records.length > 0) {
-    body = (
-      <AuditResultsTable
-        records={records}
-        timeZone={timeZone}
-        onOpen={setSelected}
-        hasMore={feed.hasNextPage}
-        loadingMore={feed.isFetchingNextPage}
-        onLoadMore={() => {
-          void feed.fetchNextPage();
-        }}
-        busy={feed.isFetching}
-      />
-    );
-  }
+    ) : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-3xl text-sm text-muted-foreground">{t('description')}</p>
-        {canExport ? (
-          <Button
-            variant="secondary"
-            disabled={applied === null || exporter.isPending}
-            onClick={() => {
-              exporter.reset();
-              setExportOpen(true);
-            }}
-          >
-            {exporter.isPending ? t('export.exporting') : t('export.button')}
-          </Button>
-        ) : null}
-      </div>
+    <ListPage
+      header={
+        canExport && actionsSlot !== null
+          ? createPortal(
+              <Button
+                variant="secondary"
+                iconLeft={<Download />}
+                disabled={applied === null || exporter.isPending}
+                onClick={() => {
+                  exporter.reset();
+                  setExportOpen(true);
+                }}
+              >
+                {exporter.isPending ? t('export.exporting') : t('export.button')}
+              </Button>,
+              actionsSlot,
+            )
+          : null
+      }
+      toolbar={
+        <FilterToolbar
+          onOpenFilters={() => {
+            setFiltersOpen(true);
+          }}
+          activeCount={chips.length}
+          chips={chips}
+          onClearAll={() => {
+            setInput(initial);
+            apply(initial);
+          }}
+          labels={{ clearAll: t('filters.clear') }}
+        />
+      }
+      notices={notice ? <Alert tone="info" title={notice} /> : null}
+      loading={applied !== null && feed.isPending}
+      loadingLabel={t('table.loading')}
+      error={failureAlert}
+      empty={
+        feed.data && records.length === 0 && failureAlert === null ? (
+          <EmptyState
+            icon={<History />}
+            title={t('table.empty')}
+            description={t('table.emptyHint')}
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setFiltersOpen(true);
+                }}
+              >
+                {t('table.adjust')}
+              </Button>
+            }
+          />
+        ) : null
+      }
+    >
+      {records.length > 0 ? (
+        <AuditResultsTable
+          records={records}
+          timeZone={timeZone}
+          onOpen={setSelected}
+          hasMore={feed.hasNextPage}
+          loadingMore={feed.isFetchingNextPage}
+          onLoadMore={() => {
+            void feed.fetchNextPage();
+          }}
+          busy={feed.isFetching}
+          period={period}
+        />
+      ) : null}
       <AuditFiltersPanel
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
         value={input}
         onChange={(next) => {
           setInput(next);
@@ -313,10 +413,7 @@ export function AuditRecordsTab() {
         errors={fieldErrors}
         actors={actors}
         pending={feed.isFetching && !feed.isFetchingNextPage}
-        periodRef={periodRef}
       />
-      {notice ? <Alert tone="info" title={notice} /> : null}
-      {body}
       <AuditDetailPanel
         record={selected}
         timeZone={timeZone}
@@ -337,6 +434,83 @@ export function AuditRecordsTab() {
           }}
         />
       ) : null}
-    </div>
+    </ListPage>
   );
+}
+
+type ChipKey =
+  'period' | 'action' | 'category' | 'result' | 'actor' | 'entityType' | 'entityId' | 'process';
+
+/** O que cada chip zera no painel ao ser removido (o período volta ao padrão de 7 dias). */
+const CHIP_RESET: Readonly<
+  Record<ChipKey, (initial: AuditFilterInput) => Partial<AuditFilterInput>>
+> = {
+  period: (initial) => ({ from: initial.from, to: initial.to }),
+  action: () => ({ actions: [] }),
+  category: () => ({ category: '' }),
+  result: () => ({ result: '' }),
+  actor: () => ({ actorUserId: '' }),
+  entityType: () => ({ entityType: '' }),
+  entityId: () => ({ entityId: '' }),
+  process: () => ({ processId: '' }),
+};
+
+/** Chips dos filtros aplicados (prd-5 · regra 2); o período só aparece quando sai do padrão. */
+function appliedChips(
+  applied: AuditQuery | null,
+  options: {
+    readonly initial: ReturnType<typeof validateAuditFilters>;
+    readonly timeZone: string;
+    readonly actorName: (id: string) => string;
+    readonly actionLabel: (action: string) => string;
+    readonly categoryLabel: (category: AuditCategory) => string;
+    readonly resultLabel: (result: AuditResult) => string;
+    readonly label: (key: ChipKey, value: string) => string;
+    readonly removeLabel: (key: ChipKey, value: string) => string;
+    readonly onRemove: (key: ChipKey) => void;
+  },
+): FilterToolbarChip[] {
+  if (applied === null) return [];
+  const entries: [ChipKey, string | undefined][] = [];
+  const initial = options.initial.ok ? options.initial.query : null;
+  if (
+    applied.occurredFrom !== undefined &&
+    applied.occurredTo !== undefined &&
+    (applied.occurredFrom !== initial?.occurredFrom || applied.occurredTo !== initial.occurredTo)
+  ) {
+    entries.push([
+      'period',
+      `${formatDate(applied.occurredFrom, options.timeZone)} – ${formatDate(applied.occurredTo, options.timeZone)}`,
+    ]);
+  }
+  entries.push(
+    ['action', applied.action?.split(',').map(options.actionLabel).join(', ')],
+    [
+      'category',
+      applied.category === undefined
+        ? undefined
+        : options.categoryLabel(applied.category as AuditCategory),
+    ],
+    [
+      'result',
+      applied.result === undefined ? undefined : options.resultLabel(applied.result as AuditResult),
+    ],
+    [
+      'actor',
+      applied.actorUserId === undefined ? undefined : options.actorName(applied.actorUserId),
+    ],
+    ['entityType', applied.entityType],
+    ['entityId', applied.entityId],
+    ['process', applied.processId],
+  );
+  return entries
+    .filter((entry): entry is [ChipKey, string] => entry[1] !== undefined)
+    .map(([key, value]) => ({
+      id: key,
+      label: options.label(key, value),
+      removeLabel: options.removeLabel(key, value),
+      onRemove: () => {
+        options.onRemove(key);
+      },
+    }));
 }
