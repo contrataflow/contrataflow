@@ -5,9 +5,8 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { ApprovalPolicyValidator } from './approval-policy.validator.js';
-import { AccessFacade } from '../../access/application/access.facade.js';
+import { AccessFacade, rolesGrant } from '../../access/application/access.facade.js';
 import type { RoleForApproval } from '../../access/application/access.facade.js';
-import { rolesGrant } from '../../access/domain/permission-grants.js';
 import type { IdentityFacade, TenantMember } from '../../identity/application/identity.facade.js';
 import type {
   OrganizationFacade,

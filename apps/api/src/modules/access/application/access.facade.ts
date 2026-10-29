@@ -25,6 +25,8 @@ import type { Role } from '../domain/role.js';
 
 export type { ConfidentialBudgetAccess } from './authorization.service.js';
 export type { RequestingUnits, RoleCompetence } from '../domain/approval-competence.js';
+// Reexportado pela fachada: outro módulo não importa o domínio do `access` direto (DEC-041).
+export { rolesGrant } from '../domain/permission-grants.js';
 
 /** Perfis padrão atribuídos com escopo `TENANT` (permissions.md §3.1). */
 const TENANT_WIDE_ROLE_KEYS: ReadonlySet<string> = new Set(
