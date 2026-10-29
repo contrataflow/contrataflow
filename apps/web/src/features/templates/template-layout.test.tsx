@@ -131,6 +131,18 @@ const callsTo = (api: ReturnType<typeof mockApi>, method: string, part = '') =>
     ([input, init]) => (init?.method ?? 'GET') === method && requestUrl(input).includes(part),
   );
 
+/** Escolhe a opção de um `Select` do kit (Radix): abre o combobox pelo nome e clica na opção. */
+async function choose(field: string, option: string) {
+  await userEvent.click(screen.getByRole('combobox', { name: field }));
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Abre o painel lateral da prévia em PDF. */
+async function openPreview() {
+  await userEvent.click(screen.getByRole('button', { name: 'Ver prévia em PDF' }));
+  return screen.findByRole('dialog', { name: 'Prévia em PDF' });
+}
+
 async function openLayout() {
   renderWithShell(<TemplateEditorView versionId={VERSION_ID} />);
   await userEvent.click(await screen.findByRole('tab', { name: 'Layout' }));
@@ -204,7 +216,7 @@ describe('SCR-114 · aba Layout (US-109)', () => {
     const top = await openLayout();
     expect(await seriousA11yViolations()).toEqual([]);
 
-    await userEvent.selectOptions(screen.getByLabelText('Fonte'), 'Times New Roman');
+    await choose('Fonte', 'Times New Roman');
     await waitFor(() => {
       expect(callsTo(api, 'PATCH')).toHaveLength(1);
     });
@@ -269,7 +281,7 @@ describe('SCR-114 · aba Layout (US-109)', () => {
         ),
     });
     await openLayout();
-    await userEvent.selectOptions(screen.getByLabelText('Orientação'), 'landscape');
+    await choose('Orientação', 'Paisagem');
     expect(
       await screen.findByText('O layout foi alterado por outra pessoa. Recarregue.'),
     ).toBeTruthy();
@@ -285,6 +297,7 @@ describe('SCR-114 · aba Layout (US-109)', () => {
       },
     });
     await openLayout();
+    await openPreview();
     await userEvent.click(screen.getByRole('button', { name: 'Gerar prévia' }));
     expect(await screen.findByText('Prévia pronta.', {}, { timeout: 8000 })).toBeTruthy();
     expect(callsTo(api, 'POST', '/preview')).toHaveLength(1);
@@ -301,6 +314,7 @@ describe('SCR-114 · aba Layout (US-109)', () => {
         }),
     });
     await openLayout();
+    await openPreview();
     await userEvent.click(screen.getByRole('button', { name: 'Gerar prévia' }));
     expect(
       await screen.findByText('Não foi possível gerar a prévia agora. Tente novamente.'),
@@ -318,6 +332,7 @@ describe('SCR-114 · aba Layout (US-109)', () => {
     expect(screen.getByLabelText('Fonte').matches(':disabled')).toBe(true);
     expect(screen.getByLabelText('Margem superior (mm)').matches(':disabled')).toBe(true);
     expect(screen.queryByRole('button', { name: /Inserir a variável/ })).toBeNull();
+    await openPreview();
     await userEvent.click(screen.getByRole('button', { name: 'Gerar prévia' }));
     expect(await screen.findByText('Prévia pronta.')).toBeTruthy();
     expect(callsTo(api, 'PATCH')).toHaveLength(0);

@@ -8,14 +8,39 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
-  Skeleton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  Field,
+  FilterToolbar,
+  ListPage,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+  Workflow,
   toast,
 } from '@contrataflow/ui';
 import type { WorkflowDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
@@ -33,12 +58,32 @@ import {
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
 
+/** O `Select` do kit não aceita valor vazio: "Todos" usa este marcador. */
+const ALL = 'all';
+
+type StatusFilter = typeof ALL | 'active' | 'inactive';
+
+/** Texto sem acento nem maiúsculas, para a busca local. */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** Busca local em nome, chave e descrição. */
+function matchesSearch(workflow: WorkflowDto, search: string): boolean {
+  const term = fold(search.trim());
+  if (term === '') return true;
+  return [workflow.name, workflow.key, workflow.description ?? ''].some((value) =>
+    fold(value).includes(term),
+  );
+}
+
 /**
- * SCR-034 (`/admin/workflows` — US-042): `WorkflowList` com os workflows do tenant na ordem em que a
- * aplicabilidade é avaliada, o `DefaultBadge` e o `SetDefaultButton` (com confirmação) para quem
- * tem `WORKFLOW_PUBLISH` — oculto sem a permissão e desabilitado, com o motivo, para workflow
- * inativo ou sem versão publicada (RN-WF-41). Com `WORKFLOW_MANAGE`, "Novo workflow" (US-043 ·
- * WF-02); cada workflow abre o editor. A API decide (RN-FND-92).
+ * SCR-034 (`/admin/workflows` — US-042): `WorkflowList` no modelo `ListPage` com os workflows do
+ * tenant na ordem em que a aplicabilidade é avaliada, o selo "Padrão" e "Tornar padrão" (com
+ * confirmação) no menu ⋯ para quem tem `WORKFLOW_PUBLISH` — oculto sem a permissão e desabilitado,
+ * com o motivo, para workflow inativo ou sem versão publicada (RN-WF-41). Com `WORKFLOW_MANAGE`,
+ * "Novo workflow" (US-043 · WF-02) abre o painel lateral; cada workflow abre o editor. A API
+ * decide (RN-FND-92).
  */
 export function WorkflowsView() {
   const t = useTranslations('workflows');
@@ -47,6 +92,8 @@ export function WorkflowsView() {
   const canManage = usePermission('WORKFLOW_MANAGE').allowed;
   const [confirming, setConfirming] = useState<WorkflowDto | null>(null);
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<StatusFilter>(ALL);
 
   const workflows = useQuery({
     queryKey: workflowKeys.list(tenantId),
@@ -54,69 +101,155 @@ export function WorkflowsView() {
     staleTime: WORKFLOWS_STALE_TIME_MS,
   });
 
+  const items = useMemo(
+    () =>
+      (workflows.data ?? []).filter(
+        (workflow) =>
+          matchesSearch(workflow, search) &&
+          (status === ALL || workflow.isActive === (status === 'active')),
+      ),
+    [workflows.data, search, status],
+  );
+
   if (workflows.error && isApiError(workflows.error) && workflows.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={<AppPageHeader section="admin" title={t('title')} description={t('description')} />}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
   const current = workflows.data?.find((workflow) => workflow.isDefault) ?? null;
+  const activeCount = status === ALL ? 0 : 1;
+  const filtered = search.trim() !== '' || activeCount > 0;
+  const statusLabel = (value: StatusFilter) =>
+    value === 'active' ? t('filters.active') : t('filters.inactive');
+  const chips =
+    status === ALL
+      ? []
+      : [
+          {
+            id: 'status',
+            label: t('filters.chip', { label: t('filters.status'), value: statusLabel(status) }),
+            removeLabel: t('filters.removeChip', {
+              label: t('filters.status'),
+              value: statusLabel(status),
+            }),
+            onRemove: () => {
+              setStatus(ALL);
+            },
+          },
+        ];
+  const newWorkflow = canManage ? (
+    <Button
+      iconLeft={<Plus />}
+      onClick={() => {
+        setCreating(true);
+      }}
+    >
+      {t('form.open')}
+    </Button>
+  ) : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <AppPageHeader
-        section="admin"
-        title={t('title')}
-        description={t('description')}
-        actions={
-          canManage ? (
+    <ListPage
+      header={
+        <AppPageHeader
+          section="admin"
+          title={t('title')}
+          description={t('description')}
+          actions={workflows.data ? newWorkflow : null}
+        />
+      }
+      toolbar={
+        workflows.data && workflows.data.length > 0 ? (
+          <FilterToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              label: t('filters.search'),
+              placeholder: t('filters.searchPlaceholder'),
+              description: t('filters.searchHint'),
+            }}
+            activeCount={activeCount}
+            filters={
+              <Field label={t('filters.status')}>
+                <Select
+                  value={status}
+                  onValueChange={(value) => {
+                    setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                    <SelectItem value="active">{t('filters.active')}</SelectItem>
+                    <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            }
+            chips={chips}
+            onClearAll={() => {
+              setStatus(ALL);
+            }}
+          />
+        ) : null
+      }
+      loading={workflows.isPending}
+      loadingLabel={t('loading')}
+      error={
+        workflows.isError ? (
+          <Alert tone="error" title={t('loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setCreating(true);
+                void workflows.refetch();
               }}
             >
-              {t('form.open')}
+              {t('retry')}
             </Button>
-          ) : null
-        }
-      />
-
-      {workflows.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : null}
-
-      {workflows.isError ? (
-        <Alert tone="error" title={t('loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void workflows.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      {workflows.data ? (
-        workflows.data.length === 0 ? (
-          <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-            {t('empty')}
-          </p>
-        ) : (
-          <WorkflowList
-            workflows={workflows.data}
-            canPublish={canPublish}
-            onSetDefault={setConfirming}
+          </Alert>
+        ) : null
+      }
+      empty={
+        workflows.data && items.length === 0 ? (
+          <EmptyState
+            icon={<Workflow />}
+            title={filtered ? t('emptyFiltered') : t('empty')}
+            description={filtered ? t('emptyFilteredHint') : t('emptyHint')}
+            action={
+              filtered ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setStatus(ALL);
+                  }}
+                >
+                  {t('filters.clear')}
+                </Button>
+              ) : undefined
+            }
           />
-        )
+        ) : null
+      }
+    >
+      {items.length > 0 ? (
+        <TableContainer
+          label={t('caption')}
+          footer={<TableFooter summary={t('count', { count: items.length })} />}
+        >
+          <WorkflowList workflows={items} canPublish={canPublish} onSetDefault={setConfirming} />
+        </TableContainer>
       ) : null}
 
       <WorkflowFormDialog open={creating} onOpenChange={setCreating} />
@@ -128,33 +261,7 @@ export function WorkflowsView() {
           setConfirming(null);
         }}
       />
-    </div>
-  );
-}
-
-/** `DefaultBadge`: ícone + texto (não só cor). */
-function DefaultBadge() {
-  const t = useTranslations('workflows');
-  return (
-    <span className="inline-flex items-center gap-1 rounded-control bg-success-soft px-2 py-0.5 text-xs font-medium text-foreground">
-      <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current">
-        <path d="M8 1.5l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.3l-3.8 2 .7-4.3-3.1-3 4.3-.6z" />
-      </svg>
-      {t('badges.default')}
-    </span>
-  );
-}
-
-function StatusBadge({ active }: { readonly active: boolean }) {
-  const t = useTranslations('workflows');
-  return (
-    <span
-      className={`inline-flex rounded-control bg-muted px-2 py-0.5 text-xs font-medium ${
-        active ? 'text-foreground' : 'text-muted-foreground'
-      }`}
-    >
-      {active ? t('badges.active') : t('badges.inactive')}
-    </span>
+    </ListPage>
   );
 }
 
@@ -168,7 +275,11 @@ function ApplicabilityText({ rule }: { readonly rule: unknown }) {
   return <>{t('values.customRule')}</>;
 }
 
-/** `WorkflowList`: cartões empilhados abaixo de 768 px e em linha a partir de `md`. */
+/**
+ * `WorkflowList`: nome em negrito (link para o editor) com a chave na linha secundária,
+ * aplicabilidade com a prioridade, versão publicada, versão em edição e situação (selo "Padrão"
+ * com texto, não só cor); "Abrir editor" e "Tornar padrão" no menu ⋯ da linha.
+ */
 function WorkflowList({
   workflows,
   canPublish,
@@ -179,93 +290,117 @@ function WorkflowList({
   readonly onSetDefault: (workflow: WorkflowDto) => void;
 }) {
   const t = useTranslations('workflows');
+  const router = useRouter();
   const ids = useId();
   return (
-    <section aria-labelledby={`${ids}-caption`} className="flex flex-col gap-2">
-      <h2 id={`${ids}-caption`} className="sr-only">
-        {t('caption')}
-      </h2>
-      <ul className="flex flex-col gap-3">
+    <Table>
+      <caption className="sr-only">{t('caption')}</caption>
+      <TableHead>
+        <Tr>
+          <Th>{t('columns.name')}</Th>
+          <Th>{t('columns.applicability')}</Th>
+          <Th>{t('columns.version')}</Th>
+          <Th>{t('columns.draft')}</Th>
+          <Th>{t('columns.status')}</Th>
+          <Th className="w-12">
+            <span className="sr-only">{t('columns.actions')}</span>
+          </Th>
+        </Tr>
+      </TableHead>
+      <TableBody>
         {workflows.map((workflow) => {
           const reasonId = `${ids}-${workflow.id}-reason`;
           const eligible = canBecomeDefault(workflow);
+          const offersDefault = canPublish && !workflow.isDefault;
           return (
-            <li
-              key={workflow.id}
-              className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4 shadow-card md:flex-row md:items-center md:justify-between"
-            >
-              <div className="flex min-w-0 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-medium">
-                    <Link
-                      href={workflowEditorHref(workflow.id)}
-                      className="underline-offset-2 hover:underline"
+            <Tr key={workflow.id}>
+              <th scope="row" className="px-3.5 py-3 text-left font-normal">
+                <Link
+                  href={workflowEditorHref(workflow.id)}
+                  className="block font-bold text-foreground underline-offset-2 hover:underline"
+                >
+                  {workflow.name}
+                </Link>
+                <span className="font-mono text-xs text-muted-foreground">{workflow.key}</span>
+              </th>
+              <Td>
+                <span className="block">
+                  <ApplicabilityText rule={workflow.applicabilityRule} />
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {t('values.priority', { value: workflow.applicabilityPriority })}
+                </span>
+              </Td>
+              <Td className="whitespace-nowrap">
+                {workflow.currentPublishedVersion
+                  ? t('values.published', {
+                      number: workflow.currentPublishedVersion.versionNumber,
+                    })
+                  : t('values.noPublished')}
+              </Td>
+              <Td className="whitespace-nowrap">
+                {workflow.draftVersion
+                  ? t('values.draft', { number: workflow.draftVersion.versionNumber })
+                  : workflow.currentPublishedVersion
+                    ? t('values.noDraft')
+                    : t('values.noEditableVersion')}
+              </Td>
+              <Td>
+                <div className="flex flex-wrap gap-1.5">
+                  {workflow.isDefault ? (
+                    <StatusChip tone="success">{t('badges.default')}</StatusChip>
+                  ) : null}
+                  <StatusChip tone={workflow.isActive ? 'info' : 'neutral'}>
+                    {workflow.isActive ? t('badges.active') : t('badges.inactive')}
+                  </StatusChip>
+                </div>
+              </Td>
+              <Td className="w-12 py-1.5 text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t('rowMenu.label', { name: workflow.name })}
+                      className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
                     >
-                      {workflow.name}
-                    </Link>
-                  </h3>
-                  {workflow.isDefault ? <DefaultBadge /> : null}
-                  <StatusBadge active={workflow.isActive} />
-                </div>
-                <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-4">
-                  <div>
-                    <dt className="sr-only">{t('columns.applicability')}</dt>
-                    <dd>
-                      <ApplicabilityText rule={workflow.applicabilityRule} />
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="sr-only">{t('columns.priority')}</dt>
-                    <dd>{t('values.priority', { value: workflow.applicabilityPriority })}</dd>
-                  </div>
-                  <div>
-                    <dt className="sr-only">{t('columns.version')}</dt>
-                    <dd>
-                      {workflow.currentPublishedVersion
-                        ? t('values.published', {
-                            number: workflow.currentPublishedVersion.versionNumber,
-                          })
-                        : t('values.noPublished')}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="sr-only">{t('columns.draft')}</dt>
-                    <dd>
-                      {workflow.draftVersion
-                        ? t('values.draft', { number: workflow.draftVersion.versionNumber })
-                        : workflow.currentPublishedVersion
-                          ? t('values.noDraft')
-                          : t('values.noEditableVersion')}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-              {canPublish && !workflow.isDefault ? (
-                <div className="flex flex-col items-start gap-1 md:items-end">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!eligible}
-                    aria-label={t('setDefault.actionFor', { name: workflow.name })}
-                    aria-describedby={eligible ? undefined : reasonId}
-                    onClick={() => {
-                      onSetDefault(workflow);
-                    }}
-                  >
-                    {t('setDefault.action')}
-                  </Button>
-                  {eligible ? null : (
-                    <p id={reasonId} className="max-w-xs text-xs text-muted-foreground">
-                      {t('setDefault.ineligible')}
-                    </p>
-                  )}
-                </div>
-              ) : null}
-            </li>
+                      <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        router.push(workflowEditorHref(workflow.id));
+                      }}
+                    >
+                      {t('rowMenu.open')}
+                    </DropdownMenuItem>
+                    {offersDefault ? (
+                      <DropdownMenuItem
+                        disabled={!eligible}
+                        aria-describedby={eligible ? undefined : reasonId}
+                        onSelect={() => {
+                          onSetDefault(workflow);
+                        }}
+                      >
+                        {t('setDefault.action')}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {offersDefault && !eligible ? (
+                      <p
+                        id={reasonId}
+                        className="max-w-60 px-2.5 py-1.5 text-xs text-muted-foreground"
+                      >
+                        {t('setDefault.ineligible')}
+                      </p>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </Td>
+            </Tr>
           );
         })}
-      </ul>
-    </section>
+      </TableBody>
+    </Table>
   );
 }
 

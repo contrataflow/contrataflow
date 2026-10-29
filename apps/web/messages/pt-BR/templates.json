@@ -5,23 +5,31 @@
   "loading": "Carregando templates…",
   "loadFailed": "Não foi possível carregar os templates.",
   "retry": "Tentar novamente",
-  "empty": "Nenhum template cadastrado. Crie o primeiro.",
   "forbidden": {
     "title": "Acesso negado",
     "description": "Você não tem permissão para consultar templates."
   },
   "filters": {
+    "search": "Buscar por nome",
+    "searchPlaceholder": "Buscar template",
+    "searchHint": "Nome do template.",
     "type": "Tipo de documento",
     "allTypes": "Todos os tipos",
-    "search": "Buscar por nome",
-    "noResults": "Nenhum template encontrado com esses filtros."
+    "status": "Situação",
+    "all": "Todos",
+    "active": "Ativos",
+    "inactive": "Inativos",
+    "chip": "{label}: {value}",
+    "removeChip": "Remover o filtro {label}: {value}",
+    "clear": "Limpar busca e filtros"
   },
   "table": {
     "caption": "Templates do órgão",
     "name": "Nome",
     "type": "Tipo de documento",
+    "published": "Versão publicada",
+    "draft": "Rascunho",
     "status": "Situação",
-    "versions": "Versões",
     "actions": "Ações"
   },
   "badges": {
@@ -32,18 +40,16 @@
     "default": "Padrão do tipo"
   },
   "values": {
-    "draft": "Rascunho v{number} ({sections, plural, =0 {sem seções} one {# seção} other {# seções}})",
-    "published": "Publicada v{number}",
+    "draft": "v{number} · {sections, plural, =0 {sem seções} one {# seção} other {# seções}}",
+    "version": "v{number}",
     "noVersion": "—"
   },
   "actions": {
-    "editContent": "Editar conteúdo de {name}",
+    "menu": "Ações de {name}",
+    "more": "Mais",
     "editContentLabel": "Editar conteúdo",
-    "viewContent": "Ver conteúdo de {name}",
-    "viewContentLabel": "Ver",
-    "editData": "Editar dados de {name}",
+    "viewContentLabel": "Ver conteúdo",
     "editDataLabel": "Editar dados",
-    "versions": "Versões de {name}",
     "versionsLabel": "Versões"
   },
   "form": {
@@ -70,7 +76,8 @@
     "reload": "Recarregar",
     "generic": "Não foi possível salvar agora. Tente novamente em instantes.",
     "fieldName": "nome",
-    "fieldType": "tipo de documento"
+    "fieldType": "tipo de documento",
+    "close": "Fechar painel"
   },
   "toast": {
     "created": "Template \"{name}\" criado.",
@@ -113,7 +120,9 @@
     "notDraft": "Esta versão está publicada e não pode ser alterada.",
     "forbidden": "Você não tem permissão para editar templates.",
     "changeNotes": "Notas da alteração",
-    "changeNotesHint": "Opcional. Registradas na publicação como o que mudou (até 1.000 caracteres)."
+    "changeNotesHint": "Opcional. Registradas na publicação como o que mudou (até 1.000 caracteres).",
+    "breadcrumbLabel": "Trilha",
+    "actionsLabel": "Ações do editor"
   },
   "sections": {
     "title": "Seções",
@@ -131,7 +140,8 @@
     "removeLabel": "Remover",
     "dragHint": "Arraste para reordenar ou use os botões de mover.",
     "moved": "Seção {title} movida para a posição {position}.",
-    "hasErrors": "com problemas"
+    "hasErrors": "com problemas",
+    "menu": "Mais ações de {title}"
   },
   "section": {
     "panelTitle": "Seção {position}",
@@ -241,7 +251,8 @@
       "publish": "Publicar versão {number}",
       "publishLabel": "Publicar versão",
       "retire": "Aposentar versão {number}",
-      "retireLabel": "Aposentar"
+      "retireLabel": "Aposentar",
+      "menu": "Ações da versão {number}"
     },
     "publishBlocked": "Resolva as pendências do rascunho no editor antes de publicar.",
     "retireBlocked": "Única versão publicada de um template padrão: publique outra versão antes de aposentar esta.",
@@ -274,7 +285,10 @@
       "published": "Versão {number} publicada (hash {hash}).",
       "retired": "Versão {number} aposentada.",
       "created": "Versão {number} criada em rascunho."
-    }
+    },
+    "retiredOn": "Aposentada em {date}",
+    "tableLabel": "Histórico de versões",
+    "count": "{count, plural, one {# versão} other {# versões}}"
   },
   "layout": {
     "saved": "Layout salvo.",
@@ -320,7 +334,8 @@
       "showPageNumbers": "Numeração de página",
       "showDocumentHashInFooter": "Hash da versão no rodapé",
       "draftWatermark": "Marca d'água de rascunho nos documentos",
-      "hashHint": "O hash só aparece nos PDFs de versões de documento; a prévia do template sempre sai com a marca d'água \"RASCUNHO\"."
+      "hashHint": "O hash só aparece nos PDFs de versões de documento; a prévia do template sempre sai com a marca d'água \"RASCUNHO\".",
+      "helpLabel": "Sobre o cabeçalho e o rodapé"
     },
     "logo": {
       "title": "Timbre (logo)",
@@ -356,7 +371,49 @@
       "validUntil": "Válida até",
       "watermark": "A prévia sai com a marca d'água \"RASCUNHO\" e dados de exemplo do processo e do documento.",
       "download": "Baixar prévia",
-      "downloadFailed": "Não foi possível baixar a prévia agora."
+      "downloadFailed": "Não foi possível baixar a prévia agora.",
+      "open": "Ver prévia em PDF",
+      "help": "Sobre a prévia"
+    },
+    "legend": "Layout de impressão do template"
+  },
+  "list": {
+    "count": "{count, plural, =0 {Nenhum template} one {# template} other {# templates}}",
+    "emptyTitle": "Nenhum template cadastrado",
+    "emptyHint": "Crie o primeiro template para começar.",
+    "noResults": "Nenhum template encontrado",
+    "noResultsHint": "Revise a busca ou os filtros."
+  },
+  "help": "Ajuda sobre {field}",
+  "detail": {
+    "breadcrumbLabel": "Trilha",
+    "facts": {
+      "type": "Tipo de documento",
+      "published": "Versão publicada",
+      "draft": "Rascunho",
+      "updated": "Atualizado em"
+    },
+    "tabs": {
+      "label": "Seções do template",
+      "versions": "Versões",
+      "config": "Configuração"
+    },
+    "config": {
+      "title": "Dados do template",
+      "name": "Nome",
+      "description": "Descrição",
+      "noDescription": "Sem descrição",
+      "type": "Tipo de documento",
+      "status": "Situação",
+      "origin": "Origem",
+      "origins": {
+        "system": "Modelo padrão da plataforma",
+        "custom": "Criado pelo órgão"
+      },
+      "default": "Padrão do tipo",
+      "yes": "Sim",
+      "no": "Não",
+      "createdAt": "Criado em"
     }
   }
 }

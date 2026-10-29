@@ -18,6 +18,12 @@ async function openScreen(page: Page): Promise<void> {
   await expect(page.getByRole('table', { name: 'Itens do catálogo Modalidades' })).toBeVisible();
 }
 
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(page: Page, name: string, action: string): Promise<void> {
+  await page.getByRole('button', { name: `Ações de ${name}` }).click();
+  await page.getByRole('menuitem', { name: action }).click();
+}
+
 test('lista as modalidades com o selo "Padrão do sistema", sem violações de acessibilidade', async ({
   page,
 }) => {
@@ -67,7 +73,7 @@ test('código fora do padrão: erro inline e nada é criado', async ({ page }) =
 
 test('edita o rótulo de um item de sistema com o código bloqueado', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Editar Concorrência' }).click();
+  await rowAction(page, 'Concorrência', 'Editar');
   const dialog = page.getByRole('dialog', { name: 'Editar Concorrência' });
   await expect(dialog.getByLabel('Código *')).toHaveAttribute('readonly', '');
   await dialog.getByLabel('Rótulo *').fill('Concorrência eletrônica');
@@ -80,7 +86,7 @@ test('desativa um item com o aviso de que registros existentes não são afetado
   page,
 }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Desativar Dispensa de licitação' }).click();
+  await rowAction(page, 'Dispensa de licitação', 'Desativar');
   const dialog = page.getByRole('dialog', { name: 'Desativar Dispensa de licitação?' });
   await expect(
     dialog.getByText(
@@ -90,7 +96,7 @@ test('desativa um item com o aviso de que registros existentes não são afetado
   await dialog.getByRole('button', { name: 'Desativar' }).click();
   const row = page.getByRole('row', { name: /Dispensa de licitação/ });
   await expect(row.getByText('Inativo')).toBeVisible();
-  await row.getByRole('button', { name: 'Ativar Dispensa de licitação' }).click();
+  await rowAction(page, 'Dispensa de licitação', 'Ativar');
   await expect(row.getByText('Ativo', { exact: true })).toBeVisible();
 });
 
@@ -98,7 +104,8 @@ test('reordena pelo teclado ("Mover para baixo") e a nova ordem persiste após r
   page,
 }) => {
   await openScreen(page);
-  const labels = () => page.getByRole('rowheader').allTextContents();
+  // O cabeçalho da linha traz o rótulo e, abaixo, o código: compara só o rótulo.
+  const labels = () => page.locator('th[scope="row"] > span:first-child').allTextContents();
   const before = await labels();
   await page.getByRole('button', { name: `Mover ${before[0] ?? ''} para baixo` }).focus();
   await page.keyboard.press('Enter');

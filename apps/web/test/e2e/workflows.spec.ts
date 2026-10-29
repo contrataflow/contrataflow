@@ -9,7 +9,7 @@
 // cobertos nos testes da API (módulo `workflow` e suíte tenant leak). A criação de processo de
 // dispensa resolvendo o workflow chega com a US-001.
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
 
@@ -18,6 +18,8 @@ test.describe.configure({ mode: 'serial' });
 
 const DIRECT = 'Contratação direta — Lei 14.133/2021, art. 72';
 const STANDARD = 'Fase preparatória — Lei 14.133/2021';
+/** Rótulos dos tipos de etapa no `Select` do painel. */
+const STAGE_TYPE = { START: 'Início', TASK: 'Tarefa', APPROVAL: 'Aprovação' } as const;
 
 async function openList(page: Page): Promise<void> {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/admin/workflows')}`);
@@ -25,30 +27,47 @@ async function openList(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();
 }
 
-const cardOf = (page: Page, name: string) =>
-  page.getByRole('listitem').filter({ has: page.getByRole('heading', { name, exact: true }) });
+const rowOf = (page: Page, name: string) =>
+  page.getByRole('row').filter({ has: page.getByRole('link', { name, exact: true }) });
+
+/** Escolhe a opção num `Select` do kit (combobox do Radix). */
+async function choose(scope: Page | Locator, field: string, option: string) {
+  await scope.getByRole('combobox', { name: field, exact: true }).click();
+  // As opções abrem num portal, fora do escopo do campo.
+  const root = 'page' in scope ? scope.page() : scope;
+  await root.getByRole('option', { name: option, exact: true }).click();
+}
+
+/** Abre o menu ⋯ da linha (prd-5 · regra 3). */
+async function openRowMenu(page: Page, menu: string): Promise<void> {
+  await page.getByRole('button', { name: menu }).click();
+}
+
+/** Abre o editor e, pelo menu "Mais", as regras da versão. */
+async function openRules(page: Page): Promise<void> {
+  await page.getByRole('link', { name: NEW_WORKFLOW, exact: true }).click();
+  await page.getByRole('button', { name: 'Mais' }).click();
+  await page.getByRole('menuitem', { name: 'Regras da versão' }).click();
+}
 
 test('workflow sem versão publicada não pode ser o padrão', async ({ page }) => {
   await openList(page);
-  await expect(cardOf(page, STANDARD).getByText('Padrão', { exact: true })).toBeVisible();
-  await expect(
-    cardOf(page, 'Piloto de obras').getByRole('button', { name: /Tornar Piloto de obras/ }),
-  ).toBeDisabled();
-  await expect(
-    cardOf(page, 'Piloto de obras').getByText(
-      'Publique uma versão e ative o workflow antes de torná-lo padrão.',
-    ),
-  ).toBeVisible();
+  await expect(rowOf(page, STANDARD).getByText('Padrão', { exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'lista de workflows');
+  await openRowMenu(page, 'Ações de Piloto de obras');
+  await expect(page.getByRole('menuitem', { name: 'Tornar padrão' })).toBeDisabled();
+  await expect(
+    page.getByText('Publique uma versão e ative o workflow antes de torná-lo padrão.'),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('torna a contratação direta o padrão com confirmação, toast e selo atualizado', async ({
   page,
 }) => {
   await openList(page);
-  await cardOf(page, DIRECT)
-    .getByRole('button', { name: `Tornar ${DIRECT} o workflow padrão` })
-    .click();
+  await openRowMenu(page, `Ações de ${DIRECT}`);
+  await page.getByRole('menuitem', { name: 'Tornar padrão' }).click();
   const dialog = page.getByRole('dialog', { name: `Tornar "${DIRECT}" o workflow padrão?` });
   await expect(dialog.getByText(`Hoje o padrão é "${STANDARD}".`)).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'confirmação de tornar padrão');
@@ -57,16 +76,14 @@ test('torna a contratação direta o padrão com confirmação, toast e selo atu
   await expect(
     page.getByText(`Workflow ${DIRECT} agora é o padrão.`, { exact: true }),
   ).toBeVisible();
-  await expect(cardOf(page, DIRECT).getByText('Padrão', { exact: true })).toBeVisible();
-  await expect(cardOf(page, STANDARD).getByText('Padrão', { exact: true })).toHaveCount(0);
+  await expect(rowOf(page, DIRECT).getByText('Padrão', { exact: true })).toBeVisible();
+  await expect(rowOf(page, STANDARD).getByText('Padrão', { exact: true })).toHaveCount(0);
 });
 
-test('no celular (360 px) a lista vira cartões sem rolagem horizontal e acessível', async ({
-  page,
-}) => {
+test('no celular (360 px) a lista não rola na horizontal e é acessível', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await openList(page);
-  await expect(cardOf(page, STANDARD)).toBeVisible();
+  await expect(rowOf(page, STANDARD)).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
   ).toBe(false);
@@ -80,7 +97,7 @@ async function addStage(page: Page, name: string, type: string): Promise<void> {
   await page.getByRole('button', { name: 'Adicionar etapa' }).first().click();
   const panel = page.getByRole('region', { name: 'Nova etapa' });
   await panel.getByLabel('Nome', { exact: true }).fill(name);
-  await panel.getByLabel('Tipo', { exact: true }).selectOption(type);
+  await choose(panel, 'Tipo', type);
   await panel.getByRole('button', { name: 'Adicionar etapa' }).click();
   await expect(
     page.getByRole('button', { name: `Abrir as propriedades de ${name}` }),
@@ -93,8 +110,8 @@ test('cria um workflow, adiciona etapas e transição e a recarga mantém o dese
   await openList(page);
   await page.getByRole('button', { name: 'Novo workflow' }).click();
   const dialog = page.getByRole('dialog', { name: 'Novo workflow' });
-  await dialog.getByLabel('Nome').fill(NEW_WORKFLOW);
-  await expect(dialog.getByLabel('Chave técnica')).toHaveValue('OBRAS_RITO_SIMPLIFICADO');
+  await dialog.getByLabel(/^Nome/).fill(NEW_WORKFLOW);
+  await expect(dialog.getByLabel(/^Chave técnica/)).toHaveValue('OBRAS_RITO_SIMPLIFICADO');
   await expectNoSeriousA11yViolations(page, 'novo workflow');
   await dialog.getByRole('button', { name: 'Criar e abrir o editor' }).click();
 
@@ -102,13 +119,13 @@ test('cria um workflow, adiciona etapas e transição e a recarga mantém o dese
   await expect(page.getByText('Nenhuma etapa ainda — adicione a primeira.')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'editor de workflow vazio');
 
-  await addStage(page, 'Abertura', 'START');
-  await addStage(page, 'Parecer jurídico', 'TASK');
+  await addStage(page, 'Abertura', STAGE_TYPE.START);
+  await addStage(page, 'Parecer jurídico', STAGE_TYPE.TASK);
   // Aprovação sem aprovador: mensagem no painel, sem salvar (V-03).
   await page.getByRole('button', { name: 'Adicionar etapa' }).first().click();
   const panel = page.getByRole('region', { name: 'Nova etapa' });
   await panel.getByLabel('Nome', { exact: true }).fill('Aprovação da autoridade');
-  await panel.getByLabel('Tipo', { exact: true }).selectOption('APPROVAL');
+  await choose(panel, 'Tipo', STAGE_TYPE.APPROVAL);
   await panel.getByRole('button', { name: 'Adicionar etapa' }).click();
   await expect(panel.getByText('Selecione quem aprova esta etapa.')).toBeVisible();
   await panel.getByRole('button', { name: 'Fechar o painel' }).click();
@@ -117,8 +134,8 @@ test('cria um workflow, adiciona etapas e transição e a recarga mantém o dese
   await page.getByRole('button', { name: 'Adicionar transição' }).click();
   const form = page.getByRole('dialog', { name: 'Nova transição' });
   await form.getByLabel('Rótulo do botão').fill('Encaminhar para o jurídico');
-  await form.getByLabel('Etapa de origem').selectOption({ label: 'Abertura' });
-  await form.getByLabel('Etapa de destino').selectOption({ label: 'Parecer jurídico' });
+  await choose(form, 'Etapa de origem', 'Abertura');
+  await choose(form, 'Etapa de destino', 'Parecer jurídico');
   await form.getByRole('button', { name: 'Adicionar transição' }).click();
   await expect(page.getByText('Abertura → Parecer jurídico')).toBeVisible();
 
@@ -143,7 +160,7 @@ test('cria um workflow, adiciona etapas e transição e a recarga mantém o dese
 
 test('"Criar rascunho" a partir da versão publicada libera a edição', async ({ page }) => {
   await openList(page);
-  await page.getByRole('link', { name: STANDARD }).click();
+  await page.getByRole('link', { name: STANDARD, exact: true }).click();
   await expect(page.getByText(/Esta é a versão publicada/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Adicionar etapa' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Criar rascunho' }).click();
@@ -156,7 +173,7 @@ test('versões (US-045): validar → corrigir → publicar; a corrente única n�
   page,
 }) => {
   await openList(page);
-  await page.getByRole('link', { name: STANDARD }).click();
+  await page.getByRole('link', { name: STANDARD, exact: true }).click();
   await page.getByRole('tab', { name: 'Versões' }).click();
   const versions = page.getByRole('tabpanel', { name: 'Versões' });
   await expect(versions.getByRole('button', { name: 'Publicar' })).toBeDisabled();
@@ -167,7 +184,7 @@ test('versões (US-045): validar → corrigir → publicar; a corrente única n�
   await expect(versions.getByRole('button', { name: 'Publicar' })).toBeDisabled();
   await expectNoSeriousA11yViolations(page, 'validação com erro');
   await versions.getByRole('button', { name: 'Ir para as etapas' }).click();
-  await addStage(page, 'Abertura', 'START');
+  await addStage(page, 'Abertura', STAGE_TYPE.START);
 
   await page.getByRole('tab', { name: 'Versões' }).click();
   await versions.getByRole('button', { name: 'Validar' }).click();
@@ -185,17 +202,16 @@ test('versões (US-045): validar → corrigir → publicar; a corrente única n�
 
   await expect(versions.getByText('Inclui a etapa de abertura.').first()).toBeVisible();
   await expect(versions.getByText('Aposentada').first()).toBeVisible();
-  await expect(
-    versions.getByRole('button', { name: 'Aposentar a versão 2' }).first(),
-  ).toBeDisabled();
   await expectNoSeriousA11yViolations(page, 'histórico de versões');
+  await versions.getByRole('button', { name: 'Ações da versão 2' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Aposentar' })).toBeDisabled();
 });
 
 test('diagrama (US-046): nós e arestas só leitura, detalhes e a versão aposentada', async ({
   page,
 }) => {
   await openList(page);
-  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('link', { name: NEW_WORKFLOW, exact: true }).click();
   await page.getByRole('tab', { name: 'Diagrama' }).click();
   const diagram = page.getByRole('tabpanel', { name: 'Diagrama' });
   await expect(
@@ -216,12 +232,12 @@ test('diagrama (US-046): nós e arestas só leitura, detalhes e a versão aposen
 
   // FA-03: a versão aposentada abre normalmente, com o aviso no topo.
   await openList(page);
-  await page.getByRole('link', { name: STANDARD }).click();
+  await page.getByRole('link', { name: STANDARD, exact: true }).click();
   await page.getByRole('tab', { name: 'Diagrama' }).click();
-  await diagram.getByLabel('Versão exibida').selectOption({ label: 'Versão 1 — Aposentada' });
+  await choose(diagram, 'Versão exibida', 'Versão 1 — Aposentada');
   await expect(diagram.getByText('Esta versão está aposentada')).toBeVisible();
   await expect(diagram.getByText('Nenhuma etapa criada ainda')).toBeVisible();
-  await diagram.getByLabel('Versão exibida').selectOption({ label: 'Versão 2 — Publicada' });
+  await choose(diagram, 'Versão exibida', 'Versão 2 — Publicada');
   await expect(
     diagram.getByRole('list', { name: 'Etapas do diagrama' }).getByRole('button'),
   ).toHaveCount(1);
@@ -231,7 +247,7 @@ test('diagrama (US-046): nós e arestas só leitura, detalhes e a versão aposen
 test('no celular (360 px) o diagrama abre ajustado, sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await openList(page);
-  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('link', { name: NEW_WORKFLOW, exact: true }).click();
   await page.getByRole('tab', { name: 'Diagrama' }).click();
   const diagram = page.getByRole('tabpanel', { name: 'Diagrama' });
   await expect(diagram.getByRole('button', { name: 'Minimapa' })).toHaveAttribute(
@@ -250,7 +266,7 @@ test('no celular (360 px) o painel da etapa vira modal, sem rolagem horizontal',
 }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await openList(page);
-  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
+  await page.getByRole('link', { name: NEW_WORKFLOW, exact: true }).click();
   await page.getByRole('button', { name: 'Abrir as propriedades de Abertura' }).click();
   await expect(page.getByRole('dialog', { name: 'Etapa Abertura' })).toBeVisible();
   expect(
@@ -263,15 +279,14 @@ test('regras (SCR-035): cria REQUIRED_DOCUMENT, testa contra um processo e a rec
   page,
 }) => {
   await openList(page);
-  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
-  await page.getByRole('link', { name: 'Regras da versão' }).click();
+  await openRules(page);
   await expect(page).toHaveURL(/\/admin\/workflows\/[0-9a-f-]+\/regras$/);
   await expect(page.getByText('Nenhuma regra configurada para esta etapa.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Nova regra' }).click();
-  const form = page.getByRole('region', { name: 'Nova regra' });
-  await form.getByLabel('Tipo de documento').selectOption('ETP');
-  await form.getByLabel('Situação mínima').selectOption('COMPLETE');
+  const form = page.getByRole('dialog', { name: 'Nova regra' });
+  await choose(form, 'Tipo de documento', 'ETP — Estudo Técnico Preliminar');
+  await choose(form, 'Situação mínima', 'Completo');
   await form.getByLabel('Nome', { exact: true }).fill('ETP completo');
   await form.getByLabel('Mensagem ao usuário').fill('O ETP deve estar completo.');
   await expectNoSeriousA11yViolations(page, 'formulário de regra');
@@ -284,9 +299,9 @@ test('regras (SCR-035): cria REQUIRED_DOCUMENT, testa contra um processo e a rec
   await expectNoSeriousA11yViolations(page, 'resultado do teste de regra');
 
   await form.getByRole('button', { name: 'Criar regra' }).click();
-  await expect(page.getByText('O ETP deve estar completo.')).toBeVisible();
+  await expect(form).toBeHidden();
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Editar a regra ETP completo' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ações da regra ETP completo' })).toBeVisible();
   await expect(page.getByText('ETP · COMPLETE')).toBeVisible();
 });
 
@@ -295,9 +310,8 @@ test('no celular (360 px) as regras ficam em coluna única, sem rolagem horizont
 }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await openList(page);
-  await page.getByRole('link', { name: NEW_WORKFLOW }).click();
-  await page.getByRole('link', { name: 'Regras da versão' }).click();
-  await expect(page.getByRole('button', { name: 'Editar a regra ETP completo' })).toBeVisible();
+  await openRules(page);
+  await expect(page.getByRole('button', { name: 'Ações da regra ETP completo' })).toBeVisible();
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
   ).toBe(false);

@@ -181,14 +181,18 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Configurações · Inteligência artificial | `configuracoes-ia.png` | `configuracoes-ia-escuro.png` | `configuracoes-ia-celular.png` |
 | Estrutura · Órgãos | `estrutura.png` | `estrutura-escuro.png` | `estrutura-celular.png` |
 | Calendário | `calendario.png` | `calendario-escuro.png` | `calendario-celular.png` |
+| Templates · lista (card 9) | `templates.png` | `templates-escuro.png` | `templates-celular.png` |
+| Templates · editor de versão | `editor-de-template.png` | `editor-de-template-escuro.png` | `editor-de-template-celular.png` |
+| Workflows · editor | `editor-de-workflow.png` | `editor-de-workflow-escuro.png` | `editor-de-workflow-celular.png` |
+| Workflows · regras | `regras-do-workflow.png` | `regras-do-workflow-escuro.png` | `regras-do-workflow-celular.png` |
+| Catálogos | `catalogos.png` | `catalogos-escuro.png` | `catalogos-celular.png` |
 
 Painéis do card 7 (1280 px, claro): `fornecedores-formulario.png` (painel lateral "Novo
 fornecedor"), `auditoria-filtros.png` (painel "Filtros da auditoria") e `notificacoes-sino.png`
 (popover do sininho com as 5 mais recentes).
 
 Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
-editores (pesquisa de preços, riscos, documentos) e a administração B (templates, workflows, tipos de
-documento, catálogos). Contraste e rolagem horizontal foram
+editores (pesquisa de preços, riscos, documentos). Contraste e rolagem horizontal foram
 varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
 
 ## Tokens (`packages/ui/src/styles.css`)

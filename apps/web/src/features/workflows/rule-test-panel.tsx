@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import { Alert, Button, Field, Input } from '@contrataflow/ui';
 import type { ProcessListItemDto, WorkflowRuleTestResult } from '@contrataflow/validation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -12,7 +12,6 @@ import { useTenantId } from '@/lib/session/session-context';
 import { searchRuleTestProcesses, testRule, workflowKeys } from './workflows.api';
 import type { RuleTestInput } from './workflows.api';
 
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
 const MIN_QUERY = 2;
 
 const processLabel = (process: ProcessListItemDto) =>
@@ -88,12 +87,12 @@ export function RuleTestPanel({
   return (
     <section
       aria-labelledby={`${ids}-title`}
-      className="flex flex-col gap-3 rounded-card border border-border bg-surface p-3"
+      className="flex flex-col gap-3 border-t border-border pt-5"
     >
-      <h3 id={`${ids}-title`} className="font-medium">
+      <h3 id={`${ids}-title`} className="font-semibold text-brand-ink">
         {t('title')}
       </h3>
-      <p className="text-xs text-muted-foreground">{t('hint')}</p>
+      <p className="text-[0.8125rem] text-muted-foreground">{t('hint')}</p>
       {selected ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span>{t('selected', { label: processLabel(selected) })}</span>
@@ -110,23 +109,16 @@ export function RuleTestPanel({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-search`} className="text-sm font-medium">
-            {t('search')}
-          </label>
-          <input
-            id={`${ids}-search`}
-            type="search"
-            className={INPUT}
-            value={query}
-            aria-describedby={`${ids}-search-hint`}
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-          />
-          <p id={`${ids}-search-hint`} className="text-xs text-muted-foreground">
-            {t('searchHint')}
-          </p>
+        <div className="flex flex-col gap-2">
+          <Field label={t('search')} description={t('searchHint')}>
+            <Input
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+            />
+          </Field>
           {deferred.length >= MIN_QUERY ? (
             search.isPending ? (
               <p className="text-sm text-muted-foreground">{t('searching')}</p>
@@ -138,7 +130,7 @@ export function RuleTestPanel({
                   <li key={process.id}>
                     <button
                       type="button"
-                      className="w-full rounded-control px-2 py-1 text-left text-sm hover:bg-muted"
+                      className="min-h-9 w-full rounded-control px-2 py-1 text-left text-sm hover:bg-muted"
                       onClick={() => {
                         setSelected(process);
                         setError(null);

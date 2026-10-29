@@ -1,6 +1,13 @@
 'use client';
 
-import { toast } from '@contrataflow/ui';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from '@contrataflow/ui';
 import type { DocumentTypeDto, TemplateDto } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -11,8 +18,6 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { setDefaultTemplate, templateKeys } from './templates.api';
-
-const SELECT = 'h-9 max-w-64 rounded-control border border-border bg-surface px-2 text-sm';
 
 /** Pode ser o padrão do tipo (RN-TPL-19): ativo e com versão publicada. */
 export function isSelectableDefault(template: TemplateDto): boolean {
@@ -77,33 +82,34 @@ export function DefaultTemplateSelect({
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={`${ids}-select`} className="sr-only">
-        {t('defaultTemplate.label', { name: type.name })}
-      </label>
-      <select
-        id={`${ids}-select`}
-        className={SELECT}
+    <div className="flex max-w-64 min-w-0 flex-col gap-1">
+      <Select
         value={type.defaultTemplate?.id ?? ''}
         disabled={save.isPending}
-        aria-busy={save.isPending}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${ids}-error` : undefined}
-        onChange={(event) => {
-          if (event.target.value !== '') save.mutate(event.target.value);
+        onValueChange={(value) => {
+          if (value !== '') save.mutate(value);
         }}
       >
-        {type.defaultTemplate ? null : (
-          <option value="" disabled>
-            {t('defaultTemplate.placeholder')}
-          </option>
-        )}
-        {own.map((template) => (
-          <option key={template.id} value={template.id} disabled={!isSelectableDefault(template)}>
-            {optionLabel(template)}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          aria-label={t('defaultTemplate.label', { name: type.name })}
+          aria-busy={save.isPending}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${ids}-error` : undefined}
+        >
+          <SelectValue placeholder={t('defaultTemplate.placeholder')} />
+        </SelectTrigger>
+        <SelectContent>
+          {own.map((template) => (
+            <SelectItem
+              key={template.id}
+              value={template.id}
+              disabled={!isSelectableDefault(template)}
+            >
+              {optionLabel(template)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {error ? (
         <p id={`${ids}-error`} role="alert" className="text-xs text-destructive">
           {error}

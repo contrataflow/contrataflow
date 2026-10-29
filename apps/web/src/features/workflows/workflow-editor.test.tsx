@@ -260,11 +260,17 @@ function renderEditor() {
   );
 }
 
+/** Escolhe uma opção num seletor do kit (Radix Select). */
+async function choose(scope: HTMLElement, field: string, option: string) {
+  await userEvent.click(within(scope).getByRole('combobox', { name: field }));
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
 async function addStage(name: string, type: string) {
   await userEvent.click(await screen.findByRole('button', { name: 'Adicionar etapa' }));
   const panel = await screen.findByRole('region', { name: 'Nova etapa' });
   await userEvent.type(within(panel).getByLabelText('Nome'), name);
-  await userEvent.selectOptions(within(panel).getByLabelText('Tipo'), type);
+  await choose(panel, 'Tipo', type);
   await userEvent.click(within(panel).getByRole('button', { name: 'Adicionar etapa' }));
 }
 
@@ -279,9 +285,9 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
     renderEditor();
 
     expect(await screen.findByText('Nenhuma etapa ainda — adicione a primeira.')).toBeTruthy();
-    await addStage('Abertura', 'START');
+    await addStage('Abertura', 'Início');
     await screen.findByRole('button', { name: 'Abrir as propriedades de Abertura' });
-    await addStage('Parecer jurídico', 'TASK');
+    await addStage('Parecer jurídico', 'Tarefa');
     await screen.findByRole('button', { name: 'Abrir as propriedades de Parecer jurídico' });
 
     const posted = calls(api, 'POST', '/stages').map(
@@ -299,12 +305,13 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
       within(dialog).getByLabelText('Rótulo do botão'),
       'Encaminhar para o jurídico',
     );
-    await userEvent.selectOptions(within(dialog).getByLabelText('Etapa de origem'), 'Abertura');
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText('Etapa de destino'),
-      'Parecer jurídico',
-    );
-    expect(within(dialog).queryByRole('option', { name: 'Aprovar' })).toBeNull();
+    await choose(dialog, 'Etapa de origem', 'Abertura');
+    await choose(dialog, 'Etapa de destino', 'Parecer jurídico');
+    // Aprovar e indeferir vêm das etapas de aprovação: não são opções do formulário.
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Ação' }));
+    expect(await screen.findByRole('option', { name: 'Encaminhar' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'Aprovar' })).toBeNull();
+    await userEvent.click(screen.getByRole('option', { name: 'Encaminhar' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar transição' }));
 
     expect(await screen.findByText('Abertura → Parecer jurídico')).toBeTruthy();
@@ -318,7 +325,7 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
   it('[Validação] aprovação sem aprovador mostra "Selecione quem aprova esta etapa." sem chamar a API', async () => {
     const api = mockApi(initialState());
     renderEditor();
-    await addStage('Aprovação da autoridade', 'APPROVAL');
+    await addStage('Aprovação da autoridade', 'Aprovação');
     expect(await screen.findByText('Selecione quem aprova esta etapa.')).toBeTruthy();
     expect(calls(api, 'POST', '/stages')).toHaveLength(0);
   });
@@ -388,7 +395,7 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
       await screen.findByRole('button', { name: 'Abrir as propriedades de Abertura' }),
     );
     const panel = await screen.findByRole('region', { name: 'Etapa Abertura' });
-    await userEvent.selectOptions(within(panel).getByLabelText('Contagem do SLA'), 'CALENDAR');
+    await choose(panel, 'Contagem do SLA', 'Dias corridos');
     expect(
       await screen.findByText('Os dados foram alterados por outra pessoa. Recarregue.'),
     ).toBeTruthy();
@@ -407,7 +414,7 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
           : null,
     });
     renderEditor();
-    await addStage('Parecer jurídico', 'TASK');
+    await addStage('Parecer jurídico', 'Tarefa');
     expect(
       await screen.findByText('Não foi possível salvar agora. Tente novamente em instantes.'),
     ).toBeTruthy();
@@ -469,6 +476,44 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
       ([, init]) => JSON.parse(init?.body as string) as unknown,
     );
     expect(bodies).toEqual([{ displayOrder: 0 }, { displayOrder: 1 }]);
+  });
+
+  it('[Responsivo] abaixo de 768 px o painel da etapa abre em Sheet (dialog) com título e rodapé', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const state = initialState();
+    const start = stageOf({ key: 'ABERTURA', name: 'Abertura', type: 'START' });
+    state.versions.set(DRAFT_ID, { ...version(DRAFT_ID, 'DRAFT', 1), stages: [start] });
+    mockApi(state);
+    renderEditor();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Abrir as propriedades de Abertura' }),
+    );
+    const sheet = await screen.findByRole('dialog', { name: 'Etapa Abertura' });
+    expect(within(sheet).getByLabelText('Nome')).toBeTruthy();
+    expect(within(sheet).getByRole('button', { name: 'Excluir etapa' })).toBeTruthy();
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Fechar o painel' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('[Moldura] cabeçalho com trilha, chips de situação e "Mais" com as telas relacionadas', async () => {
+    mockApi(initialState());
+    renderEditor();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Obras — rito simplificado' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Trilha' })).toBeTruthy();
+    expect(await screen.findByText('Rascunho v1')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Mais' }));
+    expect(await screen.findByRole('menuitem', { name: 'Regras da versão' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Versões e publicação' }));
+    expect(await screen.findByRole('tab', { name: 'Versões', selected: true })).toBeTruthy();
   });
 
   it('[Duplicidade] "Criar rascunho" com rascunho existente oferece continuar', async () => {

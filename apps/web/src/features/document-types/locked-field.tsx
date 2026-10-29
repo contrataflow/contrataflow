@@ -1,3 +1,4 @@
+import { Lock } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
@@ -14,23 +15,16 @@ export function LockedField({
 }) {
   const t = useTranslations('documentTypes.form');
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-sm font-medium">{label}</span>
-      <p className="flex items-center gap-2 text-sm text-foreground">
-        <svg
+    <div className="flex flex-col gap-1.5">
+      <span className="text-sm font-semibold text-foreground">{label}</span>
+      <p className="flex flex-wrap items-center gap-2 text-sm text-foreground">
+        <Lock
           role="img"
           aria-label={t('lockedField', { label })}
-          viewBox="0 0 24 24"
           className="size-4 shrink-0 text-muted-foreground"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <rect x="5" y="11" width="14" height="9" rx="2" />
-          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-        </svg>
+        />
         <span>{children}</span>
-        <span className="text-xs text-muted-foreground">{t('locked')}</span>
+        <span className="text-[0.8125rem] text-muted-foreground">{t('locked')}</span>
       </p>
     </div>
   );

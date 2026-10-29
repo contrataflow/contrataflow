@@ -18,6 +18,12 @@ async function openScreen(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Tipos de documento' })).toBeVisible();
 }
 
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(page: Page, name: string, action: string): Promise<void> {
+  await page.getByRole('button', { name: `Ações de ${name}` }).click();
+  await page.getByRole('menuitem', { name: action }).click();
+}
+
 test('lista os tipos por natureza e passa na verificação de acessibilidade', async ({ page }) => {
   await openScreen(page);
   await expect(page.getByRole('heading', { level: 2, name: 'Estruturado' })).toBeVisible();
@@ -27,10 +33,12 @@ test('lista os tipos por natureza e passa na verificação de acessibilidade', a
     'aria-current',
     'page',
   );
-  await expect(
-    page.getByRole('button', { name: /^Desativar Documento de Formalização/ }),
-  ).toHaveCount(0);
   await expectNoSeriousA11yViolations(page, 'tipos de documento');
+  // Estruturado nunca se desativa (RN-DOC-04): o menu ⋯ só oferece "Editar".
+  await page.getByRole('button', { name: 'Ações de Documento de Formalização da Demanda' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Editar' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Desativar' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
 });
 
 test('cria um tipo personalizado com a prévia da numeração', async ({ page }) => {
@@ -70,7 +78,7 @@ test('liga a aprovação avulsa em tipo de sistema, com campos restritos em text
   page,
 }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Editar Ofício' }).click();
+  await rowAction(page, 'Ofício', 'Editar');
   const dialog = page.getByRole('dialog', { name: 'Editar Ofício' });
   await expect(dialog.getByText('Definido pela plataforma').first()).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Código' })).toHaveCount(0);
@@ -89,7 +97,7 @@ test('liga a aprovação avulsa em tipo de sistema, com campos restritos em text
 
 test('desativa o tipo com confirmação e o reativa', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Desativar Parecer técnico' }).click();
+  await rowAction(page, 'Parecer técnico', 'Desativar');
   const dialog = page.getByRole('dialog', { name: 'Desativar Parecer técnico?' });
   await expect(dialog).toContainText('Os documentos existentes continuam acessíveis.');
   await expectNoSeriousA11yViolations(page, 'confirmar desativação');
@@ -100,7 +108,7 @@ test('desativa o tipo com confirmação e o reativa', async ({ page }) => {
   const row = page.getByRole('row', { name: /Parecer técnico/ });
   await expect(row.getByText('Inativo')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Reativar Parecer técnico' }).click();
+  await rowAction(page, 'Parecer técnico', 'Reativar');
   await expect(
     page.getByText('Tipo de documento "Parecer técnico" reativado.', { exact: true }),
   ).toBeVisible();

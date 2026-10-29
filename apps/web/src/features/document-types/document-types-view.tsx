@@ -8,7 +8,28 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
-  Skeleton,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  FileText,
+  ListPage,
+  Lock,
+  Plus,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Tr,
   toast,
 } from '@contrataflow/ui';
 import type { DocumentKind, DocumentTypeDto, TemplateDto } from '@contrataflow/validation';
@@ -39,10 +60,12 @@ const GROUP_ORDER: readonly DocumentKind[] = ['STRUCTURED', 'FREE_TEXT', 'UPLOAD
 
 /**
  * SCR-108 (`/admin/tipos-documento` — US-061): tipos do tenant agrupados por natureza, com situação,
- * numeração, aprovação avulsa e template padrão. Quem chega aqui já passou pelo `DTY-01` com
- * `includeInactive` — a API só responde a quem tem `DOCUMENT_TYPE_MANAGE` —, então as ações de
- * gestão aparecem junto com a lista; 403 mostra "Acesso negado" no lugar da tela. Quem tem
- * `TEMPLATE_PUBLISH` escolhe o template padrão de cada tipo (`DefaultTemplateSelect` — US-108).
+ * numeração, aprovação avulsa e template padrão. Modelo `ListPage` (prd-5): "Novo tipo" no
+ * cabeçalho e, em cada linha, o menu ⋯ com "Editar" e "Desativar/Reativar". Quem chega aqui já
+ * passou pelo `DTY-01` com `includeInactive` — a API só responde a quem tem
+ * `DOCUMENT_TYPE_MANAGE` —, então as ações de gestão aparecem junto com a lista; 403 mostra
+ * "Acesso negado" no lugar da tela. Quem tem `TEMPLATE_PUBLISH` escolhe o template padrão de cada
+ * tipo (`DefaultTemplateSelect` — US-108).
  */
 export function DocumentTypesView() {
   const t = useTranslations('documentTypes');
@@ -88,54 +111,61 @@ export function DocumentTypesView() {
 
   if (types.error && isApiError(types.error) && types.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={<AppPageHeader section="admin" title={t('title')} description={t('description')} />}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <AppPageHeader
-        section="admin"
-        title={t('title')}
-        description={t('description')}
-        actions={
-          types.data ? (
+    <ListPage
+      header={
+        <AppPageHeader
+          section="admin"
+          title={t('title')}
+          description={t('description')}
+          actions={
+            types.data ? (
+              <Button
+                iconLeft={<Plus />}
+                onClick={() => {
+                  setCreating(true);
+                }}
+              >
+                {t('new')}
+              </Button>
+            ) : null
+          }
+        />
+      }
+      loading={types.isPending}
+      loadingLabel={t('loading')}
+      error={
+        types.isError ? (
+          <Alert tone="error" title={t('loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setCreating(true);
+                void types.refetch();
               }}
             >
-              {t('new')}
+              {t('retry')}
             </Button>
-          ) : null
-        }
-      />
-
-      {types.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {types.isError ? (
-        <Alert tone="error" title={t('loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void types.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
+          </Alert>
+        ) : null
+      }
+      empty={
+        types.data?.length === 0 ? (
+          <EmptyState icon={<FileText />} title={t('empty.title')} description={t('empty.hint')} />
+        ) : null
+      }
+    >
       {types.data
         ? GROUP_ORDER.map((kind) => {
             const group = types.data.filter((type) => type.kind === kind);
@@ -200,7 +230,7 @@ export function DocumentTypesView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ListPage>
   );
 }
 
@@ -222,42 +252,31 @@ function TypeGroup({
 }) {
   const t = useTranslations('documentTypes');
   const headingId = `document-types-${kind}`;
+  const caption = t('table.caption', { group: t(`groups.${kind}`) });
   return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-2">
-      <h2 id={headingId} className="text-lg font-semibold">
+    <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-2.5">
+      <h2 id={headingId} className="text-lg font-bold text-brand-ink">
         {t(`groups.${kind}`)}
       </h2>
-      <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
-        <table className="w-full min-w-[56rem] text-left text-sm">
-          <caption className="sr-only">
-            {t('table.caption', { group: t(`groups.${kind}`) })}
-          </caption>
-          <thead className="bg-muted text-xs text-muted-foreground uppercase">
-            <tr>
-              <th scope="col" className="px-3 py-2">
-                {t('table.name')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.status')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.numbering')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.approval')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.confidentiality')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.template')}
-              </th>
-              <th scope="col" className="px-3 py-2">
-                {t('table.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer
+        label={caption}
+        footer={<TableFooter summary={t('count', { count: types.length })} />}
+      >
+        <Table>
+          <caption className="sr-only">{caption}</caption>
+          <TableHead>
+            <Tr>
+              <Th>{t('table.name')}</Th>
+              <Th>{t('table.status')}</Th>
+              <Th>{t('table.numbering')}</Th>
+              <Th>{t('table.approval')}</Th>
+              <Th>{t('table.template')}</Th>
+              <Th className="w-12">
+                <span className="sr-only">{t('table.actions')}</span>
+              </Th>
+            </Tr>
+          </TableHead>
+          <TableBody>
             {types.map((type) => (
               <TypeRow
                 key={type.id}
@@ -268,22 +287,10 @@ function TypeGroup({
                 onReactivate={onReactivate}
               />
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
     </section>
-  );
-}
-
-function Badge({ children, tone }: { readonly children: string; readonly tone: 'muted' | 'ok' }) {
-  return (
-    <span
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
-        tone === 'ok' ? 'bg-success-soft text-foreground' : 'bg-muted text-muted-foreground'
-      }`}
-    >
-      {children}
-    </span>
   );
 }
 
@@ -306,74 +313,93 @@ function TypeRow({
     type.defaultTemplate?.name ??
     (type.kind === 'FREE_TEXT' ? t('values.noTemplate') : t('values.noTemplateNeeded'));
   return (
-    <tr className="border-t border-border align-top">
-      <th scope="row" className="px-3 py-2 font-medium">
-        <span>{type.name}</span>
-        <span className="ml-2 font-mono text-xs text-muted-foreground">{type.code}</span>
-        {type.isSystem ? (
-          <span className="ml-2">
-            <Badge tone="muted">{t('badges.system')}</Badge>
-          </span>
-        ) : null}
+    <Tr>
+      <th scope="row" className="px-3.5 py-3 text-left font-normal">
+        <span className={type.isActive ? 'font-bold' : 'font-bold text-muted-foreground'}>
+          {type.name}
+        </span>
+        <span className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+          <span className="font-mono">{type.code}</span>
+          <span>{t(`confidentiality.${type.defaultConfidentiality}`)}</span>
+        </span>
       </th>
-      <td className="px-3 py-2">
-        <Badge tone={type.isActive ? 'ok' : 'muted'}>
-          {type.isActive ? t('badges.active') : t('badges.inactive')}
-        </Badge>
-      </td>
-      <td className="px-3 py-2">
+      <Td>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusChip tone={type.isActive ? 'success' : 'neutral'}>
+            {type.isActive ? t('badges.active') : t('badges.inactive')}
+          </StatusChip>
+          {type.isSystem ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t('system.tooltipLabel', { name: type.name })}
+                  className="rounded-full"
+                >
+                  <StatusChip tone="info" icon={<Lock />}>
+                    {t('badges.system')}
+                  </StatusChip>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{t('system.tooltip')}</TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
+      </Td>
+      <Td>
         {type.nextNumberPreview
           ? t('values.next', { preview: type.nextNumberPreview })
           : t('values.noNumbering')}
-      </td>
-      <td className="px-3 py-2">{type.requiresApproval ? t('values.yes') : t('values.no')}</td>
-      <td className="px-3 py-2">{t(`confidentiality.${type.defaultConfidentiality}`)}</td>
-      <td className="px-3 py-2 text-muted-foreground">
+      </Td>
+      <Td>{type.requiresApproval ? t('values.yes') : t('values.no')}</Td>
+      <Td className="text-muted-foreground">
         {templates && type.kind !== 'UPLOADED' ? (
           <DefaultTemplateSelect type={type} templates={templates} />
         ) : (
           template
         )}
-      </td>
-      <td className="px-3 py-2">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label={t('actions.edit', { name: type.name })}
-            onClick={() => {
-              onEdit(type);
-            }}
-          >
-            {t('actions.editLabel')}
-          </Button>
-          {canToggle ? (
-            type.isActive ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={t('actions.deactivate', { name: type.name })}
-                onClick={() => {
-                  onDeactivate(type);
-                }}
-              >
-                {t('actions.deactivateLabel')}
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={t('actions.reactivate', { name: type.name })}
-                onClick={() => {
-                  onReactivate(type);
-                }}
-              >
-                {t('actions.reactivateLabel')}
-              </Button>
-            )
-          ) : null}
-        </div>
-      </td>
-    </tr>
+      </Td>
+      <Td className="w-12 py-1.5 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t('actions.menu', { name: type.name })}
+              className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+            >
+              <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onSelect={() => {
+                onEdit(type);
+              }}
+            >
+              {t('actions.editLabel')}
+            </DropdownMenuItem>
+            {canToggle ? (
+              type.isActive ? (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    onDeactivate(type);
+                  }}
+                >
+                  {t('actions.deactivateLabel')}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    onReactivate(type);
+                  }}
+                >
+                  {t('actions.reactivateLabel')}
+                </DropdownMenuItem>
+              )
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </Td>
+    </Tr>
   );
 }

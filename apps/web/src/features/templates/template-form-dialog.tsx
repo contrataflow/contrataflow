@@ -3,10 +3,23 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import { templateCreateSchema } from '@contrataflow/validation';
@@ -31,8 +44,6 @@ import {
   updateTemplate,
 } from './templates.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
-
 export interface TemplateFormDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -53,12 +64,13 @@ function nameKey(name: string): string {
  * situação — o tipo é imutável. Valida com o schema da API e antecipa o nome repetido no tipo.
  */
 export function TemplateFormDialog(props: TemplateFormDialogProps) {
+  const t = useTranslations('templates');
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent style={{ maxWidth: '36rem' }}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
         {props.open ? <TemplateFormBody key={props.template?.id ?? 'novo'} {...props} /> : null}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -194,124 +206,102 @@ function TemplateFormBody({ template, onOpenChange, existing }: TemplateFormDial
   };
 
   const pending = create.isPending || update.isPending;
-  const errorId = (field: keyof FieldErrors) => `${ids}-${field}-error`;
+  const activeId = `${ids}-active`;
 
   return (
-    <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
-      <DialogTitle>{isEdit ? t('form.editTitle') : t('form.createTitle')}</DialogTitle>
-      <DialogDescription>
-        {isEdit ? t('form.editDescription') : t('form.createDescription')}
-      </DialogDescription>
-      {conflict ? (
-        <Alert tone="error" title={t('form.conflict')}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: templateKeys.all(tenantId) });
-              onOpenChange(false);
-            }}
-          >
-            {t('form.reload')}
-          </Button>
-        </Alert>
-      ) : null}
-      {formError ? <Alert tone="error" title={formError} /> : null}
+    <form
+      noValidate
+      onSubmit={(event) => void onSubmit(event)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <SheetHeader>
+        <SheetTitle>{isEdit ? t('form.editTitle') : t('form.createTitle')}</SheetTitle>
+        <SheetDescription>
+          {isEdit ? t('form.editDescription') : t('form.createDescription')}
+        </SheetDescription>
+      </SheetHeader>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${ids}-name`} className="text-sm font-medium">
-          {t('form.name')}
-        </label>
-        <input
-          id={`${ids}-name`}
-          className={INPUT}
-          value={name}
-          maxLength={150}
-          aria-invalid={errors.name ? true : undefined}
-          aria-describedby={errors.name ? errorId('name') : undefined}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-        {errors.name ? (
-          <p id={errorId('name')} className="text-sm text-destructive">
-            {errors.name}
-          </p>
+      <SheetBody>
+        {conflict ? (
+          <Alert tone="error" title={t('form.conflict')}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void queryClient.invalidateQueries({ queryKey: templateKeys.all(tenantId) });
+                onOpenChange(false);
+              }}
+            >
+              {t('form.reload')}
+            </Button>
+          </Alert>
         ) : null}
-      </div>
+        {formError ? <Alert tone="error" title={formError} /> : null}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${ids}-type`} className="text-sm font-medium">
-          {t('form.type')}
-        </label>
-        {isEdit ? (
-          <p id={`${ids}-type`} className="text-sm">
-            {template.documentType.name}{' '}
-            <span className="text-muted-foreground">— {t('form.typeLocked')}</span>
-          </p>
-        ) : (
-          <select
-            id={`${ids}-type`}
-            className={INPUT}
-            value={documentTypeId}
-            aria-invalid={errors.documentTypeId ? true : undefined}
-            aria-describedby={errors.documentTypeId ? errorId('documentTypeId') : undefined}
+        <Field label={t('form.name')} error={errors.name}>
+          <Input
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o painel
+            autoFocus
+            value={name}
+            maxLength={150}
             onChange={(event) => {
-              setDocumentTypeId(event.target.value);
-            }}
-          >
-            <option value="">{t('form.typePlaceholder')}</option>
-            {selectableTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {errors.documentTypeId ? (
-          <p id={errorId('documentTypeId')} className="text-sm text-destructive">
-            {errors.documentTypeId}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${ids}-description`} className="text-sm font-medium">
-          {t('form.description')}
-        </label>
-        <textarea
-          id={`${ids}-description`}
-          className="min-h-20 rounded-control border border-border bg-surface px-3 py-2 text-sm"
-          value={description}
-          maxLength={2000}
-          aria-invalid={errors.description ? true : undefined}
-          aria-describedby={errors.description ? errorId('description') : undefined}
-          onChange={(event) => {
-            setDescription(event.target.value);
-          }}
-        />
-        {errors.description ? (
-          <p id={errorId('description')} className="text-sm text-destructive">
-            {errors.description}
-          </p>
-        ) : null}
-      </div>
-
-      {isEdit ? (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(event) => {
-              setIsActive(event.target.checked);
+              setName(event.target.value);
             }}
           />
-          {t('form.isActive')}
-        </label>
-      ) : null}
+        </Field>
 
-      <div className="flex flex-wrap justify-end gap-2">
+        {isEdit ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-semibold">{t('form.type')}</span>
+            <p className="text-sm">
+              {template.documentType.name}{' '}
+              <span className="text-muted-foreground">— {t('form.typeLocked')}</span>
+            </p>
+          </div>
+        ) : (
+          <Field label={t('form.type')} error={errors.documentTypeId}>
+            <Select value={documentTypeId} onValueChange={setDocumentTypeId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t('form.typePlaceholder')} />
+              </SelectTrigger>
+              <SelectContent>
+                {selectableTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
+        <Field label={t('form.description')} error={errors.description}>
+          <Textarea
+            rows={3}
+            value={description}
+            maxLength={2000}
+            onChange={(event) => {
+              setDescription(event.target.value);
+            }}
+          />
+        </Field>
+
+        {isEdit ? (
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id={activeId}
+              checked={isActive}
+              onCheckedChange={(checked) => {
+                setIsActive(checked === true);
+              }}
+            />
+            <Label htmlFor={activeId}>{t('form.isActive')}</Label>
+          </div>
+        ) : null}
+      </SheetBody>
+
+      <SheetFooter>
         <Button
           type="button"
           variant="secondary"
@@ -324,7 +314,7 @@ function TemplateFormBody({ template, onOpenChange, existing }: TemplateFormDial
         <Button type="submit" disabled={pending} aria-busy={pending}>
           {pending ? t('form.saving') : isEdit ? t('form.save') : t('form.create')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

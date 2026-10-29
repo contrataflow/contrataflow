@@ -122,10 +122,15 @@ function WithToaster({ children }: { readonly children: ReactNode }) {
 }
 
 const card = (name: RegExp) => {
-  const item = screen.getAllByRole('listitem').find((li) => name.test(li.textContent));
-  if (!item) throw new Error(`cartão ${String(name)} ausente`);
+  const item = screen.getAllByRole('row').find((row) => name.test(row.textContent));
+  if (!item) throw new Error(`linha ${String(name)} ausente`);
   return item;
 };
+
+/** Abre o menu ⋯ da linha do workflow. */
+async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -148,8 +153,9 @@ describe('describeApplicability', () => {
 });
 
 describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
-  it('[Sucesso] lista com o selo "Padrão" (ícone + texto), aplicabilidade e versão; sem violações de a11y', async () => {
+  it('[Sucesso] lista com o selo "Padrão" (texto, não só cor), aplicabilidade e versão; sem violações de a11y', async () => {
     mockApi();
+    const user = userEvent.setup();
     renderWithShell(<WorkflowsView />);
 
     await screen.findByText('Contratação direta — Lei 14.133/2021, art. 72');
@@ -157,40 +163,45 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
     expect(within(standard).getByText('Padrão')).toBeTruthy();
     expect(within(standard).getByText('Qualquer processo')).toBeTruthy();
     expect(within(standard).getByText('v1')).toBeTruthy();
-    expect(within(standard).queryByRole('button', { name: /Tornar/ })).toBeNull();
     const direct = card(/Contratação direta/);
     expect(within(direct).getByText('Modalidade: DISPENSA, INEXIGIBILIDADE')).toBeTruthy();
     expect(within(direct).getByText('Prioridade 50')).toBeTruthy();
     expect(within(direct).queryByText('Padrão')).toBeNull();
-    expect(
-      await within(direct).findByRole('button', {
-        name: 'Tornar Contratação direta — Lei 14.133/2021, art. 72 o workflow padrão',
-      }),
-    ).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
+
+    // O padrão atual não oferece "Tornar padrão"; os demais, sim.
+    await openRowMenu(user, 'Fase preparatória — Lei 14.133/2021');
+    expect(await screen.findByRole('menuitem', { name: 'Abrir editor' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Tornar padrão' })).toBeNull();
+    await user.keyboard('{Escape}');
+    await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
+    expect(await screen.findByRole('menuitem', { name: 'Tornar padrão' })).toBeTruthy();
   });
 
   it('[Validação] FA-02: workflow sem versão publicada tem "Tornar padrão" desabilitado com o motivo', async () => {
     mockApi();
+    const user = userEvent.setup();
     renderWithShell(<WorkflowsView />);
     await screen.findByText('Piloto de obras');
     const piloto = card(/Piloto de obras/);
-    const button = await within(piloto).findByRole('button', { name: /Tornar Piloto de obras/ });
-    expect(button.hasAttribute('disabled')).toBe(true);
-    const reason = button.getAttribute('aria-describedby') ?? '';
+    expect(within(piloto).getByText('Nenhuma versão publicada')).toBeTruthy();
+    await openRowMenu(user, 'Piloto de obras');
+    const item = await screen.findByRole('menuitem', { name: 'Tornar padrão' });
+    expect(item.getAttribute('aria-disabled')).toBe('true');
+    const reason = item.getAttribute('aria-describedby') ?? '';
     expect(document.getElementById(reason)?.textContent).toBe(
       'Publique uma versão e ative o workflow antes de torná-lo padrão.',
     );
-    expect(within(piloto).getByText('Nenhuma versão publicada')).toBeTruthy();
   });
 
   it('[Permissão] sem WORKFLOW_PUBLISH a ação fica oculta', async () => {
     mockApi({}, ['WORKFLOW_VIEW']);
+    const user = userEvent.setup();
     renderWithShell(<WorkflowsView />);
     await screen.findByText('Piloto de obras');
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /Tornar/ })).toBeNull();
-    });
+    await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
+    expect(await screen.findByRole('menuitem', { name: 'Abrir editor' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Tornar padrão' })).toBeNull();
   });
 
   it('[Sucesso] tornar padrão: confirma, envia WF-05 com If-Match e mostra o toast', async () => {
@@ -213,7 +224,8 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
       </WithToaster>,
     );
 
-    await user.click(await screen.findByRole('button', { name: /Tornar Contratação direta/ }));
+    await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
+    await user.click(await screen.findByRole('menuitem', { name: 'Tornar padrão' }));
     const dialog = await screen.findByRole('dialog');
     expect(
       within(dialog).getByText('Hoje o padrão é "Fase preparatória — Lei 14.133/2021".'),
@@ -238,7 +250,8 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
     const api = mockApi({ setDefault: () => problemResponse(412, 'VERSION_CONFLICT') });
     const user = userEvent.setup();
     renderWithShell(<WorkflowsView />);
-    await user.click(await screen.findByRole('button', { name: /Tornar Contratação direta/ }));
+    await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
+    await user.click(await screen.findByRole('menuitem', { name: 'Tornar padrão' }));
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Tornar padrão' }),
     );
@@ -272,7 +285,8 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
       mockApi({ setDefault: () => problemResponse(status, code) });
       const user = userEvent.setup();
       const view = renderWithShell(<WorkflowsView />);
-      await user.click(await screen.findByRole('button', { name: /Tornar Contratação direta/ }));
+      await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
+      await user.click(await screen.findByRole('menuitem', { name: 'Tornar padrão' }));
       const dialog = await screen.findByRole('dialog');
       await user.click(within(dialog).getByRole('button', { name: 'Tornar padrão' }));
       expect(await within(dialog).findByText(message)).toBeTruthy();
@@ -290,6 +304,7 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
     mockApi({ list: () => jsonResponse({ data: [] }) });
     const empty = renderWithShell(<WorkflowsView />);
     expect(await screen.findByText('Nenhum workflow cadastrado ainda.')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Novo workflow' })).toBeTruthy();
     empty.unmount();
 
     mockApi({ list: () => problemResponse(403, 'PERMISSION_DENIED') });
@@ -332,8 +347,8 @@ describe('SCR-034 · novo workflow e acesso ao editor (US-043)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Novo workflow' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e abrir o editor' }));
     expect(within(dialog).getByText('Preencha o campo "Nome".')).toBeTruthy();
-    await userEvent.type(within(dialog).getByLabelText('Nome'), 'Obras — rito simplificado');
-    expect(within(dialog).getByLabelText<HTMLInputElement>('Chave técnica').value).toBe(
+    await userEvent.type(within(dialog).getByLabelText(/^Nome/), 'Obras — rito simplificado');
+    expect(within(dialog).getByLabelText<HTMLInputElement>(/^Chave técnica/).value).toBe(
       'OBRAS_RITO_SIMPLIFICADO',
     );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e abrir o editor' }));

@@ -5,6 +5,15 @@
   "loading": "Carregando os tipos de documento…",
   "loadFailed": "Não foi possível carregar os tipos.",
   "retry": "Tentar novamente",
+  "count": "{count, plural, one {# tipo} other {# tipos}}",
+  "empty": {
+    "title": "Nenhum tipo de documento",
+    "hint": "Crie o primeiro tipo para disponibilizá-lo nos processos."
+  },
+  "system": {
+    "tooltip": "Tipo do sistema: o código é fixo e alguns campos são definidos pela plataforma. Ele pode ser desativado quando permitido, nunca excluído.",
+    "tooltipLabel": "Por que {name} é imutável"
+  },
   "forbidden": {
     "title": "Acesso negado",
     "description": "Você não tem permissão para gerenciar os tipos de documento. Procure o administrador da sua instituição."
@@ -20,7 +29,6 @@
     "status": "Situação",
     "numbering": "Numeração",
     "approval": "Exige aprovação",
-    "confidentiality": "Confidencialidade padrão",
     "template": "Template padrão",
     "actions": "Ações"
   },
@@ -43,11 +51,9 @@
     "RESTRICTED": "Restrita"
   },
   "actions": {
-    "edit": "Editar {name}",
+    "menu": "Ações de {name}",
     "editLabel": "Editar",
-    "deactivate": "Desativar {name}",
     "deactivateLabel": "Desativar",
-    "reactivate": "Reativar {name}",
     "reactivateLabel": "Reativar"
   },
   "form": {
@@ -96,6 +102,7 @@
     "submit": "Salvar",
     "submitting": "Salvando…",
     "cancel": "Cancelar",
+    "close": "Fechar",
     "maskInvalid": "A máscara deve conter '{seq:N}' e '{year}' e usar apenas os campos permitidos."
   },
   "toast": {

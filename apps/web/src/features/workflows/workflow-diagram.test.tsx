@@ -269,6 +269,12 @@ async function openDiagramTab() {
   return screen.findByRole('tabpanel', { name: 'Diagrama' });
 }
 
+/** Troca a versão exibida pelo seletor do kit (Radix Select). */
+async function chooseVersion(panel: HTMLElement, option: string) {
+  await userEvent.click(within(panel).getByRole('combobox', { name: 'Versão exibida' }));
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
 const stageNodes = (panel: HTMLElement) =>
   within(within(panel).getByRole('list', { name: 'Etapas do diagrama' })).getAllByRole('button');
 const edgeLabels = (panel: HTMLElement) =>
@@ -366,26 +372,23 @@ describe('Aba "Diagrama" do editor de workflow (US-046)', () => {
     const fetchMock = mockApi(initialState());
     const panel = await openDiagramTab();
     await within(panel).findByRole('list', { name: 'Etapas do diagrama' });
-    const switcher = within(panel).getByLabelText('Versão exibida');
-    await waitFor(() => {
-      expect(within(switcher).getAllByRole('option')).toHaveLength(2);
-    });
+    await within(panel).findByRole('combobox', { name: 'Versão exibida' });
     expect(stageNodes(panel)).toHaveLength(7);
     const readsBefore = versionCalls(fetchMock, V2).length;
 
-    await userEvent.selectOptions(switcher, V2);
+    await chooseVersion(panel, 'Versão 2 — Publicada');
     expect(stageNodes(panel)).toHaveLength(7);
     expect(versionCalls(fetchMock, V2)).toHaveLength(readsBefore);
 
     // FA-03 · RN-WF-73: a versão aposentada também é desenhada, com o aviso no topo.
-    await userEvent.selectOptions(switcher, V1);
+    await chooseVersion(panel, 'Versão 1 — Aposentada');
     expect(await within(panel).findByText('Esta versão está aposentada')).toBeTruthy();
     await waitFor(() => {
       expect(stageNodes(panel)).toHaveLength(6);
     });
     expect(within(panel).queryByRole('button', { name: /Termo de referência/ })).toBeNull();
 
-    await userEvent.selectOptions(switcher, V2);
+    await chooseVersion(panel, 'Versão 2 — Publicada');
     await waitFor(() => {
       expect(stageNodes(panel)).toHaveLength(7);
     });
@@ -399,11 +402,8 @@ describe('Aba "Diagrama" do editor de workflow (US-046)', () => {
     });
     const panel = await openDiagramTab();
     await within(panel).findByRole('list', { name: 'Etapas do diagrama' });
-    const switcher = within(panel).getByLabelText('Versão exibida');
-    await waitFor(() => {
-      expect(within(switcher).getAllByRole('option')).toHaveLength(2);
-    });
-    await userEvent.selectOptions(switcher, V1);
+    await within(panel).findByRole('combobox', { name: 'Versão exibida' });
+    await chooseVersion(panel, 'Versão 1 — Aposentada');
 
     expect(
       await within(panel).findByText(
@@ -423,11 +423,8 @@ describe('Aba "Diagrama" do editor de workflow (US-046)', () => {
     mockApi(initialState(), { version: (id) => (id === V1 ? problem(404, 'NOT_FOUND') : null) });
     const panel = await openDiagramTab();
     await within(panel).findByRole('list', { name: 'Etapas do diagrama' });
-    const switcher = within(panel).getByLabelText('Versão exibida');
-    await waitFor(() => {
-      expect(within(switcher).getAllByRole('option')).toHaveLength(2);
-    });
-    await userEvent.selectOptions(switcher, V1);
+    await within(panel).findByRole('combobox', { name: 'Versão exibida' });
+    await chooseVersion(panel, 'Versão 1 — Aposentada');
 
     expect(await within(panel).findByText('Workflow não encontrado.')).toBeTruthy();
     expect(

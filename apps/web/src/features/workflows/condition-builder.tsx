@@ -1,9 +1,23 @@
 'use client';
 
-import { Button } from '@contrataflow/ui';
+import {
+  Button,
+  DatePicker,
+  Field,
+  Input,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  X,
+  fromIsoDate,
+  toIsoDate,
+} from '@contrataflow/ui';
 import type { RuleContextSchemaDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
 
 import {
   conditionOf,
@@ -22,13 +36,11 @@ import type {
   RuleDraft,
 } from './workflow-rules-model';
 
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
-
 /**
  * `ConditionBuilder` (US-044 · RN-WF-58): combinador E/OU e linhas campo/operador/valor sobre os
  * campos do RuleContext (WF-19), gerando JSON Logic no cliente; "Editar como JSON" é a alternativa
- * para expressões que o construtor não representa. Tudo em controles nativos (navegável por
- * teclado); a API revalida a whitelist de operações antes de qualquer execução.
+ * para expressões que o construtor não representa. Controles do kit (navegáveis por teclado); a
+ * API revalida a whitelist de operações antes de qualquer execução.
  */
 export function ConditionBuilder({
   draft,
@@ -45,7 +57,6 @@ export function ConditionBuilder({
   readonly onChange: (patch: Partial<RuleDraft>) => void;
 }) {
   const t = useTranslations('workflows.rules.condition');
-  const ids = useId();
   const types = fieldTypesOf(schema);
   const tree = draft.condition;
 
@@ -65,33 +76,26 @@ export function ConditionBuilder({
       }
     })();
     return (
-      <fieldset className="flex flex-col gap-2 rounded-card border border-border p-3">
-        <legend className="px-1 text-sm font-medium">{t('legend')}</legend>
+      <fieldset className="flex flex-col gap-3 rounded-control border border-border p-3">
+        <legend className="px-1 text-sm font-semibold">{t('legend')}</legend>
         {representable ? null : (
-          <p className="text-xs text-muted-foreground">{t('notRepresentable')}</p>
+          <p className="text-[0.8125rem] text-muted-foreground">{t('notRepresentable')}</p>
         )}
-        <label htmlFor={`${ids}-json`} className="text-sm font-medium">
-          {t('json')}
-        </label>
-        <textarea
-          id={`${ids}-json`}
-          className="min-h-40 w-full rounded-control border border-border bg-surface p-3 font-mono text-xs"
-          value={draft.conditionJson}
+        <Field
+          label={t('json')}
+          description={t('jsonHint')}
+          error={errors['config.expression']}
           disabled={disabled}
-          aria-invalid={errors['config.expression'] ? true : undefined}
-          aria-describedby={`${ids}-json-hint${errors['config.expression'] ? ` ${ids}-json-error` : ''}`}
-          onChange={(event) => {
-            onChange({ conditionJson: event.target.value });
-          }}
-        />
-        <p id={`${ids}-json-hint`} className="text-xs text-muted-foreground">
-          {t('jsonHint')}
-        </p>
-        {errors['config.expression'] ? (
-          <p id={`${ids}-json-error`} className="text-sm text-destructive">
-            {errors['config.expression']}
-          </p>
-        ) : null}
+        >
+          <Textarea
+            rows={8}
+            className="font-mono text-xs"
+            value={draft.conditionJson}
+            onChange={(event) => {
+              onChange({ conditionJson: event.target.value });
+            }}
+          />
+        </Field>
         {representable ? (
           <div>
             <Button
@@ -113,25 +117,24 @@ export function ConditionBuilder({
   }
 
   return (
-    <fieldset className="flex flex-col gap-3 rounded-card border border-border p-3">
-      <legend className="px-1 text-sm font-medium">{t('legend')}</legend>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${ids}-combinator`} className="text-sm">
-          {t('combinator')}
-        </label>
-        <select
-          id={`${ids}-combinator`}
-          className={INPUT}
+    <fieldset className="flex flex-col gap-3 rounded-control border border-border p-3">
+      <legend className="px-1 text-sm font-semibold">{t('legend')}</legend>
+      <Field label={t('combinator')} disabled={disabled}>
+        <Select
           value={tree.combinator}
-          disabled={disabled}
-          onChange={(event) => {
-            setTree({ ...tree, combinator: event.target.value as Combinator });
+          onValueChange={(value) => {
+            setTree({ ...tree, combinator: value as Combinator });
           }}
         >
-          <option value="and">{t('and')}</option>
-          <option value="or">{t('or')}</option>
-        </select>
-      </div>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="and">{t('and')}</SelectItem>
+            <SelectItem value="or">{t('or')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
       {tree.rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : (
@@ -140,90 +143,116 @@ export function ConditionBuilder({
             const position = index + 1;
             const type = types.get(row.path) ?? 'string';
             const error = errors[`condition.${String(index)}`];
-            const errorId = `${ids}-row-${String(index)}-error`;
+            const errorId = `condicao-${String(index)}-erro`;
+            const invalid = error ? true : undefined;
+            const describedBy = error ? errorId : undefined;
             return (
               <li
                 // A posição identifica a linha (linhas não têm id; remover reindexa a lista).
                 key={index}
-                className="grid gap-2 rounded-control bg-muted p-2 md:grid-cols-[2fr_1.4fr_1.4fr_auto] md:items-end"
+                className="flex flex-col gap-2 rounded-control bg-muted/60 p-2"
               >
-                <select
-                  aria-label={t('field', { position })}
-                  className={INPUT}
+                <Select
                   value={row.path}
                   disabled={disabled}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? errorId : undefined}
-                  onChange={(event) => {
-                    const path = event.target.value;
+                  onValueChange={(path) => {
                     setRow(index, withRowPath(row, path, types.get(path) ?? 'string'));
                   }}
                 >
-                  {types.has(row.path) ? null : <option value={row.path}>{row.path}</option>}
-                  {schema.fields.map((field) => (
-                    <option key={field.path} value={field.path}>
-                      {field.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  aria-label={t('operator', { position })}
-                  className={INPUT}
-                  value={row.operator}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    setRow(index, { ...row, operator: event.target.value as ConditionOperator });
-                  }}
-                >
-                  {operatorsFor(type).map((operator) => (
-                    <option key={operator} value={operator}>
-                      {t(`operators.${operator}`)}
-                    </option>
-                  ))}
-                </select>
-                {isUnary(row.operator) ? (
-                  <span aria-hidden="true" />
-                ) : type === 'boolean' ? (
-                  <select
-                    aria-label={t('value', { position })}
-                    className={INPUT}
-                    value={row.value}
+                  <SelectTrigger
+                    aria-label={t('field', { position })}
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {types.has(row.path) ? null : (
+                      <SelectItem value={row.path}>{row.path}</SelectItem>
+                    )}
+                    {schema.fields.map((field) => (
+                      <SelectItem key={field.path} value={field.path}>
+                        {field.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2">
+                  <Select
+                    value={row.operator}
                     disabled={disabled}
-                    onChange={(event) => {
-                      setRow(index, { ...row, value: event.target.value });
+                    onValueChange={(operator) => {
+                      setRow(index, { ...row, operator: operator as ConditionOperator });
                     }}
                   >
-                    <option value="true">{t('true')}</option>
-                    <option value="false">{t('false')}</option>
-                  </select>
-                ) : (
-                  <input
-                    aria-label={t('value', { position })}
-                    className={INPUT}
-                    type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
-                    value={row.value}
+                    <SelectTrigger aria-label={t('operator', { position })}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operatorsFor(type).map((operator) => (
+                        <SelectItem key={operator} value={operator}>
+                          {t(`operators.${operator}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {isUnary(row.operator) ? (
+                    <span aria-hidden="true" />
+                  ) : type === 'boolean' ? (
+                    <Select
+                      value={row.value === 'false' ? 'false' : 'true'}
+                      disabled={disabled}
+                      onValueChange={(value) => {
+                        setRow(index, { ...row, value });
+                      }}
+                    >
+                      <SelectTrigger aria-label={t('value', { position })}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">{t('true')}</SelectItem>
+                        <SelectItem value="false">{t('false')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : type === 'date' ? (
+                    <DatePicker
+                      aria-label={t('value', { position })}
+                      aria-invalid={invalid}
+                      aria-describedby={describedBy}
+                      disabled={disabled}
+                      value={fromIsoDate(row.value)}
+                      onValueChange={(date) => {
+                        setRow(index, { ...row, value: date ? toIsoDate(date) : '' });
+                      }}
+                    />
+                  ) : (
+                    <Input
+                      aria-label={t('value', { position })}
+                      type={type === 'number' ? 'number' : 'text'}
+                      value={row.value}
+                      disabled={disabled}
+                      aria-invalid={invalid}
+                      aria-describedby={describedBy}
+                      onChange={(event) => {
+                        setRow(index, { ...row, value: event.target.value });
+                      }}
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
                     disabled={disabled}
-                    aria-invalid={error ? true : undefined}
-                    aria-describedby={error ? errorId : undefined}
-                    onChange={(event) => {
-                      setRow(index, { ...row, value: event.target.value });
+                    aria-label={t('remove', { position })}
+                    onClick={() => {
+                      setTree({ ...tree, rows: tree.rows.filter((_item, at) => at !== index) });
                     }}
-                  />
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={disabled}
-                  aria-label={t('remove', { position })}
-                  onClick={() => {
-                    setTree({ ...tree, rows: tree.rows.filter((_item, at) => at !== index) });
-                  }}
-                >
-                  <span aria-hidden="true">✕</span>
-                </Button>
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </div>
                 {error ? (
-                  <p id={errorId} className="text-sm text-destructive md:col-span-4">
+                  <p id={errorId} className="text-[0.8125rem] font-semibold text-destructive">
                     {error}
                   </p>
                 ) : null}
@@ -233,13 +262,16 @@ export function ConditionBuilder({
         </ol>
       )}
       {errors['config.expression'] ? (
-        <p className="text-sm text-destructive">{errors['config.expression']}</p>
+        <p className="text-[0.8125rem] font-semibold text-destructive">
+          {errors['config.expression']}
+        </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="secondary"
           size="sm"
+          iconLeft={<Plus />}
           disabled={disabled || schema.fields.length === 0}
           onClick={() => {
             setTree({ ...tree, rows: [...tree.rows, newConditionRow(schema)] });

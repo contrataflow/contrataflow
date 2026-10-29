@@ -1,33 +1,33 @@
 'use client';
 
-import { Button } from '@contrataflow/ui';
+import {
+  ChevronDown,
+  ChevronUp,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Lock,
+  StatusChip,
+  Table,
+  TableBody,
+  TableHead,
+  Td,
+  Th,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  Tr,
+} from '@contrataflow/ui';
 import type { CatalogItemDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
-import { Can } from '@/lib/permissions/can';
 import { usePermission } from '@/lib/permissions/use-permission';
 
-function Badge({
-  children,
-  tone,
-}: {
-  readonly children: string;
-  readonly tone: 'muted' | 'ok' | 'system';
-}) {
-  const classes = {
-    ok: 'bg-success-soft text-foreground',
-    muted: 'bg-muted text-muted-foreground',
-    system: 'border border-border bg-surface text-foreground',
-  } as const;
-  return (
-    <span
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${classes[tone]}`}
-    >
-      {children}
-    </span>
-  );
-}
+const ICON_BUTTON =
+  'inline-grid size-9 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40';
 
 export interface CatalogItemTableProps {
   readonly caption: string;
@@ -36,14 +36,16 @@ export interface CatalogItemTableProps {
   readonly onEdit: (item: CatalogItemDto) => void;
   readonly onDeactivate: (item: CatalogItemDto) => void;
   readonly onActivate: (item: CatalogItemDto) => void;
-  /** Move o item de uma posição para outra (arrastar ou "Mover para cima/baixo"). */
+  /** Move o item de uma posição para outra (arrastar ou setas "Mover para cima/baixo"). */
   readonly onMove: (from: number, to: number) => void;
 }
 
 /**
- * `CatalogItemTable` (SCR-109 · US-104 · passo 2): código, rótulo, selo "Padrão do sistema" e
- * situação. Não existe "Excluir" para nenhum item (RN-TEN-64). Com `CATALOG_MANAGE`, as linhas
- * são arrastáveis para reordenar e cada uma tem "Mover para cima/baixo" (alternativa por teclado).
+ * `CatalogItemTable` (SCR-109 · US-104 · passo 2 · prd-5): rótulo em negrito com o código estável
+ * na linha secundária, situação e selo "Padrão do sistema" (cadeado com a explicação de que o item
+ * é imutável). Não existe "Excluir" para nenhum item (RN-TEN-64). Com `CATALOG_MANAGE`, as linhas
+ * são arrastáveis, cada uma tem as setas "Mover para cima/baixo" (alternativa por teclado) e o
+ * menu ⋯ com "Editar" e "Desativar/Ativar".
  */
 export function CatalogItemTable({
   caption,
@@ -59,133 +61,147 @@ export function CatalogItemTable({
   const [dragging, setDragging] = useState<number | null>(null);
 
   return (
-    <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
-      <table className="w-full min-w-[44rem] text-left text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead className="bg-muted text-xs text-muted-foreground uppercase">
-          <tr>
-            <th scope="col" className="w-16 px-3 py-2">
-              {t('table.order')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.code')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.label')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.status')}
-            </th>
-            <Can permission="CATALOG_MANAGE">
-              <th scope="col" className="px-3 py-2">
-                {t('table.actions')}
-              </th>
-            </Can>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => (
-            <tr
-              key={item.id}
-              draggable={canManage && !busy}
-              onDragStart={(event) => {
-                setDragging(index);
-                event.dataTransfer.effectAllowed = 'move';
-              }}
-              onDragOver={(event) => {
-                if (dragging !== null) event.preventDefault();
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (dragging !== null && dragging !== index) onMove(dragging, index);
-                setDragging(null);
-              }}
-              onDragEnd={() => {
-                setDragging(null);
-              }}
-              className={`border-t border-border align-top ${
-                dragging === index ? 'opacity-60' : ''
-              } ${item.isActive ? '' : 'text-muted-foreground'}`}
-            >
-              <td className="px-3 py-2 tabular-nums">{index + 1}</td>
-              <td className="px-3 py-2 font-mono text-xs">{item.code}</td>
-              <th scope="row" className="px-3 py-2 font-medium">
-                {item.label}
-              </th>
-              <td className="px-3 py-2">
-                <div className="flex flex-wrap gap-1">
-                  <Badge tone={item.isActive ? 'ok' : 'muted'}>
-                    {item.isActive ? t('badges.active') : t('badges.inactive')}
-                  </Badge>
-                  {item.isSystem ? <Badge tone="system">{t('badges.system')}</Badge> : null}
-                </div>
-              </td>
-              <Can permission="CATALOG_MANAGE">
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      aria-label={t('actions.edit', { name: item.label })}
-                      onClick={() => {
-                        onEdit(item);
-                      }}
-                    >
-                      {t('actions.editLabel')}
-                    </Button>
-                    {item.isActive ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t('actions.deactivate', { name: item.label })}
-                        onClick={() => {
-                          onDeactivate(item);
-                        }}
-                      >
-                        {t('actions.deactivateLabel')}
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t('actions.activate', { name: item.label })}
-                        disabled={busy}
-                        onClick={() => {
-                          onActivate(item);
-                        }}
-                      >
-                        {t('actions.activateLabel')}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
+    <Table>
+      <caption className="sr-only">{caption}</caption>
+      <TableHead>
+        <Tr>
+          <Th className="w-28">{t('table.order')}</Th>
+          <Th>{t('table.label')}</Th>
+          <Th>{t('table.status')}</Th>
+          {canManage ? (
+            <Th className="w-12">
+              <span className="sr-only">{t('table.actions')}</span>
+            </Th>
+          ) : null}
+        </Tr>
+      </TableHead>
+      <TableBody>
+        {items.map((item, index) => (
+          <Tr
+            key={item.id}
+            draggable={canManage && !busy}
+            onDragStart={(event) => {
+              setDragging(index);
+              event.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragOver={(event) => {
+              if (dragging !== null) event.preventDefault();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (dragging !== null && dragging !== index) onMove(dragging, index);
+              setDragging(null);
+            }}
+            onDragEnd={() => {
+              setDragging(null);
+            }}
+            className={dragging === index ? 'opacity-60' : undefined}
+          >
+            <Td className="tabular-nums">
+              <div className="flex items-center gap-1">
+                <span className="w-6 text-muted-foreground">{index + 1}</span>
+                {canManage ? (
+                  <>
+                    <button
+                      type="button"
+                      className={ICON_BUTTON}
                       aria-label={t('actions.moveUp', { name: item.label })}
                       disabled={busy || index === 0}
                       onClick={() => {
                         onMove(index, index - 1);
                       }}
                     >
-                      {t('actions.moveUpLabel')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                      <ChevronUp aria-hidden="true" className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className={ICON_BUTTON}
                       aria-label={t('actions.moveDown', { name: item.label })}
                       disabled={busy || index === items.length - 1}
                       onClick={() => {
                         onMove(index, index + 1);
                       }}
                     >
-                      {t('actions.moveDownLabel')}
-                    </Button>
-                  </div>
-                </td>
-              </Can>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                      <ChevronDown aria-hidden="true" className="size-4" />
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            </Td>
+            <th scope="row" className="px-3.5 py-3 text-left font-normal">
+              <span className={item.isActive ? 'font-bold' : 'font-bold text-muted-foreground'}>
+                {item.label}
+              </span>
+              <span className="block font-mono text-xs text-muted-foreground">{item.code}</span>
+            </th>
+            <Td>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusChip tone={item.isActive ? 'success' : 'neutral'}>
+                  {item.isActive ? t('badges.active') : t('badges.inactive')}
+                </StatusChip>
+                {item.isSystem ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t('system.tooltipLabel', { name: item.label })}
+                        className="rounded-full"
+                      >
+                        <StatusChip tone="info" icon={<Lock />}>
+                          {t('badges.system')}
+                        </StatusChip>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{t('system.tooltip')}</TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </div>
+            </Td>
+            {canManage ? (
+              <Td className="w-12 py-1.5 text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={t('actions.menu', { name: item.label })}
+                      className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+                    >
+                      <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        onEdit(item);
+                      }}
+                    >
+                      {t('actions.editLabel')}
+                    </DropdownMenuItem>
+                    {item.isActive ? (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          onDeactivate(item);
+                        }}
+                      >
+                        {t('actions.deactivateLabel')}
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem
+                        disabled={busy}
+                        onSelect={() => {
+                          onActivate(item);
+                        }}
+                      >
+                        {t('actions.activateLabel')}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </Td>
+            ) : null}
+          </Tr>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

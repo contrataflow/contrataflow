@@ -5,7 +5,27 @@
   "loadFailed": "Não foi possível carregar os workflows.",
   "retry": "Tentar novamente",
   "empty": "Nenhum workflow cadastrado ainda.",
+  "emptyHint": "Crie o primeiro workflow para definir as etapas de tramitação dos processos.",
+  "emptyFiltered": "Nenhum workflow encontrado.",
+  "emptyFilteredHint": "Nenhum workflow corresponde à busca e aos filtros. Ajuste-os ou limpe para ver todos.",
+  "count": "{count, plural, =0 {Nenhum workflow} one {# workflow} other {# workflows}}",
   "caption": "Workflows do órgão, na ordem em que a aplicabilidade é avaliada",
+  "rowMenu": {
+    "label": "Ações de {name}",
+    "open": "Abrir editor"
+  },
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Buscar workflow",
+    "searchHint": "Nome, chave ou descrição do workflow.",
+    "status": "Situação",
+    "all": "Todos",
+    "active": "Ativos",
+    "inactive": "Inativos",
+    "chip": "{label}: {value}",
+    "removeChip": "Remover o filtro {label}: {value}",
+    "clear": "Limpar busca e filtros"
+  },
   "forbidden": {
     "title": "Acesso restrito",
     "description": "Você não tem permissão para consultar os workflows."
@@ -67,6 +87,8 @@
       "description": "Descrição"
     },
     "keyHint": "Gerada a partir do nome; pode ser ajustada até salvar e não muda depois.",
+    "keyHelpLabel": "Ajuda sobre a chave técnica",
+    "close": "Fechar o painel",
     "required": "Preencha o campo \"{field}\".",
     "keyPattern": "Use letras maiúsculas, números e _ (ex.: OBRAS_RITO_SIMPLIFICADO), com ao menos 3 caracteres.",
     "nameLength": "O nome deve ter entre 3 e 150 caracteres.",
@@ -78,6 +100,13 @@
   },
   "editor": {
     "back": "Voltar para Workflows",
+    "breadcrumbLabel": "Trilha",
+    "helpLabel": "Ajuda sobre {field}",
+    "menu": {
+      "more": "Mais",
+      "diagram": "Ver o diagrama",
+      "versions": "Versões e publicação"
+    },
     "loading": "Carregando o workflow…",
     "notFound": "Workflow não encontrado.",
     "loadFailed": "Não foi possível carregar o workflow.",
@@ -89,6 +118,7 @@
     },
     "draft": {
       "hint": "Para editar etapas e transições, crie um rascunho a partir da versão publicada. Os processos em andamento continuam na versão publicada.",
+      "helpLabel": "Ajuda sobre o rascunho",
       "action": "Criar rascunho",
       "created": "Rascunho v{number} criado.",
       "exists": "Já existe um rascunho deste workflow. Continue a edição dele.",
@@ -190,6 +220,8 @@
     "values": {
       "select": "Selecione…",
       "currentSelection": "Seleção atual",
+      "search": "Buscar",
+      "noResults": "Nenhum resultado encontrado.",
       "optionsUnavailable": "Não foi possível carregar as opções. A seleção atual é mantida.",
       "noDocumentTypes": "Nenhum tipo de documento ativo."
     },
@@ -252,6 +284,11 @@
       "needStages": "Crie ao menos duas etapas para ligá-las.",
       "empty": "Nenhuma transição ainda.",
       "caption": "Transições do workflow",
+      "columns": {
+        "name": "Transição",
+        "route": "Origem e destino",
+        "actions": "Ações"
+      },
       "primary": "Ação principal",
       "comment": "Exige comentário",
       "route": "{from} → {to}",
@@ -284,6 +321,10 @@
     "title": "Regras — {name}",
     "description": "Configure o que precisa estar pronto para o processo sair de uma etapa ou seguir por uma transição. Teste a regra contra um processo real antes de publicar a versão.",
     "back": "Voltar ao editor do workflow",
+    "breadcrumb": {
+      "workflows": "Workflows",
+      "rules": "Regras"
+    },
     "loading": "Carregando as regras…",
     "loadFailed": "Não foi possível carregar as regras.",
     "notFound": "Workflow não encontrado.",
@@ -313,9 +354,13 @@
       "saved": "Regra {name} salva.",
       "deleted": "Regra excluída.",
       "caption": "Regras na ordem de avaliação",
+      "rowMenu": "Ações da regra {name}",
+      "count": "{count, plural, one {# regra} other {# regras}}",
       "columns": {
         "order": "Ordem",
         "rule": "Regra",
+        "type": "Tipo",
+        "severity": "Severidade",
         "actions": "Ações"
       }
     },
@@ -359,7 +404,11 @@
       "cancel": "Cancelar",
       "create": "Criar regra",
       "save": "Salvar regra",
-      "select": "Selecione"
+      "select": "Selecione",
+      "close": "Fechar o painel",
+      "minCountHelpLabel": "Ajuda sobre a quantidade mínima",
+      "fieldHelpLabel": "Ajuda sobre o campo obrigatório",
+      "isActiveHelpLabel": "Ajuda sobre regra ativa"
     },
     "condition": {
       "legend": "Condição",
@@ -459,6 +508,7 @@
     "publishForbidden": "Você não tem permissão para publicar workflows.",
     "retire": "Aposentar",
     "retireLabel": "Aposentar a versão {number}",
+    "rowMenu": "Ações da versão {number}",
     "retireBlocked": "Publique uma nova versão antes de aposentar esta.",
     "retireForbidden": "Você não tem permissão para aposentar versões de workflow.",
     "number": "Versão {number}",
@@ -524,6 +574,7 @@
   "diagram": {
     "title": "Diagrama",
     "hint": "Visão somente leitura das etapas e transições da versão. Para alterar, use as abas Etapas e Transições.",
+    "helpLabel": "Ajuda sobre o diagrama",
     "loading": "Carregando o diagrama…",
     "loadFailed": "Não foi possível carregar o diagrama agora. Tente novamente.",
     "retry": "Tentar novamente",
@@ -540,6 +591,7 @@
     "minimap": "Minimapa: clique para centralizar o diagrama nesse ponto",
     "controls": {
       "label": "Controles do diagrama",
+      "helpLabel": "Ajuda sobre os controles do diagrama",
       "zoomIn": "Aproximar",
       "zoomOut": "Afastar",
       "fit": "Ajustar à tela",

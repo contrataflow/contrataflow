@@ -3,10 +3,25 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import {
@@ -19,7 +34,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
-import type { UseFormRegisterReturn } from 'react-hook-form';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useIdempotentMutation } from '@/lib/api/use-idempotent-mutation';
@@ -44,8 +58,6 @@ import {
 } from './document-types.api';
 import { LockedField } from './locked-field';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
-
 export interface DocumentTypeFormProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -58,24 +70,27 @@ function currentYear(): number {
 }
 
 /**
- * Painel de criação/edição do SCR-108 (US-061 · passos 3–8): React Hook Form com a validação dos
+ * Painel lateral (`Sheet` do kit) de criação/edição do SCR-108 (US-061 · passos 3–8): React Hook Form com a validação dos
  * mesmos schemas da API, prévia da máscara (a sequência real vem da US-105), bloco "Quem aprova" e
  * campos restritos de tipo de sistema como texto com cadeado. Edição só envia o que mudou, com
  * `If-Match`; 412 oferece "Recarregar e reaplicar minhas alterações".
  */
 export function DocumentTypeForm({ open, onOpenChange, type }: DocumentTypeFormProps) {
+  const t = useTranslations('documentTypes');
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto" style={{ maxWidth: '42rem' }}>
-        <DocumentTypeFormBody
-          key={type?.id ?? 'novo'}
-          type={type}
-          onClose={() => {
-            onOpenChange(false);
-          }}
-        />
-      </DialogContent>
-    </Dialog>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
+        {open ? (
+          <DocumentTypeFormBody
+            key={type?.id ?? 'novo'}
+            type={type}
+            onClose={() => {
+              onOpenChange(false);
+            }}
+          />
+        ) : null}
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -89,7 +104,7 @@ function DocumentTypeFormBody({
   const t = useTranslations('documentTypes');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const ids = useId();
+  const formId = useId();
   const [base, setBase] = useState(type);
   const [conflict, setConflict] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -243,339 +258,318 @@ function DocumentTypeFormBody({
   };
 
   const pending = create.isPending || update.isPending;
-  const fieldId = (name: string) => `${ids}-${name}`;
   const errorOf = (name: keyof FormValues) => errors[name]?.message;
-  const describe = (name: keyof FormValues, extra?: string) => {
-    const parts = [errorOf(name) ? `${fieldId(name)}-error` : undefined, extra].filter(Boolean);
-    return parts.length > 0 ? parts.join(' ') : undefined;
+  const set = <K extends keyof FormValues>(name: K, value: FormValues[K]): void => {
+    setValue(name, value as never, { shouldDirty: true });
   };
 
-  const text = (
-    name: keyof FormValues,
-    label: string,
-    options: { readonly registration?: UseFormRegisterReturn; readonly hint?: string } = {},
-  ) => (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={fieldId(name)} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={fieldId(name)}
-        aria-invalid={errorOf(name) ? true : undefined}
-        aria-describedby={describe(name, options.hint ? `${fieldId(name)}-hint` : undefined)}
-        className={INPUT}
-        {...(options.registration ?? register(name as 'name'))}
-      />
-      {options.hint ? (
-        <p id={`${fieldId(name)}-hint`} className="text-xs text-muted-foreground">
-          {options.hint}
-        </p>
-      ) : null}
-      {errorOf(name) ? (
-        <p id={`${fieldId(name)}-error`} className="text-sm text-destructive">
-          {errorOf(name)}
-        </p>
-      ) : null}
-    </div>
-  );
-
-  const toggle = (
+  const check = (
     name: 'allowMultiplePerProcess' | 'numberingEnabled' | 'requiresApproval' | 'allowDeputy',
     label: string,
   ) => (
-    <div className="flex items-center gap-2">
-      <input id={fieldId(name)} type="checkbox" className="size-4" {...register(name)} />
-      <label htmlFor={fieldId(name)} className="text-sm font-medium">
-        {label}
-      </label>
+    <div className="flex items-center gap-3">
+      <Checkbox
+        id={`${formId}-${name}`}
+        checked={values[name]}
+        onCheckedChange={(checked) => {
+          set(name, checked === true);
+        }}
+      />
+      <Label htmlFor={`${formId}-${name}`}>{label}</Label>
     </div>
   );
 
   const yesNo = (value: boolean) => (value ? t('values.yes') : t('values.no'));
 
   return (
-    <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
-      <DialogTitle>
-        {isEdit ? t('form.editTitle', { name: base.name }) : t('form.createTitle')}
-      </DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+    <form
+      noValidate
+      onSubmit={(event) => void onSubmit(event)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <SheetHeader>
+        <SheetTitle>
+          {isEdit ? t('form.editTitle', { name: base.name }) : t('form.createTitle')}
+        </SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      {formError ? <Alert tone="error" title={formError} /> : null}
-      {conflict ? (
-        <Alert tone="warning" title={t('conflict.title')}>
-          <p>{t('conflict.description')}</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-2"
-            onClick={() => void reapply()}
-          >
-            {t('conflict.reapply')}
-          </Button>
-        </Alert>
-      ) : null}
+      <SheetBody>
+        <div aria-live="polite" className="flex flex-col gap-3 empty:hidden">
+          {formError ? <Alert tone="error" title={formError} /> : null}
+          {conflict ? (
+            <Alert tone="warning" title={t('conflict.title')}>
+              <p>{t('conflict.description')}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-2"
+                onClick={() => void reapply()}
+              >
+                {t('conflict.reapply')}
+              </Button>
+            </Alert>
+          ) : null}
+        </div>
 
-      {isEdit ? (
-        <>
-          <LockedField label={t('form.kind')}>{t(`groups.${base.kind}`)}</LockedField>
-          <LockedField label={t('form.code')}>
-            <span className="font-mono">{base.code}</span>
+        {isEdit ? (
+          <>
+            <LockedField label={t('form.kind')}>{t(`groups.${base.kind}`)}</LockedField>
+            <LockedField label={t('form.code')}>
+              <span className="font-mono">{base.code}</span>
+            </LockedField>
+          </>
+        ) : (
+          <Field group label={t('form.kind')}>
+            <RadioGroup
+              value={values.kind}
+              onValueChange={(next) => {
+                set('kind', next === 'UPLOADED' ? 'UPLOADED' : 'FREE_TEXT');
+              }}
+              className="flex-row flex-wrap gap-x-6"
+            >
+              {(['FREE_TEXT', 'UPLOADED'] as const).map((kind) => (
+                <div key={kind} className="flex items-center gap-3">
+                  <RadioGroupItem id={`${formId}-kind-${kind}`} value={kind} />
+                  <Label htmlFor={`${formId}-kind-${kind}`}>{t(`form.kindOptions.${kind}`)}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
+        )}
+
+        {can('name') ? (
+          <Field label={t('form.name')} error={errorOf('name')}>
+            <Input
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o painel
+              autoFocus
+              {...register('name', {
+                onChange: (event: { target: { value: string } }) => {
+                  if (!isEdit && !dirtyFields.code) {
+                    setValue('code', suggestedCode(event.target.value));
+                  }
+                },
+              })}
+            />
+          </Field>
+        ) : (
+          <LockedField label={t('form.name')}>{base?.name}</LockedField>
+        )}
+
+        {isEdit ? null : (
+          <Field label={t('form.code')} error={errorOf('code')} description={t('form.codeHint')}>
+            <Input autoComplete="off" {...register('code')} />
+          </Field>
+        )}
+
+        {can('description') ? (
+          <Field label={t('form.descriptionField')} error={errorOf('description')}>
+            <Textarea rows={3} {...register('description')} />
+          </Field>
+        ) : (
+          <LockedField label={t('form.descriptionField')}>{base?.description ?? '—'}</LockedField>
+        )}
+
+        {can('allowMultiplePerProcess') ? (
+          check('allowMultiplePerProcess', t('form.allowMultiple'))
+        ) : (
+          <LockedField label={t('form.allowMultiple')}>
+            {yesNo(base?.allowMultiplePerProcess ?? false)}
           </LockedField>
-        </>
-      ) : (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium">{t('form.kind')}</legend>
-          <div className="flex gap-4">
-            {(['FREE_TEXT', 'UPLOADED'] as const).map((kind) => (
-              <label key={kind} className="flex items-center gap-2 text-sm">
-                <input type="radio" value={kind} {...register('kind')} />
-                {t(`form.kindOptions.${kind}`)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
+        )}
 
-      {can('name') ? (
-        text('name', t('form.name'), {
-          registration: register('name', {
-            onChange: (event: { target: { value: string } }) => {
-              if (!isEdit && !dirtyFields.code) {
-                setValue('code', suggestedCode(event.target.value));
-              }
-            },
-          }),
-        })
-      ) : (
-        <LockedField label={t('form.name')}>{base?.name}</LockedField>
-      )}
+        {can('numberingEnabled') ? (
+          check('numberingEnabled', t('form.numberingEnabled'))
+        ) : (
+          <LockedField label={t('form.numberingEnabled')}>
+            {yesNo(base?.numberingEnabled ?? false)}
+          </LockedField>
+        )}
 
-      {isEdit ? null : text('code', t('form.code'), { hint: t('form.codeHint') })}
+        {can('numberingMask') ? (
+          values.numberingEnabled ? (
+            <div className="flex flex-col gap-1.5">
+              <Field
+                label={t('form.mask')}
+                error={errorOf('numberingMask')}
+                description={t('form.maskHint')}
+              >
+                <Input {...register('numberingMask')} />
+              </Field>
+              <p className="text-sm" aria-live="polite">
+                {mask === '' ? t('form.maskDefault') : null}{' '}
+                {preview ? t('form.maskPreview', { preview }) : null}
+              </p>
+              {isEdit ? (
+                <p className="text-[0.8125rem] text-muted-foreground">
+                  {t('form.maskKeepsSequence')}
+                </p>
+              ) : null}
+            </div>
+          ) : null
+        ) : (
+          <LockedField label={t('form.mask')}>{base?.numberingMask ?? '—'}</LockedField>
+        )}
 
-      {can('description') ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('description')} className="text-sm font-medium">
-            {t('form.descriptionField')}
-          </label>
-          <textarea
-            id={fieldId('description')}
-            rows={3}
-            aria-invalid={errorOf('description') ? true : undefined}
-            aria-describedby={describe('description')}
-            className="rounded-control border border-border bg-surface px-3 py-2 text-sm"
-            {...register('description')}
-          />
-          {errorOf('description') ? (
-            <p id={`${fieldId('description')}-error`} className="text-sm text-destructive">
-              {errorOf('description')}
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <LockedField label={t('form.descriptionField')}>{base?.description ?? '—'}</LockedField>
-      )}
+        {can('defaultConfidentiality') ? (
+          <Field label={t('form.confidentiality')}>
+            <Select
+              value={values.defaultConfidentiality}
+              onValueChange={(next) => {
+                set('defaultConfidentiality', next as FormValues['defaultConfidentiality']);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['PUBLIC', 'INTERNAL', 'RESTRICTED'] as const).map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {t(`confidentiality.${level}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : (
+          <LockedField label={t('form.confidentiality')}>
+            {base ? t(`confidentiality.${base.defaultConfidentiality}`) : ''}
+          </LockedField>
+        )}
 
-      {can('allowMultiplePerProcess') ? (
-        toggle('allowMultiplePerProcess', t('form.allowMultiple'))
-      ) : (
-        <LockedField label={t('form.allowMultiple')}>
-          {yesNo(base?.allowMultiplePerProcess ?? false)}
-        </LockedField>
-      )}
+        {can('sortOrder') ? (
+          <Field label={t('form.sortOrder')} error={errorOf('sortOrder')}>
+            <Input type="number" inputMode="numeric" min={0} max={999} {...register('sortOrder')} />
+          </Field>
+        ) : (
+          <LockedField label={t('form.sortOrder')}>{base?.sortOrder}</LockedField>
+        )}
 
-      {can('numberingEnabled') ? (
-        toggle('numberingEnabled', t('form.numberingEnabled'))
-      ) : (
-        <LockedField label={t('form.numberingEnabled')}>
-          {yesNo(base?.numberingEnabled ?? false)}
-        </LockedField>
-      )}
-
-      {can('numberingMask') ? (
-        values.numberingEnabled ? (
-          <div className="flex flex-col gap-1">
-            {text('numberingMask', t('form.mask'), { hint: t('form.maskHint') })}
-            <p className="text-sm" aria-live="polite">
-              {mask === '' ? t('form.maskDefault') : null}{' '}
-              {preview ? t('form.maskPreview', { preview }) : null}
-            </p>
-            {isEdit ? (
-              <p className="text-xs text-muted-foreground">{t('form.maskKeepsSequence')}</p>
-            ) : null}
-          </div>
-        ) : null
-      ) : (
-        <LockedField label={t('form.mask')}>{base?.numberingMask ?? '—'}</LockedField>
-      )}
-
-      {can('defaultConfidentiality') ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('defaultConfidentiality')} className="text-sm font-medium">
-            {t('form.confidentiality')}
-          </label>
-          <select
-            id={fieldId('defaultConfidentiality')}
-            className={INPUT}
-            {...register('defaultConfidentiality')}
-          >
-            {(['PUBLIC', 'INTERNAL', 'RESTRICTED'] as const).map((level) => (
-              <option key={level} value={level}>
-                {t(`confidentiality.${level}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <LockedField label={t('form.confidentiality')}>
-          {base ? t(`confidentiality.${base.defaultConfidentiality}`) : ''}
-        </LockedField>
-      )}
-
-      {can('sortOrder') ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('sortOrder')} className="text-sm font-medium">
-            {t('form.sortOrder')}
-          </label>
-          <input
-            id={fieldId('sortOrder')}
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={999}
-            aria-invalid={errorOf('sortOrder') ? true : undefined}
-            aria-describedby={describe('sortOrder')}
-            className={INPUT}
-            {...register('sortOrder')}
-          />
-          {errorOf('sortOrder') ? (
-            <p id={`${fieldId('sortOrder')}-error`} className="text-sm text-destructive">
-              {errorOf('sortOrder')}
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <LockedField label={t('form.sortOrder')}>{base?.sortOrder}</LockedField>
-      )}
-
-      {can('requiresApproval') ? (
-        <div className="flex flex-col gap-3">
-          {toggle('requiresApproval', t('form.requiresApproval'))}
-          {errorOf('requiresApproval') ? (
-            <p id={`${fieldId('requiresApproval')}-error`} className="text-sm text-destructive">
-              {errorOf('requiresApproval')}
-            </p>
-          ) : null}
-          <div aria-live="polite">
-            {values.requiresApproval ? (
-              <fieldset className="flex flex-col gap-3 rounded-card border border-border p-4">
-                <legend className="px-1 text-sm font-medium">{t('form.approver.legend')}</legend>
-                {isEdit ? (
-                  <p className="text-xs text-muted-foreground">{t('form.approvalImpact')}</p>
-                ) : null}
-                {lockedPolicy ? (
-                  <p className="text-sm">{t('form.approver.locked')}</p>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-1">
-                      <label htmlFor={fieldId('approverType')} className="text-sm font-medium">
-                        {t('form.approver.type')}
-                      </label>
-                      <select
-                        id={fieldId('approverType')}
-                        className={INPUT}
-                        defaultValue="DEPARTMENT_HEAD"
-                      >
-                        <option value="DEPARTMENT_HEAD">
-                          {t('form.approver.typeDepartmentHead')}
-                        </option>
-                        <option value="USER" disabled>
-                          {t('form.approver.typeUser')}
-                        </option>
-                        <option value="ROLE" disabled>
-                          {t('form.approver.typeRole')}
-                        </option>
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={fieldId('approverResolution')}
-                        className="text-sm font-medium"
-                      >
-                        {t('form.approver.resolution')}
-                      </label>
-                      <select
-                        id={fieldId('approverResolution')}
-                        className={INPUT}
-                        {...register('approverResolution')}
-                      >
-                        <option value="REQUESTING_SECRETARIAT">
-                          {t('form.approver.resolutionSecretariat')}
-                        </option>
-                        <option value="REQUESTING_DEPARTMENT">
-                          {t('form.approver.resolutionDepartment')}
-                        </option>
-                        <option value="FIXED" disabled>
-                          {t('form.approver.resolutionFixed')}
-                        </option>
-                      </select>
-                    </div>
-                    {toggle('allowDeputy', t('form.approver.allowDeputy'))}
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor={fieldId('slaDays')} className="text-sm font-medium">
-                          {t('form.approver.sla')}
-                        </label>
-                        <input
-                          id={fieldId('slaDays')}
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          max={365}
-                          aria-invalid={errorOf('slaDays') ? true : undefined}
-                          aria-describedby={describe('slaDays')}
-                          className={INPUT}
-                          {...register('slaDays')}
-                        />
-                        {errorOf('slaDays') ? (
-                          <p
-                            id={`${fieldId('slaDays')}-error`}
-                            className="text-sm text-destructive"
+        {can('requiresApproval') ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              {check('requiresApproval', t('form.requiresApproval'))}
+              {errorOf('requiresApproval') ? (
+                <p className="text-[0.8125rem] font-semibold text-destructive">
+                  {errorOf('requiresApproval')}
+                </p>
+              ) : null}
+            </div>
+            <div aria-live="polite" className="empty:hidden">
+              {values.requiresApproval ? (
+                <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 border-t border-border p-0 pt-4">
+                  <legend className="float-left mb-3 w-full p-0 text-sm font-semibold">
+                    {t('form.approver.legend')}
+                  </legend>
+                  {isEdit ? (
+                    <p className="text-[0.8125rem] text-muted-foreground">
+                      {t('form.approvalImpact')}
+                    </p>
+                  ) : null}
+                  {lockedPolicy ? (
+                    <p className="text-sm">{t('form.approver.locked')}</p>
+                  ) : (
+                    <>
+                      <Field label={t('form.approver.type')}>
+                        <Select value="DEPARTMENT_HEAD">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="DEPARTMENT_HEAD">
+                              {t('form.approver.typeDepartmentHead')}
+                            </SelectItem>
+                            <SelectItem value="USER" disabled>
+                              {t('form.approver.typeUser')}
+                            </SelectItem>
+                            <SelectItem value="ROLE" disabled>
+                              {t('form.approver.typeRole')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field label={t('form.approver.resolution')}>
+                        <Select
+                          value={values.approverResolution}
+                          onValueChange={(next) => {
+                            set(
+                              'approverResolution',
+                              next === 'REQUESTING_DEPARTMENT'
+                                ? 'REQUESTING_DEPARTMENT'
+                                : 'REQUESTING_SECRETARIAT',
+                            );
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="REQUESTING_SECRETARIAT">
+                              {t('form.approver.resolutionSecretariat')}
+                            </SelectItem>
+                            <SelectItem value="REQUESTING_DEPARTMENT">
+                              {t('form.approver.resolutionDepartment')}
+                            </SelectItem>
+                            <SelectItem value="FIXED" disabled>
+                              {t('form.approver.resolutionFixed')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      {check('allowDeputy', t('form.approver.allowDeputy'))}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Field label={t('form.approver.sla')} error={errorOf('slaDays')}>
+                          <Input
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={365}
+                            {...register('slaDays')}
+                          />
+                        </Field>
+                        <Field label={t('form.approver.slaType')}>
+                          <Select
+                            value={values.slaType}
+                            onValueChange={(next) => {
+                              set('slaType', next === 'CALENDAR' ? 'CALENDAR' : 'BUSINESS');
+                            }}
                           >
-                            {errorOf('slaDays')}
-                          </p>
-                        ) : null}
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="BUSINESS">
+                                {t('form.approver.slaBusiness')}
+                              </SelectItem>
+                              <SelectItem value="CALENDAR">
+                                {t('form.approver.slaCalendar')}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor={fieldId('slaType')} className="text-sm font-medium">
-                          {t('form.approver.slaType')}
-                        </label>
-                        <select id={fieldId('slaType')} className={INPUT} {...register('slaType')}>
-                          <option value="BUSINESS">{t('form.approver.slaBusiness')}</option>
-                          <option value="CALENDAR">{t('form.approver.slaCalendar')}</option>
-                        </select>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </fieldset>
-            ) : null}
+                    </>
+                  )}
+                </fieldset>
+              ) : null}
+            </div>
           </div>
-        </div>
-      ) : (
-        <LockedField label={t('form.requiresApproval')}>
-          {yesNo(base?.requiresApproval ?? false)}
-        </LockedField>
-      )}
+        ) : (
+          <LockedField label={t('form.requiresApproval')}>
+            {yesNo(base?.requiresApproval ?? false)}
+          </LockedField>
+        )}
+      </SheetBody>
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <SheetFooter>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('form.cancel')}
         </Button>
         <Button type="submit" aria-busy={pending} disabled={pending}>
           {pending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

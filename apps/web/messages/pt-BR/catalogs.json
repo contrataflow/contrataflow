@@ -25,12 +25,12 @@
     "noActiveHint": "Ative um item existente ou crie um novo; os formulários que dependem deste catálogo ficam sem opções até lá.",
     "saving": "Salvando…",
     "saved": "Alterações salvas.",
+    "count": "{count, plural, one {# item} other {# itens}}",
     "dragHint": "Arraste as linhas ou use \"Mover para cima\" e \"Mover para baixo\" para reordenar."
   },
   "table": {
     "caption": "Itens do catálogo {catalog}",
     "order": "Ordem",
-    "code": "Código",
     "label": "Rótulo",
     "status": "Situação",
     "actions": "Ações"
@@ -40,17 +40,17 @@
     "active": "Ativo",
     "inactive": "Inativo"
   },
+  "system": {
+    "tooltip": "Item padrão do sistema: o código é fixo e o item nunca é excluído. Você pode renomear e desativar.",
+    "tooltipLabel": "Por que {name} é imutável"
+  },
   "actions": {
-    "edit": "Editar {name}",
+    "menu": "Ações de {name}",
     "editLabel": "Editar",
-    "deactivate": "Desativar {name}",
     "deactivateLabel": "Desativar",
-    "activate": "Ativar {name}",
     "activateLabel": "Ativar",
     "moveUp": "Mover {name} para cima",
-    "moveDown": "Mover {name} para baixo",
-    "moveUpLabel": "Mover para cima",
-    "moveDownLabel": "Mover para baixo"
+    "moveDown": "Mover {name} para baixo"
   },
   "deactivate": {
     "title": "Desativar {name}?",
@@ -72,6 +72,7 @@
     "descriptionHint": "Até 1.000 caracteres.",
     "metadataLegend": "Campos específicos deste catálogo",
     "cancel": "Cancelar",
+    "close": "Fechar",
     "submit": "Salvar",
     "submitting": "Salvando…",
     "booleanYes": "Sim",

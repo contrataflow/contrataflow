@@ -223,8 +223,8 @@ describe('Aba "Versões" do editor de workflow (US-045)', () => {
     });
     const panel = await openVersionsTab();
 
-    expect(await within(panel).findAllByText('Versão 1')).not.toHaveLength(0);
-    expect(within(panel).getAllByText('Corrente')).not.toHaveLength(0);
+    expect(await within(panel).findByText('Versão 1')).toBeTruthy();
+    expect(within(panel).getByText('Corrente')).toBeTruthy();
     expect(within(panel).getAllByText(/por Carla Mendes/)).not.toHaveLength(0);
     const publish = within(panel).getByRole('button', { name: 'Publicar' });
     expect(publish).toHaveProperty('disabled', true);
@@ -320,11 +320,10 @@ describe('Aba "Versões" do editor de workflow (US-045)', () => {
   it('a corrente única de workflow ativo não é aposentada (FA-03): botão desabilitado com a explicação', async () => {
     mockApi(initialState());
     const panel = await openVersionsTab();
-    const [current] = await within(panel).findAllByRole('button', {
-      name: 'Aposentar a versão 1',
-    });
-    expect(current).toHaveProperty('disabled', true);
-    expect(current?.getAttribute('title')).toBe(
+    await userEvent.click(await within(panel).findByRole('button', { name: 'Ações da versão 1' }));
+    const item = await screen.findByRole('menuitem', { name: 'Aposentar' });
+    expect(item.getAttribute('aria-disabled')).toBe('true');
+    expect(document.getElementById(item.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
       'Publique uma nova versão antes de aposentar esta.',
     );
   });
@@ -339,11 +338,8 @@ describe('Aba "Versões" do editor de workflow (US-045)', () => {
     const fetchMock = mockApi(state, { retire: () => problem(409, 'WORKFLOW_IN_USE') });
     const panel = await openVersionsTab();
 
-    const [current] = await within(panel).findAllByRole('button', {
-      name: 'Aposentar a versão 1',
-    });
-    if (!current) throw new Error('botão "Aposentar" ausente');
-    await userEvent.click(current);
+    await userEvent.click(await within(panel).findByRole('button', { name: 'Ações da versão 1' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Aposentar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Aposentar a versão 1' });
     expect(await seriousA11yViolations()).toEqual([]);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Aposentar' }));
@@ -360,9 +356,10 @@ describe('Aba "Versões" do editor de workflow (US-045)', () => {
     const publish = await within(panel).findByRole('button', { name: 'Publicar' });
     expect(publish).toHaveProperty('disabled', true);
     expect(publish.getAttribute('title')).toBe('Você não tem permissão para publicar workflows.');
+    await userEvent.click(within(panel).getByRole('button', { name: 'Ações da versão 1' }));
     expect(
-      within(panel).getAllByRole('button', { name: 'Aposentar a versão 1' })[0],
-    ).toHaveProperty('disabled', true);
+      (await screen.findByRole('menuitem', { name: 'Aposentar' })).getAttribute('aria-disabled'),
+    ).toBe('true');
   });
 
   it('só WORKFLOW_VIEW: valida, mas publicar e aposentar ficam ocultos', async () => {
@@ -370,7 +367,7 @@ describe('Aba "Versões" do editor de workflow (US-045)', () => {
     const panel = await openVersionsTab();
     expect(await within(panel).findByRole('button', { name: 'Validar' })).toBeTruthy();
     expect(within(panel).queryByRole('button', { name: 'Publicar' })).toBeNull();
-    expect(within(panel).queryByRole('button', { name: 'Aposentar a versão 1' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Ações da versão 1' })).toBeNull();
   });
 });
 

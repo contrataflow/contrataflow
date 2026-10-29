@@ -1,6 +1,28 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Eye,
+  Field,
+  FormSection,
+  InfoTooltip,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Switch,
+  Textarea,
+} from '@contrataflow/ui';
 import {
   LAYOUT_LIMITS,
   LAYOUT_TEMPLATE_VARIABLES,
@@ -19,7 +41,6 @@ import type {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
@@ -44,9 +65,6 @@ import {
 import { startAttachmentDownload } from '../attachments/attachments.api';
 import { useAttachmentUploads } from '../attachments/use-attachment-uploads';
 
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
-const TEXTAREA =
-  'min-h-20 w-full rounded-control border border-border bg-surface px-3 py-2 text-sm';
 const LOGO_ACCEPT = 'image/png,image/jpeg,image/svg+xml';
 
 type SaveProblem =
@@ -56,9 +74,9 @@ type SaveProblem =
  * Aba "Layout" de SCR-114 (US-109): `LayoutFormPanel` (orientação, margens, fonte, tamanho e
  * entrelinha), `HeaderFooterEditor` (texto com o seletor de variáveis — o catálogo completo, com
  * `page`/`pages`/`document.hash`), `LogoUploader` (upload genérico de anexos, `TENANT_ASSET`) e
- * `PreviewButton` + `PreviewViewer` (TPL-09 → *polling* de TPL-12 → download de TPL-13). Salva por
- * TPL-08 ao sair do formulário, com o `If-Match` compartilhado com a aba "Conteúdo". Sem
- * `TEMPLATE_MANAGE` (ou versão publicada) o formulário fica somente leitura e a prévia continua.
+ * `PreviewSheet` (TPL-09 → *polling* de TPL-12 → download de TPL-13, num painel lateral largo).
+ * Salva por TPL-08 ao sair do formulário, com o `If-Match` compartilhado com a aba "Conteúdo".
+ * Sem `TEMPLATE_MANAGE` (ou versão publicada) o formulário fica somente leitura e a prévia continua.
  */
 export function TemplateLayoutTab({
   version,
@@ -74,7 +92,6 @@ export function TemplateLayoutTab({
   readonly onReload: () => void;
 }) {
   const t = useTranslations('templates.layout');
-  const ids = useId();
   const [saved, setSaved] = useState(version.layout);
   const [form, setForm] = useState<LayoutForm>(() => toLayoutForm(version.layout));
   const [problem, setProblem] = useState<SaveProblem | null>(null);
@@ -152,7 +169,7 @@ export function TemplateLayoutTab({
     void runSave(next);
   };
 
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFieldSetElement>(null);
   const saveRef = useRef(runSave);
   useEffect(() => {
     saveRef.current = runSave;
@@ -170,22 +187,8 @@ export function TemplateLayoutTab({
     };
   }, []);
 
-  const fieldId = (name: string) => `${ids}-${name}`;
-  const describedBy = (field: LayoutField, hint?: string) =>
-    [errorOf(field) ? `${fieldId(field)}-error` : null, hint ?? null]
-      .filter((value): value is string => value !== null)
-      .join(' ') || undefined;
-  const errorText = (field: LayoutField) => {
-    const message = errorOf(field);
-    return message ? (
-      <p id={`${fieldId(field)}-error`} className="text-xs text-destructive">
-        {message}
-      </p>
-    ) : null;
-  };
-
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <p className="sr-only" aria-live="polite" role="status">
         {announcement}
       </p>
@@ -209,229 +212,216 @@ export function TemplateLayoutTab({
         </Alert>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-        <div ref={formRef} className="flex min-w-0 flex-col gap-6">
-          <fieldset className="flex flex-col gap-4" disabled={readOnly}>
-            <legend className="text-lg font-semibold">{t('page.title')}</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-1">
-                <label htmlFor={fieldId('orientation')} className="text-sm font-medium">
-                  {t('page.orientation')}
-                </label>
-                <select
-                  id={fieldId('orientation')}
-                  className={INPUT}
-                  value={form.orientation}
-                  onChange={(event) => {
-                    commit({ orientation: event.target.value as LayoutForm['orientation'] });
-                  }}
-                >
+      <PreviewSheet
+        versionId={version.id}
+        revision={revision}
+        dirty={Object.keys(layoutPatch(saved, form)).length > 0}
+      />
+
+      <fieldset
+        ref={formRef}
+        disabled={readOnly}
+        className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0"
+      >
+        <legend className="sr-only">{t('legend')}</legend>
+
+        <FormSection title={t('page.title')}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label={t('page.orientation')}>
+              <Select
+                value={form.orientation}
+                onValueChange={(value) => {
+                  commit({ orientation: value as LayoutForm['orientation'] });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                   {TEMPLATE_LAYOUT_ORIENTATIONS.map((value) => (
-                    <option key={value} value={value}>
+                    <SelectItem key={value} value={value}>
                       {t(`page.orientations.${value}`)}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-              </div>
-              <p className="text-sm text-muted-foreground md:self-end">{t('page.size')}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {LAYOUT_SIDES.map((side) => {
-                const field = `margins.${side}` as const;
-                return (
-                  <div key={side} className="flex flex-col gap-1">
-                    <label htmlFor={fieldId(field)} className="text-sm font-medium">
-                      {t(`page.margins.${side}`)}
-                    </label>
-                    <input
-                      id={fieldId(field)}
-                      className={INPUT}
-                      inputMode="decimal"
-                      value={form.margins[side]}
-                      aria-invalid={errorOf(field) ? true : undefined}
-                      aria-describedby={describedBy(field)}
-                      onChange={(event) => {
-                        update({ margins: { ...form.margins, [side]: event.target.value } });
-                      }}
-                    />
-                    {errorText(field)}
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
+                </SelectContent>
+              </Select>
+            </Field>
+            <p className="text-sm text-muted-foreground md:self-end md:pb-3">{t('page.size')}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {LAYOUT_SIDES.map((side) => {
+              const field = `margins.${side}` as const;
+              return (
+                <Field key={side} label={t(`page.margins.${side}`)} error={errorOf(field)}>
+                  <Input
+                    inputMode="decimal"
+                    value={form.margins[side]}
+                    onChange={(event) => {
+                      update({ margins: { ...form.margins, [side]: event.target.value } });
+                    }}
+                  />
+                </Field>
+              );
+            })}
+          </div>
+        </FormSection>
 
-          <fieldset className="flex flex-col gap-4" disabled={readOnly}>
-            <legend className="text-lg font-semibold">{t('typography.title')}</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="flex flex-col gap-1">
-                <label htmlFor={fieldId('font')} className="text-sm font-medium">
-                  {t('typography.fontFamily')}
-                </label>
-                <select
-                  id={fieldId('font')}
-                  className={INPUT}
-                  value={form.fontFamily}
-                  onChange={(event) => {
-                    commit({ fontFamily: event.target.value as LayoutForm['fontFamily'] });
-                  }}
-                >
+        <FormSection title={t('typography.title')}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <Field label={t('typography.fontFamily')}>
+              <Select
+                value={form.fontFamily}
+                onValueChange={(value) => {
+                  commit({ fontFamily: value as LayoutForm['fontFamily'] });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
                   {TEMPLATE_FONT_FAMILIES.map((value) => (
-                    <option key={value} value={value}>
+                    <SelectItem key={value} value={value}>
                       {value}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor={fieldId('fontSizePt')} className="text-sm font-medium">
-                  {t('typography.fontSize')}
-                </label>
-                <input
-                  id={fieldId('fontSizePt')}
-                  className={INPUT}
-                  inputMode="decimal"
-                  value={form.fontSizePt}
-                  aria-invalid={errorOf('fontSizePt') ? true : undefined}
-                  aria-describedby={describedBy('fontSizePt')}
-                  onChange={(event) => {
-                    update({ fontSizePt: event.target.value });
-                  }}
-                />
-                {errorText('fontSizePt')}
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor={fieldId('lineHeight')} className="text-sm font-medium">
-                  {t('typography.lineHeight')}
-                </label>
-                <input
-                  id={fieldId('lineHeight')}
-                  className={INPUT}
-                  inputMode="decimal"
-                  value={form.lineHeight}
-                  aria-invalid={errorOf('lineHeight') ? true : undefined}
-                  aria-describedby={describedBy('lineHeight')}
-                  onChange={(event) => {
-                    update({ lineHeight: event.target.value });
-                  }}
-                />
-                {errorText('lineHeight')}
-              </div>
-            </div>
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-4" disabled={readOnly}>
-            <legend className="text-lg font-semibold">{t('headerFooter.title')}</legend>
-            {(['header', 'footer'] as const).map((field) => (
-              <HeaderFooterEditor
-                key={field}
-                id={fieldId(field)}
-                label={t(`headerFooter.${field}`)}
-                value={form[field]}
-                readOnly={readOnly}
-                error={errorText(field)}
-                describedBy={describedBy(field, `${fieldId(field)}-hint`)}
-                invalid={errorOf(field) !== undefined}
-                onChange={(value) => {
-                  update({ [field]: value });
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label={t('typography.fontSize')} error={errorOf('fontSizePt')}>
+              <Input
+                inputMode="decimal"
+                value={form.fontSizePt}
+                onChange={(event) => {
+                  update({ fontSizePt: event.target.value });
                 }}
               />
-            ))}
-            <div className="flex flex-col gap-2">
-              {(['showPageNumbers', 'showDocumentHashInFooter', 'draftWatermark'] as const).map(
-                (flag) => (
-                  <label key={flag} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      role="switch"
-                      checked={form[flag]}
-                      onChange={(event) => {
-                        commit({ [flag]: event.target.checked });
-                      }}
-                    />
-                    {t(`headerFooter.${flag}`)}
-                  </label>
-                ),
-              )}
-              <p className="text-xs text-muted-foreground">{t('headerFooter.hashHint')}</p>
-            </div>
-          </fieldset>
+            </Field>
+            <Field label={t('typography.lineHeight')} error={errorOf('lineHeight')}>
+              <Input
+                inputMode="decimal"
+                value={form.lineHeight}
+                onChange={(event) => {
+                  update({ lineHeight: event.target.value });
+                }}
+              />
+            </Field>
+          </div>
+        </FormSection>
 
-          <LogoUploader
-            versionId={version.id}
-            form={form}
-            readOnly={readOnly}
-            heightError={errorText('logoMaxHeightMm')}
-            heightInvalid={errorOf('logoMaxHeightMm') !== undefined}
-            heightDescribedBy={describedBy('logoMaxHeightMm')}
-            onChange={update}
-            onCommit={commit}
-          />
-        </div>
+        <FormSection title={t('headerFooter.title')}>
+          {(['header', 'footer'] as const).map((field) => (
+            <HeaderFooterEditor
+              key={field}
+              label={t(`headerFooter.${field}`)}
+              value={form[field]}
+              readOnly={readOnly}
+              error={errorOf(field)}
+              onChange={(value) => {
+                update({ [field]: value });
+              }}
+            />
+          ))}
+          <div className="flex flex-col gap-3">
+            {(['showPageNumbers', 'showDocumentHashInFooter', 'draftWatermark'] as const).map(
+              (flag) => (
+                <FlagSwitch
+                  key={flag}
+                  label={t(`headerFooter.${flag}`)}
+                  checked={form[flag]}
+                  help={flag === 'showDocumentHashInFooter' ? t('headerFooter.hashHint') : null}
+                  onChange={(checked) => {
+                    commit({ [flag]: checked });
+                  }}
+                />
+              ),
+            )}
+          </div>
+        </FormSection>
 
-        <PreviewPanel
+        <LogoUploader
           versionId={version.id}
-          revision={revision}
-          dirty={Object.keys(layoutPatch(saved, form)).length > 0}
+          form={form}
+          readOnly={readOnly}
+          heightError={errorOf('logoMaxHeightMm')}
+          onChange={update}
+          onCommit={commit}
         />
-      </div>
+      </fieldset>
+    </div>
+  );
+}
+
+/** Interruptor com rótulo (salva na hora) e, opcionalmente, a ajuda em `InfoTooltip`. */
+function FlagSwitch({
+  label,
+  checked,
+  help,
+  onChange,
+}: {
+  readonly label: string;
+  readonly checked: boolean;
+  readonly help: string | null;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  const t = useTranslations('templates');
+  const id = useId();
+  return (
+    <div className="flex items-center gap-3">
+      <Switch id={id} checked={checked} onCheckedChange={onChange} />
+      <Label htmlFor={id} className="font-normal">
+        {label}
+      </Label>
+      {help ? <InfoTooltip label={t('help', { field: label })}>{help}</InfoTooltip> : null}
     </div>
   );
 }
 
 function HeaderFooterEditor({
-  id,
   label,
   value,
   readOnly,
   error,
-  invalid,
-  describedBy,
   onChange,
 }: {
-  readonly id: string;
   readonly label: string;
   readonly value: string;
   readonly readOnly: boolean;
-  readonly error: ReactNode;
-  readonly invalid: boolean;
-  readonly describedBy: string | undefined;
+  readonly error: string | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const t = useTranslations('templates.layout.headerFooter');
+  const tRoot = useTranslations('templates');
   const ref = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        ref={ref}
-        className={TEXTAREA}
-        value={value}
-        readOnly={readOnly}
-        aria-invalid={invalid ? true : undefined}
-        aria-describedby={describedBy}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      />
-      <p id={`${id}-hint`} className="text-xs text-muted-foreground">
-        {t('hint')}
-      </p>
-      {error}
+    <div className="flex flex-col gap-2">
+      <Field
+        label={label}
+        error={error}
+        labelAddon={<InfoTooltip label={tRoot('help', { field: label })}>{t('hint')}</InfoTooltip>}
+      >
+        <Textarea
+          ref={ref}
+          rows={3}
+          value={value}
+          readOnly={readOnly}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+        />
+      </Field>
       {readOnly ? null : (
         <div
           role="group"
           aria-label={t('variables', { field: label })}
-          className="flex flex-wrap gap-1"
+          className="flex flex-wrap gap-1.5"
         >
           {LAYOUT_TEMPLATE_VARIABLES.map((variable) => (
-            <button
+            <Button
               key={variable}
               type="button"
-              className="rounded-control border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted"
+              variant="secondary"
+              size="sm"
+              className="font-mono text-xs"
               aria-label={t('insertVariable', { variable, field: label })}
               onClick={() => {
                 const element = ref.current;
@@ -450,7 +440,7 @@ function HeaderFooterEditor({
               }}
             >
               {`{{${variable}}}`}
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -463,17 +453,13 @@ function LogoUploader({
   form,
   readOnly,
   heightError,
-  heightInvalid,
-  heightDescribedBy,
   onChange,
   onCommit,
 }: {
   readonly versionId: string;
   readonly form: LayoutForm;
   readonly readOnly: boolean;
-  readonly heightError: ReactNode;
-  readonly heightInvalid: boolean;
-  readonly heightDescribedBy: string | undefined;
+  readonly heightError: string | undefined;
   readonly onChange: (patch: Partial<LayoutForm>) => void;
   readonly onCommit: (patch: Partial<LayoutForm>) => void;
 }) {
@@ -501,11 +487,10 @@ function LogoUploader({
     : null;
 
   return (
-    <fieldset className="flex flex-col gap-4" disabled={readOnly}>
-      <legend className="text-lg font-semibold">{t('title')}</legend>
-      <p className="text-sm text-muted-foreground">
-        {form.logoAttachmentId === null ? t('none') : t('current')}
-      </p>
+    <FormSection
+      title={t('title')}
+      description={form.logoAttachmentId === null ? t('none') : t('current')}
+    >
       {uploadState ? (
         <p className="text-sm" role="status">
           {uploadState}
@@ -513,12 +498,11 @@ function LogoUploader({
       ) : null}
       {readOnly ? null : (
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            htmlFor={`${ids}-file`}
-            className="inline-flex h-9 cursor-pointer items-center rounded-control border border-border px-3 text-sm font-medium hover:bg-muted"
-          >
-            {form.logoAttachmentId === null ? t('upload') : t('replace')}
-          </label>
+          <Button asChild variant="secondary" size="sm" className="cursor-pointer">
+            <label htmlFor={`${ids}-file`}>
+              {form.logoAttachmentId === null ? t('upload') : t('replace')}
+            </label>
+          </Button>
           <input
             id={`${ids}-file`}
             type="file"
@@ -544,51 +528,47 @@ function LogoUploader({
       )}
       {form.logoAttachmentId === null ? null : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={`${ids}-position`} className="text-sm font-medium">
-              {t('position')}
-            </label>
-            <select
-              id={`${ids}-position`}
-              className={INPUT}
+          <Field label={t('position')}>
+            <Select
               value={form.logoPosition}
-              onChange={(event) => {
-                onCommit({ logoPosition: event.target.value as TemplateLogoPosition });
+              onValueChange={(value) => {
+                onCommit({ logoPosition: value as TemplateLogoPosition });
               }}
             >
-              {TEMPLATE_LOGO_POSITIONS.map((value) => (
-                <option key={value} value={value}>
-                  {t(`positions.${value}`)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={`${ids}-height`} className="text-sm font-medium">
-              {t('maxHeight')}
-            </label>
-            <input
-              id={`${ids}-height`}
-              className={INPUT}
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_LOGO_POSITIONS.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(`positions.${value}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('maxHeight')} error={heightError}>
+            <Input
               inputMode="decimal"
               value={form.logoMaxHeightMm}
               placeholder={String(LAYOUT_LIMITS.logoMaxHeightMm)}
-              aria-invalid={heightInvalid ? true : undefined}
-              aria-describedby={heightDescribedBy}
               onChange={(event) => {
                 onChange({ logoMaxHeightMm: event.target.value });
               }}
             />
-            {heightError}
-          </div>
+          </Field>
         </div>
       )}
-    </fieldset>
+    </FormSection>
   );
 }
 
-/** `PreviewButton` + `PreviewViewer`: pedido, *polling* até `READY`/`FAILED` e download. */
-function PreviewPanel({
+/**
+ * `PreviewSheet`: botão "Ver prévia em PDF" que abre o painel lateral largo com o pedido, o
+ * *polling* até `READY`/`FAILED` e o download. O estado fica fora do painel: fechar não perde a
+ * prévia gerada.
+ */
+function PreviewSheet({
   versionId,
   revision,
   dirty,
@@ -600,6 +580,7 @@ function PreviewPanel({
   const t = useTranslations('templates.layout.preview');
   const format = useFormatter();
   const tenantId = useTenantId();
+  const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<{ id: string; revision: number } | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState(false);
@@ -644,67 +625,93 @@ function PreviewPanel({
         : '';
 
   return (
-    <section aria-labelledby={`${versionId}-preview-title`} className="flex flex-col gap-3">
-      <h2 id={`${versionId}-preview-title`} className="text-lg font-semibold">
-        {t('title')}
-      </h2>
-      <p className="text-sm text-muted-foreground">
-        {t('description', { hours: TEMPLATE_PREVIEW_TTL_HOURS })}
-      </p>
-      <Button
-        disabled={generating}
-        aria-busy={generating}
-        onClick={() => {
-          void generate();
-        }}
-      >
-        {generating ? t('generating') : data?.status === 'FAILED' ? t('retry') : t('generate')}
-      </Button>
-      <p className="text-sm" aria-live="polite" role="status">
-        {status}
-      </p>
-      {requestError ? <Alert tone="error" title={requestError} /> : null}
-      {preview.isError ? <Alert tone="error" title={t('expired')} /> : null}
-      {outdated && data?.status === 'READY' ? <Alert tone="warning" title={t('outdated')} /> : null}
-      {data?.status === 'READY' ? (
-        <div className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-            {data.pageCount === null ? null : (
-              <>
-                <dt className="text-muted-foreground">{t('pages')}</dt>
-                <dd>{format.number(data.pageCount)}</dd>
-              </>
-            )}
-            <dt className="text-muted-foreground">{t('validUntil')}</dt>
-            <dd>
-              {format.dateTime(new Date(data.expiresAt), {
-                dateStyle: 'short',
-                timeStyle: 'short',
-              })}
-            </dd>
-          </dl>
-          <p className="text-xs text-muted-foreground">{t('watermark')}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setDownloadError(false);
-              void fetchTemplatePreviewDownload(versionId, data.renditionId).then(
-                (result) => {
-                  startAttachmentDownload(result.data.url);
-                },
-                () => {
-                  setDownloadError(true);
-                },
-              );
-            }}
-          >
-            {t('download')}
-          </Button>
-          {downloadError ? <Alert tone="error" title={t('downloadFailed')} /> : null}
-        </div>
-      ) : null}
-    </section>
+    <>
+      <div className="flex justify-end">
+        <Button
+          variant="secondary"
+          iconLeft={<Eye />}
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
+          {t('open')}
+        </Button>
+      </div>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent size="wide">
+          <SheetHeader>
+            <SheetTitle>{t('title')}</SheetTitle>
+            <SheetDescription>
+              {t('description', { hours: TEMPLATE_PREVIEW_TTL_HOURS })}
+            </SheetDescription>
+          </SheetHeader>
+          <SheetBody>
+            <div>
+              <Button
+                disabled={generating}
+                aria-busy={generating}
+                onClick={() => {
+                  void generate();
+                }}
+              >
+                {generating
+                  ? t('generating')
+                  : data?.status === 'FAILED'
+                    ? t('retry')
+                    : t('generate')}
+              </Button>
+            </div>
+            <p className="text-sm" aria-live="polite" role="status">
+              {status}
+            </p>
+            {requestError ? <Alert tone="error" title={requestError} /> : null}
+            {preview.isError ? <Alert tone="error" title={t('expired')} /> : null}
+            {outdated && data?.status === 'READY' ? (
+              <Alert tone="warning" title={t('outdated')} />
+            ) : null}
+            {data?.status === 'READY' ? (
+              <div className="flex flex-col gap-3">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                  {data.pageCount === null ? null : (
+                    <>
+                      <dt className="text-muted-foreground">{t('pages')}</dt>
+                      <dd>{format.number(data.pageCount)}</dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground">{t('validUntil')}</dt>
+                  <dd>
+                    {format.dateTime(new Date(data.expiresAt), {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                  </dd>
+                </dl>
+                <p className="text-xs text-muted-foreground">{t('watermark')}</p>
+                <div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setDownloadError(false);
+                      void fetchTemplatePreviewDownload(versionId, data.renditionId).then(
+                        (result) => {
+                          startAttachmentDownload(result.data.url);
+                        },
+                        () => {
+                          setDownloadError(true);
+                        },
+                      );
+                    }}
+                  >
+                    {t('download')}
+                  </Button>
+                </div>
+                {downloadError ? <Alert tone="error" title={t('downloadFailed')} /> : null}
+              </div>
+            ) : null}
+          </SheetBody>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 

@@ -5,19 +5,25 @@ import type { CatalogType } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  ClipboardList,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
-  Skeleton,
+  EmptyState,
+  ListPage,
+  ListPageSkeleton,
+  Plus,
+  TableContainer,
+  TableFooter,
+  ViewTabs,
   toast,
 } from '@contrataflow/ui';
 import type { CatalogItemDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
-import type { KeyboardEvent } from 'react';
 
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
@@ -149,155 +155,93 @@ export function CatalogsView() {
     reorder.mutate(next);
   };
 
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
-    const tabs: readonly (CatalogType | typeof TAGS_TAB)[] = canManageTags
-      ? [...CATALOG_TYPES, TAGS_TAB]
-      : CATALOG_TYPES;
-    const last = tabs.length - 1;
-    const target =
-      event.key === 'ArrowRight'
-        ? (index + 1) % tabs.length
-        : event.key === 'ArrowLeft'
-          ? (index - 1 + tabs.length) % tabs.length
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : null;
-    if (target === null) return;
-    event.preventDefault();
-    const next = tabs[target];
-    if (next === TAGS_TAB) {
-      setTagsSelected(true);
-      setBanner(null);
-      document.getElementById(`catalog-tab-${TAGS_TAB}`)?.focus();
-    } else if (next) {
-      setTagsSelected(false);
-      setCatalogType(next);
-      setBanner(null);
-      document.getElementById(`catalog-tab-${next}`)?.focus();
-    }
-  };
-
   const saving = setActive.isPending || reorder.isPending;
   const catalogLabel = t(`types.${catalogType}`);
 
-  return (
-    <section className="flex flex-col gap-6">
-      <AppPageHeader section="admin" title={t('title')} description={t('description')} />
-
-      <div
-        role="tablist"
-        aria-label={t('tabs.label')}
-        className="flex flex-wrap gap-2 border-b border-border"
+  const selectTab = (id: string): void => {
+    setBanner(null);
+    if (id === TAGS_TAB) {
+      setTagsSelected(true);
+    } else {
+      setTagsSelected(false);
+      setCatalogType(id as CatalogType);
+    }
+  };
+  const activeTab = tagsActive ? TAGS_TAB : catalogType;
+  const forbidden = items.error && isApiError(items.error) && items.error.status === 403;
+  const newItem = (
+    <Can permission="CATALOG_MANAGE">
+      <Button
+        iconLeft={<Plus />}
+        onClick={() => {
+          setCreating(true);
+        }}
       >
-        {CATALOG_TYPES.map((type, index) => (
-          <button
-            key={type}
-            type="button"
-            role="tab"
-            id={`catalog-tab-${type}`}
-            aria-selected={!tagsActive && type === catalogType}
-            aria-controls="catalog-panel"
-            tabIndex={!tagsActive && type === catalogType ? 0 : -1}
-            className={`border-b-2 px-3 py-2 text-sm font-medium ${
-              !tagsActive && type === catalogType
-                ? 'border-primary'
-                : 'border-transparent text-muted-foreground'
-            }`}
-            onClick={() => {
-              setTagsSelected(false);
-              setCatalogType(type);
-              setBanner(null);
-            }}
-            onKeyDown={(event) => {
-              onTabKeyDown(event, index);
-            }}
-          >
-            {t(`types.${type}`)}
-          </button>
-        ))}
-        {canManageTags ? (
-          <button
-            type="button"
-            role="tab"
-            id={`catalog-tab-${TAGS_TAB}`}
-            aria-selected={tagsActive}
-            aria-controls="catalog-panel"
-            tabIndex={tagsActive ? 0 : -1}
-            className={`border-b-2 px-3 py-2 text-sm font-medium ${
-              tagsActive ? 'border-primary' : 'border-transparent text-muted-foreground'
-            }`}
-            onClick={() => {
-              setTagsSelected(true);
-              setBanner(null);
-            }}
-            onKeyDown={(event) => {
-              onTabKeyDown(event, CATALOG_TYPES.length);
-            }}
-          >
-            {tTags('tab')}
-          </button>
-        ) : null}
-      </div>
+        {t('list.new')}
+      </Button>
+    </Can>
+  );
 
+  return (
+    <ListPage
+      header={
+        <AppPageHeader
+          section="admin"
+          title={t('title')}
+          description={t('description')}
+          actions={!tagsActive && items.data ? newItem : null}
+        />
+      }
+      tabs={
+        <ViewTabs
+          label={t('tabs.label')}
+          panelId="catalog-panel"
+          value={activeTab}
+          onValueChange={selectTab}
+          tabs={[
+            ...CATALOG_TYPES.map((type) => ({ id: type, label: t(`types.${type}`) })),
+            ...(canManageTags ? [{ id: TAGS_TAB, label: tTags('tab') }] : []),
+          ]}
+        />
+      }
+    >
       <div
         role="tabpanel"
         id="catalog-panel"
-        aria-labelledby={`catalog-tab-${tagsActive ? TAGS_TAB : catalogType}`}
-        className="flex flex-col gap-4"
+        aria-label={tagsActive ? tTags('tab') : catalogLabel}
+        className="flex min-w-0 flex-col gap-5"
       >
         {tagsActive ? (
           <TagsAdminPanel />
-        ) : items.error && isApiError(items.error) && items.error.status === 403 ? (
+        ) : forbidden ? (
           <Alert tone="error" title={t('errors.permission')} />
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold">{catalogLabel}</h2>
-              <div className="flex items-center gap-3">
+            <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+              {saving ? (
                 <p role="status" className="text-sm text-muted-foreground">
-                  {saving ? t('list.saving') : ''}
+                  {t('list.saving')}
                 </p>
-                {items.data ? (
-                  <Can permission="CATALOG_MANAGE">
-                    <Button
-                      onClick={() => {
-                        setCreating(true);
-                      }}
-                    >
-                      {t('list.new')}
-                    </Button>
-                  </Can>
-                ) : null}
-              </div>
+              ) : null}
+              {banner ? (
+                <Alert
+                  tone={banner === 'conflict' ? 'warning' : 'error'}
+                  title={
+                    banner === 'conflict'
+                      ? t('conflict.title')
+                      : banner === 'unavailable'
+                        ? t('errors.unavailable')
+                        : t('errors.generic')
+                  }
+                >
+                  <Button variant="secondary" size="sm" onClick={reload}>
+                    {banner === 'conflict' ? t('conflict.reload') : t('list.retry')}
+                  </Button>
+                </Alert>
+              ) : null}
             </div>
 
-            {banner ? (
-              <Alert
-                tone={banner === 'conflict' ? 'warning' : 'error'}
-                title={
-                  banner === 'conflict'
-                    ? t('conflict.title')
-                    : banner === 'unavailable'
-                      ? t('errors.unavailable')
-                      : t('errors.generic')
-                }
-              >
-                <Button variant="secondary" size="sm" onClick={reload}>
-                  {banner === 'conflict' ? t('conflict.reload') : t('list.retry')}
-                </Button>
-              </Alert>
-            ) : null}
-
-            {items.isPending ? (
-              <div role="status" className="flex flex-col gap-2">
-                <span className="sr-only">{t('list.loading')}</span>
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : null}
+            {items.isPending ? <ListPageSkeleton label={t('list.loading')} /> : null}
 
             {items.isError ? (
               <Alert tone="error" title={t('list.loadFailed')}>
@@ -314,10 +258,11 @@ export function CatalogsView() {
             ) : null}
 
             {items.data?.length === 0 ? (
-              <div className="rounded-card border border-dashed border-border p-6 text-center">
-                <p className="font-medium">{t('list.empty')}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{t('list.emptyHint')}</p>
-              </div>
+              <EmptyState
+                icon={<ClipboardList />}
+                title={t('list.empty')}
+                description={t('list.emptyHint')}
+              />
             ) : null}
 
             {items.data && hasNoActiveItems(items.data) ? (
@@ -331,17 +276,22 @@ export function CatalogsView() {
                 <Can permission="CATALOG_MANAGE">
                   <p className="text-sm text-muted-foreground">{t('list.dragHint')}</p>
                 </Can>
-                <CatalogItemTable
-                  caption={t('table.caption', { catalog: catalogLabel })}
-                  items={items.data}
-                  busy={saving}
-                  onEdit={setEditing}
-                  onDeactivate={setDeactivating}
-                  onActivate={(item) => {
-                    setActive.mutate({ item, isActive: true });
-                  }}
-                  onMove={move}
-                />
+                <TableContainer
+                  label={t('table.caption', { catalog: catalogLabel })}
+                  footer={<TableFooter summary={t('list.count', { count: items.data.length })} />}
+                >
+                  <CatalogItemTable
+                    caption={t('table.caption', { catalog: catalogLabel })}
+                    items={items.data}
+                    busy={saving}
+                    onEdit={setEditing}
+                    onDeactivate={setDeactivating}
+                    onActivate={(item) => {
+                      setActive.mutate({ item, isActive: true });
+                    }}
+                    onMove={move}
+                  />
+                </TableContainer>
               </>
             ) : null}
           </>
@@ -395,6 +345,6 @@ export function CatalogsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </ListPage>
   );
 }

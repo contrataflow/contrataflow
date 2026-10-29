@@ -155,6 +155,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Menu ⋯ da linha: abre "Ações de X" e escolhe o item. */
+async function chooseRowAction(name: string, action: string): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('[Sucesso] SCR-109 · lista', () => {
   it('abas dos 8 catálogos, itens por ordem com selo "Padrão do sistema" e situação; sem violações de a11y', async () => {
     const api = mockApi();
@@ -187,6 +193,9 @@ describe('[Sucesso] SCR-109 · lista', () => {
     expect(within(dispensa).getByText('Inativo')).toBeTruthy();
     const proprio = within(table).getByRole('row', { name: /Registro de preços/ });
     expect(within(proprio).queryByText('Padrão do sistema')).toBeNull();
+    // Itens de sistema mostram o cadeado com a explicação; o item próprio não.
+    expect(within(pregao).getByRole('button', { name: 'Por que Pregão é imutável' })).toBeTruthy();
+    expect(within(proprio).queryByRole('button', { name: /Por que/ })).toBeNull();
     // Nenhum item oferece "Excluir" (RN-TEN-64).
     expect(screen.queryByRole('button', { name: /excluir/i })).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
@@ -261,7 +270,7 @@ describe('[Permissão] ações de edição', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Novo item' })).toBeNull();
     });
-    expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ações de/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Mover/ })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
   });
@@ -316,7 +325,7 @@ describe('[Sucesso] criar e editar', () => {
     });
     renderWithShell(<CatalogsView />);
     await userEvent.click(await screen.findByRole('tab', { name: 'Modalidades' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Editar Pregão' }));
+    await chooseRowAction('Pregão', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Pregão' });
 
     const code = within(dialog).getByLabelText<HTMLInputElement>('Código *');
@@ -344,7 +353,7 @@ describe('[Sucesso] criar e editar', () => {
     });
     renderWithShell(<CatalogsView />);
     await userEvent.click(await screen.findByRole('tab', { name: 'Modalidades' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Desativar Concorrência' }));
+    await chooseRowAction('Concorrência', 'Desativar');
     const dialog = await screen.findByRole('dialog', { name: 'Desativar Concorrência?' });
     expect(
       within(dialog).getByText(
@@ -358,11 +367,40 @@ describe('[Sucesso] criar e editar', () => {
     expect(callOf(api, 'POST').url).toBe(`/api/v1/catalog-items/${CONCORRENCIA.id}/deactivate`);
     expect(callOf(api, 'POST').headers.get('If-Match')).toBe('"1"');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ativar Dispensa de licitação' }));
+    await chooseRowAction('Dispensa de licitação', 'Ativar');
     await waitFor(() => {
       expect(callsTo(api, 'POST')).toHaveLength(2);
     });
     expect(callOf(api, 'POST', 1).url).toBe(`/api/v1/catalog-items/${DISPENSA.id}/activate`);
+  });
+});
+
+describe('[Sucesso] campo de seleção da metadata', () => {
+  it('Origens do processo: escolhe a situação exigida no PCA pelo Select do kit', async () => {
+    const created = item({ code: 'EMENDA', label: 'Emenda', isSystem: false });
+    const api = mockApi({
+      post: () => jsonResponse({ data: created }, { status: 201, headers: { ETag: '"1"' } }),
+    });
+    renderWithShell(<CatalogsView />);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Origens do processo' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo item' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Novo item — Origens do processo' });
+    await userEvent.type(within(dialog).getByLabelText('Código *'), 'EMENDA');
+    await userEvent.type(within(dialog).getByLabelText('Rótulo *'), 'Emenda');
+    await userEvent.click(
+      within(dialog).getByRole('combobox', { name: 'Situação exigida no PCA' }),
+    );
+    await userEvent.click(await screen.findByRole('option', { name: 'Previsto no PCA' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => {
+      expect(callsTo(api, 'POST')).toHaveLength(1);
+    });
+    expect(bodyOf(callOf(api, 'POST').init)).toEqual({
+      code: 'EMENDA',
+      label: 'Emenda',
+      metadata: { requiresPcaStatus: 'PLANNED' },
+    });
   });
 });
 
@@ -388,7 +426,7 @@ describe('[Sucesso] reordenar', () => {
     await waitFor(() => {
       const labels = within(screen.getByRole('table'))
         .getAllByRole('rowheader')
-        .map((cell) => cell.textContent);
+        .map((cell) => cell.firstElementChild?.textContent);
       expect(labels).toEqual([
         'Concorrência',
         'Pregão',
@@ -475,7 +513,7 @@ describe('[Validação] e erros do servidor', () => {
     });
     renderWithShell(<CatalogsView />);
     await userEvent.click(await screen.findByRole('tab', { name: 'Modalidades' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Editar Pregão' }));
+    await chooseRowAction('Pregão', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Pregão' });
     const label = within(dialog).getByLabelText('Rótulo *');
     await userEvent.clear(label);

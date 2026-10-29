@@ -4,7 +4,7 @@
 // de conteúdo e o isolamento por tenant são cobertos nos testes da API (módulo `document` e suíte
 // tenant leak).
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
 
@@ -19,13 +19,28 @@ async function openList(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
+/** Escolhe a opção num `Select` do kit (combobox do Radix). */
+async function choose(scope: Page | Locator, field: string, option: string) {
+  await scope.getByRole('combobox', { name: field }).click();
+  // As opções abrem num portal, fora do escopo do campo.
+  const root = 'page' in scope ? scope.page() : scope;
+  await root.getByRole('option', { name: option, exact: true }).click();
+}
+
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(page: Page, menu: string, action: string): Promise<void> {
+  await page.getByRole('button', { name: menu }).click();
+  await page.getByRole('menuitem', { name: action, exact: true }).click();
+}
+
 test('cria um template, adiciona seções, salva e a recarga mantém o conteúdo', async ({ page }) => {
   await openList(page);
   await expectNoSeriousA11yViolations(page, 'lista de templates');
-  await page.getByRole('button', { name: 'Novo template' }).click();
+  // A lista começa vazia: o estado vazio repete a ação do cabeçalho.
+  await page.getByRole('button', { name: 'Novo template' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Novo template' });
   await dialog.getByLabel('Nome').fill('Despacho padrão');
-  await dialog.getByLabel('Tipo de documento').selectOption({ label: 'Ofício' });
+  await choose(dialog, 'Tipo de documento', 'Ofício');
   await dialog.getByRole('button', { name: 'Criar e editar seções' }).click();
 
   await expect(page).toHaveURL(/\/admin\/templates\/[0-9a-f-]+\/versoes\/[0-9a-f-]+$/);
@@ -38,7 +53,7 @@ test('cria um template, adiciona seções, salva e a recarga mantém o conteúdo
   await page.getByRole('button', { name: 'Adicionar seção' }).click();
   await page.getByRole('textbox', { name: 'Chave', exact: true }).fill('FUNDAMENTACAO');
   await page.getByRole('textbox', { name: 'Título', exact: true }).fill('Fundamentação');
-  await page.getByLabel('Obrigatoriedade').selectOption('REQUIRED_OR_JUSTIFY');
+  await choose(page, 'Obrigatoriedade', 'Obrigatória ou com justificativa');
   await page.getByRole('button', { name: 'Salvar alterações' }).click();
   await expect(page.getByText('Todas as alterações salvas.').first()).toBeAttached();
 
@@ -51,7 +66,7 @@ test('cria um template, adiciona seções, salva e a recarga mantém o conteúdo
 
 test('mostra a variável desconhecida devolvida pela API na seção certa', async ({ page }) => {
   await openList(page);
-  await page.getByRole('link', { name: 'Editar conteúdo de Despacho padrão' }).click();
+  await rowAction(page, 'Ações de Despacho padrão', 'Editar conteúdo');
   await page.getByRole('button', { name: 'Editar a seção Objeto' }).click();
   // A validação local já recusa a variável; o 422 da API chega quando ela passa pelo front.
   await page
@@ -66,7 +81,7 @@ test('mostra a variável desconhecida devolvida pela API na seção certa', asyn
 test('no celular (360 px) o editor fica em coluna única e acessível', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
   await openList(page);
-  await page.getByRole('link', { name: 'Editar conteúdo de Despacho padrão' }).click();
+  await rowAction(page, 'Ações de Despacho padrão', 'Editar conteúdo');
   await expect(page.getByRole('heading', { name: 'Seções' })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -78,25 +93,27 @@ test('no celular (360 px) o editor fica em coluna única e acessível', async ({
 // US-109: aba "Layout" — fonte, margem e cabeçalho com variável salvos; prévia pronta com download.
 test('configura o layout de impressão e gera a prévia em PDF', async ({ page }) => {
   await openList(page);
-  await page.getByRole('link', { name: 'Editar conteúdo de Despacho padrão' }).click();
+  await rowAction(page, 'Ações de Despacho padrão', 'Editar conteúdo');
   await page.getByRole('tab', { name: 'Layout' }).click();
   await expect(page.getByLabel('Margem superior (mm)')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'aba Layout do template');
 
-  await page.getByLabel('Fonte', { exact: true }).selectOption('Times New Roman');
+  await choose(page, 'Fonte', 'Times New Roman');
   await expect(page.getByText('Layout salvo.', { exact: true })).toBeAttached();
   await page.getByLabel('Margem superior (mm)').fill('25');
   await page
     .getByRole('button', { name: 'Inserir a variável organization.name no campo Cabeçalho' })
     .click();
-  await page.getByRole('button', { name: 'Gerar prévia' }).click();
-  await expect(page.getByText('Prévia pronta.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Baixar prévia' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ver prévia em PDF' }).click();
+  const preview = page.getByRole('dialog', { name: 'Prévia em PDF' });
+  await preview.getByRole('button', { name: 'Gerar prévia' }).click();
+  await expect(preview.getByText('Prévia pronta.', { exact: true })).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Baixar prévia' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'prévia do template pronta');
 
   await page.reload();
   await page.getByRole('tab', { name: 'Layout' }).click();
-  await expect(page.getByLabel('Fonte', { exact: true })).toHaveValue('Times New Roman');
+  await expect(page.getByRole('combobox', { name: 'Fonte' })).toHaveText(/Times New Roman/);
   await expect(page.getByLabel('Margem superior (mm)')).toHaveValue('25');
   await expect(page.getByRole('textbox', { name: 'Cabeçalho' })).toHaveValue(
     '{{organization.name}}',
@@ -108,12 +125,12 @@ test('publica a versão, inicia nova versão, define o padrão do tipo e aposent
   page,
 }) => {
   await openList(page);
-  await page.getByRole('link', { name: 'Versões de Despacho padrão' }).click();
+  await page.getByRole('link', { name: 'Despacho padrão', exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/templates\/[0-9a-f-]+$/);
-  await expect(page.getByRole('heading', { level: 2, name: 'Versões' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Versões', selected: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'histórico de versões');
 
-  await page.getByRole('button', { name: 'Publicar versão 1' }).click();
+  await rowAction(page, 'Ações da versão 1', 'Publicar versão');
   const publish = page.getByRole('dialog', { name: 'Publicar a versão 1?' });
   await expect(publish.getByRole('button', { name: 'Publicar' })).toBeEnabled();
   // O botão é habilitado quando o rascunho é conferido: o axe avalia depois da transição de
@@ -135,8 +152,7 @@ test('publica a versão, inicia nova versão, define o padrão do tipo e aposent
   await expect(page.getByRole('row', { name: /^v1/ }).locator('td.font-mono')).toHaveText(hash);
 
   await page.goto('/admin/tipos-documento');
-  const select = page.getByRole('combobox', { name: 'Template padrão de Ofício' });
-  await select.selectOption({ label: 'Despacho padrão — v1' });
+  await choose(page, 'Template padrão de Ofício', 'Despacho padrão — v1');
   await expect(
     page
       .getByText('Template padrão de "Ofício" definido: Despacho padrão.', { exact: true })
@@ -144,22 +160,26 @@ test('publica a versão, inicia nova versão, define o padrão do tipo e aposent
   ).toBeVisible();
 
   await page.goBack();
-  await expect(page.getByText('Padrão do tipo')).toBeVisible();
+  await expect(page.getByText('Padrão do tipo').first()).toBeVisible();
   // Única publicada do template padrão: aposentar fica bloqueado (FA-03).
-  await expect(page.getByRole('button', { name: 'Aposentar versão 1' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Publicar versão 2' }).click();
+  await page.getByRole('button', { name: 'Ações da versão 1' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Aposentar', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await rowAction(page, 'Ações da versão 2', 'Publicar versão');
   await page
     .getByRole('dialog', { name: 'Publicar a versão 2?' })
     .getByRole('button', { name: 'Publicar' })
     .click();
   await expect(page.getByRole('row', { name: /^v2/ }).getByText('Corrente')).toBeVisible();
-  await page.getByRole('button', { name: 'Aposentar versão 1' }).click();
+  await rowAction(page, 'Ações da versão 1', 'Aposentar');
   const retire = page.getByRole('dialog', { name: 'Aposentar a versão 1?' });
   await page.mouse.move(0, 0);
   await expect(retire.getByRole('button', { name: 'Aposentar' })).toHaveCSS('opacity', '1');
   await expectNoSeriousA11yViolations(page, 'diálogo de aposentadoria');
   await retire.getByRole('button', { name: 'Aposentar' }).click();
-  await expect(page.getByRole('row', { name: /^v1/ }).getByText('Aposentada')).toBeVisible();
+  await expect(
+    page.getByRole('row', { name: /^v1/ }).getByText('Aposentada', { exact: true }),
+  ).toBeVisible();
 });
 
 // US-110: a biblioteca padrão semeada no provisionamento aparece publicada, com o selo em texto, e
@@ -172,13 +192,13 @@ test('a biblioteca padrão aparece publicada com o selo e o modelo abre com as s
   await openList(page);
   await expect(page.getByText('Modelo padrão da plataforma')).toHaveCount(3);
   const etp = page.getByRole('row', { name: /ETP — Modelo padrão/ });
-  await expect(etp.getByText('Publicada v1')).toBeVisible();
+  await expect(etp.getByRole('cell', { name: 'v1', exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'lista com a biblioteca padrão');
 
-  await page.getByRole('link', { name: 'Versões de ETP — Modelo padrão' }).click();
+  await page.getByRole('link', { name: 'ETP — Modelo padrão', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'ETP — Modelo padrão' })).toBeVisible();
-  await expect(page.getByText('Modelo padrão da plataforma')).toBeVisible();
-  await page.getByRole('link', { name: 'Ver versão 1' }).click();
+  await expect(page.getByText('Modelo padrão da plataforma').first()).toBeVisible();
+  await rowAction(page, 'Ações da versão 1', 'Ver');
   await expect(
     page.getByText('Esta versão está publicada. Para alterar, inicie uma nova versão.'),
   ).toBeVisible();

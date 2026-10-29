@@ -232,6 +232,16 @@ function WithToaster({ children }: { readonly children: ReactNode }) {
   );
 }
 
+/** Abre o menu ⋯ da linha da versão (`Ações da versão N`). */
+async function openVersionMenu(
+  number: number,
+  user: Pick<ReturnType<typeof userEvent.setup>, 'click'> = userEvent,
+) {
+  await user.click(
+    await screen.findByRole('button', { name: `Ações da versão ${String(number)}` }),
+  );
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   push.mockReset();
@@ -270,14 +280,18 @@ describe('SCR-033 · aba Versões (US-108)', () => {
     expect(within(v2Row).getByText('Inclui a conclusão')).toBeTruthy();
     expect(within(v1Row).getByText('Corrente')).toBeTruthy();
     expect(within(v1Row).getByText('ab12cd34ef56')).toBeTruthy();
-    expect(within(v2Row).getByRole('button', { name: 'Publicar versão 2' })).toBeTruthy();
-    expect(within(v1Row).getByRole('button', { name: 'Aposentar versão 1' })).toBeTruthy();
-    expect(
-      within(v2Row).getByRole('link', { name: 'Editar rascunho v2' }).getAttribute('href'),
-    ).toBe(`/admin/templates/${TEMPLATE_ID}/versoes/${V2}`);
     // Com rascunho, "Iniciar nova versão" não aparece (RN-TPL-13).
     expect(screen.queryByRole('button', { name: 'Iniciar nova versão' })).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
+
+    await userEvent.click(within(v2Row).getByRole('button', { name: 'Ações da versão 2' }));
+    expect(await screen.findByRole('menuitem', { name: 'Publicar versão' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Editar' }).getAttribute('href')).toBe(
+      `/admin/templates/${TEMPLATE_ID}/versoes/${V2}`,
+    );
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(within(v1Row).getByRole('button', { name: 'Ações da versão 1' }));
+    expect(await screen.findByRole('menuitem', { name: 'Aposentar' })).toBeTruthy();
   });
 
   it('[Sucesso] publicar: confere o rascunho, envia If-Match e Idempotency-Key e mostra o hash no toast', async () => {
@@ -293,7 +307,8 @@ describe('SCR-033 · aba Versões (US-108)', () => {
         <TemplateVersionsView templateId={TEMPLATE_ID} />
       </WithToaster>,
     );
-    await user.click(await screen.findByRole('button', { name: 'Publicar versão 2' }));
+    await openVersionMenu(2, user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Publicar versão' }));
     const dialog = await screen.findByRole('dialog', { name: 'Publicar a versão 2?' });
     const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
     await waitFor(() => {
@@ -325,7 +340,8 @@ describe('SCR-033 · aba Versões (US-108)', () => {
         <TemplateVersionsView templateId={TEMPLATE_ID} />
       </WithToaster>,
     );
-    await user.click(await screen.findByRole('button', { name: 'Publicar versão 2' }));
+    await openVersionMenu(2, user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Publicar versão' }));
     const dialog = await screen.findByRole('dialog');
     expect(
       await within(dialog).findByText('O template tem pendências que impedem a publicação.'),
@@ -360,7 +376,8 @@ describe('SCR-033 · aba Versões (US-108)', () => {
         <TemplateVersionsView templateId={TEMPLATE_ID} />
       </WithToaster>,
     );
-    await user.click(await screen.findByRole('button', { name: 'Publicar versão 2' }));
+    await openVersionMenu(2, user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Publicar versão' }));
     const dialog = await screen.findByRole('dialog');
     const confirm = within(dialog).getByRole('button', { name: 'Publicar' });
     await waitFor(() => {
@@ -382,9 +399,10 @@ describe('SCR-033 · aba Versões (US-108)', () => {
         <TemplateVersionsView templateId={TEMPLATE_ID} />
       </WithToaster>,
     );
-    const retire = await screen.findByRole('button', { name: 'Aposentar versão 1' });
-    expect(retire.hasAttribute('disabled')).toBe(true);
-    expect(retire.getAttribute('title')).toMatch(/publique outra versão/);
+    await openVersionMenu(1);
+    const retire = await screen.findByRole('menuitem', { name: 'Aposentar' });
+    expect(retire.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByText(/publique outra versão/)).toBeTruthy();
     expect(screen.getByText('Padrão do tipo')).toBeTruthy();
   });
 
@@ -403,7 +421,8 @@ describe('SCR-033 · aba Versões (US-108)', () => {
         <TemplateVersionsView templateId={TEMPLATE_ID} />
       </WithToaster>,
     );
-    await user.click(await screen.findByRole('button', { name: 'Aposentar versão 1' }));
+    await openVersionMenu(1, user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Aposentar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Aposentar a versão 1?' });
     await user.click(within(dialog).getByRole('button', { name: 'Aposentar' }));
     expect(
@@ -459,7 +478,8 @@ describe('SCR-033 · aba Versões (US-108)', () => {
     expect(
       screen.queryByRole('button', { name: /Publicar|Aposentar|Iniciar nova versão/ }),
     ).toBeNull();
-    expect(screen.getByRole('link', { name: 'Ver versão 1' })).toBeTruthy();
+    await openVersionMenu(1);
+    expect(await screen.findByRole('menuitem', { name: 'Ver' })).toBeTruthy();
   });
 });
 
@@ -536,13 +556,13 @@ describe('DefaultTemplateSelect (SCR-108 · DTY-04)', () => {
         <DefaultTemplateSelect type={type} templates={[template(), unpublished]} />
       </WithToaster>,
     );
-    const select = screen.getByRole('combobox', { name: 'Template padrão de Ofício' });
+    await user.click(screen.getByRole('combobox', { name: 'Template padrão de Ofício' }));
     expect(
-      within(select).getByRole<HTMLOptionElement>('option', {
-        name: 'Ofício rascunho (sem versão publicada)',
-      }).disabled,
-    ).toBe(true);
-    await user.selectOptions(select, TEMPLATE_ID);
+      (
+        await screen.findByRole('option', { name: 'Ofício rascunho (sem versão publicada)' })
+      ).getAttribute('aria-disabled'),
+    ).toBe('true');
+    await user.click(screen.getByRole('option', { name: /^Ofício padrão/ }));
 
     expect(
       await screen.findByText('Template padrão de "Ofício" definido: Ofício padrão.'),
@@ -563,10 +583,8 @@ describe('DefaultTemplateSelect (SCR-108 · DTY-04)', () => {
         <DefaultTemplateSelect type={type} templates={[template()]} />
       </WithToaster>,
     );
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Template padrão de Ofício' }),
-      TEMPLATE_ID,
-    );
+    await user.click(screen.getByRole('combobox', { name: 'Template padrão de Ofício' }));
+    await user.click(await screen.findByRole('option', { name: /^Ofício padrão/ }));
     expect(
       await screen.findByText(
         'O tipo foi alterado por outra pessoa. A lista foi recarregada; tente novamente.',

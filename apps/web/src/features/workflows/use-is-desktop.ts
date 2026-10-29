@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Abaixo de 768 px o painel lateral vira modal e o diagrama abre ajustado, sem minimapa (SCR-034 ·
+ * Abaixo de 768 px o painel de propriedades vira Sheet e o diagrama abre ajustado, sem minimapa (SCR-034 ·
  * acessibilidade e responsividade).
  */
 export function useIsDesktop(): boolean {

@@ -277,7 +277,19 @@ function renderRules() {
 
 async function openNewRule() {
   await userEvent.click(await screen.findByRole('button', { name: 'Nova regra' }));
-  return screen.findByRole('region', { name: 'Nova regra' });
+  return screen.findByRole('dialog', { name: 'Nova regra' });
+}
+
+/** Escolhe a opção de um `Select` do kit (Radix) pelo nome acessível do campo. */
+async function choose(scope: HTMLElement, label: string, option: string) {
+  await userEvent.click(within(scope).getByRole('combobox', { name: label }));
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Abre o menu ⋯ da regra e escolhe a ação. */
+async function ruleAction(name: string, action: 'Editar' | 'Excluir') {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações da regra ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
 }
 
 async function chooseProcess(form: HTMLElement) {
@@ -304,11 +316,12 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
       );
     });
     // Só tipos de documento ativos.
-    expect(within(form).queryByRole('option', { name: 'ANTIGO — Tipo antigo' })).toBeNull();
-    await userEvent.selectOptions(
-      within(form).getByLabelText('Tipo de documento'),
-      'ETP — Estudo técnico preliminar',
-    );
+    await userEvent.click(within(form).getByRole('combobox', { name: 'Tipo de documento' }));
+    expect(
+      await screen.findByRole('option', { name: 'ETP — Estudo técnico preliminar' }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'ANTIGO — Tipo antigo' })).toBeNull();
+    await userEvent.click(screen.getByRole('option', { name: 'ETP — Estudo técnico preliminar' }));
     await userEvent.type(within(form).getByLabelText('Nome'), 'ETP completo');
     await userEvent.type(
       within(form).getByLabelText('Mensagem ao usuário'),
@@ -337,10 +350,7 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     const api = mockApi(initialState());
     renderRules();
     const form = await openNewRule();
-    await userEvent.selectOptions(
-      within(form).getByLabelText('Tipo de documento'),
-      'ETP — Estudo técnico preliminar',
-    );
+    await choose(form, 'Tipo de documento', 'ETP — Estudo técnico preliminar');
     await userEvent.type(
       within(form).getByLabelText('Mensagem ao usuário'),
       'O ETP deve estar completo.',
@@ -375,7 +385,7 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     });
     renderRules();
     const form = await openNewRule();
-    await userEvent.selectOptions(within(form).getByLabelText('Tipo'), 'Campo obrigatório');
+    await choose(form, 'Tipo', 'Campo obrigatório');
     await userEvent.type(within(form).getByLabelText('Campo obrigatório'), 'process.codigo');
     await chooseProcess(form);
     await userEvent.click(within(form).getByRole('button', { name: 'Testar regra' }));
@@ -392,12 +402,9 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     });
     renderRules();
     const form = await openNewRule();
-    await userEvent.selectOptions(within(form).getByLabelText('Tipo'), 'Condição');
+    await choose(form, 'Tipo', 'Condição');
     await userEvent.click(await within(form).findByRole('button', { name: 'Adicionar condição' }));
-    await userEvent.selectOptions(
-      within(form).getByLabelText('Operador da condição 1'),
-      'é maior que',
-    );
+    await choose(form, 'Operador da condição 1', 'é maior que');
     await userEvent.type(within(form).getByLabelText('Valor da condição 1'), '100000');
     await chooseProcess(form);
     await userEvent.click(within(form).getByRole('button', { name: 'Testar regra' }));
@@ -441,7 +448,7 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     renderRules();
     expect(await screen.findByText('O ETP deve estar completo.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Nova regra' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Editar a regra ETP completo' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ações da regra ETP completo' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Reordenar/ })).toBeNull();
   });
 
@@ -454,17 +461,15 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
           : null,
     });
     renderRules();
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar a regra ETP completo' }),
-    );
-    const form = await screen.findByRole('region', { name: 'Editar regra ETP completo' });
+    await ruleAction('ETP completo', 'Editar');
+    const form = await screen.findByRole('dialog', { name: 'Editar regra ETP completo' });
     await waitFor(() => {
       expect(within(form).getByRole('button', { name: 'Salvar regra' })).toHaveProperty(
         'disabled',
         false,
       );
     });
-    await userEvent.selectOptions(within(form).getByLabelText('Severidade'), 'Aviso');
+    await choose(form, 'Severidade', 'Aviso');
     await userEvent.click(within(form).getByRole('button', { name: 'Salvar regra' }));
     expect(
       await screen.findByText('Os dados foram alterados. Recarregue e tente novamente.'),
@@ -481,11 +486,8 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     });
     renderRules();
     const form = await openNewRule();
-    await userEvent.selectOptions(within(form).getByLabelText('Tipo'), 'Aprovação obrigatória');
-    await userEvent.selectOptions(
-      within(form).getByLabelText('Etapa de aprovação'),
-      'Aprovação da autoridade',
-    );
+    await choose(form, 'Tipo', 'Aprovação obrigatória');
+    await choose(form, 'Etapa de aprovação', 'Aprovação da autoridade');
     await userEvent.type(within(form).getByLabelText('Nome'), 'Aprovação da autoridade');
     await userEvent.type(
       within(form).getByLabelText('Mensagem ao usuário'),
@@ -527,10 +529,8 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     const state = initialState([ruleOf({ version: 2 })]);
     const api = mockApi(state);
     renderRules();
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar a regra ETP completo' }),
-    );
-    const form = await screen.findByRole('region', { name: 'Editar regra ETP completo' });
+    await ruleAction('ETP completo', 'Editar');
+    const form = await screen.findByRole('dialog', { name: 'Editar regra ETP completo' });
     await userEvent.click(within(form).getByLabelText('Regra ativa'));
     await waitFor(() => {
       expect(within(form).getByRole('button', { name: 'Salvar regra' })).toHaveProperty(
@@ -542,7 +542,7 @@ describe('SCR-035 · regras de etapa e de transição (US-044)', () => {
     expect(await screen.findByText('Inativa')).toBeTruthy();
     expect(bodyOf(calls(api, 'PATCH', '/workflow-rules/')[0])).toEqual({ isActive: false });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir a regra ETP completo' }));
+    await ruleAction('ETP completo', 'Excluir');
     expect(await screen.findByText('Nenhuma regra configurada para esta etapa.')).toBeTruthy();
     expect(
       new Headers(calls(api, 'DELETE', '/workflow-rules/')[0]?.[1]?.headers).get('If-Match'),

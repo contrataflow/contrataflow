@@ -3,12 +3,34 @@
 import {
   Alert,
   Button,
+  ChevronDown,
+  DetailPage,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  FileText,
   Skeleton,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Td,
+  Th,
+  Tr,
   toast,
 } from '@contrataflow/ui';
 import type { TemplateDto, TemplateVersionHistoryItem, Violation } from '@contrataflow/validation';
@@ -25,6 +47,7 @@ import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { SystemTemplateBadge } from './system-template-badge';
+import { TemplateFormDialog } from './template-form-dialog';
 import { formatDateTime, prePublishProblems, retireBlocked } from './template-versions-model';
 import type { PublishProblem } from './template-versions-model';
 import {
@@ -41,9 +64,6 @@ import {
   TEMPLATES_STALE_TIME_MS,
 } from './templates.api';
 
-const LINK =
-  'inline-flex h-8 items-center rounded-control border border-border px-3 text-sm font-medium hover:bg-muted';
-
 /** Mensagem do erro de ação para o usuário (Casos de erro da US-108). */
 function actionErrorMessage(error: unknown, t: ReturnType<typeof useTranslations>): string {
   if (!isApiError(error)) return t('versions.errors.generic');
@@ -55,21 +75,29 @@ function actionErrorMessage(error: unknown, t: ReturnType<typeof useTranslations
   return error.message;
 }
 
+type Tab = 'versions' | 'config';
+
 /**
- * SCR-033, aba "Versões" (`/admin/templates/[id]` · US-108): histórico de versões do template
- * (TPL-05) com número, situação, datas, hash resumido e notas; "Iniciar nova versão" (TPL-06,
- * `TEMPLATE_MANAGE`), "Publicar" (TPL-10) e "Aposentar" (TPL-11) para quem tem `TEMPLATE_PUBLISH`.
- * Só `TEMPLATE_VIEW` navega em modo leitura (FA-05). A API decide (RN-FND-92).
+ * SCR-033, detalhe do template (`/admin/templates/[id]` · US-108) no modelo `DetailPage` (prd-5):
+ * trilha, nome, chips de situação e fatos-chave (tipo, versão publicada, rascunho, atualização).
+ * "Iniciar nova versão" (TPL-06, `TEMPLATE_MANAGE`) é a ação primária — só sem rascunho (RN-TPL-13);
+ * "Editar dados" fica em "Mais". Abas "Versões" (TPL-05: número, situação, datas, hash resumido e
+ * notas, com "Publicar" — TPL-10 — e "Aposentar" — TPL-11 — para quem tem `TEMPLATE_PUBLISH` no
+ * menu ⋯ da linha) e "Configuração" (dados do template). Só `TEMPLATE_VIEW` navega em modo leitura
+ * (FA-05). A API decide (RN-FND-92).
  */
 export function TemplateVersionsView({ templateId }: { readonly templateId: string }) {
   const t = useTranslations('templates');
+  const tShell = useTranslations('shell');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const router = useRouter();
   const canManage = usePermission('TEMPLATE_MANAGE').allowed;
   const canPublish = usePermission('TEMPLATE_PUBLISH').allowed;
+  const [tab, setTab] = useState<Tab>('versions');
   const [publishing, setPublishing] = useState<TemplateVersionHistoryItem | null>(null);
   const [retiring, setRetiring] = useState<TemplateVersionHistoryItem | null>(null);
+  const [editing, setEditing] = useState(false);
   const [draftExists, setDraftExists] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -123,88 +151,194 @@ export function TemplateVersionsView({ templateId }: { readonly templateId: stri
     );
   }
 
+  if (template.isPending) {
+    return (
+      <div role="status" className="flex w-full flex-col gap-5">
+        <span className="sr-only">{t('versions.loading')}</span>
+        <Skeleton className="h-4 w-48 max-w-full" />
+        <Skeleton className="h-8 w-96 max-w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-56 w-full" />
+      </div>
+    );
+  }
+
+  if (template.isError) {
+    return (
+      <Alert tone="error" title={t('versions.loadFailed')}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            void template.refetch();
+            void history.refetch();
+          }}
+        >
+          {t('retry')}
+        </Button>
+      </Alert>
+    );
+  }
+
   const data = template.data;
   const items = history.data ?? [];
+  const draft = data.draftVersion;
+  const published = data.currentPublishedVersion;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <Link href={TEMPLATES_PATH} className="text-sm text-muted-foreground hover:underline">
-          ← {t('versions.back')}
-        </Link>
-      </div>
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {data?.name ?? <Skeleton className="h-8 w-64" />}
-          </h1>
-          {data ? (
-            <p className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground">
-              <span>{t('versions.subtitle', { type: data.documentType.name })}</span>
-              {data.isSystem ? <SystemTemplateBadge /> : null}
-              {data.isDefault ? <Badge tone="ok">{t('badges.default')}</Badge> : null}
-              {!data.isActive ? <Badge tone="muted">{t('badges.inactive')}</Badge> : null}
-            </p>
+    <DetailPage
+      breadcrumbs={[
+        { label: tShell('admin.title'), href: '/admin' },
+        { label: t('title'), href: TEMPLATES_PATH },
+        { label: data.name },
+      ]}
+      breadcrumbLabel={t('detail.breadcrumbLabel')}
+      linkComponent={Link}
+      title={data.name}
+      status={
+        <>
+          <StatusChip tone={data.isActive ? 'success' : 'warning'}>
+            {data.isActive ? t('badges.active') : t('badges.inactive')}
+          </StatusChip>
+          {data.isDefault ? <StatusChip tone="info">{t('badges.default')}</StatusChip> : null}
+          {data.isSystem ? <SystemTemplateBadge /> : null}
+        </>
+      }
+      subtitle={t('versions.subtitle', { type: data.documentType.name })}
+      actions={
+        canManage ? (
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" iconRight={<ChevronDown />}>
+                  {t('actions.more')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setEditing(true);
+                  }}
+                >
+                  {t('actions.editDataLabel')}
+                </DropdownMenuItem>
+                {draft ? (
+                  <DropdownMenuItem asChild>
+                    <Link href={templateEditorHref(templateId, draft.id)}>
+                      {t('versions.openDraft')}
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {draft === null ? (
+              <Button
+                disabled={create.isPending}
+                aria-busy={create.isPending}
+                onClick={() => void onCreate()}
+              >
+                {create.isPending ? t('versions.creating') : t('versions.newVersion')}
+              </Button>
+            ) : null}
+          </>
+        ) : null
+      }
+      facts={[
+        { id: 'type', label: t('detail.facts.type'), value: data.documentType.name },
+        {
+          id: 'published',
+          label: t('detail.facts.published'),
+          value: published
+            ? t('values.version', { number: published.versionNumber })
+            : t('values.noVersion'),
+        },
+        {
+          id: 'draft',
+          label: t('detail.facts.draft'),
+          value: draft
+            ? t('values.draft', { number: draft.versionNumber, sections: draft.sectionCount })
+            : t('values.noVersion'),
+        },
+        {
+          id: 'updated',
+          label: t('detail.facts.updated'),
+          value: formatDateTime(data.updatedAt) ?? t('versions.noValue'),
+        },
+      ]}
+      notices={
+        <div className="flex flex-col gap-2 empty:hidden">
+          {draftExists ? (
+            <Alert tone="info" title={t('versions.draftExists')}>
+              {draft ? (
+                <Button asChild variant="secondary" size="sm" className="mt-2">
+                  <Link href={templateEditorHref(templateId, draft.id)}>
+                    {t('versions.openDraft')}
+                  </Link>
+                </Button>
+              ) : null}
+            </Alert>
           ) : null}
+          {createError ? <Alert tone="error" title={createError} /> : null}
         </div>
-        {canManage && data?.draftVersion === null ? (
-          <Button
-            disabled={create.isPending}
-            aria-busy={create.isPending}
-            onClick={() => void onCreate()}
-          >
-            {create.isPending ? t('versions.creating') : t('versions.newVersion')}
-          </Button>
-        ) : null}
-      </header>
-
-      {draftExists ? (
-        <Alert tone="info" title={t('versions.draftExists')}>
-          {data?.draftVersion ? (
-            <Link href={templateEditorHref(templateId, data.draftVersion.id)} className={LINK}>
-              {t('versions.openDraft')}
-            </Link>
+      }
+    >
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value === 'config' ? 'config' : 'versions');
+        }}
+        className="min-w-0"
+      >
+        <TabsList aria-label={t('detail.tabs.label')}>
+          <TabsTrigger value="versions">{t('detail.tabs.versions')}</TabsTrigger>
+          <TabsTrigger value="config">{t('detail.tabs.config')}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="versions" className="min-w-0">
+          {history.isPending ? (
+            <div role="status" className="flex flex-col gap-2">
+              <span className="sr-only">{t('versions.loading')}</span>
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           ) : null}
-        </Alert>
-      ) : null}
-      {createError ? <Alert tone="error" title={createError} /> : null}
+          {history.isError ? (
+            <Alert tone="error" title={t('versions.loadFailed')}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void history.refetch();
+                }}
+              >
+                {t('retry')}
+              </Button>
+            </Alert>
+          ) : null}
+          {history.data ? (
+            items.length === 0 ? (
+              <EmptyState icon={<FileText />} title={t('versions.empty')} />
+            ) : (
+              <TableContainer
+                label={t('versions.caption')}
+                footer={<TableFooter summary={t('versions.count', { count: items.length })} />}
+              >
+                <VersionHistoryTable
+                  template={data}
+                  items={items}
+                  canPublish={canPublish}
+                  onPublish={setPublishing}
+                  onRetire={setRetiring}
+                />
+              </TableContainer>
+            )
+          ) : null}
+        </TabsContent>
+        <TabsContent value="config" className="min-w-0">
+          <ConfigPanel template={data} />
+        </TabsContent>
+      </Tabs>
 
-      <section aria-labelledby="template-versions-heading" className="flex flex-col gap-2">
-        <h2 id="template-versions-heading" className="text-lg font-semibold">
-          {t('versions.heading')}
-        </h2>
-        {history.isPending || template.isPending ? (
-          <div role="status" className="flex flex-col gap-2">
-            <span className="sr-only">{t('versions.loading')}</span>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : null}
-        {history.isError || template.isError ? (
-          <Alert tone="error" title={t('versions.loadFailed')}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                void template.refetch();
-                void history.refetch();
-              }}
-            >
-              {t('retry')}
-            </Button>
-          </Alert>
-        ) : null}
-        {data && history.data ? (
-          <VersionHistoryTable
-            template={data}
-            items={items}
-            canPublish={canPublish}
-            onPublish={setPublishing}
-            onRetire={setRetiring}
-          />
-        ) : null}
-      </section>
-
+      <TemplateFormDialog open={editing} template={data} existing={[]} onOpenChange={setEditing} />
       <PublishConfirmDialog
         templateId={templateId}
         item={publishing}
@@ -214,31 +348,57 @@ export function TemplateVersionsView({ templateId }: { readonly templateId: stri
         onDone={refresh}
       />
       <RetireConfirmDialog
-        template={data ?? null}
+        template={data}
         item={retiring}
-        blocked={retiring !== null && retireBlocked(retiring, items, data?.isDefault ?? false)}
+        blocked={retiring !== null && retireBlocked(retiring, items, data.isDefault)}
         onClose={() => {
           setRetiring(null);
         }}
         onDone={refresh}
       />
-    </div>
+    </DetailPage>
   );
 }
 
-function Badge({ children, tone }: { readonly children: string; readonly tone: 'muted' | 'ok' }) {
+/** Aba "Configuração": os dados do template (edição em "Mais › Editar dados"). */
+function ConfigPanel({ template }: { readonly template: TemplateDto }) {
+  const t = useTranslations('templates');
+  const rows: readonly (readonly [string, string])[] = [
+    [t('detail.config.name'), template.name],
+    [t('detail.config.description'), template.description ?? t('detail.config.noDescription')],
+    [t('detail.config.type'), template.documentType.name],
+    [t('detail.config.status'), template.isActive ? t('badges.active') : t('badges.inactive')],
+    [
+      t('detail.config.default'),
+      template.isDefault ? t('detail.config.yes') : t('detail.config.no'),
+    ],
+    [
+      t('detail.config.origin'),
+      template.isSystem ? t('detail.config.origins.system') : t('detail.config.origins.custom'),
+    ],
+    [t('detail.config.createdAt'), formatDateTime(template.createdAt) ?? t('versions.noValue')],
+  ];
   return (
-    <span
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
-        tone === 'ok' ? 'bg-success-soft text-foreground' : 'bg-muted text-muted-foreground'
-      }`}
+    <section
+      aria-labelledby="template-config-title"
+      className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card"
     >
-      {children}
-    </span>
+      <h2 id="template-config-title" className="text-section-title text-brand-ink">
+        {t('detail.config.title')}
+      </h2>
+      <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex min-w-0 flex-col gap-1">
+            <dt className="text-label font-semibold text-muted-foreground uppercase">{label}</dt>
+            <dd className="text-sm font-medium break-words">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
-/** `VersionHistoryTable`: situação, datas, hash resumido, notas e ações por linha. */
+/** `VersionHistoryTable`: situação, datas, hash resumido, notas e ações por linha (menu ⋯). */
 function VersionHistoryTable({
   template,
   items,
@@ -253,112 +413,147 @@ function VersionHistoryTable({
   readonly onRetire: (item: TemplateVersionHistoryItem) => void;
 }) {
   const t = useTranslations('templates');
-  const tooltipId = useId();
-  if (items.length === 0) return <p className="text-muted-foreground">{t('versions.empty')}</p>;
   return (
-    <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
-      <table className="w-full min-w-[56rem] text-left text-sm">
-        <caption className="sr-only">{t('versions.caption')}</caption>
-        <thead className="bg-muted text-xs text-muted-foreground uppercase">
-          <tr>
-            {(
-              ['number', 'status', 'publishedAt', 'retiredAt', 'hash', 'notes', 'actions'] as const
-            ).map((column) => (
-              <th key={column} scope="col" className="px-3 py-2">
-                {t(`versions.table.${column}`)}
+    <Table>
+      <caption className="sr-only">{t('versions.caption')}</caption>
+      <TableHead>
+        <Tr>
+          <Th>{t('versions.table.number')}</Th>
+          <Th>{t('versions.table.status')}</Th>
+          <Th className="hidden md:table-cell">{t('versions.table.publishedAt')}</Th>
+          <Th className="hidden lg:table-cell">{t('versions.table.hash')}</Th>
+          <Th className="hidden lg:table-cell">{t('versions.table.notes')}</Th>
+          <Th className="w-12">
+            <span className="sr-only">{t('versions.table.actions')}</span>
+          </Th>
+        </Tr>
+      </TableHead>
+      <TableBody>
+        {items.map((item) => {
+          const hash = shortHash(item.contentHash);
+          const retiredAt = formatDateTime(item.retiredAt);
+          return (
+            <Tr key={item.id}>
+              <th scope="row" className="px-3.5 py-3 text-left font-bold">
+                {t('versions.number', { number: item.versionNumber })}
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const blocked = retireBlocked(item, items, template.isDefault);
-            const hash = shortHash(item.contentHash);
-            return (
-              <tr key={item.id} className="border-t border-border align-top">
-                <th scope="row" className="px-3 py-2 font-medium">
-                  {t('versions.number', { number: item.versionNumber })}
-                </th>
-                <td className="px-3 py-2">
-                  <span className="flex flex-wrap gap-1">
-                    <Badge tone={item.status === 'PUBLISHED' ? 'ok' : 'muted'}>
-                      {t(`versions.status.${item.status}`)}
-                    </Badge>
-                    {item.isCurrent ? <Badge tone="ok">{t('versions.current')}</Badge> : null}
+              <Td>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <StatusChip
+                    tone={
+                      item.status === 'PUBLISHED'
+                        ? 'success'
+                        : item.status === 'DRAFT'
+                          ? 'info'
+                          : 'neutral'
+                    }
+                  >
+                    {t(`versions.status.${item.status}`)}
+                  </StatusChip>
+                  {item.isCurrent ? (
+                    <StatusChip tone="info">{t('versions.current')}</StatusChip>
+                  ) : null}
+                </div>
+                {retiredAt ? (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {t('versions.retiredOn', { date: retiredAt })}
                   </span>
-                </td>
-                <td className="px-3 py-2">
-                  {formatDateTime(item.publishedAt) ?? t('versions.noValue')}
-                </td>
-                <td className="px-3 py-2">
-                  {formatDateTime(item.retiredAt) ?? t('versions.noValue')}
-                </td>
-                <td className="px-3 py-2 font-mono text-xs">
-                  {hash ? (
-                    <span title={item.contentHash ?? undefined}>{hash}</span>
-                  ) : (
-                    t('versions.noValue')
-                  )}
-                </td>
-                <td className="max-w-xs px-3 py-2 text-muted-foreground">
-                  {item.changeNotes ?? t('versions.noValue')}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={templateEditorHref(template.id, item.id)}
-                      className={LINK}
-                      aria-label={
-                        item.status === 'DRAFT'
-                          ? t('versions.actions.edit', { number: item.versionNumber })
-                          : t('versions.actions.view', { number: item.versionNumber })
-                      }
-                    >
-                      {item.status === 'DRAFT'
-                        ? t('versions.actions.editLabel')
-                        : t('versions.actions.viewLabel')}
-                    </Link>
-                    {canPublish && item.status === 'DRAFT' ? (
-                      <Button
-                        size="sm"
-                        aria-label={t('versions.actions.publish', { number: item.versionNumber })}
-                        onClick={() => {
-                          onPublish(item);
-                        }}
-                      >
-                        {t('versions.actions.publishLabel')}
-                      </Button>
-                    ) : null}
-                    {canPublish && item.status === 'PUBLISHED' ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={blocked}
-                          aria-label={t('versions.actions.retire', { number: item.versionNumber })}
-                          aria-describedby={blocked ? `${tooltipId}-${item.id}` : undefined}
-                          title={blocked ? t('versions.retireBlocked') : undefined}
-                          onClick={() => {
-                            onRetire(item);
-                          }}
-                        >
-                          {t('versions.actions.retireLabel')}
-                        </Button>
-                        {blocked ? (
-                          <span id={`${tooltipId}-${item.id}`} className="sr-only">
-                            {t('versions.retireBlocked')}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                ) : null}
+              </Td>
+              <Td className="hidden whitespace-nowrap md:table-cell">
+                {formatDateTime(item.publishedAt) ?? t('versions.noValue')}
+              </Td>
+              <Td className="hidden font-mono text-xs lg:table-cell">
+                {hash ? (
+                  <span title={item.contentHash ?? undefined}>{hash}</span>
+                ) : (
+                  t('versions.noValue')
+                )}
+              </Td>
+              <Td className="hidden max-w-xs text-muted-foreground lg:table-cell">
+                {item.changeNotes ?? t('versions.noValue')}
+              </Td>
+              <Td className="w-12 py-1.5 text-right">
+                <VersionRowMenu
+                  template={template}
+                  item={item}
+                  blocked={retireBlocked(item, items, template.isDefault)}
+                  canPublish={canPublish}
+                  onPublish={onPublish}
+                  onRetire={onRetire}
+                />
+              </Td>
+            </Tr>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+function VersionRowMenu({
+  template,
+  item,
+  blocked,
+  canPublish,
+  onPublish,
+  onRetire,
+}: {
+  readonly template: TemplateDto;
+  readonly item: TemplateVersionHistoryItem;
+  readonly blocked: boolean;
+  readonly canPublish: boolean;
+  readonly onPublish: (item: TemplateVersionHistoryItem) => void;
+  readonly onRetire: (item: TemplateVersionHistoryItem) => void;
+}) {
+  const t = useTranslations('templates');
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('versions.actions.menu', { number: item.versionNumber })}
+          className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+        >
+          <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={templateEditorHref(template.id, item.id)}>
+            {item.status === 'DRAFT'
+              ? t('versions.actions.editLabel')
+              : t('versions.actions.viewLabel')}
+          </Link>
+        </DropdownMenuItem>
+        {canPublish && item.status === 'DRAFT' ? (
+          <DropdownMenuItem
+            onSelect={() => {
+              onPublish(item);
+            }}
+          >
+            {t('versions.actions.publishLabel')}
+          </DropdownMenuItem>
+        ) : null}
+        {canPublish && item.status === 'PUBLISHED' ? (
+          <>
+            <DropdownMenuItem
+              disabled={blocked}
+              onSelect={() => {
+                onRetire(item);
+              }}
+            >
+              {t('versions.actions.retireLabel')}
+            </DropdownMenuItem>
+            {blocked ? (
+              <p className="max-w-56 px-3 pb-2 text-xs text-muted-foreground">
+                {t('versions.retireBlocked')}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -389,7 +584,7 @@ const fromViolations = (violations: readonly Violation[]): PublishProblem[] =>
  * `PublishConfirmDialog` (passos 2–4): confere o rascunho com a validação do editor antes de
  * enviar (desabilita "Publicar" havendo pendências) e mostra as violações do 422 por seção.
  */
-function PublishConfirmDialog({
+export function PublishConfirmDialog({
   templateId,
   item,
   onClose,
@@ -500,9 +695,11 @@ function PublishBody({
       {problems.length > 0 ? (
         <Alert tone="error" title={t('versions.publish.violationsTitle')}>
           <ProblemList id={`${ids}-problems`} problems={problems} />
-          <Link href={templateEditorHref(templateId, item.id)} className={`${LINK} mt-2`}>
-            {t('versions.publish.openEditor')}
-          </Link>
+          <Button asChild variant="secondary" size="sm" className="mt-2">
+            <Link href={templateEditorHref(templateId, item.id)}>
+              {t('versions.publish.openEditor')}
+            </Link>
+          </Button>
         </Alert>
       ) : null}
       {error ? <Alert tone="error" title={actionErrorMessage(error, t)} /> : null}

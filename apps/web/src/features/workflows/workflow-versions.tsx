@@ -8,7 +8,22 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Field,
   Skeleton,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Textarea,
+  Th,
+  Tr,
   toast,
 } from '@contrataflow/ui';
 import {
@@ -139,7 +154,7 @@ export function WorkflowVersionsSection({
       <div aria-live="assertive">{message ? <Alert tone="error" title={message} /> : null}</div>
 
       {draft ? (
-        <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4">
+        <div className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-card">
           <p className="text-sm">{t('draftHint', { number: draft.versionNumber })}</p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -174,9 +189,9 @@ export function WorkflowVersionsSection({
               </>
             ) : null}
           </div>
-          {validation ? <ValidationResultPanel result={validation} onGoTo={onGoTo} /> : null}
         </div>
       ) : null}
+      {draft && validation ? <ValidationResultPanel result={validation} onGoTo={onGoTo} /> : null}
 
       {history.isPending ? (
         <div role="status" className="flex flex-col gap-2">
@@ -251,17 +266,16 @@ function ValidationResultPanel({
   readonly onGoTo: (target: IssueTarget) => void;
 }) {
   const t = useTranslations('workflows.versions');
-  const ids = useId();
   const firstRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
     firstRef.current?.focus();
   }, [result]);
 
   if (result.errors.length === 0 && result.warnings.length === 0) {
-    return <Alert tone="success" title={t('validation.ok')} />;
+    return <Alert tone="success" live={false} title={t('validation.ok')} />;
   }
   const list = (issues: readonly WorkflowValidationIssue[], first: boolean) => (
-    <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
+    <ul className="flex list-disc flex-col gap-1 pl-5">
       {issues.map((issue, index) => {
         const target = issueTarget(issue);
         return (
@@ -290,48 +304,33 @@ function ValidationResultPanel({
   return (
     <div className="flex flex-col gap-3">
       {result.errors.length > 0 ? (
-        <section
-          aria-labelledby={`${ids}-errors`}
-          className="rounded-card border border-border bg-destructive-soft p-3"
+        <Alert
+          tone="error"
+          live={false}
+          title={t('validation.errorsTitle', { count: result.errors.length })}
         >
-          <h3 id={`${ids}-errors`} className="font-medium">
-            {t('validation.errorsTitle', { count: result.errors.length })}
-          </h3>
           {list(result.errors, true)}
-        </section>
+        </Alert>
       ) : (
-        <Alert tone="success" title={t('validation.noErrors')} />
+        <Alert tone="success" live={false} title={t('validation.noErrors')} />
       )}
       {result.warnings.length > 0 ? (
-        <section
-          aria-labelledby={`${ids}-warnings`}
-          className="rounded-card border border-border bg-warning-soft p-3"
+        <Alert
+          tone="warning"
+          live={false}
+          title={t('validation.warningsTitle', { count: result.warnings.length })}
         >
-          <h3 id={`${ids}-warnings`} className="font-medium">
-            {t('validation.warningsTitle', { count: result.warnings.length })}
-          </h3>
           {list(result.warnings, result.errors.length === 0)}
-        </section>
+        </Alert>
       ) : null}
     </div>
   );
 }
 
-function Badge({ children, tone }: { readonly children: string; readonly tone: 'muted' | 'ok' }) {
-  return (
-    <span
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
-        tone === 'ok' ? 'bg-success-soft text-foreground' : 'bg-muted text-muted-foreground'
-      }`}
-    >
-      {children}
-    </span>
-  );
-}
-
 /**
- * `VersionList` (RN-WF-69): tabela a partir de 768 px e cartões abaixo disso, com situação,
- * datas e autores, notas, hash resumido e "Aposentar" nas publicadas.
+ * `VersionList` (RN-WF-69): tabela no `TableContainer` (rola só ela, quando mais larga que a tela)
+ * com situação, datas e autores, notas, hash resumido sob o número e "Aposentar" no menu ⋯ das
+ * publicadas.
  */
 function VersionList({
   workflow,
@@ -351,122 +350,98 @@ function VersionList({
   if (items.length === 0) return <p className="text-muted-foreground">{t('empty')}</p>;
 
   const empty = t('noValue');
-  const statusOf = (item: WorkflowVersionSummaryDto) => (
-    <span className="flex flex-wrap gap-1">
-      <Badge tone={item.status === 'PUBLISHED' ? 'ok' : 'muted'}>
-        {t(`status.${item.status}`)}
-      </Badge>
-      {isCurrentVersion(workflow, item) ? <Badge tone="ok">{t('current')}</Badge> : null}
-    </span>
-  );
   const when = (iso: string | null, name: string | null | undefined) => {
     const date = formatDateTime(iso);
     if (!date) return empty;
     return name ? t('byWhom', { date, name }) : date;
   };
-  const retireAction = (item: WorkflowVersionSummaryDto) => {
+  const retireMenu = (item: WorkflowVersionSummaryDto) => {
     if (!showRetire || item.status !== 'PUBLISHED') return null;
     const blocked = retireBlocked(workflow, item, items);
     const reason = !canRetire ? t('retireForbidden') : blocked ? t('retireBlocked') : null;
+    const reasonId = `${ids}-${item.id}-reason`;
     return (
-      <>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={reason !== null}
-          aria-label={t('retireLabel', { number: item.versionNumber })}
-          aria-describedby={reason ? `${ids}-${item.id}-reason` : undefined}
-          title={reason ?? undefined}
-          onClick={() => {
-            onRetire(item);
-          }}
-        >
-          {t('retire')}
-        </Button>
-        {reason ? (
-          <span id={`${ids}-${item.id}-reason`} className="sr-only">
-            {reason}
-          </span>
-        ) : null}
-      </>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={t('rowMenu', { number: item.versionNumber })}
+            className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+          >
+            <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            disabled={reason !== null}
+            aria-describedby={reason ? reasonId : undefined}
+            onSelect={() => {
+              onRetire(item);
+            }}
+          >
+            {t('retire')}
+          </DropdownMenuItem>
+          {reason ? (
+            <p id={reasonId} className="max-w-60 px-2.5 py-1.5 text-xs text-muted-foreground">
+              {reason}
+            </p>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
   return (
-    <>
-      <div className="relative hidden overflow-x-auto rounded-card border border-border bg-surface shadow-card md:block">
-        <table className="w-full text-left text-sm">
-          <caption className="sr-only">{t('caption')}</caption>
-          <thead className="bg-muted text-xs text-muted-foreground uppercase">
-            <tr>
-              {(
-                [
-                  'number',
-                  'status',
-                  'publishedAt',
-                  'retiredAt',
-                  'notes',
-                  'hash',
-                  'actions',
-                ] as const
-              ).map((column) => (
-                <th key={column} scope="col" className="px-3 py-2">
-                  {t(`columns.${column}`)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-t border-border align-top">
-                <th scope="row" className="px-3 py-2 font-medium">
+    <TableContainer label={t('caption')}>
+      <Table>
+        <caption className="sr-only">{t('caption')}</caption>
+        <TableHead>
+          <Tr>
+            <Th>{t('columns.number')}</Th>
+            <Th>{t('columns.status')}</Th>
+            <Th>{t('columns.publishedAt')}</Th>
+            <Th>{t('columns.retiredAt')}</Th>
+            <Th>{t('columns.notes')}</Th>
+            <Th className="w-12">
+              <span className="sr-only">{t('columns.actions')}</span>
+            </Th>
+          </Tr>
+        </TableHead>
+        <TableBody>
+          {items.map((item) => (
+            <Tr key={item.id} className="align-top">
+              <th scope="row" className="px-3.5 py-3 text-left font-normal">
+                <span className="block font-bold whitespace-nowrap">
                   {t('number', { number: item.versionNumber })}
-                </th>
-                <td className="px-3 py-2">{statusOf(item)}</td>
-                <td className="px-3 py-2">{when(item.publishedAt, item.publishedByName)}</td>
-                <td className="px-3 py-2">{when(item.retiredAt, item.retiredByName)}</td>
-                <td className="max-w-xs px-3 py-2 text-muted-foreground">
-                  {item.changeNotes ?? empty}
-                </td>
-                <td className="px-3 py-2 font-mono text-xs">
-                  {item.definitionHash ? (
-                    <span title={item.definitionHash}>{shortHash(item.definitionHash)}</span>
-                  ) : (
-                    empty
-                  )}
-                </td>
-                <td className="px-3 py-2">{retireAction(item)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ul className="flex flex-col gap-3 md:hidden" aria-label={t('caption')}>
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className="flex flex-col gap-1 rounded-card border border-border bg-surface p-3"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{t('number', { number: item.versionNumber })}</span>
-              {statusOf(item)}
-            </div>
-            <p className="text-sm">
-              {t('columns.publishedAt')}: {when(item.publishedAt, item.publishedByName)}
-            </p>
-            {item.retiredAt ? (
-              <p className="text-sm">
-                {t('columns.retiredAt')}: {when(item.retiredAt, item.retiredByName)}
-              </p>
-            ) : null}
-            {item.changeNotes ? (
-              <p className="text-sm text-muted-foreground">{item.changeNotes}</p>
-            ) : null}
-            <div>{retireAction(item)}</div>
-          </li>
-        ))}
-      </ul>
-    </>
+                </span>
+                {item.definitionHash ? (
+                  <span
+                    className="font-mono text-xs text-muted-foreground"
+                    title={item.definitionHash}
+                  >
+                    {shortHash(item.definitionHash)}
+                  </span>
+                ) : null}
+              </th>
+              <Td>
+                <div className="flex flex-wrap gap-1.5">
+                  <StatusChip tone={item.status === 'PUBLISHED' ? 'success' : 'neutral'}>
+                    {t(`status.${item.status}`)}
+                  </StatusChip>
+                  {isCurrentVersion(workflow, item) ? (
+                    <StatusChip tone="success">{t('current')}</StatusChip>
+                  ) : null}
+                </div>
+              </Td>
+              <Td>{when(item.publishedAt, item.publishedByName)}</Td>
+              <Td>{when(item.retiredAt, item.retiredByName)}</Td>
+              <Td className="max-w-xs text-muted-foreground">{item.changeNotes ?? empty}</Td>
+              <Td className="w-12 py-1.5 text-right">{retireMenu(item)}</Td>
+            </Tr>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
@@ -577,29 +552,21 @@ function PublishBody({
       <DialogDescription id={`${ids}-description`}>
         {t('publishDialog.description')}
       </DialogDescription>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${ids}-notes`} className="text-sm font-medium">
-          {required ? t('publishDialog.notesRequired') : t('publishDialog.notesOptional')}
-        </label>
-        <textarea
-          id={`${ids}-notes`}
+      <Field
+        label={required ? t('publishDialog.notesRequired') : t('publishDialog.notesOptional')}
+        error={notesError ?? undefined}
+      >
+        <Textarea
           ref={notesRef}
-          className="min-h-24 w-full rounded-control border border-border bg-surface px-3 py-2 text-sm"
+          rows={4}
           value={notes}
           maxLength={5000}
-          required={required}
-          aria-invalid={notesError !== null}
-          aria-describedby={notesError ? `${ids}-notes-error` : undefined}
+          aria-required={required ? true : undefined}
           onChange={(event) => {
             setNotes(event.target.value);
           }}
         />
-        {notesError ? (
-          <p id={`${ids}-notes-error`} className="text-sm text-destructive">
-            {notesError}
-          </p>
-        ) : null}
-      </div>
+      </Field>
       {warnings.length > 0 ? (
         <Alert tone="warning" title={t('publishDialog.warnings', { count: warnings.length })} />
       ) : null}

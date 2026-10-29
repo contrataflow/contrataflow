@@ -1,6 +1,35 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  ChevronUp,
+  ChevronDown,
+  DetailPage,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Field,
+  FormActionBar,
+  InfoTooltip,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  StatusChip,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+} from '@contrataflow/ui';
 import {
   CHANGE_NOTES_MAX_LENGTH,
   DEFAULT_TR_IMPORT_MAPPINGS,
@@ -13,6 +42,7 @@ import type {
   ImportMappings,
   SectionRender,
   TemplateVersionDto,
+  TemplateVersionHistoryItem,
   TemplateVersionUpdateInput,
   Violation,
 } from '@contrataflow/validation';
@@ -44,17 +74,15 @@ import type {
   TemplateTypeInfo,
 } from './template-editor-model';
 import { TemplateLayoutTab } from './template-layout-tab';
+import { PublishConfirmDialog } from './template-versions-view';
 import {
   fetchTemplateVersion,
   templateKeys,
   TEMPLATES_PATH,
   TEMPLATES_STALE_TIME_MS,
+  templateVersionsHref,
   updateTemplateVersion,
 } from './templates.api';
-
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
-const TEXTAREA =
-  'min-h-24 w-full rounded-control border border-border bg-surface px-3 py-2 text-sm';
 
 /**
  * SCR-114 (`/admin/templates/[id]/versoes/[versionId]` — US-107, aba "Conteúdo"): carrega a versão
@@ -74,11 +102,27 @@ export function TemplateEditorView({ versionId }: { readonly versionId: string }
     throwOnError: false,
   });
 
+  if (version.data) {
+    return (
+      <TemplateEditor
+        key={`${version.data.id}:${String(generation)}`}
+        version={version.data}
+        onReload={() => {
+          void version.refetch().then(() => {
+            setGeneration((value) => value + 1);
+          });
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={TEMPLATES_PATH} className="text-sm text-muted-foreground underline">
-        {t('editor.back')}
-      </Link>
+    <div className="flex flex-col gap-5">
+      <div>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={TEMPLATES_PATH}>{t('editor.back')}</Link>
+        </Button>
+      </div>
       {version.isPending ? (
         <div role="status" className="flex flex-col gap-2">
           <span className="sr-only">{t('editor.loading')}</span>
@@ -106,17 +150,6 @@ export function TemplateEditorView({ versionId }: { readonly versionId: string }
             </Button>
           </Alert>
         )
-      ) : null}
-      {version.data ? (
-        <TemplateEditor
-          key={`${version.data.id}:${String(generation)}`}
-          version={version.data}
-          onReload={() => {
-            void version.refetch().then(() => {
-              setGeneration((value) => value + 1);
-            });
-          }}
-        />
       ) : null}
     </div>
   );
@@ -184,7 +217,7 @@ function TemplateEditor({
   const t = useTranslations('templates');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const ids = useId();
+  const tShell = useTranslations('shell');
   const permission = usePermission('TEMPLATE_MANAGE');
   const isDraft = version.status === 'DRAFT';
   const readOnly = !isDraft || !permission.allowed;
@@ -321,7 +354,8 @@ function TemplateEditor({
     return () => {
       container.removeEventListener('focusout', onFocusOut);
     };
-  }, []);
+    // Remonta junto com a aba "Conteúdo": o contêiner é outro a cada vez que ela abre.
+  }, [tab]);
 
   const violations = problem?.kind === 'invalid' ? violationsBySection(problem.violations) : null;
   const selectedIndex = state.drafts.findIndex((draft) => draft.uid === selectedUid);
@@ -341,68 +375,100 @@ function TemplateEditor({
         ? t('editor.saveState.dirty')
         : t('editor.saveState.saved');
 
+  const canPublish = usePermission('TEMPLATE_PUBLISH').allowed;
+  const [publishing, setPublishing] = useState(false);
+  const showSave = !readOnly && tab === 'content';
+  const showPublish = canPublish && isDraft;
+  // Item do histórico montado a partir da versão aberta (a `version` é o `If-Match` da publicação).
+  const publishItem: TemplateVersionHistoryItem = {
+    id: version.id,
+    templateId: version.templateId,
+    versionNumber: version.versionNumber,
+    status: version.status,
+    sectionCount: state.drafts.length,
+    changeNotes: version.changeNotes,
+    isCurrent: false,
+    publishedAt: version.publishedAt,
+    retiredAt: version.retiredAt,
+    contentHash: version.contentHash,
+    createdAt: version.createdAt,
+    updatedAt: version.updatedAt,
+    version: revision,
+  };
+
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {t('editor.heading', { name: version.templateName, number: version.versionNumber })}
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            {version.documentType.name} · {t(`editor.status.${version.status}`)}
-          </p>
-        </div>
-        {readOnly || tab === 'layout' ? null : (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground" aria-hidden="true">
-              {saveLabel}
-            </span>
-            <Button
-              disabled={!isDirty || save.isPending || blocked}
-              aria-busy={save.isPending}
-              onClick={() => {
-                void runSave();
-              }}
-            >
-              {t('editor.save')}
-            </Button>
-          </div>
-        )}
-      </header>
-      <p className="sr-only" aria-live="polite" role="status">
-        {announcement}
-      </p>
-
-      {readOnly ? (
-        <Alert
-          tone="info"
-          title={
+    <DetailPage
+      breadcrumbs={[
+        { label: tShell('admin.title'), href: '/admin' },
+        { label: t('title'), href: TEMPLATES_PATH },
+        { label: version.templateName, href: templateVersionsHref(version.templateId) },
+        { label: t('versions.number', { number: version.versionNumber }) },
+      ]}
+      breadcrumbLabel={t('editor.breadcrumbLabel')}
+      linkComponent={Link}
+      title={t('editor.heading', { name: version.templateName, number: version.versionNumber })}
+      status={
+        <StatusChip
+          tone={
             version.status === 'PUBLISHED'
-              ? t('editor.readOnly.published')
-              : version.status === 'RETIRED'
-                ? t('editor.readOnly.retired')
-                : t('editor.readOnly.noPermission')
+              ? 'success'
+              : version.status === 'DRAFT'
+                ? 'info'
+                : 'neutral'
           }
-        />
-      ) : null}
-
-      {problem ? (
-        <SaveProblemAlert problem={problem} onReload={onReload} onRetry={() => void runSave()} />
-      ) : null}
-      {violations && violations.general.length > 0 ? (
-        <Alert tone="error" title={t('violations.general')}>
-          <ul className="list-disc pl-5">
-            {violations.general.map((violation, index) => (
-              <li key={`${violation.code}-${String(index)}`}>{violation.message}</li>
-            ))}
-          </ul>
-        </Alert>
-      ) : null}
-
-      <EditorTabs tab={tab} onChange={setTab} />
-
-      {tab === 'layout' ? (
-        <div role="tabpanel" id={`${ids}-panel-layout`} aria-labelledby={`${ids}-tab-layout`}>
+        >
+          {t(`editor.status.${version.status}`)}
+        </StatusChip>
+      }
+      subtitle={version.documentType.name}
+      notices={
+        <div className="flex flex-col gap-3 empty:hidden">
+          <p className="sr-only" aria-live="polite" role="status">
+            {announcement}
+          </p>
+          {readOnly ? (
+            <Alert
+              tone="info"
+              title={
+                version.status === 'PUBLISHED'
+                  ? t('editor.readOnly.published')
+                  : version.status === 'RETIRED'
+                    ? t('editor.readOnly.retired')
+                    : t('editor.readOnly.noPermission')
+              }
+            />
+          ) : null}
+          {problem ? (
+            <SaveProblemAlert
+              problem={problem}
+              onReload={onReload}
+              onRetry={() => void runSave()}
+            />
+          ) : null}
+          {violations && violations.general.length > 0 ? (
+            <Alert tone="error" title={t('violations.general')}>
+              <ul className="list-disc pl-5">
+                {violations.general.map((violation, index) => (
+                  <li key={`${violation.code}-${String(index)}`}>{violation.message}</li>
+                ))}
+              </ul>
+            </Alert>
+          ) : null}
+        </div>
+      }
+    >
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value === 'layout' ? 'layout' : 'content');
+        }}
+        className="min-w-0"
+      >
+        <TabsList aria-label={t('editor.tabs.label')}>
+          <TabsTrigger value="content">{t('editor.tabs.content')}</TabsTrigger>
+          <TabsTrigger value="layout">{t('editor.tabs.layout')}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="layout" className="min-w-0">
           <TemplateLayoutTab
             version={version}
             revision={revision}
@@ -413,113 +479,159 @@ function TemplateEditor({
               queryClient.setQueryData(templateKeys.version(tenantId, version.id), saved);
             }}
           />
-        </div>
-      ) : (
-        <div
-          role="tabpanel"
-          id={`${ids}-panel-content`}
-          aria-labelledby={`${ids}-tab-content`}
-          className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(16rem,20rem)_1fr]"
-        >
-          <SectionList
-            drafts={state.drafts}
-            selectedUid={selectedUid}
-            readOnly={readOnly}
-            hasProblems={(draft) =>
-              sectionProblems(draft.uid).length > 0 || sectionViolations(draft).length > 0
-            }
-            onSelect={setSelectedUid}
-            onAdd={() => {
-              const draft = newSection();
-              change({ drafts: [...state.drafts, draft] }, 'sections');
-              setSelectedUid(draft.uid);
-            }}
-            onMove={(from, to) => {
-              const moved = state.drafts[from];
-              structural(moveSection(state.drafts, from, to));
-              if (moved) {
-                setAnnouncement(
-                  t('sections.moved', { title: moved.title || moved.key, position: to + 1 }),
-                );
+        </TabsContent>
+        <TabsContent value="content" className="min-w-0">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)]">
+            <SectionList
+              drafts={state.drafts}
+              selectedUid={selectedUid}
+              readOnly={readOnly}
+              hasProblems={(draft) =>
+                sectionProblems(draft.uid).length > 0 || sectionViolations(draft).length > 0
               }
-            }}
-            onDuplicate={(uid) => {
-              const result = duplicateSection(state.drafts, uid);
-              change({ drafts: result.drafts }, 'sections');
-              setSelectedUid(result.copyUid);
-            }}
-            onRemove={(uid) => {
-              const remaining = state.drafts.filter((draft) => draft.uid !== uid);
-              structural(remaining);
-              if (selectedUid === uid) setSelectedUid(remaining[0]?.uid ?? null);
-            }}
-          />
-          <div ref={fieldsRef} className="flex flex-col gap-6">
-            {selected ? (
-              <SectionEditorPanel
-                key={selected.uid}
-                draft={selected}
-                position={selectedIndex + 1}
-                type={type}
-                readOnly={readOnly}
-                problems={sectionProblems(selected.uid)}
-                violations={sectionViolations(selected)}
-                onChange={(patch) => {
-                  updateDraft(selected.uid, patch);
-                }}
-              />
-            ) : state.drafts.length > 0 ? (
-              <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-                {t('section.nonePanel')}
-              </p>
-            ) : null}
+              onSelect={setSelectedUid}
+              onAdd={() => {
+                const draft = newSection();
+                change({ drafts: [...state.drafts, draft] }, 'sections');
+                setSelectedUid(draft.uid);
+              }}
+              onMove={(from, to) => {
+                const moved = state.drafts[from];
+                structural(moveSection(state.drafts, from, to));
+                if (moved) {
+                  setAnnouncement(
+                    t('sections.moved', { title: moved.title || moved.key, position: to + 1 }),
+                  );
+                }
+              }}
+              onDuplicate={(uid) => {
+                const result = duplicateSection(state.drafts, uid);
+                change({ drafts: result.drafts }, 'sections');
+                setSelectedUid(result.copyUid);
+              }}
+              onRemove={(uid) => {
+                const remaining = state.drafts.filter((draft) => draft.uid !== uid);
+                structural(remaining);
+                if (selectedUid === uid) setSelectedUid(remaining[0]?.uid ?? null);
+              }}
+            />
+            <div ref={fieldsRef} className="flex min-w-0 flex-col gap-5">
+              {selected ? (
+                <SectionEditorPanel
+                  key={selected.uid}
+                  draft={selected}
+                  position={selectedIndex + 1}
+                  type={type}
+                  readOnly={readOnly}
+                  problems={sectionProblems(selected.uid)}
+                  violations={sectionViolations(selected)}
+                  onChange={(patch) => {
+                    updateDraft(selected.uid, patch);
+                  }}
+                />
+              ) : state.drafts.length > 0 ? (
+                <p className="rounded-card bg-surface p-6 text-sm text-muted-foreground shadow-card">
+                  {t('section.nonePanel')}
+                </p>
+              ) : null}
 
-            {type.kind === 'STRUCTURED' && type.systemModule ? (
-              <FieldConfigPanel
-                fields={TYPED_HEADER_FIELDS[type.systemModule]}
-                value={state.fieldConfig}
-                readOnly={readOnly}
-                onChange={(fieldConfig) => {
-                  change({ fieldConfig }, 'fieldConfig');
-                }}
-              />
-            ) : null}
+              {type.kind === 'STRUCTURED' && type.systemModule ? (
+                <FieldConfigPanel
+                  fields={TYPED_HEADER_FIELDS[type.systemModule]}
+                  value={state.fieldConfig}
+                  readOnly={readOnly}
+                  onChange={(fieldConfig) => {
+                    change({ fieldConfig }, 'fieldConfig');
+                  }}
+                />
+              ) : null}
 
-            {type.systemModule === 'TERM_OF_REFERENCE' ? (
-              <ImportMappingsPanel
-                value={state.importMappings}
-                targets={state.drafts.map((draft) => draft.key.trim()).filter((key) => key !== '')}
-                sources={version.importSources?.sectionKeys ?? []}
-                readOnly={readOnly}
-                onChange={(importMappings) => {
-                  change({ importMappings }, 'importMappings');
-                }}
-              />
-            ) : null}
+              {type.systemModule === 'TERM_OF_REFERENCE' ? (
+                <ImportMappingsPanel
+                  value={state.importMappings}
+                  targets={state.drafts
+                    .map((draft) => draft.key.trim())
+                    .filter((key) => key !== '')}
+                  sources={version.importSources?.sectionKeys ?? []}
+                  readOnly={readOnly}
+                  onChange={(importMappings) => {
+                    change({ importMappings }, 'importMappings');
+                  }}
+                />
+              ) : null}
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${ids}-notes`} className="text-sm font-medium">
-                {t('editor.changeNotes')}
-              </label>
-              <textarea
-                id={`${ids}-notes`}
-                className={TEXTAREA}
-                value={state.changeNotes}
-                maxLength={CHANGE_NOTES_MAX_LENGTH}
-                readOnly={readOnly}
-                aria-describedby={`${ids}-notes-hint`}
-                onChange={(event) => {
-                  change({ changeNotes: event.target.value }, 'changeNotes');
-                }}
-              />
-              <p id={`${ids}-notes-hint`} className="text-xs text-muted-foreground">
-                {t('editor.changeNotesHint')}
-              </p>
+              <section className="rounded-card bg-surface p-5 shadow-card">
+                <Field
+                  label={t('editor.changeNotes')}
+                  labelAddon={
+                    <InfoTooltip label={t('help', { field: t('editor.changeNotes') })}>
+                      {t('editor.changeNotesHint')}
+                    </InfoTooltip>
+                  }
+                >
+                  <Textarea
+                    value={state.changeNotes}
+                    maxLength={CHANGE_NOTES_MAX_LENGTH}
+                    readOnly={readOnly}
+                    onChange={(event) => {
+                      change({ changeNotes: event.target.value }, 'changeNotes');
+                    }}
+                  />
+                </Field>
+              </section>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        </TabsContent>
+      </Tabs>
+
+      {showSave || showPublish ? (
+        <FormActionBar
+          label={t('editor.actionsLabel')}
+          status={
+            showSave ? (
+              <span className="text-muted-foreground" aria-hidden="true">
+                {saveLabel}
+              </span>
+            ) : null
+          }
+        >
+          {showSave ? (
+            <Button
+              variant={showPublish ? 'secondary' : undefined}
+              disabled={!isDirty || save.isPending || blocked}
+              aria-busy={save.isPending}
+              onClick={() => {
+                void runSave();
+              }}
+            >
+              {t('editor.save')}
+            </Button>
+          ) : null}
+          {showPublish ? (
+            <Button
+              disabled={isDirty || save.isPending || blocked}
+              onClick={() => {
+                setPublishing(true);
+              }}
+            >
+              {t('versions.actions.publishLabel')}
+            </Button>
+          ) : null}
+        </FormActionBar>
+      ) : null}
+
+      <PublishConfirmDialog
+        templateId={version.templateId}
+        item={publishing ? publishItem : null}
+        onClose={() => {
+          setPublishing(false);
+        }}
+        onDone={() => {
+          void queryClient.invalidateQueries({ queryKey: templateKeys.all(tenantId) });
+          onReload();
+        }}
+      />
+    </DetailPage>
   );
 }
 
@@ -563,44 +675,6 @@ function SaveProblemAlert({
 
 type EditorTab = 'content' | 'layout';
 
-function EditorTabs({
-  tab,
-  onChange,
-}: {
-  readonly tab: EditorTab;
-  readonly onChange: (tab: EditorTab) => void;
-}) {
-  const t = useTranslations('templates');
-  const ids = useId();
-  return (
-    <div className="flex flex-col gap-3">
-      <div
-        role="tablist"
-        aria-label={t('editor.tabs.label')}
-        className="flex gap-2 border-b border-border"
-      >
-        {(['content', 'layout'] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            id={`${ids}-tab-${value}`}
-            aria-selected={tab === value}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === value ? 'border-primary' : 'border-transparent text-muted-foreground'
-            }`}
-            onClick={() => {
-              onChange(value);
-            }}
-          >
-            {t(`editor.tabs.${value}`)}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function SectionList({
   drafts,
   selectedUid,
@@ -627,9 +701,12 @@ function SectionList({
   const label = (draft: SectionDraft) => draft.title.trim() || t('sections.untitled');
 
   return (
-    <section aria-labelledby="template-sections-title" className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="template-sections-title" className="text-lg font-semibold">
+    <section
+      aria-labelledby="template-sections-title"
+      className="flex flex-col gap-3 self-start rounded-card bg-surface p-5 shadow-card"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="template-sections-title" className="text-section-title text-brand-ink">
           {t('sections.title')}
         </h2>
         {readOnly ? null : (
@@ -663,23 +740,25 @@ function SectionList({
               if (dragFrom.current !== null) onMove(dragFrom.current, index);
               dragFrom.current = null;
             }}
-            className={`rounded-card border p-2 ${
-              draft.uid === selectedUid ? 'border-primary bg-muted' : 'border-border bg-surface'
+            className={`flex flex-wrap items-center gap-1 rounded-control border p-2 ${
+              draft.uid === selectedUid
+                ? 'border-primary bg-primary-soft'
+                : 'border-border bg-surface'
             }`}
           >
             <button
               type="button"
-              className="w-full text-left"
+              className="min-w-0 flex-[1_1_8rem] rounded-control text-left"
               aria-current={draft.uid === selectedUid ? 'true' : undefined}
               aria-label={t('sections.select', { title: label(draft) })}
               onClick={() => {
                 onSelect(draft.uid);
               }}
             >
-              <span className="block text-sm font-medium">
+              <span className="block text-sm font-bold break-words">
                 {index + 1}. {label(draft)}
               </span>
-              <span className="block font-mono text-xs text-muted-foreground">
+              <span className="block font-mono text-xs break-words text-muted-foreground">
                 {draft.key.trim() || t('sections.noKey')}
                 {hasProblems(draft) ? (
                   <span className="ml-2 font-sans text-destructive">
@@ -689,7 +768,7 @@ function SectionList({
               </span>
             </button>
             {readOnly ? null : (
-              <div className="mt-2 flex flex-wrap gap-1">
+              <div className="flex flex-none items-center">
                 <Button
                   size="sm"
                   variant="ghost"
@@ -699,7 +778,7 @@ function SectionList({
                     onMove(index, index - 1);
                   }}
                 >
-                  ↑
+                  <ChevronUp />
                 </Button>
                 <Button
                   size="sm"
@@ -710,28 +789,35 @@ function SectionList({
                     onMove(index, index + 1);
                   }}
                 >
-                  ↓
+                  <ChevronDown />
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={t('sections.duplicate', { title: label(draft) })}
-                  onClick={() => {
-                    onDuplicate(draft.uid);
-                  }}
-                >
-                  {t('sections.duplicateLabel')}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={t('sections.remove', { title: label(draft) })}
-                  onClick={() => {
-                    onRemove(draft.uid);
-                  }}
-                >
-                  {t('sections.removeLabel')}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t('sections.menu', { title: label(draft) })}
+                    >
+                      <Ellipsis />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        onDuplicate(draft.uid);
+                      }}
+                    >
+                      {t('sections.duplicateLabel')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        onRemove(draft.uid);
+                      }}
+                    >
+                      {t('sections.removeLabel')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
           </li>
@@ -761,64 +847,19 @@ function SectionEditorPanel({
   const t = useTranslations('templates');
   const ids = useId();
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const narrativeId = `${ids}-narrative`;
   const renders = availableRenders(type);
   const errorOf = (field: DraftField) => problems.find((item) => item.field === field)?.message;
-  const fieldId = (field: string) => `${ids}-${field}`;
-  const describedBy = (field: DraftField, hint?: string) =>
-    [errorOf(field) ? `${fieldId(field)}-error` : null, hint ?? null].filter(Boolean).join(' ') ||
-    undefined;
-  const errorText = (field: DraftField) => {
-    const message = errorOf(field);
-    return message ? (
-      <p id={`${fieldId(field)}-error`} className="text-sm text-destructive">
-        {message}
-      </p>
-    ) : null;
-  };
-
-  const text = (
-    field: 'key' | 'title' | 'legalBasis',
-    label: string,
-    extra: { hint?: string; maxLength: number; placeholder?: string },
-  ) => (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={fieldId(field)} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={fieldId(field)}
-        className={field === 'key' ? `${INPUT} font-mono` : INPUT}
-        value={draft[field]}
-        maxLength={extra.maxLength}
-        placeholder={extra.placeholder}
-        readOnly={readOnly}
-        aria-invalid={field !== 'legalBasis' && errorOf(field) ? true : undefined}
-        aria-describedby={
-          field === 'legalBasis'
-            ? undefined
-            : describedBy(field, extra.hint ? `${fieldId(field)}-hint` : undefined)
-        }
-        onChange={(event) => {
-          onChange({
-            [field]: field === 'key' ? event.target.value.toUpperCase() : event.target.value,
-          });
-        }}
-      />
-      {extra.hint ? (
-        <p id={`${fieldId(field)}-hint`} className="text-xs text-muted-foreground">
-          {extra.hint}
-        </p>
-      ) : null}
-      {field === 'legalBasis' ? null : errorText(field)}
-    </div>
+  const help = (field: string, text: string) => (
+    <InfoTooltip label={t('help', { field })}>{text}</InfoTooltip>
   );
 
   return (
     <section
       aria-labelledby={`${ids}-heading`}
-      className="flex flex-col gap-4 rounded-card border border-border bg-surface p-4 shadow-card"
+      className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card"
     >
-      <h2 id={`${ids}-heading`} className="text-lg font-semibold">
+      <h2 id={`${ids}-heading`} className="text-section-title text-brand-ink">
         {t('section.panelTitle', { position })}
       </h2>
       {violations.length > 0 ? (
@@ -831,118 +872,137 @@ function SectionEditorPanel({
         </Alert>
       ) : null}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {text('key', t('section.key'), { hint: t('section.keyHint'), maxLength: 60 })}
-        {text('title', t('section.title'), { maxLength: 150 })}
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('requirement')} className="text-sm font-medium">
-            {t('section.requirement')}
-          </label>
-          <select
-            id={fieldId('requirement')}
-            className={INPUT}
-            value={draft.requirement}
-            disabled={readOnly}
+        <Field
+          label={t('section.key')}
+          error={errorOf('key')}
+          labelAddon={help(t('section.key'), t('section.keyHint'))}
+        >
+          <Input
+            className="font-mono"
+            value={draft.key}
+            maxLength={60}
+            readOnly={readOnly}
             onChange={(event) => {
-              onChange({ requirement: event.target.value as SectionDraft['requirement'] });
-            }}
-          >
-            {SECTION_REQUIREMENTS.map((requirement) => (
-              <option key={requirement} value={requirement}>
-                {t(`section.requirements.${requirement}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('render')} className="text-sm font-medium">
-            {t('section.render')}
-          </label>
-          <select
-            id={fieldId('render')}
-            className={INPUT}
-            value={draft.render}
-            disabled={readOnly || renders.length === 1}
-            aria-invalid={errorOf('render') ? true : undefined}
-            aria-describedby={describedBy('render')}
-            onChange={(event) => {
-              onChange({ render: event.target.value as SectionRender });
-            }}
-          >
-            {(renders.includes(draft.render) ? renders : [draft.render, ...renders]).map(
-              (render) => (
-                <option key={render} value={render}>
-                  {t(`section.renders.${render}`)}
-                </option>
-              ),
-            )}
-          </select>
-          {errorText('render')}
-        </div>
-      </div>
-      {draft.render === 'TEXT' ? null : (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={draft.allowNarrative}
-            disabled={readOnly}
-            onChange={(event) => {
-              onChange({ allowNarrative: event.target.checked });
+              onChange({ key: event.target.value.toUpperCase() });
             }}
           />
-          {t('section.allowNarrative')}
-        </label>
+        </Field>
+        <Field label={t('section.title')} error={errorOf('title')}>
+          <Input
+            value={draft.title}
+            maxLength={150}
+            readOnly={readOnly}
+            onChange={(event) => {
+              onChange({ title: event.target.value });
+            }}
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label={t('section.requirement')}>
+          <Select
+            value={draft.requirement}
+            disabled={readOnly}
+            onValueChange={(value) => {
+              onChange({ requirement: value as SectionDraft['requirement'] });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTION_REQUIREMENTS.map((requirement) => (
+                <SelectItem key={requirement} value={requirement}>
+                  {t(`section.requirements.${requirement}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label={t('section.render')} error={errorOf('render')}>
+          <Select
+            value={draft.render}
+            disabled={readOnly || renders.length === 1}
+            onValueChange={(value) => {
+              onChange({ render: value as SectionRender });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(renders.includes(draft.render) ? renders : [draft.render, ...renders]).map(
+                (render) => (
+                  <SelectItem key={render} value={render}>
+                    {t(`section.renders.${render}`)}
+                  </SelectItem>
+                ),
+              )}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      {draft.render === 'TEXT' ? null : (
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id={narrativeId}
+            checked={draft.allowNarrative}
+            disabled={readOnly}
+            onCheckedChange={(checked) => {
+              onChange({ allowNarrative: checked === true });
+            }}
+          />
+          <Label htmlFor={narrativeId} className="font-normal">
+            {t('section.allowNarrative')}
+          </Label>
+        </div>
       )}
-      {text('legalBasis', t('section.legalBasis'), {
-        maxLength: 300,
-        placeholder: t('section.legalBasisPlaceholder'),
-      })}
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('helpText')} className="text-sm font-medium">
-          {t('section.helpText')}
-        </label>
-        <textarea
-          id={fieldId('helpText')}
-          className={TEXTAREA}
+      <Field label={t('section.legalBasis')}>
+        <Input
+          value={draft.legalBasis}
+          maxLength={300}
+          placeholder={t('section.legalBasisPlaceholder')}
+          readOnly={readOnly}
+          onChange={(event) => {
+            onChange({ legalBasis: event.target.value });
+          }}
+        />
+      </Field>
+      <Field label={t('section.helpText')} error={errorOf('helpText')}>
+        <Textarea
           value={draft.helpText}
           maxLength={2000}
           readOnly={readOnly}
-          aria-invalid={errorOf('helpText') ? true : undefined}
-          aria-describedby={describedBy('helpText')}
           onChange={(event) => {
             onChange({ helpText: event.target.value });
           }}
         />
-        {errorText('helpText')}
-      </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('defaultContent')} className="text-sm font-medium">
-          {t('section.defaultContent')}
-        </label>
-        <textarea
-          id={fieldId('defaultContent')}
-          ref={contentRef}
-          className={`${TEXTAREA} min-h-32`}
-          value={draft.defaultContent}
-          readOnly={readOnly}
-          aria-invalid={errorOf('defaultContent') ? true : undefined}
-          aria-describedby={describedBy('defaultContent', `${fieldId('defaultContent')}-hint`)}
-          onChange={(event) => {
-            onChange({ defaultContent: event.target.value });
-          }}
-        />
-        <p id={`${fieldId('defaultContent')}-hint`} className="text-xs text-muted-foreground">
-          {t('section.defaultContentHint')}
-        </p>
-        {errorText('defaultContent')}
+      </Field>
+      <div className="flex flex-col gap-2">
+        <Field
+          label={t('section.defaultContent')}
+          error={errorOf('defaultContent')}
+          labelAddon={help(t('section.defaultContent'), t('section.defaultContentHint'))}
+        >
+          <Textarea
+            ref={contentRef}
+            rows={6}
+            value={draft.defaultContent}
+            readOnly={readOnly}
+            onChange={(event) => {
+              onChange({ defaultContent: event.target.value });
+            }}
+          />
+        </Field>
         {readOnly ? null : (
-          <div role="group" aria-label={t('section.variables')} className="flex flex-wrap gap-1">
+          <div role="group" aria-label={t('section.variables')} className="flex flex-wrap gap-1.5">
             {SECTION_TEMPLATE_VARIABLES.map((variable) => (
-              <button
+              <Button
                 key={variable}
                 type="button"
-                className="rounded-control border border-border px-2 py-0.5 font-mono text-xs hover:bg-muted"
+                variant="secondary"
+                size="sm"
+                className="font-mono text-xs"
                 aria-label={t('section.insertVariable', { variable })}
                 onClick={() => {
                   const element = contentRef.current;
@@ -961,33 +1021,25 @@ function SectionEditorPanel({
                 }}
               >
                 {`{{${variable}}}`}
-              </button>
+              </Button>
             ))}
           </div>
         )}
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {(['minChars', 'maxChars'] as const).map((field) => (
-          <div key={field} className="flex flex-col gap-1">
-            <label htmlFor={fieldId(field)} className="text-sm font-medium">
-              {t(`section.${field}`)}
-            </label>
-            <input
-              id={fieldId(field)}
+          <Field key={field} label={t(`section.${field}`)} error={errorOf(field)}>
+            <Input
               type="number"
               inputMode="numeric"
               min={field === 'minChars' ? 0 : 1}
-              className={INPUT}
               value={draft[field]}
               readOnly={readOnly}
-              aria-invalid={errorOf(field) ? true : undefined}
-              aria-describedby={describedBy(field)}
               onChange={(event) => {
                 onChange({ [field]: event.target.value });
               }}
             />
-            {errorText(field)}
-          </div>
+          </Field>
         ))}
       </div>
     </section>
@@ -1021,84 +1073,79 @@ function FieldConfigPanel({
     );
   };
   return (
-    <section aria-labelledby="field-config-title" className="flex flex-col gap-2">
-      <h2 id="field-config-title" className="text-lg font-semibold">
-        {t('fieldConfig.title')}
-      </h2>
-      <p className="text-sm text-muted-foreground">{t('fieldConfig.description')}</p>
+    <section
+      aria-labelledby="field-config-title"
+      className="flex flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="field-config-title" className="text-section-title text-brand-ink">
+          {t('fieldConfig.title')}
+        </h2>
+        <p className="text-sm text-muted-foreground">{t('fieldConfig.description')}</p>
+      </div>
       {fields.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('fieldConfig.empty')}</p>
       ) : (
-        <div className="relative overflow-x-auto rounded-card border border-border">
-          <table className="w-full min-w-[36rem] text-left text-sm">
-            <thead className="bg-muted text-xs text-muted-foreground uppercase">
-              <tr>
-                <th scope="col" className="px-3 py-2">
-                  {t('fieldConfig.columns.field')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('fieldConfig.columns.label')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('fieldConfig.columns.required')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('fieldConfig.columns.defaultValue')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field) => {
-                const entry = value[field] ?? {};
-                return (
-                  <tr key={field} className="border-t border-border">
-                    <th scope="row" className="px-3 py-2 font-mono text-xs">
-                      {field}
-                    </th>
-                    <td className="px-3 py-2">
-                      <input
-                        className={INPUT}
-                        aria-label={t('fieldConfig.label', { field })}
-                        value={entry.label ?? ''}
-                        maxLength={150}
-                        readOnly={readOnly}
-                        onChange={(event) => {
-                          set(field, { label: event.target.value });
-                        }}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        aria-label={t('fieldConfig.required', { field })}
-                        checked={entry.required === true}
-                        disabled={readOnly}
-                        onChange={(event) => {
-                          set(field, { required: event.target.checked });
-                        }}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        className={INPUT}
-                        aria-label={t('fieldConfig.defaultValue', { field })}
-                        value={
-                          typeof entry.defaultValue === 'string' ||
-                          typeof entry.defaultValue === 'number'
-                            ? String(entry.defaultValue)
-                            : ''
-                        }
-                        readOnly={readOnly}
-                        onChange={(event) => {
-                          set(field, { defaultValue: event.target.value });
-                        }}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        // Lista em grade, não tabela: cabe na coluna do editor sem rolagem própria (prd-5 · regra 8).
+        <div className="flex flex-col">
+          <div
+            aria-hidden="true"
+            className="hidden gap-3 border-b border-border pb-2 text-label font-semibold text-muted-foreground uppercase sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+          >
+            <span>{t('fieldConfig.columns.label')}</span>
+            <span>{t('fieldConfig.columns.defaultValue')}</span>
+            <span>{t('fieldConfig.columns.required')}</span>
+          </div>
+          <ul aria-label={t('fieldConfig.title')} className="flex flex-col divide-y divide-border">
+            {fields.map((field) => {
+              const entry = value[field] ?? {};
+              return (
+                <li
+                  key={field}
+                  className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-x-3"
+                >
+                  <span className="font-mono text-xs text-muted-foreground sm:col-span-3">
+                    {field}
+                  </span>
+                  <Input
+                    aria-label={t('fieldConfig.label', { field })}
+                    value={entry.label ?? ''}
+                    maxLength={150}
+                    readOnly={readOnly}
+                    onChange={(event) => {
+                      set(field, { label: event.target.value });
+                    }}
+                  />
+                  <Input
+                    aria-label={t('fieldConfig.defaultValue', { field })}
+                    value={
+                      typeof entry.defaultValue === 'string' ||
+                      typeof entry.defaultValue === 'number'
+                        ? String(entry.defaultValue)
+                        : ''
+                    }
+                    readOnly={readOnly}
+                    onChange={(event) => {
+                      set(field, { defaultValue: event.target.value });
+                    }}
+                  />
+                  <span className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      aria-label={t('fieldConfig.required', { field })}
+                      checked={entry.required === true}
+                      disabled={readOnly}
+                      onCheckedChange={(checked) => {
+                        set(field, { required: checked === true });
+                      }}
+                    />
+                    <span aria-hidden="true" className="sm:hidden">
+                      {t('fieldConfig.columns.required')}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </section>
@@ -1129,28 +1176,36 @@ function ImportMappingsPanel({
       ),
     });
   };
+  const enableId = `${ids}-enable`;
   return (
-    <section aria-labelledby="import-mappings-title" className="flex flex-col gap-3">
-      <h2 id="import-mappings-title" className="text-lg font-semibold">
-        {t('importMappings.title')}
-      </h2>
-      <p className="text-sm text-muted-foreground">{t('importMappings.description')}</p>
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+    <section
+      aria-labelledby="import-mappings-title"
+      className="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="import-mappings-title" className="text-section-title text-brand-ink">
+          {t('importMappings.title')}
+        </h2>
+        <p className="text-sm text-muted-foreground">{t('importMappings.description')}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <Checkbox
+          id={enableId}
           checked={value !== null}
           disabled={readOnly}
-          onChange={(event) => {
-            onChange(event.target.checked ? structuredClone(DEFAULT_TR_IMPORT_MAPPINGS) : null);
+          onCheckedChange={(checked) => {
+            onChange(checked === true ? structuredClone(DEFAULT_TR_IMPORT_MAPPINGS) : null);
           }}
         />
-        {t('importMappings.enable')}
-      </label>
+        <Label htmlFor={enableId} className="font-normal">
+          {t('importMappings.enable')}
+        </Label>
+      </div>
       {value === null ? (
         <p className="text-sm text-muted-foreground">{t('importMappings.none')}</p>
       ) : (
         <>
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col">
             {value.sections.map((mapping, index) => {
               const targetLabel = mapping.target || t('importMappings.targetPlaceholder');
               const options =
@@ -1160,62 +1215,52 @@ function ImportMappingsPanel({
               return (
                 <li
                   key={`${String(index)}-${mapping.target}`}
-                  className="rounded-card border border-border p-3"
+                  className="flex flex-col gap-3 border-t border-border py-4 first:border-t-0 first:pt-0"
                 >
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_12rem_auto]">
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`${ids}-target-${String(index)}`}
-                        className="text-sm font-medium"
-                      >
-                        {t('importMappings.target')}
-                      </label>
-                      <select
-                        id={`${ids}-target-${String(index)}`}
-                        className={INPUT}
+                  <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_12rem_auto]">
+                    <Field label={t('importMappings.target')}>
+                      <Select
                         value={mapping.target}
                         disabled={readOnly}
-                        onChange={(event) => {
-                          updateMapping(index, { target: event.target.value });
+                        onValueChange={(target) => {
+                          updateMapping(index, { target });
                         }}
                       >
-                        <option value="">{t('importMappings.targetPlaceholder')}</option>
-                        {options.map((key) => (
-                          <option key={key} value={key}>
-                            {key}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label
-                        htmlFor={`${ids}-mode-${String(index)}`}
-                        className="text-sm font-medium"
-                      >
-                        {t('importMappings.mode', { target: targetLabel })}
-                      </label>
-                      <select
-                        id={`${ids}-mode-${String(index)}`}
-                        className={INPUT}
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('importMappings.targetPlaceholder')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {options.map((key) => (
+                            <SelectItem key={key} value={key}>
+                              {key}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label={t('importMappings.mode', { target: targetLabel })}>
+                      <Select
                         value={mapping.mode}
                         disabled={readOnly}
-                        onChange={(event) => {
-                          updateMapping(index, {
-                            mode: event.target.value as 'REPLACE' | 'APPEND',
-                          });
+                        onValueChange={(mode) => {
+                          updateMapping(index, { mode: mode as 'REPLACE' | 'APPEND' });
                         }}
                       >
-                        {(['REPLACE', 'APPEND'] as const).map((mode) => (
-                          <option key={mode} value={mode}>
-                            {t(`importMappings.modes.${mode}`)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(['REPLACE', 'APPEND'] as const).map((mode) => (
+                            <SelectItem key={mode} value={mode}>
+                              {t(`importMappings.modes.${mode}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
                     {readOnly ? null : (
                       <Button
                         variant="ghost"
-                        size="sm"
                         aria-label={t('importMappings.remove', { target: targetLabel })}
                         onClick={() => {
                           onChange({
@@ -1228,30 +1273,33 @@ function ImportMappingsPanel({
                       </Button>
                     )}
                   </div>
-                  <fieldset className="mt-2">
-                    <legend className="text-sm font-medium">
-                      {t('importMappings.sources', { target: targetLabel })}
-                    </legend>
-                    <div className="mt-1 flex flex-wrap gap-3">
-                      {[...new Set([...sources, ...mapping.sources])].map((source) => (
-                        <label key={source} className="flex items-center gap-1 font-mono text-xs">
-                          <input
-                            type="checkbox"
-                            checked={mapping.sources.includes(source)}
-                            disabled={readOnly}
-                            onChange={(event) => {
-                              updateMapping(index, {
-                                sources: event.target.checked
-                                  ? [...mapping.sources, source]
-                                  : mapping.sources.filter((item) => item !== source),
-                              });
-                            }}
-                          />
-                          {source}
-                        </label>
-                      ))}
+                  <Field group label={t('importMappings.sources', { target: targetLabel })}>
+                    <div className="flex flex-wrap gap-x-5 gap-y-2">
+                      {[...new Set([...sources, ...mapping.sources])].map((source) => {
+                        const sourceId = `${ids}-${String(index)}-${source}`;
+                        return (
+                          <div key={source} className="flex items-center gap-2">
+                            <Checkbox
+                              id={sourceId}
+                              checked={mapping.sources.includes(source)}
+                              disabled={readOnly}
+                              onCheckedChange={(checked) => {
+                                updateMapping(index, {
+                                  sources:
+                                    checked === true
+                                      ? [...mapping.sources, source]
+                                      : mapping.sources.filter((item) => item !== source),
+                                });
+                              }}
+                            />
+                            <Label htmlFor={sourceId} className="font-mono text-xs font-normal">
+                              {source}
+                            </Label>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </fieldset>
+                  </Field>
                 </li>
               );
             })}
@@ -1272,19 +1320,24 @@ function ImportMappingsPanel({
               </Button>
             </div>
           )}
-          {(['copyQuantities', 'copyCalculationMemoToNotes'] as const).map((item) => (
-            <label key={item} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={value.items[item]}
-                disabled={readOnly}
-                onChange={(event) => {
-                  onChange({ ...value, items: { ...value.items, [item]: event.target.checked } });
-                }}
-              />
-              {t(`importMappings.${item}`)}
-            </label>
-          ))}
+          {(['copyQuantities', 'copyCalculationMemoToNotes'] as const).map((item) => {
+            const itemId = `${ids}-${item}`;
+            return (
+              <div key={item} className="flex items-center gap-3">
+                <Checkbox
+                  id={itemId}
+                  checked={value.items[item]}
+                  disabled={readOnly}
+                  onCheckedChange={(checked) => {
+                    onChange({ ...value, items: { ...value.items, [item]: checked === true } });
+                  }}
+                />
+                <Label htmlFor={itemId} className="font-normal">
+                  {t(`importMappings.${item}`)}
+                </Label>
+              </div>
+            );
+          })}
           <p className="text-xs text-muted-foreground">
             {t('importMappings.fields', {
               fields:

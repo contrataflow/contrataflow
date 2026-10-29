@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, EmptyState, Field, InfoTooltip, Skeleton } from '@contrataflow/ui';
 import type {
   WorkflowDto,
   WorkflowStageDto,
@@ -18,6 +18,7 @@ import { isApiError } from '@/lib/api/api-error';
 import { logClientEvent } from '@/lib/client-log';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { OptionSelect } from './option-select';
 import { useIsDesktop } from './use-is-desktop';
 import {
   centerOn,
@@ -39,7 +40,6 @@ import {
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
 
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
 const ZOOM_STEP = 1.25;
 /** Quadro antes da primeira medição (e no jsdom, sem `ResizeObserver`). */
 const DEFAULT_FRAME = { width: 960, height: 448 };
@@ -129,11 +129,11 @@ export function WorkflowDiagramSection({
   return (
     <section aria-labelledby={`${ids}-title`} className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 id={`${ids}-title`} className="text-lg font-semibold">
+        <div className="flex items-center gap-1.5">
+          <h2 id={`${ids}-title`} className="text-lg font-bold text-brand-ink">
             {t('title')}
           </h2>
-          <p className="text-sm text-muted-foreground">{t('hint')}</p>
+          <InfoTooltip label={t('helpLabel')}>{t('hint')}</InfoTooltip>
         </div>
         {history.data && history.data.length > 0 ? (
           <VersionSwitcher
@@ -160,9 +160,7 @@ export function WorkflowDiagramSection({
         <>
           {data.status === 'RETIRED' ? <Alert tone="warning" title={t('retired')} /> : null}
           {data.stages.length === 0 ? (
-            <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-              {t('empty')}
-            </p>
+            <EmptyState title={t('empty')} />
           ) : failed || !layout ? (
             <>
               <Alert tone="warning" title={t('layoutFailed')} />
@@ -237,28 +235,19 @@ function VersionSwitcher({
   const t = useTranslations('workflows');
   const ids = useId();
   return (
-    <div className="flex w-full flex-col gap-1 sm:w-64">
-      <label htmlFor={`${ids}-version`} className="text-sm">
-        {t('diagram.version')}
-      </label>
-      <select
-        id={`${ids}-version`}
-        className={INPUT}
+    <Field label={t('diagram.version')} id={`${ids}-version`} className="w-full sm:w-64">
+      <OptionSelect
         value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      >
-        {items.map((item) => (
-          <option key={item.id} value={item.id}>
-            {t('diagram.versionOption', {
-              number: item.versionNumber,
-              status: t(`versions.status.${item.status}`),
-            })}
-          </option>
-        ))}
-      </select>
-    </div>
+        options={items.map((item) => ({
+          value: item.id,
+          label: t('diagram.versionOption', {
+            number: item.versionNumber,
+            status: t(`versions.status.${item.status}`),
+          }),
+        }))}
+        onValueChange={onChange}
+      />
+    </Field>
   );
 }
 
@@ -383,7 +372,7 @@ function WorkflowDiagram({
       <div
         role="toolbar"
         aria-label={t('diagram.controls.label')}
-        className="flex flex-wrap items-center gap-2"
+        className="flex flex-wrap items-center gap-2 rounded-card bg-surface p-2 shadow-card"
       >
         <Button
           variant="secondary"
@@ -427,11 +416,14 @@ function WorkflowDiagram({
         <span className="text-xs text-muted-foreground" aria-live="polite">
           {t('diagram.controls.zoomLevel', { percent: Math.round(viewport.zoom * 100) })}
         </span>
+        <InfoTooltip label={t('diagram.controls.helpLabel')}>
+          {t('diagram.controls.hint')}
+        </InfoTooltip>
       </div>
       <div
         ref={frameRef}
         data-testid="workflow-diagram-frame"
-        className="relative h-[28rem] cursor-grab touch-none overflow-hidden rounded-card border border-border bg-background"
+        className="relative h-[28rem] cursor-grab touch-none overflow-hidden rounded-card border border-border bg-background shadow-card"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
@@ -524,7 +516,6 @@ function WorkflowDiagram({
           />
         ) : null}
       </div>
-      <p className="text-xs text-muted-foreground">{t('diagram.controls.hint')}</p>
     </div>
   );
 }
@@ -731,10 +722,10 @@ function DiagramDetails({
   return (
     <aside
       aria-labelledby={`${ids}-details`}
-      className="w-full rounded-card border border-border bg-surface p-4 shadow-card lg:w-80"
+      className="w-full rounded-card bg-surface p-5 shadow-card lg:w-80 lg:flex-none"
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 id={`${ids}-details`} className="font-medium">
+        <h3 id={`${ids}-details`} className="font-bold text-brand-ink">
           {title}
         </h3>
         <Button variant="ghost" size="sm" onClick={onClose}>

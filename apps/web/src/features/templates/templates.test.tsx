@@ -170,6 +170,17 @@ const bodyOf = (init?: RequestInit): Record<string, unknown> =>
 const callsTo = (api: ReturnType<typeof mockApi>, method: string) =>
   api.mock.calls.filter(([, init]) => (init?.method ?? 'GET') === method);
 
+/** Escolhe a opção de um `Select` do kit (Radix): abre o combobox pelo nome e clica na opção. */
+async function choose(scope: Pick<typeof screen, 'getByRole'>, field: string, option: string) {
+  await userEvent.click(scope.getByRole('combobox', { name: field }));
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Abre o menu ⋯ da linha do template (`Ações de X`). */
+async function openRowMenu(name: string) {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   push.mockReset();
@@ -183,24 +194,23 @@ describe('SCR-033 · lista de templates', () => {
     if (!row) throw new Error('linha ausente');
     expect(within(row).getByText('Despacho')).toBeTruthy();
     expect(within(row).getByText('Ativo')).toBeTruthy();
-    expect(within(row).getByText('Rascunho v1 (sem seções)')).toBeTruthy();
-    expect(
-      within(row)
-        .getByRole('link', { name: 'Editar conteúdo de Despacho padrão' })
-        .getAttribute('href'),
-    ).toBe(`/admin/templates/${TEMPLATE_ID}/versoes/${VERSION_ID}`);
+    expect(within(row).getByText('v1 · sem seções')).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Novo template' })).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
+    await openRowMenu('Despacho padrão');
+    expect(
+      (await screen.findByRole('menuitem', { name: 'Editar conteúdo' })).getAttribute('href'),
+    ).toBe(`/admin/templates/${TEMPLATE_ID}/versoes/${VERSION_ID}`);
+    expect(screen.getByRole('menuitem', { name: 'Editar dados' })).toBeTruthy();
   });
 
   it('[Permissão] só TEMPLATE_VIEW: sem "Novo template" nem "Editar dados"; link de leitura', async () => {
     mockApi({}, ['TEMPLATE_VIEW']);
     renderWithShell(<TemplatesView />);
-    expect(
-      await screen.findByRole('link', { name: 'Ver conteúdo de Despacho padrão' }),
-    ).toBeTruthy();
+    await openRowMenu('Despacho padrão');
+    expect(await screen.findByRole('menuitem', { name: 'Ver conteúdo' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Editar dados' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Novo template' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Editar dados de Despacho padrão' })).toBeNull();
   });
 
   it('[Sucesso] US-110: modelos semeados com o selo "Modelo padrão da plataforma" em texto (axe)', async () => {
@@ -253,9 +263,17 @@ describe('SCR-033 · lista de templates', () => {
     await userEvent.type(screen.getByLabelText('Buscar por nome'), 'servicos');
     expect(screen.queryByRole('rowheader', { name: /Despacho padrão/ })).toBeNull();
     await userEvent.clear(screen.getByLabelText('Buscar por nome'));
-    await userEvent.selectOptions(screen.getByLabelText('Tipo de documento'), DESPACHO_TYPE.id);
+    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await choose(
+      within(await screen.findByRole('dialog', { name: 'Filtros' })),
+      'Tipo de documento',
+      'Despacho',
+    );
     expect(screen.queryByRole('rowheader', { name: /TR de serviços/ })).toBeNull();
     expect(screen.getByRole('rowheader', { name: /Despacho padrão/ })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Remover o filtro Tipo de documento: Despacho' }),
+    ).toBeTruthy();
   });
 
   it('[Sucesso] criar template: POST com Idempotency-Key e vai para o editor da versão 1', async () => {
@@ -265,11 +283,7 @@ describe('SCR-033 · lista de templates', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Novo template' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText('Nome'), 'Ofício geral');
-    await within(dialog).findByRole('option', { name: 'Despacho' });
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText('Tipo de documento'),
-      DESPACHO_TYPE.id,
-    );
+    await choose(within(dialog), 'Tipo de documento', 'Despacho');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e editar seções' }));
 
     await waitFor(() => {
@@ -296,12 +310,8 @@ describe('SCR-033 · lista de templates', () => {
     expect(within(dialog).getByText('Informe o nome.')).toBeTruthy();
     expect(within(dialog).getByText('Informe o tipo de documento.')).toBeTruthy();
 
-    await within(dialog).findByRole('option', { name: 'Despacho' });
     await userEvent.type(within(dialog).getByLabelText('Nome'), 'DESPACHO PADRÃO');
-    await userEvent.selectOptions(
-      within(dialog).getByLabelText('Tipo de documento'),
-      DESPACHO_TYPE.id,
-    );
+    await choose(within(dialog), 'Tipo de documento', 'Despacho');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Criar e editar seções' }));
     expect(
       within(dialog).getByText(
@@ -325,9 +335,8 @@ describe('SCR-033 · lista de templates', () => {
       patch: () => jsonResponse({ data: template({ isActive: false, version: 2 }) }),
     });
     renderWithShell(<TemplatesView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar dados de Despacho padrão' }),
-    );
+    await openRowMenu('Despacho padrão');
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Editar dados' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getAllByText(/O tipo de documento não muda/).length).toBeGreaterThan(0);
     await userEvent.click(

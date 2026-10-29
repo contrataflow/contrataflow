@@ -3,11 +3,29 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  ChevronDown,
+  DetailPage,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  InfoTooltip,
+  Sheet,
+  SheetContent,
   Skeleton,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Td,
+  Th,
+  Tr,
   toast,
 } from '@contrataflow/ui';
 import type {
@@ -48,10 +66,11 @@ import {
 } from './workflows.api';
 
 /**
- * SCR-034 (`/admin/workflows/[id]` — US-043): carrega o workflow (WF-03) e a versão em edição
- * (WF-09) — o rascunho, se houver; senão a publicada, só leitura, com "Criar rascunho" (WF-08).
- * Sem rascunho nem publicada: "Sem versão em edição" (FA-07). Sem `WORKFLOW_MANAGE`, tudo só
- * leitura e as ações de escrita ocultas; a API decide (RN-FND-92).
+ * SCR-034 (`/admin/workflows/[id]` — US-043) no modelo `DetailPage` (prd-5): carrega o workflow
+ * (WF-03) e a versão em edição (WF-09) — o rascunho, se houver; senão a publicada, só leitura, com
+ * "Criar rascunho" (WF-08) como ação primária. Sem rascunho nem publicada: "Sem versão em edição"
+ * (FA-07). Sem `WORKFLOW_MANAGE`, tudo só leitura e as ações de escrita ocultas; a API decide
+ * (RN-FND-92).
  */
 export function WorkflowEditorView({ workflowId }: { readonly workflowId: string }) {
   const t = useTranslations('workflows');
@@ -83,116 +102,129 @@ export function WorkflowEditorView({ workflowId }: { readonly workflowId: string
   };
 
   const failure = workflow.error ?? version.error;
-  const loading = workflow.isPending || (versionId !== null && version.isPending);
+
+  if (failure || workflow.isPending || !workflow.data) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Link href={WORKFLOWS_PATH} className="text-sm text-muted-foreground underline">
+          {t('editor.back')}
+        </Link>
+        {failure ? (
+          isApiError(failure) && failure.status === 404 ? (
+            <Alert tone="error" title={t('editor.notFound')} />
+          ) : isApiError(failure) && failure.status === 403 ? (
+            <Alert tone="error" title={t('forbidden.title')}>
+              {t('forbidden.description')}
+            </Alert>
+          ) : (
+            <Alert tone="error" title={t('editor.loadFailed')}>
+              <Button variant="secondary" size="sm" onClick={reload}>
+                {t('retry')}
+              </Button>
+            </Alert>
+          )
+        ) : (
+          <div role="status" className="flex flex-col gap-3">
+            <span className="sr-only">{t('editor.loading')}</span>
+            <Skeleton className="h-4 w-48 max-w-full" />
+            <Skeleton className="h-8 w-1/2" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (version.data) {
+    return (
+      <DraftEditor
+        key={`${version.data.id}:${String(generation)}`}
+        workflow={workflow.data}
+        version={version.data}
+        canManage={canManage}
+        readOnly={version.data.status !== 'DRAFT' || !canManage}
+        onReload={reload}
+      />
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={WORKFLOWS_PATH} className="text-sm text-muted-foreground underline">
-        {t('editor.back')}
-      </Link>
-      {loading && !failure ? (
-        <div role="status" className="flex flex-col gap-2">
+    <EditorFrame workflow={workflow.data} version={null}>
+      {versionId === null ? (
+        <EmptyState title={t('editor.noVersion')} />
+      ) : (
+        <div role="status" className="flex flex-col gap-3">
           <span className="sr-only">{t('editor.loading')}</span>
-          <Skeleton className="h-8 w-1/2" />
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
         </div>
-      ) : null}
-      {failure ? (
-        isApiError(failure) && failure.status === 404 ? (
-          <Alert tone="error" title={t('editor.notFound')} />
-        ) : isApiError(failure) && failure.status === 403 ? (
-          <Alert tone="error" title={t('forbidden.title')}>
-            {t('forbidden.description')}
-          </Alert>
-        ) : (
-          <Alert tone="error" title={t('editor.loadFailed')}>
-            <Button variant="secondary" size="sm" onClick={reload}>
-              {t('retry')}
-            </Button>
-          </Alert>
-        )
-      ) : null}
-      {workflow.data && !failure ? (
-        <>
-          <EditorHeader workflow={workflow.data} version={version.data ?? null} />
-          {version.data ? (
-            // SCR-035 (US-044): a aba "Regras" abre a tela própria das regras da versão.
-            <Link href={workflowRulesHref(workflowId)} className="text-sm font-medium underline">
-              {t('editor.rulesLink')}
-            </Link>
-          ) : null}
-          {versionId === null ? (
-            <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-              {t('editor.noVersion')}
-            </p>
-          ) : null}
-          {workflow.data.draftVersion === null &&
-          workflow.data.currentPublishedVersion !== null &&
-          canManage ? (
-            <CreateDraftButton workflow={workflow.data} onExisting={reload} />
-          ) : null}
-          {version.data ? (
-            <DraftEditor
-              key={`${version.data.id}:${String(generation)}`}
-              workflow={workflow.data}
-              version={version.data}
-              readOnly={version.data.status !== 'DRAFT' || !canManage}
-              onReload={reload}
-            />
-          ) : null}
-        </>
-      ) : null}
-    </div>
+      )}
+    </EditorFrame>
   );
 }
 
-function EditorHeader({
+/**
+ * Moldura do editor (`DetailPage`): trilha, nome, chips de situação (padrão, ativo, versão) e a
+ * linha com a chave e a descrição. As ações e os avisos vêm de quem a usa.
+ */
+function EditorFrame({
   workflow,
   version,
+  actions,
+  notices,
+  children,
 }: {
   readonly workflow: WorkflowDto;
   readonly version: WorkflowVersionDetailDto | null;
+  readonly actions?: ReactNode;
+  readonly notices?: ReactNode;
+  readonly children?: ReactNode;
 }) {
   const t = useTranslations('workflows');
+  const tShell = useTranslations('shell');
   return (
-    <header className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{workflow.name}</h1>
-        {workflow.isDefault ? (
-          <span className="rounded-control bg-success-soft px-2 py-0.5 text-xs font-medium">
-            {t('badges.default')}
-          </span>
-        ) : null}
-        <span className="rounded-control bg-muted px-2 py-0.5 text-xs font-medium">
-          {workflow.isActive ? t('badges.active') : t('badges.inactive')}
-        </span>
-      </div>
-      {workflow.description ? (
-        <p className="max-w-3xl text-muted-foreground">{workflow.description}</p>
-      ) : null}
-      <p className="text-sm text-muted-foreground">
-        <span className="font-mono">{workflow.key}</span>
-        {version
-          ? ` · ${
-              version.status === 'DRAFT'
+    <DetailPage
+      breadcrumbs={[
+        { label: tShell('admin.title'), href: '/admin' },
+        { label: t('title'), href: WORKFLOWS_PATH },
+        { label: workflow.name },
+      ]}
+      breadcrumbLabel={t('editor.breadcrumbLabel')}
+      linkComponent={Link}
+      title={workflow.name}
+      status={
+        <>
+          {workflow.isDefault ? (
+            <StatusChip tone="success">{t('badges.default')}</StatusChip>
+          ) : null}
+          <StatusChip tone={workflow.isActive ? 'info' : 'neutral'}>
+            {workflow.isActive ? t('badges.active') : t('badges.inactive')}
+          </StatusChip>
+          {version ? (
+            <StatusChip tone={version.status === 'DRAFT' ? 'warning' : 'neutral'}>
+              {version.status === 'DRAFT'
                 ? t('editor.versionDraft', { number: version.versionNumber })
-                : t('editor.versionReadOnly', { number: version.versionNumber })
-            }`
-          : null}
-      </p>
-    </header>
+                : t('editor.versionReadOnly', { number: version.versionNumber })}
+            </StatusChip>
+          ) : null}
+        </>
+      }
+      subtitle={
+        <>
+          <span className="font-mono">{workflow.key}</span>
+          {workflow.description ? ` · ${workflow.description}` : null}
+        </>
+      }
+      actions={actions}
+      notices={notices}
+    >
+      {children}
+    </DetailPage>
   );
 }
 
-/** `CreateDraftButton` (passo 8 · WF-08): rascunho copiado da publicada; já existe → continuar. */
-function CreateDraftButton({
-  workflow,
-  onExisting,
-}: {
-  readonly workflow: WorkflowDto;
-  readonly onExisting: () => void;
-}) {
+/** `CreateDraft` (passo 8 · WF-08): rascunho copiado da publicada; já existe → continuar. */
+function useCreateDraft(workflow: WorkflowDto, onExisting: () => void) {
   const t = useTranslations('workflows.editor');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
@@ -220,52 +252,41 @@ function CreateDraftButton({
       }
     },
   });
-  return (
-    <div className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4">
-      <p className="text-sm">{t('draft.hint')}</p>
-      <div>
-        <Button
-          disabled={mutation.isPending}
-          aria-busy={mutation.isPending}
-          onClick={() => {
-            setMessage(null);
-            setDraftExists(false);
-            mutation.mutate();
-          }}
-        >
-          {t('draft.action')}
+  const start = () => {
+    setMessage(null);
+    setDraftExists(false);
+    mutation.mutate();
+  };
+  const notice = message ? (
+    <Alert tone={draftExists ? 'warning' : 'error'} title={message}>
+      {draftExists ? (
+        <Button variant="secondary" size="sm" onClick={onExisting}>
+          {t('draft.continue')}
         </Button>
-      </div>
-      <div aria-live="assertive">
-        {message ? (
-          <Alert tone={draftExists ? 'warning' : 'error'} title={message}>
-            {draftExists ? (
-              <Button variant="secondary" size="sm" onClick={onExisting}>
-                {t('draft.continue')}
-              </Button>
-            ) : null}
-          </Alert>
-        ) : null}
-      </div>
-    </div>
-  );
+      ) : null}
+    </Alert>
+  ) : null;
+  return { pending: mutation.isPending, start, notice };
 }
 
 type Tab = 'stages' | 'transitions' | 'versions' | 'diagram';
 
 /**
- * Tabela de etapas + painel lateral, transições, avisos do grafo da versão carregada, a aba
+ * Tabela de etapas + painel de propriedades, transições, avisos do grafo da versão carregada, a aba
  * "Versões" (US-045: validar, publicar e aposentar) e a aba "Diagrama" (US-046: só leitura, oculta
- * sem `WORKFLOW_VIEW`).
+ * sem `WORKFLOW_VIEW`). A ação primária da faixa é "Adicionar etapa" (ou "Adicionar transição" na
+ * aba Transições) no rascunho e "Criar rascunho" na versão publicada; o resto fica em "Mais".
  */
 function DraftEditor({
   workflow,
   version,
+  canManage,
   readOnly,
   onReload,
 }: {
   readonly workflow: WorkflowDto;
   readonly version: WorkflowVersionDetailDto;
+  readonly canManage: boolean;
   readonly readOnly: boolean;
   readonly onReload: () => void;
 }) {
@@ -276,9 +297,14 @@ function DraftEditor({
   const ids = useId();
   const desktop = useIsDesktop();
   const canView = usePermission('WORKFLOW_VIEW').allowed;
+  const createDraft = useCreateDraft(workflow, onReload);
   const [tab, setTab] = useState<Tab>('stages');
   // Id da etapa aberta no painel, `'new'` (etapa nova) ou `null`.
   const [selected, setSelected] = useState<string | null>(null);
+  // Transição aberta no painel: a própria, `'new'` ou `null`.
+  const [editingTransition, setEditingTransition] = useState<WorkflowTransitionDto | 'new' | null>(
+    null,
+  );
   const [problem, setProblem] = useState<EditorProblem | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [moving, setMoving] = useState(false);
@@ -315,6 +341,10 @@ function DraftEditor({
   const selectedStage =
     selected && selected !== 'new' ? (stages.find((stage) => stage.id === selected) ?? null) : null;
   const panelOpen = selected === 'new' || selectedStage !== null;
+  const canCreateDraft =
+    workflow.draftVersion === null && workflow.currentPublishedVersion !== null && canManage;
+  const needStagesId = `${ids}-need-stages`;
+  const needStages = stages.length < 2;
 
   /** FA-04: um PATCH por etapa que mudou de posição (sem lote), cada um com o seu `If-Match`. */
   const move = async (from: number, to: number) => {
@@ -350,42 +380,108 @@ function DraftEditor({
     }
   };
 
-  const panel = panelOpen ? (
-    <StagePropertiesPanel
-      key={selectedStage?.id ?? 'new'}
-      versionId={version.id}
-      stage={selectedStage}
-      stages={stages}
-      readOnly={readOnly}
-      onSaved={(stage, created) => {
-        putStage(stage);
-        setProblem(null);
-        if (created) {
-          setSelected(stage.id);
-          setAnnouncement(t('stages.created', { name: stage.name }));
-        }
-      }}
-      onDeleted={(stageId) => {
-        updateCache((current) => ({
-          ...current,
-          stages: current.stages.filter((item) => item.id !== stageId),
-        }));
-        setSelected(null);
-        setAnnouncement(t('stages.deleted'));
-      }}
-      onProblem={setProblem}
-      onClose={() => {
-        setSelected(null);
-      }}
-    />
+  const panelProps = {
+    versionId: version.id,
+    stage: selectedStage,
+    stages,
+    readOnly,
+    onSaved: (stage: WorkflowStageDto, created: boolean) => {
+      putStage(stage);
+      setProblem(null);
+      if (created) {
+        setSelected(stage.id);
+        setAnnouncement(t('stages.created', { name: stage.name }));
+      }
+    },
+    onDeleted: (stageId: string) => {
+      updateCache((current) => ({
+        ...current,
+        stages: current.stages.filter((item) => item.id !== stageId),
+      }));
+      setSelected(null);
+      setAnnouncement(t('stages.deleted'));
+    },
+    onProblem: setProblem,
+    onClose: () => {
+      setSelected(null);
+    },
+  };
+
+  const primary: ReactNode = !readOnly ? (
+    tab === 'transitions' ? (
+      <Button
+        disabled={needStages}
+        aria-describedby={needStages ? needStagesId : undefined}
+        onClick={() => {
+          setEditingTransition('new');
+        }}
+      >
+        {t('transitions.add')}
+      </Button>
+    ) : (
+      <Button
+        onClick={() => {
+          setTab('stages');
+          setSelected('new');
+        }}
+      >
+        {t('stages.add')}
+      </Button>
+    )
+  ) : canCreateDraft ? (
+    <>
+      <InfoTooltip label={t('draft.helpLabel')}>{t('draft.hint')}</InfoTooltip>
+      <Button
+        disabled={createDraft.pending}
+        aria-busy={createDraft.pending}
+        onClick={createDraft.start}
+      >
+        {t('draft.action')}
+      </Button>
+    </>
   ) : null;
 
-  return (
-    <div className="flex flex-col gap-4">
+  const actions = (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="secondary" iconRight={<ChevronDown />}>
+            {t('menu.more')}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={workflowRulesHref(workflow.id)}>{t('rulesLink')}</Link>
+          </DropdownMenuItem>
+          {canView ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                setTab('diagram');
+              }}
+            >
+              {t('menu.diagram')}
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            onSelect={() => {
+              setTab('versions');
+            }}
+          >
+            {t('menu.versions')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {primary}
+    </>
+  );
+
+  const notices = (
+    <>
       {readOnly && version.status !== 'DRAFT' ? (
         <Alert tone="info" title={t('readOnly.published')} />
       ) : null}
-      <div aria-live="assertive">
+      <div aria-live="assertive" className="flex flex-col gap-3 empty:hidden">
+        {createDraft.notice}
         {problem ? <ProblemBanner problem={problem} onReload={onReload} /> : null}
       </div>
       <p aria-live="polite" className="sr-only">
@@ -394,12 +490,16 @@ function DraftEditor({
       {warnings.length > 0 ? (
         <section
           aria-labelledby={`${ids}-warnings`}
-          className="rounded-card border border-border bg-warning-soft p-4"
+          className="rounded-card border border-warning/30 bg-warning-soft p-4"
         >
-          <h2 id={`${ids}-warnings`} className="font-medium">
-            {t('warnings.title')}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t('warnings.hint')}</p>
+          <div className="flex items-center gap-1.5">
+            <h2 id={`${ids}-warnings`} className="text-sm font-semibold">
+              {t('warnings.title')}
+            </h2>
+            <InfoTooltip label={t('helpLabel', { field: t('warnings.title') })}>
+              {t('warnings.hint')}
+            </InfoTooltip>
+          </div>
           <ul className="mt-2 list-disc pl-5 text-sm">
             {warnings.map((warning) => (
               <li
@@ -417,60 +517,32 @@ function DraftEditor({
           </ul>
         </section>
       ) : null}
+    </>
+  );
 
-      <div
-        role="tablist"
-        aria-label={t('tabs.label')}
-        className="flex gap-2 border-b border-border"
+  return (
+    <EditorFrame workflow={workflow} version={version} actions={actions} notices={notices}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value as Tab);
+        }}
       >
-        {(canView
-          ? (['stages', 'transitions', 'versions', 'diagram'] as const)
-          : (['stages', 'transitions', 'versions'] as const)
-        ).map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            id={`${ids}-tab-${value}`}
-            aria-selected={tab === value}
-            aria-controls={`${ids}-panel-${value}`}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === value
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground'
-            }`}
-            onClick={() => {
-              setTab(value);
-            }}
-          >
-            {t(`tabs.${value}`)}
-          </button>
-        ))}
-      </div>
+        <TabsList aria-label={t('tabs.label')}>
+          {(canView
+            ? (['stages', 'transitions', 'versions', 'diagram'] as const)
+            : (['stages', 'transitions', 'versions'] as const)
+          ).map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {t(`tabs.${value}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {tab === 'stages' ? (
-        <div
-          role="tabpanel"
-          id={`${ids}-panel-stages`}
-          aria-labelledby={`${ids}-tab-stages`}
-          className="flex flex-col gap-4 md:flex-row md:items-start"
-        >
+        <TabsContent value="stages" className="flex flex-col gap-5 md:flex-row md:items-start">
           <div className="flex min-w-0 flex-1 flex-col gap-3">
-            {readOnly ? null : (
-              <div>
-                <Button
-                  onClick={() => {
-                    setSelected('new');
-                  }}
-                >
-                  {t('stages.add')}
-                </Button>
-              </div>
-            )}
             {stages.length === 0 ? (
-              <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-                {t('stages.empty')}
-              </p>
+              <EmptyState title={t('stages.empty')} />
             ) : (
               <StageTable
                 stages={stages}
@@ -482,48 +554,41 @@ function DraftEditor({
               />
             )}
           </div>
-          {panel && desktop ? (
-            <aside className="w-full rounded-card border border-border bg-surface p-4 shadow-card md:w-[26rem]">
-              {panel}
+          {panelOpen && desktop ? (
+            <aside className="w-full rounded-card bg-surface p-5 shadow-card md:w-[26rem] md:flex-none">
+              <StagePropertiesPanel
+                key={selectedStage?.id ?? 'new'}
+                variant="aside"
+                {...panelProps}
+              />
             </aside>
           ) : null}
-          {panel && !desktop ? (
-            <Dialog
+          {panelOpen && !desktop ? (
+            <Sheet
               open
               onOpenChange={(open) => {
                 if (!open) setSelected(null);
               }}
             >
-              <DialogContent closeLabel={t('panel.close')}>
-                <DialogTitle className="sr-only">
-                  {selectedStage
-                    ? t('panel.title', { name: selectedStage.name })
-                    : t('panel.newTitle')}
-                </DialogTitle>
-                <DialogDescription className="sr-only">{t('panel.legend')}</DialogDescription>
-                {panel}
-              </DialogContent>
-            </Dialog>
+              <SheetContent closeLabel={t('panel.close')}>
+                <StagePropertiesPanel
+                  key={selectedStage?.id ?? 'new'}
+                  variant="sheet"
+                  {...panelProps}
+                />
+              </SheetContent>
+            </Sheet>
           ) : null}
-        </div>
-      ) : tab === 'versions' ? (
-        <div role="tabpanel" id={`${ids}-panel-versions`} aria-labelledby={`${ids}-tab-versions`}>
-          <WorkflowVersionsSection workflow={workflow} onGoTo={goTo} />
-        </div>
-      ) : tab === 'diagram' && canView ? (
-        <div role="tabpanel" id={`${ids}-panel-diagram`} aria-labelledby={`${ids}-tab-diagram`}>
-          <WorkflowDiagramSection workflow={workflow} defaultVersionId={version.id} />
-        </div>
-      ) : (
-        <div
-          role="tabpanel"
-          id={`${ids}-panel-transitions`}
-          aria-labelledby={`${ids}-tab-transitions`}
-        >
+        </TabsContent>
+
+        <TabsContent value="transitions">
           <TransitionsSection
             version={version}
             stages={stages}
             readOnly={readOnly}
+            editing={editingTransition}
+            onEditingChange={setEditingTransition}
+            needStagesId={needStagesId}
             onSaved={putTransition}
             onDeleted={(transitionId) => {
               updateCache((current) => ({
@@ -533,9 +598,19 @@ function DraftEditor({
             }}
             onProblem={setProblem}
           />
-        </div>
-      )}
-    </div>
+        </TabsContent>
+
+        <TabsContent value="versions">
+          <WorkflowVersionsSection workflow={workflow} onGoTo={goTo} />
+        </TabsContent>
+
+        {canView ? (
+          <TabsContent value="diagram">
+            <WorkflowDiagramSection workflow={workflow} defaultVersionId={version.id} />
+          </TabsContent>
+        ) : null}
+      </Tabs>
+    </EditorFrame>
   );
 }
 
@@ -608,38 +683,37 @@ function StageTable({
     }
   };
   return (
-    <div className="overflow-x-auto">
-      <table
-        className="w-full text-left text-sm"
-        aria-describedby={readOnly ? undefined : `${ids}-hint`}
-      >
+    <TableContainer
+      label={t('stages.caption')}
+      footer={
+        readOnly ? undefined : (
+          <p
+            id={`${ids}-hint`}
+            className="border-t border-border px-3.5 py-2.5 text-xs text-muted-foreground"
+          >
+            {t('stages.reorderHint')}
+          </p>
+        )
+      }
+    >
+      <Table aria-describedby={readOnly ? undefined : `${ids}-hint`}>
         <caption className="sr-only">{t('stages.caption')}</caption>
-        <thead className="text-muted-foreground">
+        <TableHead>
           <tr>
-            <th scope="col" className="px-2 py-2">
-              {t('stages.columns.order')}
-            </th>
-            <th scope="col" className="px-2 py-2">
-              {t('stages.columns.name')}
-            </th>
-            <th scope="col" className="hidden px-2 py-2 sm:table-cell">
-              {t('stages.columns.type')}
-            </th>
-            <th scope="col" className="hidden px-2 py-2 md:table-cell">
-              {t('stages.columns.department')}
-            </th>
-            <th scope="col" className="hidden px-2 py-2 sm:table-cell">
-              {t('stages.columns.sla')}
-            </th>
+            <Th>{t('stages.columns.order')}</Th>
+            <Th>{t('stages.columns.name')}</Th>
+            <Th className="hidden sm:table-cell">{t('stages.columns.type')}</Th>
+            <Th className="hidden md:table-cell">{t('stages.columns.department')}</Th>
+            <Th className="hidden sm:table-cell">{t('stages.columns.sla')}</Th>
           </tr>
-        </thead>
-        <tbody>
+        </TableHead>
+        <TableBody>
           {stages.map((stage, index) => (
-            <tr
+            <Tr
               key={stage.id}
               draggable={!readOnly && !busy}
               aria-selected={stage.id === selectedId}
-              className={`border-t border-border ${stage.id === selectedId ? 'bg-muted' : ''}`}
+              className={stage.id === selectedId ? 'bg-primary-soft' : undefined}
               onDragStart={() => {
                 dragFrom.current = index;
               }}
@@ -652,28 +726,30 @@ function StageTable({
                 dragFrom.current = null;
               }}
             >
-              <td className="px-2 py-2">
+              <Td>
                 <div className="flex items-center gap-1">
                   {readOnly ? null : (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       disabled={busy}
                       aria-label={t('stages.reorder', { name: stage.name, position: index + 1 })}
-                      className="cursor-grab rounded-control px-1 text-muted-foreground"
+                      className="cursor-grab px-2 text-muted-foreground"
                       onKeyDown={(event) => {
                         onHandleKey(event, index);
                       }}
                     >
                       <span aria-hidden="true">⠿</span>
-                    </button>
+                    </Button>
                   )}
                   <span>{index + 1}</span>
                 </div>
-              </td>
-              <td className="px-2 py-2">
+              </Td>
+              <Td>
                 <button
                   type="button"
-                  className="text-left font-medium underline-offset-2 hover:underline"
+                  className="text-left font-semibold text-brand-ink underline-offset-2 hover:underline"
                   aria-label={t('stages.open', { name: stage.name })}
                   onClick={() => {
                     onSelect(stage.id);
@@ -684,29 +760,24 @@ function StageTable({
                 {stage.color ? (
                   <span
                     aria-hidden="true"
-                    className="ml-2 inline-block h-2.5 w-2.5 rounded-full align-middle"
+                    className="ml-2 inline-block size-2.5 rounded-full align-middle"
                     style={{ backgroundColor: stage.color }}
                   />
                 ) : null}
-              </td>
-              <td className="hidden px-2 py-2 sm:table-cell">{t(`stageTypes.${stage.type}`)}</td>
-              <td className="hidden px-2 py-2 md:table-cell">
+              </Td>
+              <Td className="hidden sm:table-cell">{t(`stageTypes.${stage.type}`)}</Td>
+              <Td className="hidden md:table-cell">
                 {t(`departmentResolutions.${stage.departmentResolution}`)}
-              </td>
-              <td className="hidden px-2 py-2 sm:table-cell">
+              </Td>
+              <Td className="hidden sm:table-cell">
                 {stage.slaDays === null
                   ? '—'
                   : t(`stages.sla.${stage.slaType}`, { days: stage.slaDays })}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
-        </tbody>
-      </table>
-      {readOnly ? null : (
-        <p id={`${ids}-hint`} className="mt-1 text-xs text-muted-foreground">
-          {t('stages.reorderHint')}
-        </p>
-      )}
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }

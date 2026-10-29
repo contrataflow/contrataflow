@@ -172,6 +172,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Menu ⋯ da linha: abre "Ações de X" (dentro de `scope`, se houver). */
+async function openRowMenu(name: string, scope: Pick<typeof screen, 'findByRole'> = screen) {
+  await userEvent.click(await scope.findByRole('button', { name: `Ações de ${name}` }));
+}
+
+async function chooseRowAction(name: string, action: string): Promise<void> {
+  await openRowMenu(name);
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('[Sucesso] SCR-108 lista os tipos agrupados por natureza', () => {
   it('mostra os grupos, a situação, a prévia de numeração, "Do sistema" e as ações permitidas', async () => {
     const api = mockApi();
@@ -189,15 +199,29 @@ describe('[Sucesso] SCR-108 lista os tipos agrupados por natureza', () => {
     const structured = screen.getByRole('table', { name: 'Tipos de documento — Estruturado' });
     expect(within(structured).getByText('Do sistema')).toBeTruthy();
     expect(within(structured).getByText('Próximo: DFD 0001/2026')).toBeTruthy();
-    // Estruturado nunca se desativa (RN-DOC-04).
-    expect(within(structured).queryByRole('button', { name: /Desativar/ })).toBeNull();
+    // Itens do sistema mostram o cadeado com a explicação.
+    expect(
+      within(structured).getByRole('button', {
+        name: 'Por que Documento de Formalização da Demanda é imutável',
+      }),
+    ).toBeTruthy();
 
     const free = screen.getByRole('table', { name: 'Tipos de documento — Texto livre' });
     expect(within(free).getByText('Próximo: PT 001/2026')).toBeTruthy();
     expect(within(free).getAllByText('Sem template publicado').length).toBeGreaterThan(0);
     expect(within(free).getByText('Inativo')).toBeTruthy();
-    expect(within(free).getByRole('button', { name: 'Reativar Portaria' })).toBeTruthy();
-    expect(within(free).getByRole('button', { name: 'Desativar Ofício' })).toBeTruthy();
+    await openRowMenu('Portaria', within(free));
+    expect(await screen.findByRole('menuitem', { name: 'Reativar' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Desativar' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await openRowMenu('Ofício', within(free));
+    expect(await screen.findByRole('menuitem', { name: 'Desativar' })).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    // Estruturado nunca se desativa (RN-DOC-04): o menu só oferece "Editar".
+    await openRowMenu('Documento de Formalização da Demanda', within(structured));
+    expect(await screen.findByRole('menuitem', { name: 'Editar' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Desativar' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
 
     const uploaded = screen.getByRole('table', { name: 'Tipos de documento — Arquivo externo' });
     expect(within(uploaded).getByText('Sem numeração')).toBeTruthy();
@@ -285,12 +309,11 @@ describe('[Validação] criação de tipo', () => {
     await userEvent.click(within(dialog).getByLabelText('Exige aprovação avulsa'));
     const approver = within(dialog).getByRole('group', { name: 'Quem aprova' });
     // Usuário e perfil dependem dos cadastros (seletores USR-02/ROL-02): ficam desabilitados.
-    const type = within(approver).getByLabelText('Tipo de aprovador');
+    await userEvent.click(within(approver).getByRole('combobox', { name: 'Tipo de aprovador' }));
     expect(
-      within(type)
-        .getByRole('option', { name: /Usuário/ })
-        .hasAttribute('disabled'),
-    ).toBe(true);
+      (await screen.findByRole('option', { name: /Usuário/ })).getAttribute('aria-disabled'),
+    ).toBe('true');
+    await userEvent.keyboard('{Escape}');
     await userEvent.type(within(approver).getByLabelText('Prazo da aprovação (dias)'), '400');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(await within(dialog).findByText('O prazo deve estar entre 1 e 365 dias.')).toBeTruthy();
@@ -424,15 +447,15 @@ describe('[Duplicidade] erros do servidor voltam para os campos', () => {
 });
 
 describe('[Sucesso] edição de tipo de sistema', () => {
-  async function openEdit(name: RegExp, routes: Parameters<typeof mockApi>[0] = {}) {
+  async function openEdit(name: string, routes: Parameters<typeof mockApi>[0] = {}) {
     const api = mockApi(routes);
     renderWithShell(<DocumentTypesView />);
-    await userEvent.click(await screen.findByRole('button', { name }));
+    await chooseRowAction(name, 'Editar');
     return { api, dialog: await screen.findByRole('dialog') };
   }
 
   it('campos restritos aparecem como texto com cadeado e "Definido pela plataforma"', async () => {
-    const { dialog } = await openEdit(/^Editar Documento de Formalização/);
+    const { dialog } = await openEdit('Documento de Formalização da Demanda');
     expect(within(dialog).getAllByText('Definido pela plataforma').length).toBeGreaterThanOrEqual(
       3,
     );
@@ -446,7 +469,7 @@ describe('[Sucesso] edição de tipo de sistema', () => {
   });
 
   it('envia só o campo alterado, com If-Match da versão lida', async () => {
-    const { api, dialog } = await openEdit(/^Editar Ofício/, {
+    const { api, dialog } = await openEdit('Ofício', {
       patch: () =>
         jsonResponse(
           { data: { ...OFICIO, name: 'Ofício externo', version: 2 } },
@@ -467,7 +490,7 @@ describe('[Sucesso] edição de tipo de sistema', () => {
   });
 
   it('alterar a máscara avisa que a sequência continua; liga a aprovação e envia a política', async () => {
-    const { api, dialog } = await openEdit(/^Editar Ofício/, {
+    const { api, dialog } = await openEdit('Ofício', {
       patch: () => jsonResponse({ data: { ...OFICIO, requiresApproval: true, version: 2 } }),
     });
     expect(
@@ -490,7 +513,7 @@ describe('[Sucesso] edição de tipo de sistema', () => {
   });
 
   it('sem alterações: fecha sem chamar a API', async () => {
-    const { api, dialog } = await openEdit(/^Editar Ofício/);
+    const { api, dialog } = await openEdit('Ofício');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
@@ -517,7 +540,7 @@ describe('[Concorrência] versão desatualizada (412)', () => {
       },
     });
     renderWithShell(<DocumentTypesView />);
-    await userEvent.click(await screen.findByRole('button', { name: /^Editar Ofício/ }));
+    await chooseRowAction('Ofício', 'Editar');
     const dialog = await screen.findByRole('dialog');
     const mask = within(dialog).getByLabelText('Máscara de numeração');
     await userEvent.clear(mask);
@@ -551,7 +574,7 @@ describe('[Sucesso] desativar e reativar', () => {
       patch: () => jsonResponse({ data: { ...OFICIO, isActive: false, version: 2 } }),
     });
     renderWithShell(<DocumentTypesView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Desativar Ofício' }));
+    await chooseRowAction('Ofício', 'Desativar');
     const dialog = await screen.findByRole('dialog', { name: 'Desativar Ofício?' });
     expect(within(dialog).getByText(/Os documentos existentes continuam acessíveis/)).toBeTruthy();
     expect(callsTo(api, 'PATCH')).toHaveLength(0);
@@ -574,7 +597,7 @@ describe('[Sucesso] desativar e reativar', () => {
         ),
     });
     renderWithShell(<DocumentTypesView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Desativar Parecer técnico' }));
+    await chooseRowAction('Parecer técnico', 'Desativar');
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Desativar' }));
     expect(await within(dialog).findByText(/exigido pelo fluxo Fase preparatória/)).toBeTruthy();
@@ -585,7 +608,7 @@ describe('[Sucesso] desativar e reativar', () => {
       patch: () => jsonResponse({ data: { ...INATIVO, isActive: true, version: 2 } }),
     });
     renderWithShell(<DocumentTypesView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Reativar Portaria' }));
+    await chooseRowAction('Portaria', 'Reativar');
     await waitFor(() => {
       expect(callsTo(api, 'PATCH')).toHaveLength(1);
     });

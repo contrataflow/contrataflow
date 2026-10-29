@@ -1,11 +1,39 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  Field,
+  FilterToolbar,
+  LayoutTemplate,
+  ListPage,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+} from '@contrataflow/ui';
 import type { TemplateDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
@@ -22,7 +50,10 @@ import {
   templateVersionsHref,
 } from './templates.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+/** O `Select` do kit não aceita valor vazio: "Todos" usa este marcador. */
+const ALL = 'all';
+
+type StatusFilter = typeof ALL | 'active' | 'inactive';
 
 /** Minúsculas e sem acentos (busca local por nome). */
 function fold(text: string): string {
@@ -30,18 +61,20 @@ function fold(text: string): string {
 }
 
 /**
- * SCR-033 (`/admin/templates` — US-107): templates do tenant com tipo, situação e versões, filtro
- * por tipo e nome, "Novo template" e "Editar dados" para quem tem `TEMPLATE_MANAGE` e o acesso ao
- * editor (SCR-114) — em modo leitura para quem só tem `TEMPLATE_VIEW`. A API decide (RN-FND-92).
+ * SCR-033 (`/admin/templates` — US-107): templates do tenant com tipo, versões e situação.
+ * Modelo `ListPage` (prd-5): "Novo template" (`TEMPLATE_MANAGE`) é a ação primária do cabeçalho;
+ * busca inline por nome e, no popover "Filtros", tipo de documento e situação, com chips.
+ * "Editar dados" e o acesso ao editor (SCR-114 — em modo leitura para quem só tem `TEMPLATE_VIEW`)
+ * ficam no menu ⋯ da linha. A API decide (RN-FND-92).
  */
 export function TemplatesView() {
   const t = useTranslations('templates');
   const tenantId = useTenantId();
-  const ids = useId();
   const canManage = usePermission('TEMPLATE_MANAGE').allowed;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TemplateDto | null>(null);
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState(ALL);
+  const [status, setStatus] = useState<StatusFilter>(ALL);
   const [search, setSearch] = useState('');
 
   const templates = useQuery({
@@ -58,108 +91,193 @@ export function TemplatesView() {
     return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
   }, [templates.data]);
 
-  const visible = (templates.data ?? []).filter(
-    (template) =>
-      (typeFilter === '' || template.documentTypeId === typeFilter) &&
-      (search.trim() === '' || fold(template.name).includes(fold(search.trim()))),
+  const visible = useMemo(
+    () =>
+      (templates.data ?? []).filter(
+        (template) =>
+          (typeFilter === ALL || template.documentTypeId === typeFilter) &&
+          (status === ALL || template.isActive === (status === 'active')) &&
+          (search.trim() === '' || fold(template.name).includes(fold(search.trim()))),
+      ),
+    [templates.data, typeFilter, status, search],
+  );
+
+  const header = (
+    <AppPageHeader section="admin" title={t('title')} description={t('description')} />
   );
 
   if (templates.error && isApiError(templates.error) && templates.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={header}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
+  const typeName = types.find(([id]) => id === typeFilter)?.[1] ?? '';
+  const statusLabel = status === 'active' ? t('filters.active') : t('filters.inactive');
+  const activeCount = (typeFilter === ALL ? 0 : 1) + (status === ALL ? 0 : 1);
+  const filtered = search.trim() !== '' || activeCount > 0;
+  const chips = [
+    ...(typeFilter === ALL
+      ? []
+      : [
+          {
+            id: 'type',
+            label: t('filters.chip', { label: t('filters.type'), value: typeName }),
+            removeLabel: t('filters.removeChip', { label: t('filters.type'), value: typeName }),
+            onRemove: () => {
+              setTypeFilter(ALL);
+            },
+          },
+        ]),
+    ...(status === ALL
+      ? []
+      : [
+          {
+            id: 'status',
+            label: t('filters.chip', { label: t('filters.status'), value: statusLabel }),
+            removeLabel: t('filters.removeChip', {
+              label: t('filters.status'),
+              value: statusLabel,
+            }),
+            onRemove: () => {
+              setStatus(ALL);
+            },
+          },
+        ]),
+  ];
+  const newTemplate = canManage ? (
+    <Button
+      iconLeft={<Plus />}
+      onClick={() => {
+        setCreating(true);
+      }}
+    >
+      {t('new')}
+    </Button>
+  ) : null;
+
   return (
-    <div className="flex flex-col gap-6">
-      <AppPageHeader
-        section="admin"
-        title={t('title')}
-        description={t('description')}
-        actions={
-          canManage ? (
+    <ListPage
+      header={
+        <AppPageHeader
+          section="admin"
+          title={t('title')}
+          description={t('description')}
+          actions={templates.data ? newTemplate : null}
+        />
+      }
+      toolbar={
+        templates.data && templates.data.length > 0 ? (
+          <FilterToolbar
+            search={{
+              value: search,
+              onChange: setSearch,
+              label: t('filters.search'),
+              placeholder: t('filters.searchPlaceholder'),
+              description: t('filters.searchHint'),
+            }}
+            activeCount={activeCount}
+            filters={
+              <div className="flex flex-col gap-4">
+                <Field label={t('filters.type')}>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>{t('filters.allTypes')}</SelectItem>
+                      {types.map(([id, name]) => (
+                        <SelectItem key={id} value={id}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label={t('filters.status')}>
+                  <Select
+                    value={status}
+                    onValueChange={(value) => {
+                      setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                      <SelectItem value="active">{t('filters.active')}</SelectItem>
+                      <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            }
+            chips={chips}
+            onClearAll={() => {
+              setTypeFilter(ALL);
+              setStatus(ALL);
+            }}
+          />
+        ) : null
+      }
+      loading={templates.isPending}
+      loadingLabel={t('loading')}
+      error={
+        templates.isError ? (
+          <Alert tone="error" title={t('loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setCreating(true);
+                void templates.refetch();
               }}
             >
-              {t('new')}
+              {t('retry')}
             </Button>
-          ) : null
-        }
-      />
-
-      {templates.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {templates.isError ? (
-        <Alert tone="error" title={t('loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void templates.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      {templates.data ? (
-        templates.data.length === 0 ? (
-          <p className="rounded-card border border-dashed border-border p-6 text-muted-foreground">
-            {t('empty')}
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`${ids}-type`} className="text-sm font-medium">
-                  {t('filters.type')}
-                </label>
-                <select
-                  id={`${ids}-type`}
-                  className={INPUT}
-                  value={typeFilter}
-                  onChange={(event) => {
-                    setTypeFilter(event.target.value);
+          </Alert>
+        ) : null
+      }
+      empty={
+        templates.data && visible.length === 0 ? (
+          <EmptyState
+            icon={<LayoutTemplate />}
+            title={filtered ? t('list.noResults') : t('list.emptyTitle')}
+            description={filtered ? t('list.noResultsHint') : t('list.emptyHint')}
+            action={
+              filtered ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setTypeFilter(ALL);
+                    setStatus(ALL);
                   }}
                 >
-                  <option value="">{t('filters.allTypes')}</option>
-                  {types.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`${ids}-search`} className="text-sm font-medium">
-                  {t('filters.search')}
-                </label>
-                <input
-                  id={`${ids}-search`}
-                  type="search"
-                  className={INPUT}
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                  }}
-                />
-              </div>
-            </div>
-            <TemplateTable templates={visible} canManage={canManage} onEdit={setEditing} />
-          </>
-        )
+                  {t('filters.clear')}
+                </Button>
+              ) : (
+                newTemplate
+              )
+            }
+          />
+        ) : null
+      }
+    >
+      {visible.length > 0 ? (
+        <TableContainer
+          label={t('table.caption')}
+          footer={<TableFooter summary={t('list.count', { count: visible.length })} />}
+        >
+          <TemplateTable templates={visible} canManage={canManage} onEdit={setEditing} />
+        </TableContainer>
       ) : null}
 
       <TemplateFormDialog
@@ -175,19 +293,7 @@ export function TemplatesView() {
           if (!open) setEditing(null);
         }}
       />
-    </div>
-  );
-}
-
-function Badge({ children, tone }: { readonly children: string; readonly tone: 'muted' | 'ok' }) {
-  return (
-    <span
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
-        tone === 'ok' ? 'bg-success-soft text-foreground' : 'bg-muted text-muted-foreground'
-      }`}
-    >
-      {children}
-    </span>
+    </ListPage>
   );
 }
 
@@ -201,123 +307,114 @@ function TemplateTable({
   readonly onEdit: (template: TemplateDto) => void;
 }) {
   const t = useTranslations('templates');
-  if (templates.length === 0) {
-    return <p className="text-muted-foreground">{t('filters.noResults')}</p>;
-  }
   return (
-    <div className="relative overflow-x-auto rounded-card border border-border bg-surface shadow-card">
-      <table className="w-full min-w-[48rem] text-left text-sm">
-        <caption className="sr-only">{t('table.caption')}</caption>
-        <thead className="bg-muted text-xs text-muted-foreground uppercase">
-          <tr>
-            <th scope="col" className="px-3 py-2">
-              {t('table.name')}
+    <Table>
+      <caption className="sr-only">{t('table.caption')}</caption>
+      <TableHead>
+        <Tr>
+          <Th>{t('table.name')}</Th>
+          <Th className="hidden md:table-cell">{t('table.type')}</Th>
+          <Th className="hidden lg:table-cell">{t('table.published')}</Th>
+          <Th className="hidden lg:table-cell">{t('table.draft')}</Th>
+          <Th>{t('table.status')}</Th>
+          <Th className="w-12">
+            <span className="sr-only">{t('table.actions')}</span>
+          </Th>
+        </Tr>
+      </TableHead>
+      <TableBody>
+        {templates.map((template) => (
+          <Tr key={template.id}>
+            <th scope="row" className="px-3.5 py-3 text-left font-normal">
+              <Link
+                href={templateVersionsHref(template.id)}
+                className="block font-bold text-foreground underline-offset-2 hover:underline"
+              >
+                {template.name}
+              </Link>
+              {template.description ? (
+                <span className="block text-xs text-muted-foreground">{template.description}</span>
+              ) : null}
             </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.type')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.status')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.versions')}
-            </th>
-            <th scope="col" className="px-3 py-2">
-              {t('table.actions')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {templates.map((template) => {
-            const target = template.draftVersion ?? template.currentPublishedVersion;
-            const editable = canManage && template.draftVersion !== null;
-            return (
-              <tr key={template.id} className="border-t border-border align-top">
-                <th scope="row" className="px-3 py-2 font-medium">
-                  <span>{template.name}</span>
-                  {template.isSystem ? (
-                    <span className="ml-2">
-                      <SystemTemplateBadge />
-                    </span>
-                  ) : null}
-                  {template.isDefault ? (
-                    <span className="ml-2">
-                      <Badge tone="ok">{t('badges.default')}</Badge>
-                    </span>
-                  ) : null}
-                  {template.description ? (
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      {template.description}
-                    </span>
-                  ) : null}
-                </th>
-                <td className="px-3 py-2">{template.documentType.name}</td>
-                <td className="px-3 py-2">
-                  <Badge tone={template.isActive ? 'ok' : 'muted'}>
-                    {template.isActive ? t('badges.active') : t('badges.inactive')}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {template.draftVersion ? (
-                    <span className="block">
-                      {t('values.draft', {
-                        number: template.draftVersion.versionNumber,
-                        sections: template.draftVersion.sectionCount,
-                      })}
-                    </span>
-                  ) : null}
-                  {template.currentPublishedVersion ? (
-                    <span className="block">
-                      {t('values.published', {
-                        number: template.currentPublishedVersion.versionNumber,
-                      })}
-                    </span>
-                  ) : null}
-                  {!template.draftVersion && !template.currentPublishedVersion
-                    ? t('values.noVersion')
-                    : null}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={templateVersionsHref(template.id)}
-                      className="inline-flex h-8 items-center rounded-control border border-border px-3 text-sm font-medium hover:bg-muted"
-                      aria-label={t('actions.versions', { name: template.name })}
-                    >
-                      {t('actions.versionsLabel')}
-                    </Link>
-                    {target ? (
-                      <Link
-                        href={templateEditorHref(template.id, target.id)}
-                        className="inline-flex h-8 items-center rounded-control border border-border px-3 text-sm font-medium hover:bg-muted"
-                        aria-label={
-                          editable
-                            ? t('actions.editContent', { name: template.name })
-                            : t('actions.viewContent', { name: template.name })
-                        }
-                      >
-                        {editable ? t('actions.editContentLabel') : t('actions.viewContentLabel')}
-                      </Link>
-                    ) : null}
-                    {canManage ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t('actions.editData', { name: template.name })}
-                        onClick={() => {
-                          onEdit(template);
-                        }}
-                      >
-                        {t('actions.editDataLabel')}
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+            <Td className="hidden md:table-cell">{template.documentType.name}</Td>
+            <Td className="hidden whitespace-nowrap lg:table-cell">
+              {template.currentPublishedVersion
+                ? t('values.version', { number: template.currentPublishedVersion.versionNumber })
+                : t('values.noVersion')}
+            </Td>
+            <Td className="hidden whitespace-nowrap lg:table-cell">
+              {template.draftVersion
+                ? t('values.draft', {
+                    number: template.draftVersion.versionNumber,
+                    sections: template.draftVersion.sectionCount,
+                  })
+                : t('values.noVersion')}
+            </Td>
+            <Td>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusChip tone={template.isActive ? 'success' : 'warning'}>
+                  {template.isActive ? t('badges.active') : t('badges.inactive')}
+                </StatusChip>
+                {template.isDefault ? (
+                  <StatusChip tone="info">{t('badges.default')}</StatusChip>
+                ) : null}
+                {template.isSystem ? <SystemTemplateBadge /> : null}
+              </div>
+            </Td>
+            <Td className="w-12 py-1.5 text-right">
+              <RowMenu template={template} canManage={canManage} onEdit={onEdit} />
+            </Td>
+          </Tr>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function RowMenu({
+  template,
+  canManage,
+  onEdit,
+}: {
+  readonly template: TemplateDto;
+  readonly canManage: boolean;
+  readonly onEdit: (template: TemplateDto) => void;
+}) {
+  const t = useTranslations('templates');
+  const target = template.draftVersion ?? template.currentPublishedVersion;
+  const editable = canManage && template.draftVersion !== null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('actions.menu', { name: template.name })}
+          className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+        >
+          <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={templateVersionsHref(template.id)}>{t('actions.versionsLabel')}</Link>
+        </DropdownMenuItem>
+        {target ? (
+          <DropdownMenuItem asChild>
+            <Link href={templateEditorHref(template.id, target.id)}>
+              {editable ? t('actions.editContentLabel') : t('actions.viewContentLabel')}
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
+        {canManage ? (
+          <DropdownMenuItem
+            onSelect={() => {
+              onEdit(template);
+            }}
+          >
+            {t('actions.editDataLabel')}
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

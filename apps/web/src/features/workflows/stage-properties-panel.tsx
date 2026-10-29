@@ -1,6 +1,22 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Combobox,
+  Field,
+  Input,
+  InfoTooltip,
+  Label,
+  SheetBody,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Switch,
+  Textarea,
+} from '@contrataflow/ui';
 import {
   STAGE_ASSIGNMENT_POLICIES,
   STAGE_DEPARTMENT_RESOLUTIONS,
@@ -14,6 +30,7 @@ import type { ReactNode } from 'react';
 
 import { useTenantId } from '@/lib/session/session-context';
 
+import { OptionSelect } from './option-select';
 import { outcomeOf } from './workflow-editor-errors';
 import type { EditorProblem } from './workflow-editor-errors';
 import {
@@ -40,7 +57,6 @@ import {
   WORKFLOWS_STALE_TIME_MS,
 } from './workflows.api';
 
-const INPUT = 'h-10 w-full rounded-control border border-border bg-surface px-3 text-sm';
 const APPROVER_TYPES = ['USER', 'ROLE', 'DEPARTMENT_HEAD'] as const;
 const APPROVER_RESOLUTIONS = ['REQUESTING_DEPARTMENT', 'REQUESTING_SECRETARIAT', 'FIXED'] as const;
 const DAY_COUNT_TYPES = ['BUSINESS', 'CALENDAR'] as const;
@@ -53,6 +69,11 @@ export interface StagePropertiesPanelProps {
   readonly stage: WorkflowStageDto | null;
   readonly stages: readonly WorkflowStageDto[];
   readonly readOnly: boolean;
+  /**
+   * `aside`: coluna lateral do editor (telas largas); `sheet`: dentro de um `SheetContent` (telas
+   * estreitas), com cabeçalho, corpo e rodapé do kit.
+   */
+  readonly variant?: 'aside' | 'sheet';
   readonly onSaved: (stage: WorkflowStageDto, created: boolean) => void;
   readonly onDeleted: (stageId: string) => void;
   readonly onProblem: (problem: EditorProblem) => void;
@@ -67,6 +88,7 @@ export interface StagePropertiesPanelProps {
  */
 export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
   const { stage, stages, versionId, readOnly, onSaved, onDeleted, onProblem, onClose } = props;
+  const variant = props.variant ?? 'aside';
   const t = useTranslations('workflows.editor');
   const tenantId = useTenantId();
   const ids = useId();
@@ -232,53 +254,61 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
     create.mutate(draft);
   };
 
-  const errorId = (field: string) => `${ids}-${field}-error`;
-  const fieldProps = (field: string) => ({
-    id: `${ids}-${field}`,
-    'aria-invalid': errors[field] ? true : undefined,
-    'aria-describedby': errors[field] ? errorId(field) : undefined,
-  });
   const blurSave = () => {
     commit(draft);
   };
 
-  const field = (name: string, control: ReactNode, hint?: string) => (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={`${ids}-${name}`} className="text-sm font-medium">
-        {label(name)}
-      </label>
-      {control}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      {errors[name] ? (
-        <p id={errorId(name)} className="text-sm text-destructive">
-          {errors[name]}
-        </p>
-      ) : null}
-    </div>
+  const help = (name: string, text: string) => (
+    <InfoTooltip label={t('helpLabel', { field: label(name) })}>{text}</InfoTooltip>
   );
+  const field = (
+    name: string,
+    control: ReactNode,
+    options?: { help?: string | undefined; note?: string | undefined },
+  ) => (
+    <Field
+      label={label(name)}
+      id={`${ids}-${name}`}
+      error={errors[name]}
+      description={options?.note}
+      labelAddon={options?.help ? help(name, options.help) : undefined}
+    >
+      {control}
+    </Field>
+  );
+
+  const comboLabels = {
+    placeholder: t('values.select'),
+    search: t('values.search'),
+    empty: t('values.noResults'),
+  };
+  /** Opções de uma lista de apoio; a seleção que saiu da lista continua escolhível. */
+  const lookupOptions = (
+    current: string,
+    items: readonly { value: string; label: string }[] | undefined,
+  ) => [
+    ...(current !== '' && !items?.some((item) => item.value === current)
+      ? [{ value: current, label: t('values.currentSelection') }]
+      : []),
+    ...(items ?? []),
+  ];
 
   const departmentSelect = (name: 'fixedDepartmentId' | 'approverFixedDepartmentId') =>
     field(
       name,
-      <select
-        {...fieldProps(name)}
-        className={INPUT}
+      <Combobox
+        options={lookupOptions(
+          draft[name],
+          departments.data?.map((item) => ({ value: item.id, label: item.path || item.name })),
+        )}
         value={draft[name]}
-        onChange={(event) => {
-          change({ [name]: event.target.value }, true);
+        labels={comboLabels}
+        clearable
+        onValueChange={(value) => {
+          change({ [name]: value ?? '' }, true);
         }}
-      >
-        <option value="">{t('values.select')}</option>
-        {draft[name] !== '' && !departments.data?.some((item) => item.id === draft[name]) ? (
-          <option value={draft[name]}>{t('values.currentSelection')}</option>
-        ) : null}
-        {(departments.data ?? []).map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.path || item.name}
-          </option>
-        ))}
-      </select>,
-      departments.isError ? t('values.optionsUnavailable') : undefined,
+      />,
+      { note: departments.isError ? t('values.optionsUnavailable') : undefined },
     );
 
   const isApproval = draft.type === 'APPROVAL';
@@ -287,13 +317,355 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
   const knownColor = STAGE_COLORS.some(
     (color) => color.value.toUpperCase() === draft.color.toUpperCase(),
   );
+  const title = stage ? t('panel.title', { name: stage.name }) : t('panel.newTitle');
+
+  const status = (
+    <p aria-live="polite" className="min-h-5 text-sm text-muted-foreground">
+      {saveState === 'saving' ? t('panel.saving') : saveState === 'saved' ? t('panel.saved') : ''}
+    </p>
+  );
+
+  const fields = (
+    <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
+      <legend className="sr-only">{t('panel.legend')}</legend>
+      {field(
+        'name',
+        <Input
+          value={draft.name}
+          maxLength={150}
+          onChange={(event) => {
+            onNameChange(event.target.value);
+          }}
+          onBlur={blurSave}
+        />,
+      )}
+      {field(
+        'key',
+        <Input
+          className="font-mono"
+          value={draft.key}
+          maxLength={60}
+          readOnly={stage !== null}
+          onChange={(event) => {
+            setKeyTouched(true);
+            change({ key: event.target.value.toUpperCase() }, false);
+          }}
+        />,
+        { help: stage ? t('hints.keyImmutable') : t('hints.key') },
+      )}
+      {field(
+        'type',
+        <OptionSelect
+          value={draft.type}
+          options={STAGE_TYPES.map((type) => ({ value: type, label: t(`stageTypes.${type}`) }))}
+          onValueChange={(value) => {
+            change({ type: value as StageDraft['type'] }, true);
+          }}
+        />,
+      )}
+      {field(
+        'instructions',
+        <Textarea
+          value={draft.instructions}
+          maxLength={5000}
+          onChange={(event) => {
+            change({ instructions: event.target.value }, false);
+          }}
+          onBlur={blurSave}
+        />,
+      )}
+      {field(
+        'departmentResolution',
+        <OptionSelect
+          value={draft.departmentResolution}
+          options={STAGE_DEPARTMENT_RESOLUTIONS.map((resolution) => ({
+            value: resolution,
+            label: t(`departmentResolutions.${resolution}`),
+          }))}
+          onValueChange={(value) => {
+            change(
+              { departmentResolution: value as StageDraft['departmentResolution'] },
+              value !== 'FIXED' || draft.fixedDepartmentId !== '',
+            );
+          }}
+        />,
+      )}
+      {draft.departmentResolution === 'FIXED' ? departmentSelect('fixedDepartmentId') : null}
+      {field(
+        'assignmentPolicy',
+        <OptionSelect
+          value={draft.assignmentPolicy}
+          options={STAGE_ASSIGNMENT_POLICIES.map((policy) => ({
+            value: policy,
+            label: t(`assignmentPolicies.${policy}`),
+          }))}
+          onValueChange={(value) => {
+            change({ assignmentPolicy: value as StageDraft['assignmentPolicy'] }, true);
+          }}
+        />,
+      )}
+      {isApproval ? (
+        <>
+          {field(
+            'approverType',
+            <OptionSelect
+              value={draft.approverType}
+              noneLabel={t('values.select')}
+              options={APPROVER_TYPES.map((type) => ({
+                value: type,
+                label: t(`approverTypes.${type}`),
+              }))}
+              onValueChange={(value) => {
+                change({ approverType: value as StageDraft['approverType'] }, true);
+              }}
+            />,
+          )}
+          {draft.approverType === 'USER'
+            ? field(
+                'approverUserId',
+                <Combobox
+                  options={lookupOptions(
+                    draft.approverUserId,
+                    users.data?.map((item) => ({
+                      value: item.userId,
+                      label: item.socialName ?? item.name,
+                    })),
+                  )}
+                  value={draft.approverUserId}
+                  labels={comboLabels}
+                  clearable
+                  onValueChange={(value) => {
+                    change({ approverUserId: value ?? '' }, true);
+                  }}
+                />,
+                { note: users.isError ? t('values.optionsUnavailable') : undefined },
+              )
+            : null}
+          {draft.approverType === 'ROLE'
+            ? field(
+                'approverRoleId',
+                <Combobox
+                  options={lookupOptions(
+                    draft.approverRoleId,
+                    roles.data?.map((item) => ({ value: item.id, label: item.name })),
+                  )}
+                  value={draft.approverRoleId}
+                  labels={comboLabels}
+                  clearable
+                  onValueChange={(value) => {
+                    change({ approverRoleId: value ?? '' }, true);
+                  }}
+                />,
+                { note: roles.isError ? t('values.optionsUnavailable') : undefined },
+              )
+            : null}
+          {draft.approverType === 'DEPARTMENT_HEAD'
+            ? field(
+                'approverDepartmentResolution',
+                <OptionSelect
+                  value={draft.approverDepartmentResolution}
+                  noneLabel={t('values.select')}
+                  options={APPROVER_RESOLUTIONS.map((resolution) => ({
+                    value: resolution,
+                    label: t(`departmentResolutions.${resolution}`),
+                  }))}
+                  onValueChange={(value) => {
+                    change(
+                      {
+                        approverDepartmentResolution:
+                          value as StageDraft['approverDepartmentResolution'],
+                      },
+                      true,
+                    );
+                  }}
+                />,
+              )
+            : null}
+          {draft.approverType === 'DEPARTMENT_HEAD' &&
+          draft.approverDepartmentResolution === 'FIXED'
+            ? departmentSelect('approverFixedDepartmentId')
+            : null}
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor={`${ids}-allowDeputy`}>{label('allowDeputy')}</Label>
+            <Switch
+              id={`${ids}-allowDeputy`}
+              checked={draft.allowDeputy}
+              onCheckedChange={(checked) => {
+                change({ allowDeputy: checked }, true);
+              }}
+            />
+          </div>
+          <CodeChecklist
+            legend={label('approvalDocumentTypeCodes')}
+            options={activeTypes}
+            selected={draft.approvalDocumentTypeCodes}
+            onChange={(codes) => {
+              change({ approvalDocumentTypeCodes: codes }, true);
+            }}
+          />
+        </>
+      ) : null}
+      {draft.type === 'END' ? null : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {field(
+            'slaDays',
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={365}
+              value={draft.slaDays}
+              onChange={(event) => {
+                change({ slaDays: event.target.value }, false);
+              }}
+              onBlur={blurSave}
+            />,
+          )}
+          {field(
+            'slaType',
+            <OptionSelect
+              value={draft.slaType}
+              options={DAY_COUNT_TYPES.map((type) => ({
+                value: type,
+                label: t(`dayCountTypes.${type}`),
+              }))}
+              onValueChange={(value) => {
+                change({ slaType: value as StageDraft['slaType'] }, true);
+              }}
+            />,
+          )}
+        </div>
+      )}
+      <CodeChecklist
+        legend={label('documentTypeCodes')}
+        hint={t('hints.documentTypeCodes')}
+        options={activeTypes}
+        selected={draft.documentTypeCodes}
+        onChange={(codes) => {
+          change({ documentTypeCodes: codes }, true);
+        }}
+      />
+      {field(
+        'color',
+        <OptionSelect
+          value={draft.color}
+          noneLabel={t('colors.none')}
+          options={[
+            ...(draft.color !== '' && !knownColor
+              ? [{ value: draft.color, label: t('colors.custom', { value: draft.color }) }]
+              : []),
+            ...STAGE_COLORS.map((color) => ({
+              value: color.value,
+              label: `${t(`colors.${color.key}`)} (${color.value})`,
+            })),
+          ]}
+          onValueChange={(value) => {
+            change({ color: value }, true);
+          }}
+        />,
+      )}
+      <div aria-live="assertive" className="flex flex-col gap-3 empty:hidden">
+        {formError ? <Alert tone="error" title={formError} /> : null}
+        {blockers ? (
+          <Alert tone="error" title={t('delete.blocked')}>
+            <ul className="mt-1 list-disc pl-5">
+              {blockers.map((item) => (
+                <li key={item.id}>{item.name}</li>
+              ))}
+            </ul>
+          </Alert>
+        ) : null}
+      </div>
+    </fieldset>
+  );
+
+  const confirmDelete =
+    stage && confirmingDelete ? (
+      <div
+        role="group"
+        aria-label={t('delete.confirmTitle', { name: stage.name })}
+        className="flex flex-col gap-2 border-t border-border pt-4"
+      >
+        <p className="text-sm">{t('delete.confirm', { name: stage.name })}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setConfirmingDelete(false);
+            }}
+          >
+            {t('delete.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={remove.isPending}
+            onClick={() => {
+              remove.mutate(stage);
+            }}
+          >
+            {t('delete.confirmAction')}
+          </Button>
+        </div>
+      </div>
+    ) : null;
+
+  const buttons = readOnly ? null : (
+    <>
+      {stage && !confirmingDelete ? (
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => {
+            setBlockers(null);
+            setConfirmingDelete(true);
+          }}
+        >
+          {t('delete.action')}
+        </Button>
+      ) : null}
+      {stage ? (
+        <Button type="submit" variant="secondary">
+          {t('panel.save')}
+        </Button>
+      ) : (
+        <Button type="submit" disabled={create.isPending} aria-busy={create.isPending}>
+          {t('panel.create')}
+        </Button>
+      )}
+    </>
+  );
+
+  const onSubmit = (event: { preventDefault: () => void }) => {
+    event.preventDefault();
+    if (stage) commit(draft);
+    else submitNew();
+  };
+
+  if (variant === 'sheet') {
+    return (
+      <form noValidate onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+        <SheetHeader>
+          <SheetTitle>{title}</SheetTitle>
+          <SheetDescription>{t('panel.position', { position })}</SheetDescription>
+        </SheetHeader>
+        <SheetBody>
+          {status}
+          {fields}
+          {confirmDelete}
+        </SheetBody>
+        {buttons ? <SheetFooter>{buttons}</SheetFooter> : null}
+      </form>
+    );
+  }
 
   return (
     <section aria-labelledby={`${ids}-title`} className="flex flex-col gap-4">
       <header className="flex items-start justify-between gap-2">
         <div>
-          <h2 id={`${ids}-title`} className="text-lg font-semibold">
-            {stage ? t('panel.title', { name: stage.name }) : t('panel.newTitle')}
+          <h2 id={`${ids}-title`} className="text-lg font-bold text-brand-ink">
+            {title}
           </h2>
           <p className="text-sm text-muted-foreground">{t('panel.position', { position })}</p>
         </div>
@@ -301,379 +673,12 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           {t('panel.close')}
         </Button>
       </header>
-      <p aria-live="polite" className="min-h-5 text-sm text-muted-foreground">
-        {saveState === 'saving' ? t('panel.saving') : saveState === 'saved' ? t('panel.saved') : ''}
-      </p>
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (stage) commit(draft);
-          else submitNew();
-        }}
-      >
-        <fieldset disabled={readOnly} className="flex flex-col gap-3">
-          <legend className="sr-only">{t('panel.legend')}</legend>
-          {field(
-            'name',
-            <input
-              {...fieldProps('name')}
-              className={INPUT}
-              value={draft.name}
-              maxLength={150}
-              onChange={(event) => {
-                onNameChange(event.target.value);
-              }}
-              onBlur={blurSave}
-            />,
-          )}
-          {field(
-            'key',
-            <input
-              {...fieldProps('key')}
-              className={`${INPUT} font-mono`}
-              value={draft.key}
-              maxLength={60}
-              readOnly={stage !== null}
-              onChange={(event) => {
-                setKeyTouched(true);
-                change({ key: event.target.value.toUpperCase() }, false);
-              }}
-            />,
-            stage ? t('hints.keyImmutable') : t('hints.key'),
-          )}
-          {field(
-            'type',
-            <select
-              {...fieldProps('type')}
-              className={INPUT}
-              value={draft.type}
-              onChange={(event) => {
-                change({ type: event.target.value as StageDraft['type'] }, true);
-              }}
-            >
-              {STAGE_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {t(`stageTypes.${type}`)}
-                </option>
-              ))}
-            </select>,
-          )}
-          {field(
-            'instructions',
-            <textarea
-              {...fieldProps('instructions')}
-              className="min-h-20 w-full rounded-control border border-border bg-surface px-3 py-2 text-sm"
-              value={draft.instructions}
-              maxLength={5000}
-              onChange={(event) => {
-                change({ instructions: event.target.value }, false);
-              }}
-              onBlur={blurSave}
-            />,
-          )}
-          {field(
-            'departmentResolution',
-            <select
-              {...fieldProps('departmentResolution')}
-              className={INPUT}
-              value={draft.departmentResolution}
-              onChange={(event) => {
-                change(
-                  {
-                    departmentResolution: event.target.value as StageDraft['departmentResolution'],
-                  },
-                  event.target.value !== 'FIXED' || draft.fixedDepartmentId !== '',
-                );
-              }}
-            >
-              {STAGE_DEPARTMENT_RESOLUTIONS.map((resolution) => (
-                <option key={resolution} value={resolution}>
-                  {t(`departmentResolutions.${resolution}`)}
-                </option>
-              ))}
-            </select>,
-          )}
-          {draft.departmentResolution === 'FIXED' ? departmentSelect('fixedDepartmentId') : null}
-          {field(
-            'assignmentPolicy',
-            <select
-              {...fieldProps('assignmentPolicy')}
-              className={INPUT}
-              value={draft.assignmentPolicy}
-              onChange={(event) => {
-                change(
-                  { assignmentPolicy: event.target.value as StageDraft['assignmentPolicy'] },
-                  true,
-                );
-              }}
-            >
-              {STAGE_ASSIGNMENT_POLICIES.map((policy) => (
-                <option key={policy} value={policy}>
-                  {t(`assignmentPolicies.${policy}`)}
-                </option>
-              ))}
-            </select>,
-          )}
-          {isApproval ? (
-            <>
-              {field(
-                'approverType',
-                <select
-                  {...fieldProps('approverType')}
-                  className={INPUT}
-                  value={draft.approverType}
-                  onChange={(event) => {
-                    change(
-                      { approverType: event.target.value as StageDraft['approverType'] },
-                      true,
-                    );
-                  }}
-                >
-                  <option value="">{t('values.select')}</option>
-                  {APPROVER_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`approverTypes.${type}`)}
-                    </option>
-                  ))}
-                </select>,
-              )}
-              {draft.approverType === 'USER'
-                ? field(
-                    'approverUserId',
-                    <select
-                      {...fieldProps('approverUserId')}
-                      className={INPUT}
-                      value={draft.approverUserId}
-                      onChange={(event) => {
-                        change({ approverUserId: event.target.value }, true);
-                      }}
-                    >
-                      <option value="">{t('values.select')}</option>
-                      {draft.approverUserId !== '' &&
-                      !users.data?.some((item) => item.userId === draft.approverUserId) ? (
-                        <option value={draft.approverUserId}>{t('values.currentSelection')}</option>
-                      ) : null}
-                      {(users.data ?? []).map((item) => (
-                        <option key={item.userId} value={item.userId}>
-                          {item.socialName ?? item.name}
-                        </option>
-                      ))}
-                    </select>,
-                    users.isError ? t('values.optionsUnavailable') : undefined,
-                  )
-                : null}
-              {draft.approverType === 'ROLE'
-                ? field(
-                    'approverRoleId',
-                    <select
-                      {...fieldProps('approverRoleId')}
-                      className={INPUT}
-                      value={draft.approverRoleId}
-                      onChange={(event) => {
-                        change({ approverRoleId: event.target.value }, true);
-                      }}
-                    >
-                      <option value="">{t('values.select')}</option>
-                      {draft.approverRoleId !== '' &&
-                      !roles.data?.some((item) => item.id === draft.approverRoleId) ? (
-                        <option value={draft.approverRoleId}>{t('values.currentSelection')}</option>
-                      ) : null}
-                      {(roles.data ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>,
-                    roles.isError ? t('values.optionsUnavailable') : undefined,
-                  )
-                : null}
-              {draft.approverType === 'DEPARTMENT_HEAD'
-                ? field(
-                    'approverDepartmentResolution',
-                    <select
-                      {...fieldProps('approverDepartmentResolution')}
-                      className={INPUT}
-                      value={draft.approverDepartmentResolution}
-                      onChange={(event) => {
-                        change(
-                          {
-                            approverDepartmentResolution: event.target
-                              .value as StageDraft['approverDepartmentResolution'],
-                          },
-                          true,
-                        );
-                      }}
-                    >
-                      <option value="">{t('values.select')}</option>
-                      {APPROVER_RESOLUTIONS.map((resolution) => (
-                        <option key={resolution} value={resolution}>
-                          {t(`departmentResolutions.${resolution}`)}
-                        </option>
-                      ))}
-                    </select>,
-                  )
-                : null}
-              {draft.approverType === 'DEPARTMENT_HEAD' &&
-              draft.approverDepartmentResolution === 'FIXED'
-                ? departmentSelect('approverFixedDepartmentId')
-                : null}
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={draft.allowDeputy}
-                  onChange={(event) => {
-                    change({ allowDeputy: event.target.checked }, true);
-                  }}
-                />
-                {label('allowDeputy')}
-              </label>
-              <CodeChecklist
-                legend={label('approvalDocumentTypeCodes')}
-                options={activeTypes}
-                selected={draft.approvalDocumentTypeCodes}
-                onChange={(codes) => {
-                  change({ approvalDocumentTypeCodes: codes }, true);
-                }}
-              />
-            </>
-          ) : null}
-          {draft.type === 'END' ? null : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {field(
-                'slaDays',
-                <input
-                  {...fieldProps('slaDays')}
-                  className={INPUT}
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={365}
-                  value={draft.slaDays}
-                  onChange={(event) => {
-                    change({ slaDays: event.target.value }, false);
-                  }}
-                  onBlur={blurSave}
-                />,
-              )}
-              {field(
-                'slaType',
-                <select
-                  {...fieldProps('slaType')}
-                  className={INPUT}
-                  value={draft.slaType}
-                  onChange={(event) => {
-                    change({ slaType: event.target.value as StageDraft['slaType'] }, true);
-                  }}
-                >
-                  {DAY_COUNT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`dayCountTypes.${type}`)}
-                    </option>
-                  ))}
-                </select>,
-              )}
-            </div>
-          )}
-          <CodeChecklist
-            legend={label('documentTypeCodes')}
-            hint={t('hints.documentTypeCodes')}
-            options={activeTypes}
-            selected={draft.documentTypeCodes}
-            onChange={(codes) => {
-              change({ documentTypeCodes: codes }, true);
-            }}
-          />
-          {field(
-            'color',
-            <select
-              {...fieldProps('color')}
-              className={INPUT}
-              value={draft.color}
-              onChange={(event) => {
-                change({ color: event.target.value }, true);
-              }}
-            >
-              <option value="">{t('colors.none')}</option>
-              {draft.color !== '' && !knownColor ? (
-                <option value={draft.color}>{t('colors.custom', { value: draft.color })}</option>
-              ) : null}
-              {STAGE_COLORS.map((color) => (
-                <option key={color.key} value={color.value}>
-                  {t(`colors.${color.key}`)} ({color.value})
-                </option>
-              ))}
-            </select>,
-          )}
-          <div aria-live="assertive">
-            {formError ? <Alert tone="error" title={formError} /> : null}
-            {blockers ? (
-              <Alert tone="error" title={t('delete.blocked')}>
-                <ul className="mt-1 list-disc pl-5">
-                  {blockers.map((item) => (
-                    <li key={item.id}>{item.name}</li>
-                  ))}
-                </ul>
-              </Alert>
-            ) : null}
-          </div>
-          {readOnly ? null : (
-            <div className="flex flex-wrap gap-2">
-              {stage ? (
-                <Button type="submit" variant="secondary">
-                  {t('panel.save')}
-                </Button>
-              ) : (
-                <Button type="submit" disabled={create.isPending} aria-busy={create.isPending}>
-                  {t('panel.create')}
-                </Button>
-              )}
-              {stage && !confirmingDelete ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    setBlockers(null);
-                    setConfirmingDelete(true);
-                  }}
-                >
-                  {t('delete.action')}
-                </Button>
-              ) : null}
-            </div>
-          )}
-        </fieldset>
+      {status}
+      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        {fields}
+        {confirmDelete}
+        {buttons ? <div className="flex flex-wrap gap-2">{buttons}</div> : null}
       </form>
-      {stage && confirmingDelete ? (
-        <div
-          role="group"
-          aria-label={t('delete.confirmTitle', { name: stage.name })}
-          className="flex flex-col gap-2 rounded-card border border-border p-3"
-        >
-          <p className="text-sm">{t('delete.confirm', { name: stage.name })}</p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setConfirmingDelete(false);
-              }}
-            >
-              {t('delete.cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => {
-                remove.mutate(stage);
-              }}
-            >
-              {t('delete.confirmAction')}
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -693,37 +698,42 @@ function CodeChecklist({
   readonly onChange: (codes: string[]) => void;
 }) {
   const t = useTranslations('workflows.editor');
+  const ids = useId();
   const missing = selected.filter((code) => !options.some((option) => option.code === code));
   return (
-    <fieldset className="flex flex-col gap-1">
-      <legend className="text-sm font-medium">{legend}</legend>
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    <Field
+      group
+      label={legend}
+      labelAddon={
+        hint ? <InfoTooltip label={t('helpLabel', { field: legend })}>{hint}</InfoTooltip> : null
+      }
+    >
       {options.length === 0 && missing.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('values.noDocumentTypes')}</p>
       ) : null}
-      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {[
           ...options.map((option) => ({ code: option.code, name: option.name })),
           ...missing.map((code) => ({ code, name: code })),
         ].map((option) => (
-          <label key={option.code} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          <div key={option.code} className="flex items-start gap-2">
+            <Checkbox
+              id={`${ids}-${option.code}`}
               checked={selected.includes(option.code)}
-              onChange={(event) => {
+              onCheckedChange={(checked) => {
                 onChange(
-                  event.target.checked
+                  checked === true
                     ? [...selected, option.code]
                     : selected.filter((code) => code !== option.code),
                 );
               }}
             />
-            <span>
+            <Label htmlFor={`${ids}-${option.code}`} className="font-normal">
               <span className="font-mono">{option.code}</span> — {option.name}
-            </span>
-          </label>
+            </Label>
+          </div>
         ))}
       </div>
-    </fieldset>
+    </Field>
   );
 }
