@@ -1,6 +1,18 @@
 'use client';
 
-import { Alert, Button, Dialog, DialogTitle, SheetContent, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SheetContent,
+  toast,
+} from '@contrataflow/ui';
 import {
   RISK_LEVEL_LABELS,
   RISK_LIMITS,
@@ -370,20 +382,23 @@ function RiskForm({ processId, risk, onOpenChange, meta, onChanged }: RiskFormDr
             required
           >
             {(control) => (
-              <select
-                {...control}
-                className={INPUT_CLASS}
+              <Select
                 value={values.phase}
-                onChange={(event) => {
-                  set('phase', event.target.value as RiskPhase);
+                onValueChange={(value) => {
+                  set('phase', value as RiskPhase);
                 }}
               >
-                {phaseOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger {...control}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {phaseOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </FormField>
         </div>
@@ -506,20 +521,23 @@ function RiskForm({ processId, risk, onOpenChange, meta, onChanged }: RiskFormDr
               hint={t('form.statusHint')}
             >
               {(control) => (
-                <select
-                  {...control}
-                  className={INPUT_CLASS}
+                <Select
                   value={values.status}
-                  onChange={(event) => {
-                    set('status', event.target.value as RiskStatus);
+                  onValueChange={(value) => {
+                    set('status', value as RiskStatus);
                   }}
                 >
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger {...control}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </FormField>
             <section aria-labelledby={fieldId('residual')} className="flex flex-col gap-2">

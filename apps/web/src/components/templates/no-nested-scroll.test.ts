@@ -62,22 +62,12 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/term/import-etp-panel.tsx': `${DIALOG}; ${CODE}`,
 };
 
-/**
- * Rolagens internas que ainda violam a regra e somem no card da tela (prd-5 · §4). Esta lista só
- * encolhe: quem migrar a tela tira a entrada; o teste reprova entrada que já não tem ocorrência.
- */
-const PENDING: Readonly<Record<string, string>> = {
-  'apps/web/src/features/price-research/comparative-map-grid.tsx':
-    'card 6 — mapa comparativo com altura máxima e rolagem nos dois eixos',
-  'apps/web/src/features/risks/risks-screen.tsx': 'card 6 — abas roláveis',
-};
-
 const found = filesMatching(['apps/web/src', 'packages/ui/src'], NESTED_SCROLL);
 
 describe('prd-5 · regra 8 — só a página rola', () => {
   it('nenhuma rolagem interna fora da lista permitida', () => {
     const offenders = [...found]
-      .filter(([file]) => !(file in ALLOWED) && !(file in PENDING))
+      .filter(([file]) => !(file in ALLOWED))
       .map(([file, lines]) => `${file}:${lines.join(',')}`);
     expect(
       offenders,
@@ -87,9 +77,7 @@ describe('prd-5 · regra 8 — só a página rola', () => {
   });
 
   it('as listas não guardam arquivos que já não rolam por dentro', () => {
-    const stale = [...Object.keys(ALLOWED), ...Object.keys(PENDING)].filter(
-      (file) => !found.has(file),
-    );
+    const stale = Object.keys(ALLOWED).filter((file) => !found.has(file));
     expect(stale, 'Tire a entrada: o arquivo não tem mais rolagem interna.').toEqual([]);
   });
 

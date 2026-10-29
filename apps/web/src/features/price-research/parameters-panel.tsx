@@ -1,6 +1,14 @@
 'use client';
 
-import { Button, toast } from '@contrataflow/ui';
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  toast,
+} from '@contrataflow/ui';
 import {
   PRICE_DEFAULT_METHODS,
   PRICE_RESEARCH_MESSAGES,
@@ -165,20 +173,23 @@ function ParametersEditor({
       <p className="text-xs text-muted-foreground">{t('edit.hint')}</p>
       <FormField id="pr-param-method" label={t('defaultMethod')}>
         {(control) => (
-          <select
-            {...control}
-            className={INPUT_CLASS}
+          <Select
             value={draft.defaultMethod}
-            onChange={(event) => {
-              update({ defaultMethod: event.target.value as PriceDefaultMethod });
+            onValueChange={(value) => {
+              update({ defaultMethod: value as PriceDefaultMethod });
             }}
           >
-            {PRICE_DEFAULT_METHODS.map((method) => (
-              <option key={method} value={method}>
-                {t(`methods.${method}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRICE_DEFAULT_METHODS.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {t(`methods.${method}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       <FormField id="pr-param-cv" label={t('cvThreshold')} error={issues.cvThresholdPercent}>
@@ -211,35 +222,41 @@ function ParametersEditor({
       </FormField>
       <FormField id="pr-param-decimals" label={t('unitPriceDecimals')}>
         {(control) => (
-          <select
-            {...control}
-            className={INPUT_CLASS}
+          <Select
             value={String(draft.unitPriceDecimals)}
-            onChange={(event) => {
-              update({ unitPriceDecimals: event.target.value === '4' ? 4 : 2 });
+            onValueChange={(value) => {
+              update({ unitPriceDecimals: value === '4' ? 4 : 2 });
             }}
           >
-            <option value="2">2</option>
-            <option value="4">4</option>
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2">2</SelectItem>
+              <SelectItem value="4">4</SelectItem>
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       <FormField id="pr-param-rounding" label={t('roundingMode')}>
         {(control) => (
-          <select
-            {...control}
-            className={INPUT_CLASS}
+          <Select
             value={draft.roundingMode}
-            onChange={(event) => {
-              update({ roundingMode: event.target.value as PriceRoundingMode });
+            onValueChange={(value) => {
+              update({ roundingMode: value as PriceRoundingMode });
             }}
           >
-            {PRICE_ROUNDING_MODES.map((mode) => (
-              <option key={mode} value={mode}>
-                {t(`roundingModes.${mode}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRICE_ROUNDING_MODES.map((mode) => (
+                <SelectItem key={mode} value={mode}>
+                  {t(`roundingModes.${mode}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       <div className="flex flex-wrap gap-2">

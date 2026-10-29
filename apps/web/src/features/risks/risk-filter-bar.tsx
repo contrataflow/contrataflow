@@ -1,6 +1,15 @@
 'use client';
 
 import {
+  Button,
+  Field,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@contrataflow/ui';
+import {
   RISK_PHASES,
   RISK_PHASE_LABELS,
   RISK_STATUSES,
@@ -8,11 +17,11 @@ import {
 } from '@contrataflow/validation';
 import type { RiskPhase, RiskStatus } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
 
 import { useRiskCategories } from './risks.api';
 import type { RiskFilters } from './risks.api';
-import { INPUT_CLASS } from '../processes/form-field';
+
+const ALL = '__all__';
 
 export interface RiskFilterBarProps {
   readonly filters: RiskFilters;
@@ -26,86 +35,81 @@ export interface RiskFilterBarProps {
 export function RiskFilterBar({ filters, onChange }: RiskFilterBarProps) {
   const t = useTranslations('risks.matrix.filters');
   const categories = useRiskCategories();
-  const id = useId();
   const active =
     filters.phase !== undefined || filters.categoryId !== undefined || filters.status !== undefined;
   return (
     <fieldset className="flex min-w-0 flex-wrap items-end gap-3">
       <legend className="sr-only">{t('legend')}</legend>
-      <label className="flex min-w-40 flex-1 flex-col gap-1 text-sm" htmlFor={`${id}-phase`}>
-        {t('phase')}
-        <select
-          id={`${id}-phase`}
-          className={INPUT_CLASS}
-          value={filters.phase ?? ''}
-          onChange={(event) => {
-            onChange({
-              ...filters,
-              phase: event.target.value === '' ? undefined : (event.target.value as RiskPhase),
-            });
+      <Field label={t('phase')} className="min-w-40 flex-1">
+        <Select
+          value={filters.phase ?? ALL}
+          onValueChange={(value) => {
+            onChange({ ...filters, phase: value === ALL ? undefined : (value as RiskPhase) });
           }}
         >
-          <option value="">{t('all')}</option>
-          {RISK_PHASES.map((phase) => (
-            <option key={phase} value={phase}>
-              {RISK_PHASE_LABELS[phase]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex min-w-40 flex-1 flex-col gap-1 text-sm" htmlFor={`${id}-category`}>
-        {t('category')}
-        <select
-          id={`${id}-category`}
-          className={INPUT_CLASS}
-          value={filters.categoryId ?? ''}
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('all')}</SelectItem>
+            {RISK_PHASES.map((phase) => (
+              <SelectItem key={phase} value={phase}>
+                {RISK_PHASE_LABELS[phase]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label={t('category')} className="min-w-40 flex-1">
+        <Select
+          value={filters.categoryId ?? ALL}
           disabled={categories.data === undefined}
-          onChange={(event) => {
-            onChange({
-              ...filters,
-              categoryId: event.target.value === '' ? undefined : event.target.value,
-            });
+          onValueChange={(value) => {
+            onChange({ ...filters, categoryId: value === ALL ? undefined : value });
           }}
         >
-          <option value="">{t('all')}</option>
-          {(categories.data ?? []).map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex min-w-40 flex-1 flex-col gap-1 text-sm" htmlFor={`${id}-status`}>
-        {t('status')}
-        <select
-          id={`${id}-status`}
-          className={INPUT_CLASS}
-          value={filters.status ?? ''}
-          onChange={(event) => {
-            onChange({
-              ...filters,
-              status: event.target.value === '' ? undefined : (event.target.value as RiskStatus),
-            });
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('all')}</SelectItem>
+            {(categories.data ?? []).map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label={t('status')} className="min-w-40 flex-1">
+        <Select
+          value={filters.status ?? ALL}
+          onValueChange={(value) => {
+            onChange({ ...filters, status: value === ALL ? undefined : (value as RiskStatus) });
           }}
         >
-          <option value="">{t('all')}</option>
-          {RISK_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {RISK_STATUS_LABELS[status]}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('all')}</SelectItem>
+            {RISK_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {RISK_STATUS_LABELS[status]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
       {active ? (
-        <button
-          type="button"
-          className="h-10 text-sm text-primary underline"
+        <Button
+          variant="ghost"
           onClick={() => {
             onChange({});
           }}
         >
           {t('clear')}
-        </button>
+        </Button>
       ) : null}
     </fieldset>
   );

@@ -4,14 +4,19 @@ import { localDateOf } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  Checkbox,
+  DatePicker,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   Skeleton,
   buttonClassName,
   cx,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import { PRICE_RESEARCH_MESSAGES, priceResearchDocumentTitle } from '@contrataflow/validation';
@@ -19,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { ReactNode, SyntheticEvent } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
@@ -315,14 +320,12 @@ function DialogBody({
             error={header.referenceDate}
           >
             {(control) => (
-              <input
+              <DatePicker
                 {...control}
-                type="date"
-                className={INPUT_CLASS}
-                value={referenceDate}
-                max={today}
-                onChange={(event) => {
-                  setDateDraft(event.target.value);
+                value={fromIsoDate(referenceDate)}
+                disabledDays={{ after: fromIsoDate(today) ?? new Date() }}
+                onValueChange={(date) => {
+                  setDateDraft(date ? toIsoDate(date) : '');
                   setServerErrors((current) => withoutHeaderError(current, 'referenceDate'));
                 }}
               />
@@ -438,24 +441,23 @@ function ItemsTable({
 }) {
   const t = useTranslations('priceResearch.create');
   const all = selectedCount === rows.length;
+  const selectAllId = useId();
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="size-4"
-            checked={all}
-            ref={(element) => {
-              if (element) element.indeterminate = selectedCount > 0 && !all;
-            }}
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Checkbox
+            id={selectAllId}
+            checked={all ? true : selectedCount > 0 ? 'indeterminate' : false}
             disabled={disabled}
-            onChange={(event) => {
-              onChangeAll(event.target.checked);
+            onCheckedChange={(checked) => {
+              onChangeAll(checked === true);
             }}
           />
-          {t('selectAll')}
-        </label>
+          <Label htmlFor={selectAllId} className="font-medium">
+            {t('selectAll')}
+          </Label>
+        </div>
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {t('selectedCount', { selected: selectedCount, total: rows.length })}
         </p>
@@ -505,14 +507,12 @@ function ItemsTable({
                 )}
               >
                 <td className="row-span-6 md:table-cell md:px-3 md:py-2">
-                  <input
-                    type="checkbox"
-                    className="size-4"
+                  <Checkbox
                     checked={row.selected}
                     disabled={disabled}
                     aria-label={t('selectItem', { number: row.sequence })}
-                    onChange={(event) => {
-                      onChange(row, { selected: event.target.checked });
+                    onCheckedChange={(checked) => {
+                      onChange(row, { selected: checked === true });
                     }}
                   />
                 </td>

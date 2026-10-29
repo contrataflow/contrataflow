@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   ID,
   PROCESS_ID,
@@ -178,7 +179,7 @@ describe('SCR-011 · aba "Matriz" (US-035)', () => {
     const { api, user, grid } = await renderPanel({
       risks: [R01, { ...R02, status: 'IN_TREATMENT' }],
     });
-    await user.selectOptions(screen.getByLabelText('Situação'), 'IN_TREATMENT');
+    await chooseOption(user, 'Situação', 'Em tratamento');
     await waitFor(() => {
       expect(callsTo(api, 'GET', `${MATRIX_URL}?status=IN_TREATMENT`)).toHaveLength(1);
     });

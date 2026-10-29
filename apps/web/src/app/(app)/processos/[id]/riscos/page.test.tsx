@@ -49,9 +49,9 @@ describe('/processos/[id]/riscos (SCR-011 · US-033 · US-035)', () => {
       await screen.findByText('Nenhum risco registrado. Comece identificando o primeiro risco.'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Novo risco' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Voltar ao processo' }).getAttribute('href')).toBe(
-      `/processos/${PROCESS_ID}`,
-    );
+    expect(
+      (await screen.findByRole('link', { name: 'Processo 0012/2026' })).getAttribute('href'),
+    ).toBe(`/processos/${PROCESS_ID}`);
     expect(
       await screen.findByText('Processo 0012/2026 — Aquisição de cimento para manutenção de vias'),
     ).toBeTruthy();

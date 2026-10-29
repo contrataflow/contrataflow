@@ -21,7 +21,7 @@ async function openVersions(page: Page): Promise<void> {
 
 test('salva uma versão, lista e compara com a anterior', async ({ page }) => {
   await openVersions(page);
-  const list = page.getByRole('list', { name: 'Versões do documento' });
+  const list = page.getByRole('table', { name: 'Versões do documento' });
   await expect(list.getByText('Versão 1', { exact: true })).toBeVisible();
   await expect(list.getByText('Primeira redação do objeto')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'lista com uma versão');
@@ -38,8 +38,8 @@ test('salva uma versão, lista e compara com a anterior', async ({ page }) => {
 
   await expect(page.getByText('Versão 2 salva').first()).toBeAttached();
   await expect(dialog).toBeHidden();
-  await expect(list.getByRole('listitem')).toHaveCount(2);
-  await expect(list.getByRole('listitem').first()).toContainText('Ajuste na justificativa');
+  await expect(list.locator('tbody tr')).toHaveCount(2);
+  await expect(list.locator('tbody tr').first()).toContainText('Ajuste na justificativa');
 
   await list.getByRole('button', { name: 'Comparar com a anterior (versão 2)' }).click();
   const diff = page.getByRole('region', { name: 'Comparação' });
@@ -57,7 +57,7 @@ test('no celular (360 px) a comparação empilha e continua acessível', async (
   await page.setViewportSize({ width: 360, height: 780 });
   await openVersions(page);
   await page
-    .getByRole('list', { name: 'Versões do documento' })
+    .getByRole('table', { name: 'Versões do documento' })
     .getByRole('button', { name: 'Comparar com a anterior (versão 2)' })
     .click();
   await expect(page.getByRole('region', { name: 'Comparação' }).getByText('OBJETO')).toBeVisible();

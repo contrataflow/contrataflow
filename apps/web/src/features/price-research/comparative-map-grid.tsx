@@ -1,6 +1,6 @@
 'use client';
 
-import { cx } from '@contrataflow/ui';
+import { TableContainer, cx } from '@contrataflow/ui';
 import type {
   ComparativeMapCell,
   ComparativeMapDto,
@@ -185,14 +185,14 @@ export function ComparativeMapGrid({
 
   const stickyItem = 'sticky left-0 z-10 bg-surface';
   const headClass =
-    'sticky top-0 z-20 border-b border-border bg-muted px-3 py-2 text-left align-bottom text-xs font-semibold';
+    'border-b border-border bg-muted px-3 py-2 text-left align-bottom text-xs font-semibold';
   const cellClass =
     'border-b border-border px-3 py-2 align-top text-sm focus:outline-2 focus:outline-primary';
 
   return (
-    // `relative`: os `sr-only` (absolutos) das células ficam presos à área de rolagem — sem ele,
-    // escapam do recorte e alargam a página em 360 px.
-    <div className="relative max-h-[70vh] min-w-0 overflow-auto rounded-control border border-border">
+    // Só a página rola na vertical (prd-5 · regra 8): o `TableContainer` rola apenas na horizontal
+    // (mapa mais largo que a tela), por isso o cabeçalho não é fixo no topo, só a coluna do item.
+    <TableContainer label={t('caption')} className="min-w-0">
       <table
         // Padrão de grade do WAI-ARIA sobre a tabela de dados: navegação por setas entre células.
         // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role -- grade somente leitura navegável (SCR-010)
@@ -206,7 +206,11 @@ export function ComparativeMapGrid({
         <caption className="sr-only">{t('caption')}</caption>
         <thead>
           <tr aria-rowindex={1}>
-            <th scope="col" className={cx(headClass, 'left-0 z-30 min-w-56')} {...cellProps(0, 0)}>
+            <th
+              scope="col"
+              className={cx(headClass, 'sticky left-0 z-10 min-w-56')}
+              {...cellProps(0, 0)}
+            >
               {t('columns.item')}
             </th>
             {noSources ? (
@@ -309,6 +313,6 @@ export function ComparativeMapGrid({
           })}
         </tbody>
       </table>
-    </div>
+    </TableContainer>
   );
 }

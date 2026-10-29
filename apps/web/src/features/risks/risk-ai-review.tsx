@@ -3,18 +3,20 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   toast,
 } from '@contrataflow/ui';
 import { hasToConfirmMarker, isAiReviewPending } from '@contrataflow/validation';
 import type { RiskDto } from '@contrataflow/validation';
 import { useMutation } from '@tanstack/react-query';
 import { useFormatter, useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useShellSession } from '@/lib/session/session-context';
@@ -152,6 +154,7 @@ export function ReviewAllRisksDialog({
 }) {
   const t = useTranslations('risks.aiReview');
   const [confirmed, setConfirmed] = useState(false);
+  const confirmId = useId();
   const review = useRiskReview(processId, async (reviewed) => {
     await onChanged();
     if (reviewed > 0) {
@@ -178,17 +181,19 @@ export function ReviewAllRisksDialog({
             </li>
           ))}
         </ul>
-        <label className="flex items-start gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="mt-1 size-4"
+        <div className="flex items-start gap-2 text-sm font-medium">
+          <Checkbox
+            id={confirmId}
+            className="mt-0.5"
             checked={confirmed}
-            onChange={(event) => {
-              setConfirmed(event.target.checked);
+            onCheckedChange={(checked) => {
+              setConfirmed(checked === true);
             }}
           />
-          {t('reviewAll.confirmLabel', { count })}
-        </label>
+          <Label htmlFor={confirmId} className="font-medium">
+            {t('reviewAll.confirmLabel', { count })}
+          </Label>
+        </div>
         {review.error === null ? null : (
           <Alert tone="error" title={review.error}>
             {null}

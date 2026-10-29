@@ -1,6 +1,15 @@
 'use client';
 
-import { Button, cx, toast } from '@contrataflow/ui';
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  cx,
+  toast,
+} from '@contrataflow/ui';
 import { PRICE_CALCULATION_METHODS, PRICE_RESEARCH_MESSAGES } from '@contrataflow/validation';
 import type { PriceCalculationMethod, PriceItemDto } from '@contrataflow/validation';
 import { useMutation } from '@tanstack/react-query';
@@ -44,7 +53,8 @@ function moneyFormat(decimals: number): Intl.NumberFormat {
   });
 }
 
-const SELECT_CLASS = INPUT_CLASS;
+/** Valor da opção "seguir o padrão" (o `Select` do kit não aceita valor vazio). */
+const FOLLOW_DEFAULT = '__default__';
 
 export interface PriceItemCalculationProps {
   readonly item: PriceItemDto;
@@ -245,21 +255,26 @@ function MethodForm({
     >
       <FormField id={`pr-method-${item.id}`} label={t('method')} hint={t('methodHint')}>
         {(control) => (
-          <select
-            {...control}
-            className={SELECT_CLASS}
-            value={draft.methodOverride}
-            onChange={(event) => {
-              update({ methodOverride: event.target.value as PriceCalculationMethod | '' });
+          <Select
+            value={draft.methodOverride === '' ? FOLLOW_DEFAULT : draft.methodOverride}
+            onValueChange={(value) => {
+              update({
+                methodOverride: value === FOLLOW_DEFAULT ? '' : (value as PriceCalculationMethod),
+              });
             }}
           >
-            <option value="">{t('followDefault')}</option>
-            {PRICE_CALCULATION_METHODS.map((method) => (
-              <option key={method} value={method}>
-                {t(`methods.${method}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FOLLOW_DEFAULT}>{t('followDefault')}</SelectItem>
+              {PRICE_CALCULATION_METHODS.map((method) => (
+                <SelectItem key={method} value={method}>
+                  {t(`methods.${method}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       {draft.methodOverride === 'MANUAL' ? (

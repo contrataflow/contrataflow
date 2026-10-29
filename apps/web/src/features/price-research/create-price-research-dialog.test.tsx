@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { localDateOf } from '@contrataflow/types';
-import { Toaster, clearToasts } from '@contrataflow/ui';
-import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { Toaster, clearToasts, formatDisplayDate, fromIsoDate } from '@contrataflow/ui';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -120,14 +120,16 @@ describe('CreatePriceResearchDialog (US-024 · fluxo principal 2–7)', () => {
       const checkbox = within(table).getByRole('checkbox', {
         name: `Incluir o item ${String(n)} na pesquisa`,
       });
-      expect((checkbox as HTMLInputElement).checked).toBe(true);
+      expect(checkbox.getAttribute('aria-checked')).toBe('true');
     }
     expect((await quantityField(1)).value).toBe('10');
     expect((await quantityField(3)).value).toBe('3');
     expect(screen.getByLabelText<HTMLInputElement>(/Título/).value).toBe(
       'Pesquisa de preços — 0012/2026',
     );
-    expect(screen.getByLabelText<HTMLInputElement>(/Data-base/).value).toBe(TODAY);
+    expect(screen.getByRole('button', { name: /Data-base/ }).textContent).toContain(
+      formatDisplayDate(fromIsoDate(TODAY) ?? new Date()),
+    );
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
@@ -159,12 +161,21 @@ describe('CreatePriceResearchDialog (US-024 · fluxo principal 2–7)', () => {
     ).toBeTruthy();
   });
 
-  it('V-05: data-base futura bloqueia o envio com a mensagem', async () => {
+  it('V-05: dias depois de hoje ficam desabilitados no calendário da data-base', async () => {
+    const user = userEvent.setup();
     setup();
-    const date = await screen.findByLabelText(/Data-base/);
-    fireEvent.change(date, { target: { value: TOMORROW } });
-    expect(await screen.findByText('A data-base não pode ser posterior a hoje.')).toBeTruthy();
-    expect((submitButton() as HTMLButtonElement).disabled).toBe(true);
+    await user.click(await screen.findByRole('button', { name: /Data-base/ }));
+    const calendar = await screen.findByRole('dialog', { name: /^Escolher/ });
+    const cells = within(calendar)
+      .getAllByRole('gridcell')
+      .filter((cell) => !cell.hasAttribute('data-outside'));
+    const today = Number(TODAY.slice(8));
+    const todayCell = cells.find((cell) => cell.textContent === String(today));
+    expect(todayCell?.querySelector('button')?.disabled).toBe(false);
+    if (TOMORROW.slice(0, 7) === TODAY.slice(0, 7)) {
+      const tomorrowCell = cells.find((cell) => cell.textContent === String(today + 1));
+      expect(tomorrowCell?.querySelector('button')?.disabled).toBe(true);
+    }
   });
 
   it('V-06: título curto bloqueia o envio; sem nenhum item marcado também', async () => {

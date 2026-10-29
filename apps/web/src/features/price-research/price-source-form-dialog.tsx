@@ -8,6 +8,11 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@contrataflow/ui';
 import { PRICE_SOURCE_FIELD_LABELS, PRICE_SOURCE_MESSAGES } from '@contrataflow/validation';
 import type {
@@ -178,21 +183,23 @@ export function PriceSourceFormDialog({
             }
           >
             {(control) => (
-              <select
-                {...control}
-                className={INPUT_CLASS}
+              <Select
                 value={values.sourceTypeId}
-                onChange={(event) => {
-                  set('sourceTypeId', event.target.value);
+                onValueChange={(value) => {
+                  set('sourceTypeId', value);
                 }}
               >
-                <option value="">{t('sourceTypePlaceholder')}</option>
-                {types.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger {...control}>
+                  <SelectValue placeholder={t('sourceTypePlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {types.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </FormField>
           <FormField

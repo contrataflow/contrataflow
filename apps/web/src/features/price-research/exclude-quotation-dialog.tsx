@@ -8,6 +8,11 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   toast,
 } from '@contrataflow/ui';
 import { EXCLUSION_REASONS, PRICE_SOURCE_LIMITS } from '@contrataflow/validation';
@@ -25,7 +30,7 @@ import {
 } from './price-source-model';
 import type { ExclusionFormErrors, ExclusionFormValues, GridRow } from './price-source-model';
 import { excludeQuotation } from './price-sources.api';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
+import { FormField, TEXTAREA_CLASS } from '../processes/form-field';
 
 /*
  * `ExcludeQuotationDialog` (US-027 · SCR-009 · fluxo principal 1–4): motivo (`ExclusionReason`) e
@@ -154,25 +159,25 @@ function ExcludeQuotationForm({
       ) : null}
       <FormField id={`${fieldId}-reason`} label={t('reason')} required error={errors.reason}>
         {(control) => (
-          <select
-            {...control}
-            className={INPUT_CLASS}
+          <Select
             value={values.reason}
-            onChange={(event) => {
-              const reason = EXCLUSION_REASONS.find(
-                (candidate) => candidate === event.target.value,
-              );
+            onValueChange={(value) => {
+              const reason = EXCLUSION_REASONS.find((candidate) => candidate === value);
               setValues((current) => ({ ...current, reason: reason ?? '' }));
               setErrors((current) => ({ ...current, reason: '' }));
             }}
           >
-            <option value="">{t('reasonPlaceholder')}</option>
-            {EXCLUSION_REASONS.map((reason) => (
-              <option key={reason} value={reason}>
-                {t(`reasons.${reason}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger {...control}>
+              <SelectValue placeholder={t('reasonPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              {EXCLUSION_REASONS.map((reason) => (
+                <SelectItem key={reason} value={reason}>
+                  {t(`reasons.${reason}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
       </FormField>
       <FormField

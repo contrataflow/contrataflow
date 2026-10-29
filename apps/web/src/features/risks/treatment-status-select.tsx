@@ -1,12 +1,11 @@
 'use client';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@contrataflow/ui';
 import { TREATMENT_STATUS_LABELS, isTerminalTreatmentStatus } from '@contrataflow/validation';
 import type { TreatmentStatus } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
 
 import { statusOptionsOf } from './treatments-model';
-import { INPUT_CLASS } from '../processes/form-field';
 
 export interface TreatmentStatusSelectProps {
   readonly status: TreatmentStatus;
@@ -34,7 +33,6 @@ export function TreatmentStatusSelect({
   describedBy,
 }: TreatmentStatusSelectProps) {
   const t = useTranslations('risks.treatments.status');
-  const id = useId();
   const terminal = isTerminalTreatmentStatus(status);
   if (readOnly || terminal) {
     return (
@@ -47,27 +45,28 @@ export function TreatmentStatusSelect({
     );
   }
   return (
-    <span className="flex flex-col gap-1">
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
-      <select
-        id={id}
-        className={`${INPUT_CLASS} py-1 text-sm`}
-        value={status}
-        disabled={disabled}
+    <Select
+      value={status}
+      disabled={disabled ?? false}
+      onValueChange={(value) => {
+        const next = value as TreatmentStatus;
+        if (next !== status) onChange(next);
+      }}
+    >
+      <SelectTrigger
+        aria-label={label}
         aria-describedby={describedBy}
-        onChange={(event) => {
-          const next = event.target.value as TreatmentStatus;
-          if (next !== status) onChange(next);
-        }}
+        className="min-h-9 py-1 text-sm"
       >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
         {statusOptionsOf(status).map((option) => (
-          <option key={option} value={option}>
+          <SelectItem key={option} value={option}>
             {TREATMENT_STATUS_LABELS[option]}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-    </span>
+      </SelectContent>
+    </Select>
   );
 }

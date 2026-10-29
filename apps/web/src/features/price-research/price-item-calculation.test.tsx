@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   RESEARCH_ID,
   priceItem,
@@ -164,7 +165,7 @@ describe('Cálculo por item da SCR-009 (US-029)', () => {
       ],
     });
     const region = await openCalculation(user);
-    await user.selectOptions(within(region).getByLabelText('Método do item'), 'MANUAL');
+    await chooseOption(user, 'Método do item', 'Valor manual', region);
     await user.type(within(region).getByRole('textbox', { name: 'Valor manual (R$)' }), '95,50');
     await user.click(within(region).getByRole('button', { name: 'Salvar método' }));
     expect(
@@ -240,7 +241,7 @@ describe('Cálculo por item da SCR-009 (US-029)', () => {
       ],
     });
     await user.click(await screen.findByRole('button', { name: 'Editar parâmetros' }));
-    await user.selectOptions(screen.getByLabelText('Método padrão'), 'MEDIAN');
+    await chooseOption(user, 'Método padrão', 'Mediana');
     await user.click(screen.getByRole('button', { name: 'Salvar e recalcular' }));
     await waitFor(() => {
       expect(callsTo(fetchMock, 'PATCH', `/api/v1/price-research/${RESEARCH_ID}`)).toHaveLength(1);

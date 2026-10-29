@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
-import { chooseOption, pickDate } from '@test/support/kit';
+import { chooseOption, optionLabels, pickDate } from '@test/support/kit';
 import {
   ID,
   PROCESS_ID,
@@ -232,13 +232,12 @@ describe('SCR-011 · ações de tratamento (US-034)', () => {
           ? jsonResponse({ data: { ...planned, status: 'IN_PROGRESS', version: 5 } })
           : undefined,
     });
-    const select = within(panel).getByRole('combobox', { name: 'Status da ação 1 do risco R01' });
-    expect(
-      within(select)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Planejada', 'Em andamento', 'Cancelada']);
-    await user.selectOptions(select, 'IN_PROGRESS');
+    expect(await optionLabels(user, 'Status da ação 1 do risco R01', panel)).toEqual([
+      'Planejada',
+      'Em andamento',
+      'Cancelada',
+    ]);
+    await chooseOption(user, 'Status da ação 1 do risco R01', 'Em andamento', panel);
     await waitFor(() => {
       expect(callsTo(api, 'PATCH', ITEM(planned.id))).toHaveLength(1);
     });
@@ -260,10 +259,7 @@ describe('SCR-011 · ações de tratamento (US-034)', () => {
     });
     const list = `/api/v1/processes/${PROCESS_ID}/risks`;
     const before = callsTo(api, 'GET', list).length;
-    await user.selectOptions(
-      within(panel).getByRole('combobox', { name: 'Status da ação 1 do risco R01' }),
-      'DONE',
-    );
+    await chooseOption(user, 'Status da ação 1 do risco R01', 'Concluída', panel);
     expect(
       await screen.findByText('Não é possível mudar o status de Em andamento para Concluída.'),
     ).toBeTruthy();

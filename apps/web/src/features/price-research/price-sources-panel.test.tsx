@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import {
   DIRETA,
   RESEARCH_ID,
@@ -275,10 +276,7 @@ describe('Aba "Fontes" da SCR-009 (US-026)', () => {
     });
     await user.click(await screen.findByRole('button', { name: 'Nova fonte' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nova fonte de pesquisa' });
-    await user.selectOptions(
-      within(dialog).getByRole('combobox', { name: /Tipo de fonte/ }),
-      DIRETA.id,
-    );
+    await chooseOption(user, /Tipo de fonte/, DIRETA.label, dialog);
     expect(
       within(dialog).getByText(
         'Campos exigidos para "Pesquisa direta com fornecedor": fornecedor, data do orçamento/documento, anexo, justificativa da escolha do fornecedor.',
@@ -341,10 +339,7 @@ describe('Aba "Fontes" da SCR-009 (US-026)', () => {
     });
     await user.click(await screen.findByRole('button', { name: 'Nova fonte' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(
-      within(dialog).getByRole('combobox', { name: /Tipo de fonte/ }),
-      SITIO.id,
-    );
+    await chooseOption(user, /Tipo de fonte/, SITIO.label, dialog);
     await user.type(within(dialog).getByRole('textbox', { name: /Descrição/ }), 'Painel de Preços');
     await user.type(
       within(dialog).getByRole('textbox', { name: /URL/ }),
@@ -458,10 +453,7 @@ describe('Desconsiderar e restaurar cotação (US-027)', () => {
       within(dialog).getByText('A justificativa deve ter no mínimo 20 caracteres.'),
     ).toBeTruthy();
     expect(callsTo(fetchMock, 'POST', quotationUrl(1, 'exclude'))).toHaveLength(0);
-    await user.selectOptions(
-      within(dialog).getByRole('combobox', { name: /Motivo/ }),
-      'INCONSISTENT',
-    );
+    await chooseOption(user, /Motivo/, 'Inconsistente', dialog);
     await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), 'Preço alto');
     await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
     expect(
@@ -596,7 +588,7 @@ describe('Desconsiderar e restaurar cotação (US-027)', () => {
     await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
     await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: /Motivo/ }), 'EXCESSIVE');
+    await chooseOption(user, /Motivo/, 'Excessivo', dialog);
     await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), JUSTIFICATION);
     await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
     expect(
@@ -637,7 +629,7 @@ describe('Desconsiderar e restaurar cotação (US-027)', () => {
     await user.click(await screen.findByRole('button', { name: 'Lançar preços' }));
     await user.click(await screen.findByRole('button', { name: 'Desconsiderar preço do item 1' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: /Motivo/ }), 'OTHER');
+    await chooseOption(user, /Motivo/, 'Outro motivo', dialog);
     await user.type(within(dialog).getByRole('textbox', { name: /Justificativa/ }), JUSTIFICATION);
     await user.click(within(dialog).getByRole('button', { name: 'Desconsiderar' }));
     expect(

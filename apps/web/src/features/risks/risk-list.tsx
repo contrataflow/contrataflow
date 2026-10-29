@@ -106,7 +106,7 @@ function RiskRow({
         <td className="block text-sm md:table-cell md:px-3 md:py-2">
           <span className="md:hidden">{t('columns.owner')}: </span>
           {owner.missing ? (
-            <span className="rounded-control bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
+            <span className="inline-block rounded-control bg-warning-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-warning">
               {owner.text}
             </span>
           ) : (

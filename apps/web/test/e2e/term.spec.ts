@@ -46,8 +46,9 @@ test('criar o TR a partir do painel, redigir seções, "não se aplica" em DELIV
 
   await page.getByRole('button', { name: 'Criar Termo de Referência' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Criar Termo de Referência' });
-  await expect(dialog.getByRole('combobox', { name: 'Modelo' })).toHaveValue(/.+/);
-  await expect(dialog.getByRole('option', { name: 'TR — Modelo padrão (padrão)' })).toBeAttached();
+  await expect(dialog.getByRole('combobox', { name: 'Modelo' })).toContainText(
+    'TR — Modelo padrão',
+  );
   await expect(dialog.getByRole('textbox', { name: /Título/ })).toHaveValue(
     `Termo de Referência — ${PROCESS_TITLE}`,
   );

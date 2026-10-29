@@ -10,6 +10,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 import { refetchOf } from './support/refetch';
 
 /** Processo 0024/2026 da API simulada: itens 1 (100 SC), 2 (12 M3) e 3 sem quantidade de referência. */
@@ -89,7 +90,7 @@ test('criar a pesquisa a partir do painel: desmarcar item, informar a quantidade
   await expect(items.getByRole('row', { name: /Brita 1/ })).toContainText('6');
   await expect(items.getByText('Areia média')).toHaveCount(0);
   await expect(items.getByText('Sem cotações válidas').first()).toBeVisible();
-  await expect(page.locator('dl[aria-label="Resumo da pesquisa"]')).toContainText('Itens');
+  await expect(page.getByRole('main').locator('dl').first()).toContainText('Itens');
 
   const parameters = page.getByRole('complementary', { name: 'Parâmetros' });
   await expect(parameters).toContainText(
@@ -105,7 +106,7 @@ test('criar a pesquisa a partir do painel: desmarcar item, informar a quantidade
   await expectNoSeriousA11yViolations(page, 'SCR-009 Pesquisa de preços');
 
   // De volta ao painel, a criação vira o link "Abrir pesquisa" (FA-01) em vez do botão.
-  await page.getByRole('link', { name: 'Voltar ao processo' }).click();
+  await page.getByRole('link', { name: 'Processo 0024/2026' }).click();
   await expect(page).toHaveURL(new RegExp(`${CREATE_PROCESS_PATH}$`));
   await expect(page.getByRole('link', { name: 'Abrir pesquisa PP 0003/2026' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Criar pesquisa de preços' })).toHaveCount(0);
@@ -166,9 +167,12 @@ test.describe('fontes da PP 0004/2026', () => {
 
     await page.getByRole('button', { name: 'Nova fonte' }).click();
     const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
-    await form
-      .getByLabel(/Tipo de fonte/)
-      .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+    await chooseOption(
+      page,
+      /Tipo de fonte/,
+      'Sítio eletrônico especializado (art. 23, § 1º, III)',
+      form,
+    );
     await expect(
       form.getByText(/Campos exigidos para .*: URL, data\/hora de acesso\./),
     ).toBeVisible();
@@ -232,9 +236,12 @@ test.describe('fontes da PP 0004/2026', () => {
     await page.getByRole('tab', { name: 'Fontes' }).click();
     await page.getByRole('button', { name: 'Nova fonte' }).click();
     const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
-    await form
-      .getByLabel(/Tipo de fonte/)
-      .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+    await chooseOption(
+      page,
+      /Tipo de fonte/,
+      'Sítio eletrônico especializado (art. 23, § 1º, III)',
+      form,
+    );
     await form.getByLabel(/Descrição/).fill('Painel de Preços');
     await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
     await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');
@@ -251,7 +258,7 @@ test.describe('fontes da PP 0004/2026', () => {
     await expectNoSeriousA11yViolations(page, 'diálogo Desconsiderar cotação');
     await dialog.getByRole('button', { name: 'Desconsiderar' }).click();
     await expect(dialog.getByText('Selecione o motivo.')).toBeVisible();
-    await dialog.getByLabel(/Motivo/).selectOption({ label: 'Excessivo' });
+    await chooseOption(page, /Motivo/, 'Excessivo', dialog);
     await dialog
       .getByLabel(/Justificativa/)
       .fill('Preço muito acima das demais cotações do mesmo item');
@@ -287,9 +294,12 @@ test.describe('fontes da PP 0004/2026', () => {
     ] as const) {
       await page.getByRole('button', { name: 'Nova fonte' }).click();
       const form = page.getByRole('dialog', { name: 'Nova fonte de pesquisa' });
-      await form
-        .getByLabel(/Tipo de fonte/)
-        .selectOption({ label: 'Sítio eletrônico especializado (art. 23, § 1º, III)' });
+      await chooseOption(
+        page,
+        /Tipo de fonte/,
+        'Sítio eletrônico especializado (art. 23, § 1º, III)',
+        form,
+      );
       await form.getByLabel(/Descrição/).fill(description);
       await form.getByLabel(/URL/).fill('https://paineldeprecos.planejamento.gov.br');
       await form.getByLabel(/Data\/hora de acesso/).fill('2026-09-12T14:32');

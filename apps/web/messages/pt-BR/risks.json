@@ -2,6 +2,7 @@
   "title": "Riscos",
   "link": "Riscos",
   "backToProcess": "Voltar ao processo",
+  "processCrumb": "Processo {code}",
   "processLine": "Processo {code} — {title}",
   "draftCode": "(sem número)",
   "listSection": "Lista de riscos",
