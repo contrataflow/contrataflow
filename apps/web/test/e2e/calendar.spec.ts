@@ -3,9 +3,10 @@
 // úteis (CAL-05/CAL-06), a unicidade, a concorrência e o isolamento por tenant são cobertos nos
 // testes da API (módulo `catalog` e suíte tenant leak).
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 // Os feriados da API simulada são globais: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -17,9 +18,30 @@ async function openScreen(page: Page): Promise<void> {
     page.getByRole('heading', { level: 1, name: 'Calendário de dias úteis' }),
   ).toBeVisible();
   // A API simulada guarda os feriados de 2026.
-  // Logo após o login o HTML do SSR ainda pode estar no DOM, oculto (<div hidden id="S:0">).
-  await page.getByLabel('Ano').filter({ visible: true }).selectOption('2026');
+  await chooseOption(page, 'Ano', '2026');
   await expect(page.getByRole('table', { name: 'Feriados de 2026' })).toBeVisible();
+}
+
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(page: Page, name: string, action: string): Promise<void> {
+  await page.getByRole('button', { name: `Ações de ${name}` }).click();
+  await page.getByRole('menuitem', { name: action, exact: true }).click();
+}
+
+/** Escolhe `aaaa-MM-dd` no `DatePicker` "Data *" do kit, que abre no mês corrente. */
+async function pickDate(page: Page, dialog: Locator, iso: string): Promise<void> {
+  const [year, month, day] = iso.split('-').map(Number) as [number, number, number];
+  const today = new Date();
+  const back = (today.getFullYear() - year) * 12 + today.getMonth() + 1 - month;
+  await dialog.getByRole('button', { name: 'Data *' }).click();
+  const calendar = page.getByRole('dialog', { name: 'Escolher data' });
+  for (let step = 0; step < back; step += 1) {
+    await calendar.getByRole('button', { name: 'Ir para o mês anterior' }).click();
+  }
+  await calendar
+    .locator('td[role="gridcell"]:not([data-outside]) button')
+    .getByText(String(day), { exact: true })
+    .click();
 }
 
 test('lista os feriados de 2026 com os selos "Padrão do sistema" e "Recorrente", sem violações de acessibilidade', async ({
@@ -35,9 +57,14 @@ test('lista os feriados de 2026 com os selos "Padrão do sistema" e "Recorrente"
     'page',
   );
   // FA-01: feriado de sistema não oferece "Excluir".
-  await expect(page.getByRole('button', { name: 'Excluir Natal' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Excluir Aniversário da cidade' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'calendário');
+  await page.getByRole('button', { name: 'Ações de Natal' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Desativar' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Excluir' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Ações de Aniversário da cidade' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Excluir' })).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('cadastra um feriado municipal e o vê na lista; o mesmo feriado de novo é recusado', async ({
@@ -47,10 +74,9 @@ test('cadastra um feriado municipal e o vê na lista; o mesmo feriado de novo é
   await page.getByRole('button', { name: 'Novo feriado' }).click();
   const dialog = page.getByRole('dialog', { name: 'Novo feriado' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByLabel('Data *')).toBeFocused();
-  await dialog.getByLabel('Data *').fill('2026-03-19');
+  await pickDate(page, dialog, '2026-03-19');
   await dialog.getByLabel('Nome *').fill('Dia de São José');
-  await dialog.getByLabel('Escopo *').selectOption('MUNICIPAL');
+  await chooseOption(page, 'Escopo *', 'Municipal', dialog);
   await expectNoSeriousA11yViolations(page, 'novo feriado');
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog).toBeHidden();
@@ -60,9 +86,9 @@ test('cadastra um feriado municipal e o vê na lista; o mesmo feriado de novo é
 
   await page.getByRole('button', { name: 'Novo feriado' }).click();
   const again = page.getByRole('dialog', { name: 'Novo feriado' });
-  await again.getByLabel('Data *').fill('2026-03-19');
+  await pickDate(page, again, '2026-03-19');
   await again.getByLabel('Nome *').fill('dia de são josé');
-  await again.getByLabel('Escopo *').selectOption('STATE');
+  await chooseOption(page, 'Escopo *', 'Estadual', again);
   await again.getByRole('button', { name: 'Salvar' }).click();
   // Todo 409 de mutação abre o aviso global de conflito (error-policy); a mensagem específica
   // continua no formulário, que não é fechado.
@@ -80,7 +106,7 @@ test('data ausente: erro inline e nada é criado', async ({ page }) => {
   await page.getByRole('button', { name: 'Novo feriado' }).click();
   const dialog = page.getByRole('dialog', { name: 'Novo feriado' });
   await dialog.getByLabel('Nome *').fill('Sem data');
-  await dialog.getByLabel('Escopo *').selectOption('STATE');
+  await chooseOption(page, 'Escopo *', 'Estadual', dialog);
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog.getByText('Informe a data.')).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancelar' }).click();
@@ -89,10 +115,10 @@ test('data ausente: erro inline e nada é criado', async ({ page }) => {
 
 test('edita a recorrência de um feriado próprio e vê o selo "Recorrente"', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Editar Aniversário da cidade' }).click();
+  await rowAction(page, 'Aniversário da cidade', 'Editar');
   const dialog = page.getByRole('dialog', { name: 'Editar Aniversário da cidade' });
-  await expect(dialog.getByLabel('Data *')).toHaveAttribute('readonly', '');
-  await dialog.getByLabel('Repetir todos os anos').check();
+  await expect(dialog.getByRole('button', { name: 'Data *' })).toBeDisabled();
+  await dialog.getByRole('checkbox', { name: 'Repetir todos os anos' }).click();
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog).toBeHidden();
   await expect(
@@ -104,19 +130,19 @@ test('desativa um feriado de sistema com o aviso sem efeito retroativo e o reati
   page,
 }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Desativar Carnaval (terça-feira)' }).click();
+  await rowAction(page, 'Carnaval (terça-feira)', 'Desativar');
   const dialog = page.getByRole('dialog', { name: 'Desativar Carnaval (terça-feira)?' });
   await expect(dialog.getByText(/Prazos já gravados não são recalculados/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Desativar' }).click();
   const row = page.getByRole('row', { name: /Carnaval/ });
   await expect(row.getByText('Inativo')).toBeVisible();
-  await row.getByRole('button', { name: 'Ativar Carnaval (terça-feira)' }).click();
+  await rowAction(page, 'Carnaval (terça-feira)', 'Ativar');
   await expect(row.getByText('Ativo', { exact: true })).toBeVisible();
 });
 
 test('exclui um feriado próprio depois de confirmar', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Excluir Dia de São José' }).click();
+  await rowAction(page, 'Dia de São José', 'Excluir');
   const dialog = page.getByRole('dialog', { name: 'Excluir Dia de São José?' });
   await expectNoSeriousA11yViolations(page, 'excluir feriado');
   await dialog.getByRole('button', { name: 'Excluir' }).click();

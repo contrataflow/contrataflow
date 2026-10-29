@@ -1,60 +1,62 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
-import { PROTECTED_ROLE_KEY } from '@contrataflow/validation';
+import {
+  Alert,
+  Button,
+  EmptyState,
+  Field,
+  FilterToolbar,
+  ListPage,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  ShieldCheck,
+  TableContainer,
+  TableFooter,
+  toast,
+} from '@contrataflow/ui';
 import type { RoleDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { DeactivateRoleDialog } from './deactivate-role-dialog';
+import { foldText } from './permission-matrix-model';
+import { ROLES_PATH } from './role-chips';
 import { RoleFormDialog } from './role-form-dialog';
+import { RoleList } from './role-list';
 import { ROLES_STALE_TIME_MS, duplicateRole, fetchRoles, roleKeys } from './roles.api';
 
-export const ROLES_PATH = '/admin/perfis';
+/** O `Select` do kit não aceita valor vazio: "Todos" usa este marcador. */
+const ALL = 'all';
 
-/** O perfil `ADMIN_ORGAO` nunca pode ser desativado (POL-12 · FA-05): o botão nem aparece. */
-export function canDeactivate(role: RoleDto): boolean {
-  return role.isActive && !role.isProtected && role.key !== PROTECTED_ROLE_KEY;
-}
+type StatusFilter = typeof ALL | 'active' | 'inactive';
+type KindFilter = typeof ALL | 'system' | 'custom';
 
-export function RoleBadges({ role }: { readonly role: RoleDto }) {
-  const t = useTranslations('roles.badges');
-  const badge = (label: string, tone: 'muted' | 'ok' | 'warn') => (
-    <span
-      key={label}
-      className={`inline-flex rounded-control px-2 py-0.5 text-xs font-medium ${
-        tone === 'ok'
-          ? 'bg-success-soft text-foreground'
-          : tone === 'warn'
-            ? 'bg-warning-soft text-foreground'
-            : 'bg-muted text-muted-foreground'
-      }`}
-    >
-      {label}
-    </span>
-  );
-  return (
-    <div className="flex flex-wrap gap-1">
-      {badge(role.isActive ? t('active') : t('inactive'), role.isActive ? 'ok' : 'warn')}
-      {badge(role.isSystem ? t('system') : t('custom'), 'muted')}
-      {role.isProtected ? badge(t('protected'), 'muted') : null}
-      {role.allowExternalAssignment ? badge(t('external'), 'muted') : null}
-    </div>
+/** Busca local (sem acento nem maiúsculas) em nome, chave e descrição. */
+function matchesSearch(role: RoleDto, search: string): boolean {
+  const term = foldText(search.trim());
+  if (term === '') return true;
+  return [role.name, role.key, role.description ?? ''].some((value) =>
+    foldText(value).includes(term),
   );
 }
 
 /**
  * SCR-030 (`/admin/perfis` · US-095): os 15 perfis padrão e os personalizados (ROL-02) com a
- * contagem de vínculos ativos; "Novo perfil" (ROL-03) leva ao detalhe (SCR-031); "Duplicar"
- * (ROL-07) e "Desativar" (ROL-08) por linha, só com `ROLE_MANAGE`. Abaixo de 768 px cada linha
- * vira um cartão (mesma tabela, cabeçalho só para leitores de tela).
+ * contagem de vínculos ativos; "Novo perfil" (ROL-03) no cabeçalho abre o painel lateral e leva ao
+ * detalhe (SCR-031); "Duplicar" (ROL-07) e "Desativar" (ROL-08) no menu ⋯ da linha, só com
+ * `ROLE_MANAGE`. Modelo `ListPage` (prd-5): busca inline sobre os perfis já carregados e, no
+ * popover "Filtros", situação e tipo, com chips.
  */
 export function RolesView() {
   const t = useTranslations('roles');
@@ -64,11 +66,16 @@ export function RolesView() {
   const [creating, setCreating] = useState(false);
   const [deactivating, setDeactivating] = useState<RoleDto | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<StatusFilter>(ALL);
+  const [kind, setKind] = useState<KindFilter>(ALL);
 
   const roles = useQuery({
     queryKey: roleKeys.all(tenantId),
     queryFn: async ({ signal }) => (await fetchRoles(signal)).data,
     staleTime: ROLES_STALE_TIME_MS,
+    // Erros (403, 5xx) são tratados na própria tela, com "Tentar novamente".
+    throwOnError: false,
   });
 
   const duplicate = useMutation({
@@ -91,133 +98,217 @@ export function RolesView() {
     },
   });
 
+  const items = useMemo(
+    () =>
+      (roles.data ?? []).filter(
+        (role) =>
+          matchesSearch(role, search) &&
+          (status === ALL || role.isActive === (status === 'active')) &&
+          (kind === ALL || role.isSystem === (kind === 'system')),
+      ),
+    [roles.data, search, status, kind],
+  );
+
+  const header = (
+    <AppPageHeader section="admin" title={t('title')} description={t('description')} />
+  );
+
   if (roles.error && isApiError(roles.error) && roles.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={header}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
   const custom = roles.data?.filter((role) => !role.isSystem) ?? [];
+  const activeCount = (status === ALL ? 0 : 1) + (kind === ALL ? 0 : 1);
+  const filtered = search.trim() !== '' || activeCount > 0;
+  const statusLabel = (value: StatusFilter) =>
+    value === 'active' ? t('filters.active') : t('filters.inactive');
+  const kindLabel = (value: KindFilter) =>
+    value === 'system' ? t('filters.system') : t('filters.custom');
+  const chips = [
+    ...(status === ALL
+      ? []
+      : [
+          {
+            id: 'status',
+            label: t('filters.chip', { label: t('filters.status'), value: statusLabel(status) }),
+            removeLabel: t('filters.removeChip', {
+              label: t('filters.status'),
+              value: statusLabel(status),
+            }),
+            onRemove: () => {
+              setStatus(ALL);
+            },
+          },
+        ]),
+    ...(kind === ALL
+      ? []
+      : [
+          {
+            id: 'kind',
+            label: t('filters.chip', { label: t('filters.kind'), value: kindLabel(kind) }),
+            removeLabel: t('filters.removeChip', {
+              label: t('filters.kind'),
+              value: kindLabel(kind),
+            }),
+            onRemove: () => {
+              setKind(ALL);
+            },
+          },
+        ]),
+  ];
+  const newRole = (
+    <Can permission="ROLE_MANAGE">
+      <Button
+        iconLeft={<Plus />}
+        onClick={() => {
+          setCreating(true);
+        }}
+      >
+        {t('list.new')}
+      </Button>
+    </Can>
+  );
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold">{t('list.title')}</h2>
-        {roles.data ? (
-          <Can permission="ROLE_MANAGE">
+    <ListPage
+      header={
+        <AppPageHeader
+          section="admin"
+          title={t('title')}
+          description={t('description')}
+          actions={roles.data ? newRole : null}
+        />
+      }
+      toolbar={
+        <FilterToolbar
+          search={{
+            value: search,
+            onChange: setSearch,
+            label: t('filters.search'),
+            placeholder: t('filters.searchPlaceholder'),
+            description: t('filters.searchHint'),
+          }}
+          activeCount={activeCount}
+          filters={
+            <div className="flex flex-col gap-4">
+              <Field label={t('filters.status')}>
+                <Select
+                  value={status}
+                  onValueChange={(value) => {
+                    setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                    <SelectItem value="active">{t('filters.active')}</SelectItem>
+                    <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t('filters.kind')}>
+                <Select
+                  value={kind}
+                  onValueChange={(value) => {
+                    setKind(value === 'system' || value === 'custom' ? value : ALL);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                    <SelectItem value="system">{t('filters.system')}</SelectItem>
+                    <SelectItem value="custom">{t('filters.custom')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          }
+          chips={chips}
+          onClearAll={() => {
+            setStatus(ALL);
+            setKind(ALL);
+          }}
+        />
+      }
+      notices={
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {actionError ? <Alert tone="error" title={actionError} /> : null}
+          {roles.data && custom.length === 0 ? (
+            <Alert tone="info" live={false} title={t('list.emptyCustom')}>
+              {t('list.emptyCustomHint')}
+            </Alert>
+          ) : null}
+        </div>
+      }
+      loading={roles.isPending}
+      loadingLabel={t('list.loading')}
+      error={
+        roles.isError ? (
+          <Alert tone="error" title={t('list.loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setCreating(true);
+                void roles.refetch();
               }}
             >
-              {t('list.new')}
+              {t('list.retry')}
             </Button>
-          </Can>
-        ) : null}
-      </header>
-
-      {roles.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('list.loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {roles.isError ? (
-        <Alert tone="error" title={t('list.loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void roles.refetch();
+          </Alert>
+        ) : null
+      }
+      empty={
+        roles.data && items.length === 0 ? (
+          <EmptyState
+            icon={<ShieldCheck />}
+            title={filtered ? t('list.noResults') : t('list.emptyCustom')}
+            description={filtered ? t('list.noResultsHint') : t('list.emptyCustomHint')}
+            action={
+              filtered ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setStatus(ALL);
+                    setKind(ALL);
+                  }}
+                >
+                  {t('filters.clear')}
+                </Button>
+              ) : (
+                newRole
+              )
+            }
+          />
+        ) : null
+      }
+    >
+      {items.length > 0 ? (
+        <TableContainer
+          label={t('list.caption')}
+          footer={<TableFooter summary={t('list.count', { count: items.length })} />}
+        >
+          <RoleList
+            roles={items}
+            onDuplicate={(role) => {
+              duplicate.mutate(role);
             }}
-          >
-            {t('list.retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      <div aria-live="polite">
-        {actionError ? <Alert tone="error" title={actionError} /> : null}
-      </div>
-
-      {roles.data ? (
-        <>
-          <div className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
-            <table className="w-full text-left text-sm md:min-w-[48rem]">
-              <caption className="sr-only">{t('list.caption')}</caption>
-              <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">
-                <tr>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.name')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.key')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.status')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.assignments')}
-                  </th>
-                  <Can permission="ROLE_MANAGE">
-                    <th scope="col" className="px-3 py-2">
-                      {t('list.actions')}
-                    </th>
-                  </Can>
-                </tr>
-              </thead>
-              <tbody>
-                {roles.data.map((role) => (
-                  <tr
-                    key={role.id}
-                    className="border-t border-border align-top max-md:block max-md:py-2"
-                  >
-                    <th scope="row" className="px-3 py-2 font-medium max-md:block">
-                      <Link
-                        href={`${ROLES_PATH}/${role.id}`}
-                        aria-label={t('actions.open', { name: role.name })}
-                        className="underline-offset-2 hover:underline"
-                      >
-                        {role.name}
-                      </Link>
-                    </th>
-                    <td className="px-3 py-2 font-mono text-xs max-md:block max-md:py-1">
-                      {role.key}
-                    </td>
-                    <td className="px-3 py-2 max-md:block max-md:py-1">
-                      <RoleBadges role={role} />
-                    </td>
-                    <td className="px-3 py-2 max-md:block max-md:py-1">
-                      {t('list.assignmentsCount', { count: role.activeAssignmentsCount })}
-                    </td>
-                    <Can permission="ROLE_MANAGE">
-                      <td className="px-3 py-2 max-md:block">
-                        <RoleActions
-                          role={role}
-                          onDuplicate={(item) => {
-                            duplicate.mutate(item);
-                          }}
-                          onDeactivate={setDeactivating}
-                        />
-                      </td>
-                    </Can>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {custom.length === 0 ? (
-            <div className="rounded-card border border-dashed border-border p-6 text-center">
-              <p className="font-medium">{t('list.emptyCustom')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('list.emptyCustomHint')}</p>
-            </div>
-          ) : null}
-        </>
+            onDeactivate={setDeactivating}
+          />
+        </TableContainer>
       ) : null}
 
       <RoleFormDialog
@@ -234,42 +325,6 @@ export function RolesView() {
           setDeactivating(null);
         }}
       />
-    </div>
-  );
-}
-
-interface RowProps {
-  readonly role: RoleDto;
-  readonly onDuplicate: (role: RoleDto) => void;
-  readonly onDeactivate: (role: RoleDto) => void;
-}
-
-function RoleActions({ role, onDuplicate, onDeactivate }: RowProps) {
-  const t = useTranslations('roles');
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Button
-        variant="secondary"
-        size="sm"
-        aria-label={t('actions.duplicate', { name: role.name })}
-        onClick={() => {
-          onDuplicate(role);
-        }}
-      >
-        {t('actions.duplicateLabel')}
-      </Button>
-      {canDeactivate(role) ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t('actions.deactivate', { name: role.name })}
-          onClick={() => {
-            onDeactivate(role);
-          }}
-        >
-          {t('actions.deactivateLabel')}
-        </Button>
-      ) : null}
-    </div>
+    </ListPage>
   );
 }

@@ -3,10 +3,23 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  DatePicker,
+  Field,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -30,7 +43,8 @@ import {
 import type { InviteField, InviteFieldErrors, InviteFormState } from './invite-form-model';
 import { LOOKUP_STALE_TIME_MS, fetchActiveRoles, inviteUser, userKeys } from './users.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+/** O `Select` do kit não aceita valor vazio: "sem perfil inicial" usa este marcador. */
+const NO_ROLE = 'none';
 
 export interface InviteUserFormProps {
   readonly open: boolean;
@@ -40,18 +54,19 @@ export interface InviteUserFormProps {
 }
 
 /**
- * `InviteUserForm` (SCR-029 · US-091 · USR-03): e-mail, nome, tipo de vínculo, cargo, validade
- * (só `EXTERNAL`), lotação e perfil inicial, validados com o `inviteUserSchema` da API. Erros 422
- * vão para os campos e o foco para o primeiro; 409 sugere reenviar o convite existente; 503 e
- * demais falhas mantêm o que foi digitado.
+ * `InviteUserForm` (SCR-029 · US-091 · USR-03) em painel lateral (`Sheet` do kit): e-mail, nome,
+ * tipo de vínculo, cargo, validade (só `EXTERNAL`), lotação e perfil inicial, validados com o
+ * `inviteUserSchema` da API. Erros 422 vão para os campos e o foco para o primeiro; 409 sugere
+ * reenviar o convite existente; 503 e demais falhas mantêm o que foi digitado.
  */
 export function InviteUserForm(props: InviteUserFormProps) {
+  const t = useTranslations('users');
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto' }}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
         {props.open ? <InviteUserBody {...props} /> : null}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -68,7 +83,6 @@ function InviteUserBody({ onOpenChange, returnTo }: InviteUserFormProps) {
   const [focusRequest, setFocusRequest] = useState<{ field: InviteField; n: number } | null>(null);
 
   const idOf = (field: InviteField) => `${ids}-${field}`;
-  const errorIdOf = (field: InviteField) => `${ids}-${field}-error`;
 
   const roles = useQuery({
     queryKey: userKeys.activeRoles(tenantId),
@@ -154,14 +168,19 @@ function InviteUserBody({ onOpenChange, returnTo }: InviteUserFormProps) {
     }
   };
 
-  const fieldError = (field: InviteField) =>
-    errors[field] ? (
-      <p id={errorIdOf(field)} className="text-sm text-destructive">
-        {errors[field]}
-      </p>
-    ) : null;
-  const describedBy = (field: InviteField, extra?: string) =>
-    [extra, errors[field] ? errorIdOf(field) : undefined].filter(Boolean).join(' ') || undefined;
+  const onTypeChange = (value: string) => {
+    const type = value === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL';
+    setForm((current) => {
+      const role = roles.data?.find((item) => item.id === current.roleId);
+      return {
+        ...current,
+        type,
+        expiresDate: type === 'EXTERNAL' ? current.expiresDate : '',
+        roleId: type === 'EXTERNAL' && role && !role.allowExternalAssignment ? '' : current.roleId,
+      };
+    });
+    setErrors(({ expiresAt: _expiresAt, ...rest }) => rest);
+  };
 
   return (
     <form
@@ -169,177 +188,130 @@ function InviteUserBody({ onOpenChange, returnTo }: InviteUserFormProps) {
       onSubmit={(event) => {
         void onSubmit(event);
       }}
-      className="flex flex-col gap-4"
+      className="flex min-h-0 flex-1 flex-col"
     >
-      <DialogTitle>{t('form.title')}</DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+      <SheetHeader>
+        <SheetTitle>{t('form.title')}</SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={idOf('email')} className="text-sm font-medium">
-          {t('form.email')}
-        </label>
-        <input
-          id={idOf('email')}
-          type="email"
-          autoComplete="off"
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o diálogo
-          autoFocus
-          className={INPUT}
-          value={form.email}
-          aria-invalid={errors.email !== undefined}
-          aria-describedby={describedBy('email')}
-          onChange={(event) => {
-            update('email', event.target.value);
-          }}
-        />
-        {fieldError('email')}
-        {alreadyMember ? (
-          <p className="text-sm text-muted-foreground">{t('form.alreadyMemberHint')}</p>
-        ) : null}
-      </div>
+      <SheetBody>
+        <div aria-live="polite" className="empty:hidden">
+          {formError ? (
+            <Alert tone="error" title={formError}>
+              {needsMfa ? (
+                <a className="font-medium underline" href={stepUpHref(returnTo)}>
+                  {t('errors.stepUp')}
+                </a>
+              ) : null}
+            </Alert>
+          ) : null}
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={idOf('name')} className="text-sm font-medium">
-          {t('form.name')}
-        </label>
-        <input
-          id={idOf('name')}
-          autoComplete="off"
-          maxLength={200}
-          className={INPUT}
-          value={form.name}
-          aria-invalid={errors.name !== undefined}
-          aria-describedby={describedBy('name')}
-          onChange={(event) => {
-            update('name', event.target.value);
-          }}
-        />
-        {fieldError('name')}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={idOf('type')} className="text-sm font-medium">
-          {t('form.type')}
-        </label>
-        <select
-          id={idOf('type')}
-          className={INPUT}
-          value={form.type}
-          aria-invalid={errors.type !== undefined}
-          aria-describedby={describedBy('type')}
-          onChange={(event) => {
-            const type = event.target.value === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL';
-            setForm((current) => {
-              const role = roles.data?.find((item) => item.id === current.roleId);
-              return {
-                ...current,
-                type,
-                expiresDate: type === 'EXTERNAL' ? current.expiresDate : '',
-                roleId:
-                  type === 'EXTERNAL' && role && !role.allowExternalAssignment
-                    ? ''
-                    : current.roleId,
-              };
-            });
-            setErrors(({ expiresAt: _expiresAt, ...rest }) => rest);
-          }}
-        >
-          <option value="INTERNAL">{t('form.typeInternal')}</option>
-          <option value="EXTERNAL">{t('form.typeExternal')}</option>
-        </select>
-        {fieldError('type')}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={idOf('jobTitle')} className="text-sm font-medium">
-          {t('form.jobTitle')}
-        </label>
-        <input
-          id={idOf('jobTitle')}
-          maxLength={150}
-          className={INPUT}
-          value={form.jobTitle}
-          aria-invalid={errors.jobTitle !== undefined}
-          aria-describedby={describedBy('jobTitle')}
-          onChange={(event) => {
-            update('jobTitle', event.target.value);
-          }}
-        />
-        {fieldError('jobTitle')}
-      </div>
-
-      {form.type === 'EXTERNAL' ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idOf('expiresAt')} className="text-sm font-medium">
-            {t('form.expiresAt')}
-          </label>
-          <input
-            id={idOf('expiresAt')}
-            type="date"
-            min={todayLocalDate()}
-            className={INPUT}
-            value={form.expiresDate}
-            aria-invalid={errors.expiresAt !== undefined}
-            aria-describedby={describedBy('expiresAt', `${idOf('expiresAt')}-hint`)}
+        <Field label={t('form.email')} id={idOf('email')} error={errors.email}>
+          <Input
+            type="email"
+            autoComplete="off"
+            value={form.email}
             onChange={(event) => {
-              update('expiresDate', event.target.value);
+              update('email', event.target.value);
             }}
           />
-          <p id={`${idOf('expiresAt')}-hint`} className="text-xs text-muted-foreground">
-            {t('form.expiresAtHint')}
-          </p>
-          {fieldError('expiresAt')}
-        </div>
-      ) : null}
+          {alreadyMember ? (
+            <p className="text-sm text-muted-foreground">{t('form.alreadyMemberHint')}</p>
+          ) : null}
+        </Field>
 
-      <DepartmentMultiSelect
-        id={idOf('departmentIds')}
-        value={form.departmentIds}
-        error={errors.departmentIds}
-        onChange={(departmentIds) => {
-          update('departmentIds', departmentIds);
-        }}
-      />
-
-      {assignableRoles.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idOf('roleId')} className="text-sm font-medium">
-            {t('form.role')}
-          </label>
-          <select
-            id={idOf('roleId')}
-            className={INPUT}
-            value={form.roleId}
-            aria-invalid={errors.roleId !== undefined}
-            aria-describedby={describedBy('roleId')}
+        <Field label={t('form.name')} id={idOf('name')} error={errors.name}>
+          <Input
+            autoComplete="off"
+            maxLength={200}
+            value={form.name}
             onChange={(event) => {
-              update('roleId', event.target.value);
+              update('name', event.target.value);
             }}
+          />
+        </Field>
+
+        <Field label={t('form.type')} id={idOf('type')} error={errors.type}>
+          <Select value={form.type} onValueChange={onTypeChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="INTERNAL">{t('form.typeInternal')}</SelectItem>
+              <SelectItem value="EXTERNAL">{t('form.typeExternal')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label={t('form.jobTitle')} id={idOf('jobTitle')} error={errors.jobTitle}>
+          <Input
+            autoComplete="off"
+            maxLength={150}
+            value={form.jobTitle}
+            onChange={(event) => {
+              update('jobTitle', event.target.value);
+            }}
+          />
+        </Field>
+
+        {form.type === 'EXTERNAL' ? (
+          <Field
+            label={t('form.expiresAt')}
+            id={idOf('expiresAt')}
+            description={t('form.expiresAtHint')}
+            error={errors.expiresAt}
           >
-            <option value="">{t('form.roleNone')}</option>
-            {assignableRoles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
-          {fieldError('roleId')}
-        </div>
-      ) : null}
-
-      <div aria-live="polite">
-        {formError ? (
-          <Alert tone="error" title={formError}>
-            {needsMfa ? (
-              <a className="font-medium underline" href={stepUpHref(returnTo)}>
-                {t('errors.stepUp')}
-              </a>
-            ) : null}
-          </Alert>
+            <DatePicker
+              value={fromIsoDate(form.expiresDate)}
+              disabledDays={{ before: fromIsoDate(todayLocalDate()) ?? new Date() }}
+              labels={{
+                placeholder: t('form.datePlaceholder'),
+                clear: t('form.dateClear'),
+                calendar: t('form.dateCalendar'),
+              }}
+              onValueChange={(date) => {
+                update('expiresDate', date ? toIsoDate(date) : '');
+              }}
+            />
+          </Field>
         ) : null}
-      </div>
 
-      <div className="flex flex-wrap justify-end gap-2">
+        <DepartmentMultiSelect
+          id={idOf('departmentIds')}
+          value={form.departmentIds}
+          error={errors.departmentIds}
+          onChange={(departmentIds) => {
+            update('departmentIds', departmentIds);
+          }}
+        />
+
+        {assignableRoles.length > 0 ? (
+          <Field label={t('form.role')} id={idOf('roleId')} error={errors.roleId}>
+            <Select
+              value={form.roleId === '' ? NO_ROLE : form.roleId}
+              onValueChange={(value) => {
+                update('roleId', value === NO_ROLE ? '' : value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_ROLE}>{t('form.roleNone')}</SelectItem>
+                {assignableRoles.map((role) => (
+                  <SelectItem key={role.id} value={role.id}>
+                    {role.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : null}
+      </SheetBody>
+
+      <SheetFooter>
         <Button
           type="button"
           variant="secondary"
@@ -352,7 +324,7 @@ function InviteUserBody({ onOpenChange, returnTo }: InviteUserFormProps) {
         <Button type="submit" disabled={create.isPending} aria-busy={create.isPending}>
           {create.isPending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

@@ -828,9 +828,13 @@ describe('(app): exemplo, admin, loading e error', () => {
 
   it('admin com navegação própria; loading anuncia o carregamento', async () => {
     const { renderWithShell } = await import('@test/support/render');
-    renderWithShell(<AdminLayout>{await AdminHomePage()}</AdminLayout>);
+    renderWithShell(
+      <AdminLayout>
+        <AdminHomePage />
+      </AdminLayout>,
+    );
     expect(screen.getByRole('navigation', { name: 'Navegação de administração' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Administração' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Administração' })).toBeTruthy();
     renderIntl(<AppLoading />);
     expect(screen.getByText('Carregando…')).toBeTruthy();
   });

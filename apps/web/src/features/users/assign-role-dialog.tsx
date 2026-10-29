@@ -3,11 +3,25 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogTitle,
+  Checkbox,
+  Combobox,
+  DatePicker,
+  Field,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  fromIsoDate,
+  toIsoDate,
 } from '@contrataflow/ui';
 import { SCOPE_TYPES, SUBTREE_SCOPE_TYPES } from '@contrataflow/validation';
 import type {
@@ -31,8 +45,6 @@ import type { AssignErrors, AssignField, AssignFormState } from './role-assignme
 import { assignRole, fetchActiveOrganizations, roleAssignmentKeys } from './role-assignments.api';
 import { LOOKUP_STALE_TIME_MS, fetchActiveRoles, lookupDepartments, userKeys } from './users.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
-
 export interface AssignRoleDialogProps {
   readonly open: boolean;
   readonly membership: TenantMembershipDetailDto;
@@ -42,22 +54,23 @@ export interface AssignRoleDialogProps {
 }
 
 /**
- * Formulário "Atribuir perfil" (SCR-029 · US-096 · ROL-11) em modal acessível por teclado (foco
- * inicial no Perfil): `RoleSelect`, `ScopeFieldset` (órgão ou unidade conforme o escopo, com
- * "Incluir subárvore") e `DateRangeFields`. Vínculo externo: só perfis com
+ * Formulário "Atribuir perfil" (SCR-029 · US-096 · ROL-11) em painel lateral (`Sheet` do kit,
+ * foco inicial no Perfil): perfil, escopo (órgão ou unidade conforme o tipo, com "Incluir
+ * subárvore") e vigência (`DatePicker`). Vínculo externo: só perfis com
  * `allowExternalAssignment` habilitados (FA-03). Erros por campo vêm do mesmo schema da API.
  */
 export function AssignRoleDialog(props: AssignRoleDialogProps) {
   const { open, onClose } = props;
+  const t = useTranslations('users.detail.roles');
   return (
-    <Dialog
+    <Sheet
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
     >
-      <DialogContent>{open ? <Body {...props} /> : null}</DialogContent>
-    </Dialog>
+      <SheetContent closeLabel={t('close')}>{open ? <Body {...props} /> : null}</SheetContent>
+    </Sheet>
   );
 }
 
@@ -130,221 +143,31 @@ function Body({ membership, returnTo, onClose, onAssigned }: AssignRoleDialogPro
     () => [...(roles.data ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
     [roles.data],
   );
-  const idOf = (field: AssignField) => `${formId}-${field}`;
-  const describedBy = (field: AssignField, hint?: boolean) =>
-    [hint ? `${idOf(field)}-hint` : null, errors[field] ? `${idOf(field)}-error` : null]
-      .filter(Boolean)
-      .join(' ') || undefined;
-  const fieldError = (field: AssignField) =>
-    errors[field] ? (
-      <p id={`${idOf(field)}-error`} className="text-sm text-destructive">
-        {errors[field]}
-      </p>
-    ) : null;
+  const idOf = (field: AssignField | 'includeSubtree') => `${formId}-${field}`;
   const subtree = SUBTREE_SCOPE_TYPES.includes(form.scopeType);
+  const dateLabels = {
+    placeholder: t('datePlaceholder'),
+    clear: t('dateClear'),
+    calendar: t('dateCalendar'),
+  };
+  const todayDate = fromIsoDate(todayLocalDate()) ?? new Date();
 
   return (
-    <>
-      <DialogTitle>{t('assignTitle', { name: membership.name })}</DialogTitle>
-      <DialogDescription>{t('assignDescription')}</DialogDescription>
+    <form
+      className="flex min-h-0 flex-1 flex-col"
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <SheetHeader>
+        <SheetTitle>{t('assignTitle', { name: membership.name })}</SheetTitle>
+        <SheetDescription>{t('assignDescription')}</SheetDescription>
+      </SheetHeader>
 
-      <form
-        className="flex flex-col gap-4"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        {/* RoleSelect */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idOf('roleId')} className="text-sm font-medium">
-            {t('role')}
-          </label>
-          <select
-            id={idOf('roleId')}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- foco inicial no Perfil (story)
-            autoFocus
-            className={INPUT}
-            value={form.roleId}
-            aria-invalid={errors.roleId !== undefined}
-            aria-describedby={describedBy('roleId', external)}
-            onChange={(event) => {
-              update('roleId', event.target.value);
-            }}
-          >
-            <option value="">{roles.isPending ? t('loadingOptions') : t('selectRole')}</option>
-            {sortedRoles.map((role) => {
-              const blocked = external && !role.allowExternalAssignment;
-              return (
-                <option
-                  key={role.id}
-                  value={role.id}
-                  disabled={blocked}
-                  title={blocked ? t('externalBlocked') : undefined}
-                >
-                  {blocked ? `${role.name} — ${t('externalBlockedShort')}` : role.name}
-                </option>
-              );
-            })}
-          </select>
-          {external ? (
-            <p id={`${idOf('roleId')}-hint`} className="text-xs text-muted-foreground">
-              {t('externalHint')}
-            </p>
-          ) : null}
-          {fieldError('roleId')}
-        </div>
-
-        {/* ScopeFieldset */}
-        <fieldset className="flex flex-col gap-3">
-          <legend className="text-sm font-medium">{t('scope')}</legend>
-          <select
-            id={idOf('scopeType')}
-            aria-label={t('scope')}
-            className={INPUT}
-            value={form.scopeType}
-            aria-invalid={errors.scopeType !== undefined}
-            aria-describedby={describedBy('scopeType')}
-            onChange={(event) => {
-              const scopeType = event.target.value as ScopeTypeValue;
-              setForm((current) => ({
-                ...current,
-                scopeType,
-                scopeOrganizationId: '',
-                scopeDepartmentId: '',
-                includeSubtree: true,
-              }));
-              setErrors({});
-            }}
-          >
-            {SCOPE_TYPES.map((scope) => (
-              <option key={scope} value={scope}>
-                {t(`scopes.${scope}`)}
-              </option>
-            ))}
-          </select>
-          {fieldError('scopeType')}
-
-          {form.scopeType === 'ORGANIZATION' ? (
-            <div className="flex flex-col gap-1">
-              <label htmlFor={idOf('scopeOrganizationId')} className="text-sm font-medium">
-                {t('organization')}
-              </label>
-              <select
-                id={idOf('scopeOrganizationId')}
-                className={INPUT}
-                value={form.scopeOrganizationId}
-                aria-invalid={errors.scopeOrganizationId !== undefined}
-                aria-describedby={describedBy('scopeOrganizationId')}
-                onChange={(event) => {
-                  update('scopeOrganizationId', event.target.value);
-                }}
-              >
-                <option value="">
-                  {organizations.isPending ? t('loadingOptions') : t('selectOrganization')}
-                </option>
-                {(organizations.data ?? [])
-                  .filter((organization) => organization.isActive)
-                  .map((organization) => (
-                    <option key={organization.id} value={organization.id}>
-                      {organization.name}
-                    </option>
-                  ))}
-              </select>
-              {fieldError('scopeOrganizationId')}
-            </div>
-          ) : null}
-
-          {form.scopeType === 'DEPARTMENT' ? (
-            <div className="flex flex-col gap-1">
-              <label htmlFor={idOf('scopeDepartmentId')} className="text-sm font-medium">
-                {t('department')}
-              </label>
-              <select
-                id={idOf('scopeDepartmentId')}
-                className={INPUT}
-                value={form.scopeDepartmentId}
-                aria-invalid={errors.scopeDepartmentId !== undefined}
-                aria-describedby={describedBy('scopeDepartmentId')}
-                onChange={(event) => {
-                  update('scopeDepartmentId', event.target.value);
-                }}
-              >
-                <option value="">
-                  {departments.isPending ? t('loadingOptions') : t('selectDepartment')}
-                </option>
-                {(departments.data ?? []).map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.path}
-                  </option>
-                ))}
-              </select>
-              {fieldError('scopeDepartmentId')}
-            </div>
-          ) : null}
-
-          {subtree ? (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.includeSubtree}
-                onChange={(event) => {
-                  update('includeSubtree', event.target.checked);
-                }}
-              />
-              {t('includeSubtree')}
-            </label>
-          ) : null}
-        </fieldset>
-
-        {/* DateRangeFields */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={idOf('validFrom')} className="text-sm font-medium">
-              {t('validFrom')}
-            </label>
-            <input
-              id={idOf('validFrom')}
-              type="date"
-              className={INPUT}
-              min={todayLocalDate()}
-              value={form.validFromDate}
-              aria-invalid={errors.validFrom !== undefined}
-              aria-describedby={describedBy('validFrom', true)}
-              onChange={(event) => {
-                update('validFromDate', event.target.value);
-              }}
-            />
-            <p id={`${idOf('validFrom')}-hint`} className="text-xs text-muted-foreground">
-              {t('validFromHint')}
-            </p>
-            {fieldError('validFrom')}
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor={idOf('validUntil')} className="text-sm font-medium">
-              {t('validUntil')}
-            </label>
-            <input
-              id={idOf('validUntil')}
-              type="date"
-              className={INPUT}
-              min={form.validFromDate || todayLocalDate()}
-              value={form.validUntilDate}
-              aria-invalid={errors.validUntil !== undefined}
-              aria-describedby={describedBy('validUntil', true)}
-              onChange={(event) => {
-                update('validUntilDate', event.target.value);
-              }}
-            />
-            <p id={`${idOf('validUntil')}-hint`} className="text-xs text-muted-foreground">
-              {external ? t('validUntilExternalHint') : t('validUntilHint')}
-            </p>
-            {fieldError('validUntil')}
-          </div>
-        </div>
-
-        <div aria-live="assertive">
+      <SheetBody>
+        <div aria-live="assertive" className="empty:hidden">
           {failure ? (
             <Alert tone="error" title={failure.message}>
               {failure.mfa ? (
@@ -356,15 +179,180 @@ function Body({ membership, returnTo, onClose, onAssigned }: AssignRoleDialogPro
           ) : null}
         </div>
 
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            {t('cancel')}
-          </Button>
-          <Button type="submit" disabled={assign.isPending} aria-busy={assign.isPending}>
-            {assign.isPending ? t('assigning') : t('confirmAssign')}
-          </Button>
-        </DialogFooter>
-      </form>
-    </>
+        <Field
+          label={t('role')}
+          id={idOf('roleId')}
+          description={external ? t('externalHint') : undefined}
+          error={errors.roleId}
+        >
+          <Select
+            value={form.roleId}
+            onValueChange={(value) => {
+              update('roleId', value);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={roles.isPending ? t('loadingOptions') : t('selectRole')} />
+            </SelectTrigger>
+            <SelectContent>
+              {sortedRoles.map((role) => {
+                const blocked = external && !role.allowExternalAssignment;
+                return (
+                  <SelectItem
+                    key={role.id}
+                    value={role.id}
+                    disabled={blocked}
+                    title={blocked ? t('externalBlocked') : undefined}
+                  >
+                    {blocked ? `${role.name} — ${t('externalBlockedShort')}` : role.name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label={t('scope')} id={idOf('scopeType')} error={errors.scopeType}>
+          <Select
+            value={form.scopeType}
+            onValueChange={(value) => {
+              const scopeType = value as ScopeTypeValue;
+              setForm((current) => ({
+                ...current,
+                scopeType,
+                scopeOrganizationId: '',
+                scopeDepartmentId: '',
+                includeSubtree: true,
+              }));
+              setErrors({});
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SCOPE_TYPES.map((scope) => (
+                <SelectItem key={scope} value={scope}>
+                  {t(`scopes.${scope}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {form.scopeType === 'ORGANIZATION' ? (
+          <Field
+            label={t('organization')}
+            id={idOf('scopeOrganizationId')}
+            error={errors.scopeOrganizationId}
+          >
+            <Select
+              value={form.scopeOrganizationId}
+              onValueChange={(value) => {
+                update('scopeOrganizationId', value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    organizations.isPending ? t('loadingOptions') : t('selectOrganization')
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {(organizations.data ?? [])
+                  .filter((organization) => organization.isActive)
+                  .map((organization) => (
+                    <SelectItem key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : null}
+
+        {form.scopeType === 'DEPARTMENT' ? (
+          <Field
+            label={t('department')}
+            id={idOf('scopeDepartmentId')}
+            error={errors.scopeDepartmentId}
+          >
+            <Combobox
+              options={(departments.data ?? []).map((department) => ({
+                value: department.id,
+                label: department.path,
+              }))}
+              value={form.scopeDepartmentId}
+              labels={{
+                placeholder: departments.isPending ? t('loadingOptions') : t('selectDepartment'),
+                search: t('searchDepartment'),
+                empty: t('noDepartment'),
+              }}
+              onValueChange={(value) => {
+                update('scopeDepartmentId', value ?? '');
+              }}
+            />
+          </Field>
+        ) : null}
+
+        {subtree ? (
+          <div className="flex items-center gap-2.5">
+            <Checkbox
+              id={idOf('includeSubtree')}
+              checked={form.includeSubtree}
+              onCheckedChange={(checked) => {
+                update('includeSubtree', checked === true);
+              }}
+            />
+            <Label htmlFor={idOf('includeSubtree')}>{t('includeSubtree')}</Label>
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={t('validFrom')}
+            id={idOf('validFrom')}
+            description={t('validFromHint')}
+            error={errors.validFrom}
+          >
+            <DatePicker
+              value={fromIsoDate(form.validFromDate)}
+              disabledDays={{ before: todayDate }}
+              labels={dateLabels}
+              clearable
+              onValueChange={(date) => {
+                update('validFromDate', date ? toIsoDate(date) : '');
+              }}
+            />
+          </Field>
+          <Field
+            label={t('validUntil')}
+            id={idOf('validUntil')}
+            description={external ? t('validUntilExternalHint') : t('validUntilHint')}
+            error={errors.validUntil}
+          >
+            <DatePicker
+              value={fromIsoDate(form.validUntilDate)}
+              disabledDays={{ before: fromIsoDate(form.validFromDate) ?? todayDate }}
+              labels={dateLabels}
+              clearable
+              onValueChange={(date) => {
+                update('validUntilDate', date ? toIsoDate(date) : '');
+              }}
+            />
+          </Field>
+        </div>
+      </SheetBody>
+
+      <SheetFooter>
+        <Button type="button" variant="secondary" onClick={onClose}>
+          {t('cancel')}
+        </Button>
+        <Button type="submit" disabled={assign.isPending} aria-busy={assign.isPending}>
+          {assign.isPending ? t('assigning') : t('confirmAssign')}
+        </Button>
+      </SheetFooter>
+    </form>
   );
 }

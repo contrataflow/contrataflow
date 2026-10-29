@@ -152,6 +152,8 @@ function GatedMainLink(props: {
 export function AdminNav() {
   const t = useTranslations('shell.admin');
   const pathname = usePathname();
+  // O hub (`/admin`) já lista as mesmas áreas em cartões: a barra não se repete ali.
+  if (pathname === '/admin') return null;
   return (
     <nav aria-label={t('label')} className="flex flex-wrap gap-1 border-b border-border pb-3">
       {ADMIN_NAV.map((item) =>

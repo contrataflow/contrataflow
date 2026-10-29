@@ -134,6 +134,29 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
+async function choose(trigger: HTMLElement, option: string) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(name: string, action: string) {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
+/** Escolhe o dia 15 do mês corrente no `DatePicker` do kit; devolve a data `aaaa-MM-dd`. */
+async function pickFifteenth(dialog: HTMLElement): Promise<string> {
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Data *' }));
+  const calendar = await screen.findByRole('dialog', { name: 'Escolher data' });
+  const [day] = within(calendar).getAllByRole('button', { name: /, 15 de / });
+  if (!day) throw new Error('dia 15 não encontrado no calendário');
+  await userEvent.click(day);
+  const month = String(new Date().getMonth() + 1).padStart(2, '0');
+  return `${String(YEAR)}-${month}-15`;
+}
+
 describe('[Sucesso] SCR-110 · lista', () => {
   it('feriados do ano por data, com escopo, selos "Padrão do sistema"/"Recorrente" e situação; sem violações de a11y', async () => {
     const api = mockApi();
@@ -149,18 +172,20 @@ describe('[Sucesso] SCR-110 · lista', () => {
       ),
     ).toBe(true);
 
-    const rows = within(table).getAllByRole('row');
-    expect(rows.map((row) => within(row).queryByRole('rowheader')?.textContent).slice(1)).toEqual([
-      'Carnaval (terça-feira)',
-      'Aniversário da cidade',
-      'Finados',
-      'Natal',
-    ]);
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(
+      rows.map(
+        (row) =>
+          within(row).getByText(/^(Carnaval \(terça-feira\)|Aniversário da cidade|Finados|Natal)$/)
+            .textContent,
+      ),
+    ).toEqual(['Carnaval (terça-feira)', 'Aniversário da cidade', 'Finados', 'Natal']);
     const natal = within(table).getByRole('row', { name: /Natal/ });
     expect(within(natal).getByText('25/12/' + String(YEAR))).toBeTruthy();
     expect(within(natal).getByText('Nacional')).toBeTruthy();
     expect(within(natal).getByText('Padrão do sistema')).toBeTruthy();
     expect(within(natal).getByText('Recorrente')).toBeTruthy();
+    expect(within(natal).getByText('Ativo')).toBeTruthy();
     const carnaval = within(table).getByRole('row', { name: /Carnaval/ });
     expect(within(carnaval).getByText('Ponto facultativo')).toBeTruthy();
     const proprio = within(table).getByRole('row', { name: /Aniversário da cidade/ });
@@ -173,23 +198,34 @@ describe('[Sucesso] SCR-110 · lista', () => {
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
+  it('mostra o calendário do ano e a lista lado a lado, com a legenda dos dias em destaque', async () => {
+    mockApi();
+    renderWithShell(<CalendarView />);
+    await screen.findByRole('table');
+    expect(screen.getByRole('heading', { name: `Calendário de ${String(YEAR)}` })).toBeTruthy();
+    expect(screen.getByText(/Os dias em destaque são feriados/)).toBeTruthy();
+    expect(screen.getByRole('grid')).toBeTruthy();
+  });
+
   it('FA-01: "Excluir" só aparece em feriado que não é de sistema', async () => {
     mockApi();
     renderWithShell(<CalendarView />);
     await screen.findByRole('table');
-    expect(
-      await screen.findByRole('button', { name: 'Excluir Aniversário da cidade' }),
-    ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Excluir Natal' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Excluir Carnaval (terça-feira)' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: /^Excluir / })).toHaveLength(1);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Ações de Aniversário da cidade' }),
+    );
+    expect(await screen.findByRole('menuitem', { name: 'Excluir' })).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Ações de Natal' }));
+    expect(await screen.findByRole('menuitem', { name: 'Desativar' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Excluir' })).toBeNull();
   });
 
   it('trocar o ano relê a lista desse ano', async () => {
     const api = mockApi();
     renderWithShell(<CalendarView />);
     await screen.findByRole('table');
-    await userEvent.selectOptions(screen.getByLabelText('Ano'), String(YEAR + 1));
+    await choose(screen.getByRole('combobox', { name: 'Ano' }), String(YEAR + 1));
     await waitFor(() => {
       expect(
         api.mock.calls.some(([url]) =>
@@ -242,9 +278,7 @@ describe('[Permissão] ações de edição', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Novo feriado' })).toBeNull();
     });
-    expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Excluir/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Desativar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ações de / })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
   });
 });
@@ -265,9 +299,9 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Novo feriado' }));
     const dialog = await screen.findByRole('dialog', { name: 'Novo feriado' });
 
-    await userEvent.type(within(dialog).getByLabelText('Data *'), `${String(YEAR)}-10-12`);
+    const date = await pickFifteenth(dialog);
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Aniversário da cidade');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Escopo *'), 'MUNICIPAL');
+    await choose(within(dialog).getByRole('combobox', { name: 'Escopo *' }), 'Municipal');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -276,7 +310,7 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
     const post = callOf(api, 'POST');
     expect(post.url).toBe('/api/v1/holidays');
     expect(bodyOf(post.init)).toEqual({
-      date: `${String(YEAR)}-10-12`,
+      date,
       name: 'Aniversário da cidade',
       scope: 'MUNICIPAL',
       isRecurring: false,
@@ -312,9 +346,9 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
     renderWithShell(<CalendarView />);
     await userEvent.click(await screen.findByRole('button', { name: 'Novo feriado' }));
     const dialog = await screen.findByRole('dialog', { name: 'Novo feriado' });
-    await userEvent.type(within(dialog).getByLabelText('Data *'), `${String(YEAR)}-10-12`);
+    await pickFifteenth(dialog);
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Aniversário da cidade');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Escopo *'), 'MUNICIPAL');
+    await choose(within(dialog).getByRole('combobox', { name: 'Escopo *' }), 'Municipal');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     expect(
@@ -329,15 +363,13 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
         jsonResponse({ data: { ...ANIVERSARIO, isRecurring: true, version: 3 } }, { status: 200 }),
     });
     renderWithShell(<CalendarView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar Aniversário da cidade' }),
-    );
+    await rowAction('Aniversário da cidade', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Aniversário da cidade' });
 
-    const date = within(dialog).getByLabelText<HTMLInputElement>('Data *');
-    expect(date.readOnly).toBe(true);
-    expect(date.value).toBe(`${String(YEAR)}-10-12`);
-    await userEvent.click(within(dialog).getByLabelText('Repetir todos os anos'));
+    const date = within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Data *' });
+    expect(date.disabled).toBe(true);
+    expect(date.textContent).toContain(`12/10/${String(YEAR)}`);
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Repetir todos os anos' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -352,13 +384,13 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
   it('feriado de sistema: nome bloqueado com a explicação', async () => {
     mockApi();
     renderWithShell(<CalendarView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Editar Natal' }));
+    await rowAction('Natal', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Natal' });
     expect(within(dialog).getByLabelText<HTMLInputElement>('Nome *').readOnly).toBe(true);
     expect(
       within(dialog).getByText('O nome de um feriado padrão do sistema não pode ser alterado.'),
     ).toBeTruthy();
-    expect(within(dialog).getByLabelText('Feriado ativo')).toBeTruthy();
+    expect(within(dialog).getByRole('checkbox', { name: 'Feriado ativo' })).toBeTruthy();
   });
 
   it('desativar feriado de sistema (aviso sem efeito retroativo) e ativar outro; ambos com If-Match', async () => {
@@ -366,7 +398,7 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
       patch: () => jsonResponse({ data: { ...NATAL, isActive: false, version: 4 } }),
     });
     renderWithShell(<CalendarView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Desativar Natal' }));
+    await rowAction('Natal', 'Desativar');
     const dialog = await screen.findByRole('dialog', { name: 'Desativar Natal?' });
     expect(
       within(dialog).getByText(
@@ -381,7 +413,7 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
     expect(callOf(api, 'PATCH').headers.get('If-Match')).toBe('"3"');
     expect(bodyOf(callOf(api, 'PATCH').init)).toEqual({ isActive: false });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Ativar Finados' }));
+    await rowAction('Finados', 'Ativar');
     await waitFor(() => {
       expect(callsTo(api, 'PATCH')).toHaveLength(2);
     });
@@ -391,9 +423,7 @@ describe('[Sucesso] cadastrar, editar, desativar e excluir', () => {
   it('excluir feriado do administrador: confirmação e DELETE com If-Match', async () => {
     const api = mockApi({ remove: () => new Response(null, { status: 204 }) });
     renderWithShell(<CalendarView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Excluir Aniversário da cidade' }),
-    );
+    await rowAction('Aniversário da cidade', 'Excluir');
     const dialog = await screen.findByRole('dialog', { name: 'Excluir Aniversário da cidade?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Excluir' }));
 
@@ -415,7 +445,7 @@ describe('[Concorrência] e [Falha]', () => {
       patch: () => problemResponse(412, 'VERSION_CONFLICT', 'Versão desatualizada.'),
     });
     renderWithShell(<CalendarView />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Desativar Natal' }));
+    await rowAction('Natal', 'Desativar');
     await userEvent.click(
       within(await screen.findByRole('dialog', { name: 'Desativar Natal?' })).getByRole('button', {
         name: 'Desativar',
@@ -439,9 +469,7 @@ describe('[Concorrência] e [Falha]', () => {
       remove: () => problemResponse(503, 'DEPENDENCY_UNAVAILABLE', 'fora do ar'),
     });
     renderWithShell(<CalendarView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Excluir Aniversário da cidade' }),
-    );
+    await rowAction('Aniversário da cidade', 'Excluir');
     await userEvent.click(
       within(
         await screen.findByRole('dialog', { name: 'Excluir Aniversário da cidade?' }),

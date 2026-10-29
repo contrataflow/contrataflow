@@ -80,11 +80,11 @@ describe('[Sucesso] catálogo de permissões agrupado por módulo', () => {
     expect(within(processList).getAllByRole('listitem', { hidden: true })).toHaveLength(
       processCount,
     );
-    const processGroup = processList.closest('details');
+    const processGroup = processList.closest('[data-state]')?.parentElement;
     expect(processGroup?.textContent).toContain(`${String(processCount)} permiss`);
     expect(within(processList).getByText('PROCESS_VIEW')).toBeTruthy();
     // A ordem dos módulos segue a primeira aparição no catálogo.
-    const summaries = [...document.querySelectorAll('summary > span:first-child')].map(
+    const summaries = [...document.querySelectorAll('[data-module-label]')].map(
       (element) => element.textContent,
     );
     expect(summaries[0]).toBe('Processo');

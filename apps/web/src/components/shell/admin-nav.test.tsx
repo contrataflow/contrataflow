@@ -11,7 +11,7 @@ configure({ asyncUtilTimeout: 5000 });
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
-  usePathname: () => '/admin',
+  usePathname: () => '/admin/usuarios',
 }));
 
 function mockPermissions(respond: () => Response) {

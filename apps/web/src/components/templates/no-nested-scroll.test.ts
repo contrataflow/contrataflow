@@ -29,20 +29,15 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/audit/audit-detail-panel.tsx': DRAWER,
   'apps/web/src/features/audit/seal-list.tsx': TABLE,
   'apps/web/src/features/audit/seal-verification-result.tsx': TABLE,
-  'apps/web/src/features/calendar/holiday-form-dialog.tsx': DIALOG,
-  'apps/web/src/features/calendar/holiday-table.tsx': TABLE,
   'apps/web/src/features/catalogs/catalog-form-dialog.tsx': DIALOG,
   'apps/web/src/features/catalogs/catalog-item-table.tsx': TABLE,
   'apps/web/src/features/comments/mention-autocomplete.tsx': LISTBOX,
-  'apps/web/src/features/departments/department-form-dialog.tsx': DIALOG,
   'apps/web/src/features/dfd-duplicate/duplicate-dfd-dialog.tsx': DIALOG,
   'apps/web/src/features/document-types/document-type-form.tsx': DIALOG,
   'apps/web/src/features/document-types/document-types-view.tsx': TABLE,
   'apps/web/src/features/documents/ai-review.tsx': DIALOG,
   'apps/web/src/features/etp/create-etp-dialog.tsx': DIALOG,
   'apps/web/src/features/etp/etp-alternatives-section.tsx': DRAWER,
-  'apps/web/src/features/organizations/organization-form-dialog.tsx': DIALOG,
-  'apps/web/src/features/organizations/organization-list.tsx': TABLE,
   'apps/web/src/features/price-research/create-price-research-dialog.tsx': DIALOG,
   'apps/web/src/features/price-research/import-preview-table.tsx': CODE,
   'apps/web/src/features/price-research/price-source-form-dialog.tsx': DIALOG,
@@ -65,7 +60,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/risks/risk-ai-review.tsx': DIALOG,
   'apps/web/src/features/risks/risk-form-drawer.tsx': DRAWER,
   'apps/web/src/features/risks/risk-heatmap-grid.tsx': TABLE,
-  'apps/web/src/features/roles/roles-view.tsx': TABLE,
   'apps/web/src/features/tags/process-tags.tsx': DIALOG,
   'apps/web/src/features/tags/tag-picker.tsx': LISTBOX,
   'apps/web/src/features/tags/tags-admin-panel.tsx': TABLE,
@@ -75,10 +69,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/templates/templates-view.tsx': TABLE,
   'apps/web/src/features/term/create-term-dialog.tsx': DIALOG,
   'apps/web/src/features/term/import-etp-panel.tsx': `${DIALOG}; ${CODE}`,
-  'apps/web/src/features/users/department-multi-select.tsx': LISTBOX,
-  'apps/web/src/features/users/invite-user-form.tsx': DIALOG,
-  'apps/web/src/features/users/user-list.tsx': TABLE,
-  'apps/web/src/features/users/users-view.tsx': TABLE,
   'apps/web/src/features/workflows/workflow-editor.tsx': TABLE,
   'apps/web/src/features/workflows/workflow-rules.tsx': TABLE,
   'apps/web/src/features/workflows/workflow-versions.tsx': TABLE,
@@ -92,8 +82,6 @@ const PENDING: Readonly<Record<string, string>> = {
   'apps/web/src/features/price-research/comparative-map-grid.tsx':
     'card 6 — mapa comparativo com altura máxima e rolagem nos dois eixos',
   'apps/web/src/features/risks/risks-screen.tsx': 'card 6 — abas roláveis',
-  'apps/web/src/features/roles/permission-matrix.tsx':
-    'card 8 — matriz com altura máxima e rolagem nos dois eixos',
 };
 
 const found = filesMatching(['apps/web/src', 'packages/ui/src'], NESTED_SCROLL);

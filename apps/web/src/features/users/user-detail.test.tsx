@@ -185,6 +185,11 @@ const open = () =>
       <Toaster />
     </>,
   );
+/** Abre o menu "Mais" do cabeçalho e escolhe uma ação (as ações de acesso ficam nele). */
+const chooseMore = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  await user.click(await screen.findByRole('button', { name: 'Mais ações do usuário' }));
+  await user.click(await screen.findByRole('menuitem', { name }));
+};
 const cargo = () => screen.findByRole<HTMLInputElement>('textbox', { name: 'Cargo ou função' });
 
 describe('modelo do detalhe (RN-IAM-55/56)', () => {
@@ -238,6 +243,19 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
     expect(screen.queryByRole('textbox', { name: /Nome|E-mail/ })).toBeNull();
     expect(screen.queryByLabelText('Validade do vínculo')).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('abas "Dados" e "Atribuições": as atribuições só carregam na segunda aba', async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    open();
+    await cargo();
+    expect(screen.getByRole('tab', { name: 'Dados', selected: true })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Sessões' })).toBeNull();
+    expect(callsOf(api, 'GET', '/role-assignments')).toHaveLength(0);
+    await user.click(screen.getByRole('tab', { name: 'Atribuições' }));
+    expect(await screen.findByText('Nenhum perfil atribuído.')).toBeTruthy();
+    expect(callsOf(api, 'GET', '/role-assignments')).toHaveLength(1);
   });
 
   it('[Sucesso] edita o cargo: PATCH só com o que mudou, If-Match da versão, toast e lista invalidada', async () => {
@@ -308,9 +326,11 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
     });
     const user = userEvent.setup();
     open();
-    const date = await screen.findByLabelText<HTMLInputElement>('Validade do vínculo');
-    await user.clear(date);
-    await user.type(date, '2099-12-31');
+    await user.click(await screen.findByRole('button', { name: 'Validade do vínculo' }));
+    const calendar = await screen.findByRole('dialog', { name: 'Escolher data' });
+    const [day] = within(calendar).getAllByRole('button', { name: /, 15 de junho de 2099/ });
+    if (!day) throw new Error('dia 15 não encontrado no calendário');
+    await user.click(day);
     await user.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => {
       expect(callsOf(api, 'PATCH', '/users/')).toHaveLength(1);
@@ -319,7 +339,7 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
     expect(typeof expiresAt).toBe('string');
     const sent = new Date(String(expiresAt));
     expect([sent.getFullYear(), sent.getMonth(), sent.getDate(), sent.getHours()]).toEqual([
-      2099, 11, 31, 23,
+      2099, 5, 15, 23,
     ]);
   });
 
@@ -343,10 +363,10 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
       name: 'Lotação principal: Setor de Licitações',
     });
     expect(
-      screen.getByRole<HTMLInputElement>('radio', {
-        name: 'Lotação principal: Setor de Compras',
-      }).checked,
-    ).toBe(true);
+      screen
+        .getByRole('radio', { name: 'Lotação principal: Setor de Compras' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
     const save = screen.getByRole('button', { name: 'Salvar lotações' });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     await user.click(radio);
@@ -370,10 +390,10 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
     open();
     await user.click(await screen.findByRole('button', { name: 'Remover Setor de Compras' }));
     expect(
-      screen.getByRole<HTMLInputElement>('radio', {
-        name: 'Lotação principal: Setor de Licitações',
-      }).checked,
-    ).toBe(true);
+      screen
+        .getByRole('radio', { name: 'Lotação principal: Setor de Licitações' })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
     await user.click(screen.getByRole('button', { name: 'Salvar lotações' }));
     await waitFor(() => {
       expect(callsOf(api, 'PUT', '/departments')).toHaveLength(1);
@@ -405,23 +425,24 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
     );
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mais ações do usuário' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Salvar|Suspender|Reativar|Revogar/ })).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
   it('[POL-16] no próprio vínculo, suspender e revogar ficam desabilitados com o aviso', async () => {
     mockApi({ get: () => detailResponse(member(), ['UPDATE', 'UPDATE_DEPARTMENTS'], true) });
+    const user = userEvent.setup();
     open();
-    const suspend = await screen.findByRole<HTMLButtonElement>('button', {
-      name: 'Suspender acesso',
-    });
-    const revoke = screen.getByRole<HTMLButtonElement>('button', { name: 'Revogar vínculo' });
-    expect(suspend.disabled).toBe(true);
-    expect(revoke.disabled).toBe(true);
-    expect(suspend.getAttribute('title')).toBe('Você não pode remover o próprio acesso.');
-    const note = screen.getByText('Você não pode remover o próprio acesso.', { selector: 'p' });
-    expect(suspend.getAttribute('aria-describedby')).toBe(note.id);
-    expect(revoke.getAttribute('aria-describedby')).toBe(note.id);
+    await user.click(await screen.findByRole('button', { name: 'Mais ações do usuário' }));
+    const suspend = await screen.findByRole('menuitem', { name: 'Suspender acesso' });
+    const revoke = screen.getByRole('menuitem', { name: 'Revogar vínculo' });
+    expect(suspend.getAttribute('aria-disabled')).toBe('true');
+    expect(revoke.getAttribute('aria-disabled')).toBe('true');
+    const note = screen.getByText('Você não pode remover o próprio acesso.').closest('[id]');
+    expect(note).toBeTruthy();
+    expect(suspend.getAttribute('aria-describedby')).toBe(note?.id);
+    expect(revoke.getAttribute('aria-describedby')).toBe(note?.id);
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
@@ -546,7 +567,7 @@ describe('SCR-029 · detalhe do usuário (US-092)', () => {
 
 describe('SCR-029 · suspender, reativar e revogar (US-092)', () => {
   const openSuspend = async (user: ReturnType<typeof userEvent.setup>) => {
-    await user.click(await screen.findByRole('button', { name: 'Suspender acesso' }));
+    await chooseMore(user, 'Suspender acesso');
     return screen.findByRole('alertdialog', { name: 'Suspender o acesso de Diego Ramos?' });
   };
 
@@ -654,7 +675,7 @@ describe('SCR-029 · suspender, reativar e revogar (US-092)', () => {
     });
     const user = userEvent.setup();
     open();
-    await user.click(await screen.findByRole('button', { name: 'Revogar vínculo' }));
+    await chooseMore(user, 'Revogar vínculo');
     const dialog = await screen.findByRole('alertdialog', {
       name: 'Revogar o vínculo de Diego Ramos?',
     });
@@ -700,7 +721,7 @@ describe('SCR-029 · suspender, reativar e revogar (US-092)', () => {
     });
     const user = userEvent.setup();
     open();
-    await user.click(await screen.findByRole('button', { name: 'Revogar vínculo' }));
+    await chooseMore(user, 'Revogar vínculo');
     const dialog = await screen.findByRole('alertdialog', {
       name: 'Revogar o vínculo de Diego Ramos?',
     });
@@ -757,7 +778,7 @@ describe('SCR-029 · redefinir a autenticação em duas etapas (US-090 · USR-13
   const WITH_MFA_RESET: MembershipAction[] = [...ALL_ACTIONS, 'MFA_RESET'];
   const RESET = 'Redefinir autenticação em duas etapas';
   const openReset = async (user: ReturnType<typeof userEvent.setup>) => {
-    await user.click(await screen.findByRole('button', { name: RESET }));
+    await chooseMore(user, RESET);
     return screen.findByRole('alertdialog', {
       name: 'Redefinir a autenticação em duas etapas de Diego Ramos?',
     });

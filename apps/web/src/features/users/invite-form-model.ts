@@ -20,7 +20,7 @@ export interface InviteFormState {
   readonly name: string;
   readonly type: InvitationMembershipType;
   readonly jobTitle: string;
-  /** Valor do `<input type="date">` (`AAAA-MM-DD`, dia local). */
+  /** Valor do seletor de data (`AAAA-MM-DD`, dia local). */
   readonly expiresDate: string;
   readonly departmentIds: readonly string[];
   readonly roleId: string;
@@ -44,7 +44,7 @@ export function endOfLocalDayIso(date: string): string | undefined {
   return Number.isNaN(local.getTime()) ? undefined : local.toISOString();
 }
 
-/** Hoje (dia local) como `AAAA-MM-DD`, para o `min` do campo de data. */
+/** Hoje (dia local) como `AAAA-MM-DD`, para o limite mínimo do seletor de data. */
 export function todayLocalDate(now: Date = new Date()): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');

@@ -153,14 +153,20 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
       'Aceita vínculo externo',
     );
 
-    // Ações com ROLE_MANAGE (ME-03); o ADMIN_ORGAO nunca mostra "Desativar" (FA-05).
-    expect(
-      await within(fiscal).findByRole('button', { name: 'Desativar Fiscal de Obras' }),
-    ).toBeTruthy();
-    expect(within(admin).queryByRole('button', { name: /Desativar/ })).toBeNull();
-    expect(
-      within(admin).getByRole('button', { name: 'Duplicar Administrador do órgão' }),
-    ).toBeTruthy();
+    // Ações no menu ⋯ com ROLE_MANAGE (ME-03); o ADMIN_ORGAO nunca mostra "Desativar" (FA-05).
+    const user = userEvent.setup();
+    await user.click(
+      await within(fiscal).findByRole('button', { name: 'Ações de Fiscal de Obras' }),
+    );
+    expect(await screen.findByRole('menuitem', { name: 'Desativar' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Duplicar' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await user.click(
+      within(admin).getByRole('button', { name: 'Ações de Administrador do órgão' }),
+    );
+    expect(await screen.findByRole('menuitem', { name: 'Duplicar' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Desativar' })).toBeNull();
+    await user.keyboard('{Escape}');
     expect(screen.getByRole('button', { name: 'Novo perfil' })).toBeTruthy();
     expect(
       within(admin)
@@ -195,7 +201,7 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Novo perfil' })).toBeNull();
     });
-    expect(screen.queryByRole('button', { name: /Duplicar|Desativar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull();
   });
 
   it('[Sucesso] criar perfil: valida no cliente, envia ROL-03 e leva ao detalhe', async () => {
@@ -207,7 +213,7 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
     renderWithShell(<RolesView />);
 
     await user.click(await screen.findByRole('button', { name: 'Novo perfil' }));
-    const name = await screen.findByLabelText('Nome *');
+    const name = await screen.findByLabelText(/^Nome/);
     await user.type(name, 'Fi');
     await user.click(screen.getByRole('button', { name: 'Criar perfil' }));
     expect(await screen.findByText('Informe um nome entre 3 e 120 caracteres.')).toBeTruthy();
@@ -236,10 +242,10 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
     const user = userEvent.setup();
     renderWithShell(<RolesView />);
     await user.click(await screen.findByRole('button', { name: 'Novo perfil' }));
-    await user.type(await screen.findByLabelText('Nome *'), 'fiscal de obras');
+    await user.type(await screen.findByLabelText(/^Nome/), 'fiscal de obras');
     await user.click(screen.getByRole('button', { name: 'Criar perfil' }));
     expect(await screen.findByText('Já existe um perfil com esse nome.')).toBeTruthy();
-    expect(screen.getByLabelText('Nome *').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText(/^Nome/).getAttribute('aria-invalid')).toBe('true');
   });
 
   it('FA-04: desativar com vínculos ativos exige a confirmação e envia confirmDeactivate com If-Match', async () => {
@@ -249,7 +255,8 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
     const user = userEvent.setup();
     renderWithShell(<RolesView />);
 
-    await user.click(await screen.findByRole('button', { name: 'Desativar Fiscal de Obras' }));
+    await user.click(await screen.findByRole('button', { name: 'Ações de Fiscal de Obras' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Desativar' }));
     const dialog = await screen.findByRole('dialog');
     expect(
       within(dialog).getByText(
@@ -282,8 +289,9 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
     const user = userEvent.setup();
     renderWithShell(<RolesView />);
     await user.click(
-      await screen.findByRole('button', { name: 'Duplicar Administrador do órgão' }),
+      await screen.findByRole('button', { name: 'Ações de Administrador do órgão' }),
     );
+    await user.click(await screen.findByRole('menuitem', { name: 'Duplicar' }));
     expect(
       await screen.findByText('Você não pode conceder uma permissão que você mesmo não possui.'),
     ).toBeTruthy();
@@ -292,9 +300,15 @@ describe('SCR-030 · lista de perfis (US-095)', () => {
 });
 
 describe('SCR-031 · matriz de permissões (US-095)', () => {
-  const switchOf = (code: string) => {
-    const element = document.querySelector(`[role="switch"][data-code="${code}"]`);
-    if (!(element instanceof HTMLElement)) throw new Error(`sem interruptor ${code}`);
+  /** A matriz abre fechada: a busca por código abre o módulo e mostra a caixa da permissão. */
+  const reveal = async (code: string) => {
+    const search = await screen.findByLabelText('Buscar permissão na matriz');
+    await userEvent.clear(search);
+    await userEvent.type(search, code);
+  };
+  const box = (code: string) => {
+    const element = document.querySelector(`[data-code="${code}"]`);
+    if (!(element instanceof HTMLElement)) throw new Error(`sem caixa ${code}`);
     return element;
   };
 
@@ -308,15 +322,22 @@ describe('SCR-031 · matriz de permissões (US-095)', () => {
     renderWithShell(<RoleDetailView roleId={FISCAL.id} />);
 
     expect(await screen.findByRole('heading', { name: 'Fiscal de Obras', level: 1 })).toBeTruthy();
-    expect(switchOf('PROCESS_VIEW').getAttribute('aria-checked')).toBe('true');
-    expect(switchOf('SUPPLIER_VIEW').getAttribute('aria-checked')).toBe('false');
+    // A matriz abre com os módulos recolhidos e o resumo "n de N".
+    expect(screen.getByText('1 de 69 permissões concedidas')).toBeTruthy();
+    expect(document.querySelector('[data-code]')).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+
+    await reveal('PROCESS_VIEW');
+    expect(box('PROCESS_VIEW').getAttribute('aria-checked')).toBe('true');
+    await reveal('SUPPLIER_VIEW');
+    expect(box('SUPPLIER_VIEW').getAttribute('aria-checked')).toBe('false');
     expect(await seriousA11yViolations()).toEqual([]);
 
     await waitFor(() => {
-      expect(switchOf('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
+      expect(box('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
     });
-    await user.click(switchOf('SUPPLIER_VIEW'));
-    expect(switchOf('SUPPLIER_VIEW').getAttribute('aria-checked')).toBe('true');
+    await user.click(box('SUPPLIER_VIEW'));
+    expect(box('SUPPLIER_VIEW').getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('1 a conceder')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Salvar matriz' }));
 
@@ -333,17 +354,20 @@ describe('SCR-031 · matriz de permissões (US-095)', () => {
     mockApi({ get: () => jsonResponse({ data: ADMIN }) });
     renderWithShell(<RoleDetailView roleId={ADMIN.id} />);
     await screen.findByRole('heading', { name: 'Administrador do órgão', level: 1 });
+    await reveal('USER_MANAGE');
     await waitFor(() => {
-      expect(switchOf('USER_MANAGE').getAttribute('aria-disabled')).toBe('true');
+      expect(box('USER_MANAGE').getAttribute('aria-disabled')).toBe('true');
     });
-    expect(switchOf('USER_MANAGE').getAttribute('aria-checked')).toBe('true');
-    expect(switchOf('USER_MANAGE').getAttribute('title')).toBe(
+    expect(box('USER_MANAGE').getAttribute('aria-checked')).toBe('true');
+    expect(box('USER_MANAGE').getAttribute('title')).toBe(
       'Permissão protegida — não pode ser removida do Administrador do órgão.',
     );
     // O administrador (isento de POL-13) pode acrescentar permissões novas.
-    expect(switchOf('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
-    expect(await screen.findByRole('button', { name: 'Editar perfil' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Desativar' })).toBeNull();
+    await reveal('SUPPLIER_VIEW');
+    expect(box('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Mais' }));
+    expect(await screen.findByRole('menuitem', { name: 'Editar perfil' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Desativar' })).toBeNull();
   });
 
   it('FA-02: quem não é administrador vê travadas as permissões que não possui; 403 da API desfaz a marcação', async () => {
@@ -362,22 +386,60 @@ describe('SCR-031 · matriz de permissões (US-095)', () => {
     const user = userEvent.setup();
     renderWithShell(<RoleDetailView roleId={FISCAL.id} />);
     await screen.findByRole('heading', { name: 'Fiscal de Obras', level: 1 });
+    await reveal('SETTINGS_MANAGE');
     await waitFor(() => {
-      expect(switchOf('SETTINGS_MANAGE').getAttribute('aria-disabled')).toBe('true');
+      expect(box('SETTINGS_MANAGE').getAttribute('aria-disabled')).toBe('true');
     });
-    expect(switchOf('SETTINGS_MANAGE').getAttribute('title')).toBe(
+    expect(box('SETTINGS_MANAGE').getAttribute('title')).toBe(
       'Você não possui esta permissão e por isso não pode concedê-la.',
     );
-    await user.click(switchOf('SETTINGS_MANAGE'));
-    expect(switchOf('SETTINGS_MANAGE').getAttribute('aria-checked')).toBe('false');
+    await user.click(box('SETTINGS_MANAGE'));
+    expect(box('SETTINGS_MANAGE').getAttribute('aria-checked')).toBe('false');
 
-    // Se a API ainda recusar (ex.: permissões efetivas desatualizadas), o interruptor volta.
-    await user.click(switchOf('DFD_CREATE'));
+    // Se a API ainda recusar (ex.: permissões efetivas desatualizadas), a caixa volta.
+    await reveal('DFD_CREATE');
+    await user.click(box('DFD_CREATE'));
     await user.click(screen.getByRole('button', { name: 'Salvar matriz' }));
     expect(
       await screen.findByText('Você não pode conceder uma permissão que você mesmo não possui.'),
     ).toBeTruthy();
-    expect(switchOf('DFD_CREATE').getAttribute('aria-checked')).toBe('false');
+    await reveal('DFD_CREATE');
+    expect(box('DFD_CREATE').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('módulos recolhíveis com "n de N"; a busca filtra por nome ou código e abre o módulo', async () => {
+    mockApi({ get: () => jsonResponse({ data: FISCAL }) });
+    const user = userEvent.setup();
+    renderWithShell(<RoleDetailView roleId={FISCAL.id} />);
+    await screen.findByRole('heading', { name: 'Fiscal de Obras', level: 1 });
+
+    const processTrigger = await screen.findByRole('button', { name: /^Processo/ });
+    const processTotal = CATALOG.filter((permission) => permission.module === 'process').length;
+    expect(processTrigger.getAttribute('aria-expanded')).toBe('false');
+    expect(processTrigger.textContent).toContain(`1 de ${String(processTotal)}`);
+    await user.click(processTrigger);
+    expect(processTrigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('checkbox', { name: 'Visualizar processos' })).toBeTruthy();
+    await user.click(processTrigger);
+    expect(screen.queryByRole('checkbox', { name: 'Visualizar processos' })).toBeNull();
+
+    await reveal('zzzxxx');
+    expect(
+      screen.getByText('Nenhuma permissão encontrada', { selector: 'p, div, span' }),
+    ).toBeTruthy();
+    await reveal('visualizar PROCESSOS');
+    expect(screen.getByRole('checkbox', { name: 'Visualizar processos' })).toBeTruthy();
+  });
+
+  it('o catálogo de referência fica atrás de "Ver catálogo de permissões"', async () => {
+    mockApi({ get: () => jsonResponse({ data: FISCAL }) });
+    const user = userEvent.setup();
+    renderWithShell(<RoleDetailView roleId={FISCAL.id} />);
+    await screen.findByRole('heading', { name: 'Fiscal de Obras', level: 1 });
+    expect(screen.queryByRole('heading', { name: 'Catálogo de permissões' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Ver catálogo de permissões' }));
+    expect(await screen.findByRole('heading', { name: 'Catálogo de permissões' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ocultar catálogo de permissões' })).toBeTruthy();
   });
 
   it('[Concorrência] 412 oferece "Recarregar"; MFA_REQUIRED oferece o step-up', async () => {
@@ -394,10 +456,11 @@ describe('SCR-031 · matriz de permissões (US-095)', () => {
     const user = userEvent.setup();
     renderWithShell(<RoleDetailView roleId={FISCAL.id} />);
     await screen.findByRole('heading', { name: 'Fiscal de Obras', level: 1 });
+    await reveal('SUPPLIER_VIEW');
     await waitFor(() => {
-      expect(switchOf('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
+      expect(box('SUPPLIER_VIEW').getAttribute('aria-disabled')).toBeNull();
     });
-    await user.click(switchOf('SUPPLIER_VIEW'));
+    await user.click(box('SUPPLIER_VIEW'));
     await user.click(screen.getByRole('button', { name: 'Salvar matriz' }));
     expect(
       await screen.findByText(
@@ -419,7 +482,8 @@ describe('SCR-031 · matriz de permissões (US-095)', () => {
     expect(
       await screen.findByText('Você pode consultar a matriz, mas não alterá-la.'),
     ).toBeTruthy();
-    expect(switchOf('PROCESS_VIEW').getAttribute('aria-disabled')).toBe('true');
+    await reveal('PROCESS_VIEW');
+    expect(box('PROCESS_VIEW').getAttribute('aria-disabled')).toBe('true');
     expect(screen.queryByRole('button', { name: 'Salvar matriz' })).toBeNull();
     view.unmount();
 

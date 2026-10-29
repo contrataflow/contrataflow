@@ -3,10 +3,22 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
   toast,
 } from '@contrataflow/ui';
 import { ORGANIZATION_TYPES } from '@contrataflow/validation';
@@ -15,7 +27,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import type { UseFormRegisterReturn } from 'react-hook-form';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
@@ -36,7 +47,6 @@ import {
   updateOrganization,
 } from './organizations.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 const FORM_FIELDS = new Set<string>(Object.keys(initialValues()));
 
 export interface OrganizationFormDialogProps {
@@ -50,20 +60,18 @@ export interface OrganizationFormDialogProps {
  * `OrganizationFormDialog` (SCR-032 · US-101 · passos 3–8): React Hook Form com a validação dos
  * mesmos schemas Zod da API (`createOrganizationSchema`/`updateOrganizationSchema`). A criação
  * envia o corpo de ORG-02; a edição envia só o que mudou, com `If-Match`; 412 oferece "Recarregar
- * e reaplicar minhas alterações" (FA-05). Foco no primeiro campo ao abrir; erros em `aria-live`;
- * tela cheia abaixo de 768 px.
+ * e reaplicar minhas alterações" (FA-05). Painel lateral do kit (`Sheet`, prd-5): cabeçalho e rodapé
+ * fixos, só o corpo rola; foco no primeiro campo ao abrir; tela cheia abaixo de 768 px.
  */
 export function OrganizationFormDialog({
   open,
   onOpenChange,
   organization,
 }: OrganizationFormDialogProps) {
+  const t = useTranslations('organizations');
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="h-dvh max-h-dvh overflow-y-auto md:h-auto md:max-h-[90vh]"
-        style={{ maxWidth: '44rem' }}
-      >
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
         <OrganizationFormBody
           key={organization?.id ?? 'novo'}
           organization={organization}
@@ -71,8 +79,8 @@ export function OrganizationFormDialog({
             onOpenChange(false);
           }}
         />
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -227,173 +235,157 @@ function OrganizationFormBody({
   };
 
   const pending = create.isPending || update.isPending;
-  const fieldId = (name: string) => `${ids}-${name}`;
   const errorOf = (name: FormField) => errors[name]?.message;
-  const describe = (name: FormField, extra?: string) => {
-    const parts = [errorOf(name) ? `${fieldId(name)}-error` : undefined, extra].filter(Boolean);
-    return parts.length > 0 ? parts.join(' ') : undefined;
-  };
-
-  const errorText = (name: FormField) =>
-    errorOf(name) ? (
-      <p id={`${fieldId(name)}-error`} className="text-sm text-destructive" aria-live="polite">
-        {errorOf(name)}
-      </p>
-    ) : null;
 
   const text = (
-    name: FormField,
-    options: {
-      readonly registration?: UseFormRegisterReturn;
-      readonly hint?: string;
-      readonly className?: string;
-    } = {},
+    name: Exclude<FormField, 'type' | 'cnpj' | 'isActive'>,
+    options: { readonly hint?: string; readonly className?: string } = {},
   ) => (
-    <div className={`flex flex-col gap-1 ${options.className ?? ''}`}>
-      <label htmlFor={fieldId(name)} className="text-sm font-medium">
-        {t(`form.${name}`)}
-      </label>
-      <input
-        id={fieldId(name)}
-        aria-invalid={errorOf(name) ? true : undefined}
-        aria-describedby={describe(name, options.hint ? `${fieldId(name)}-hint` : undefined)}
-        className={INPUT}
-        {...(options.registration ?? register(name as 'name'))}
-      />
-      {options.hint ? (
-        <p id={`${fieldId(name)}-hint`} className="text-xs text-muted-foreground">
-          {options.hint}
-        </p>
-      ) : null}
-      {errorText(name)}
-    </div>
+    <Field
+      label={t(`form.${name}`)}
+      description={options.hint}
+      error={errorOf(name)}
+      className={options.className}
+    >
+      <Input {...register(name)} />
+    </Field>
   );
 
   return (
-    <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
-      <DialogTitle>
-        {isEdit ? t('form.editTitle', { name: base.name }) : t('form.createTitle')}
-      </DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+    <form
+      noValidate
+      onSubmit={(event) => void onSubmit(event)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <SheetHeader>
+        <SheetTitle>
+          {isEdit ? t('form.editTitle', { name: base.name }) : t('form.createTitle')}
+        </SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      {formError ? <Alert tone="error" title={formError} /> : null}
-      {conflict ? (
-        <Alert tone="warning" title={t('conflict.title')}>
-          <p>{t('conflict.description')}</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-2"
-            onClick={() => void reapply()}
-          >
-            {t('conflict.reapply')}
-          </Button>
-        </Alert>
-      ) : null}
+      <SheetBody>
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {formError ? <Alert tone="error" title={formError} /> : null}
+          {conflict ? (
+            <Alert tone="warning" title={t('conflict.title')}>
+              <p>{t('conflict.description')}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-2"
+                onClick={() => void reapply()}
+              >
+                {t('conflict.reapply')}
+              </Button>
+            </Alert>
+          ) : null}
+        </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {text('name', { className: 'sm:col-span-2' })}
-        {text('shortName', { hint: t('form.shortNameHint') })}
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('cnpj')} className="text-sm font-medium">
-            {t('form.cnpj')}
-          </label>
-          <Controller
-            control={control}
-            name="cnpj"
-            render={({ field }) => (
-              <CnpjInput
-                id={fieldId('cnpj')}
-                value={field.value}
-                onChange={field.onChange}
-                invalid={Boolean(errorOf('cnpj'))}
-                describedBy={describe('cnpj', `${fieldId('cnpj')}-hint`)}
-                onValidated={(invalid) => {
-                  if (invalid) setError('cnpj', { message: t('validation.invalidCnpj') });
-                  else clearErrors('cnpj');
-                }}
-              />
-            )}
-          />
-          <p id={`${fieldId('cnpj')}-hint`} className="text-xs text-muted-foreground">
-            {t('form.cnpjHint')}
-          </p>
-          {errorText('cnpj')}
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('type')} className="text-sm font-medium">
-            {t('form.type')}
-          </label>
-          <select
-            id={fieldId('type')}
-            aria-invalid={errorOf('type') ? true : undefined}
-            aria-describedby={describe('type')}
-            className={INPUT}
-            {...register('type')}
-          >
-            <option value="">{t('form.typePlaceholder')}</option>
-            {ORGANIZATION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {t(`types.${type}`)}
-              </option>
-            ))}
-          </select>
-          {errorText('type')}
-        </div>
-        {isEdit ? (
-          <div className="flex flex-col gap-1 sm:col-span-2">
-            <div className="flex items-center gap-2">
-              <input
-                id={fieldId('isActive')}
-                type="checkbox"
-                className="size-4"
-                aria-describedby={describe('isActive', `${fieldId('isActive')}-hint`)}
-                {...register('isActive')}
-              />
-              <label htmlFor={fieldId('isActive')} className="text-sm font-medium">
-                {t('form.isActive')}
-              </label>
+        <section className="grid gap-4 sm:grid-cols-2">
+          {text('name', { className: 'sm:col-span-2' })}
+          {text('shortName', { hint: t('form.shortNameHint') })}
+          <Field label={t('form.cnpj')} description={t('form.cnpjHint')} error={errorOf('cnpj')}>
+            <Controller
+              control={control}
+              name="cnpj"
+              render={({ field }) => (
+                <CnpjInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  onValidated={(invalid) => {
+                    if (invalid) setError('cnpj', { message: t('validation.invalidCnpj') });
+                    else clearErrors('cnpj');
+                  }}
+                />
+              )}
+            />
+          </Field>
+          <Field label={t('form.type')} error={errorOf('type')}>
+            <Controller
+              control={control}
+              name="type"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger ref={field.ref}>
+                    <SelectValue placeholder={t('form.typePlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORGANIZATION_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {t(`types.${type}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+          {isEdit ? (
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <div className="flex items-center gap-2.5">
+                <Controller
+                  control={control}
+                  name="isActive"
+                  render={({ field }) => (
+                    <Checkbox
+                      id={`${ids}-isActive`}
+                      ref={field.ref}
+                      checked={field.value}
+                      aria-describedby={`${ids}-isActive-hint`}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked === true);
+                      }}
+                    />
+                  )}
+                />
+                <Label htmlFor={`${ids}-isActive`}>{t('form.isActive')}</Label>
+              </div>
+              <p id={`${ids}-isActive-hint`} className="text-[0.8125rem] text-muted-foreground">
+                {t('form.isActiveHint')}
+              </p>
+              {errorOf('isActive') ? (
+                <p className="text-[0.8125rem] font-semibold text-destructive">
+                  {errorOf('isActive')}
+                </p>
+              ) : null}
             </div>
-            <p id={`${fieldId('isActive')}-hint`} className="text-xs text-muted-foreground">
-              {t('form.isActiveHint')}
-            </p>
-            {errorText('isActive')}
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </section>
 
-      <fieldset className="grid gap-3 sm:grid-cols-2">
-        <legend className="mb-1 text-sm font-semibold">{t('form.contact')}</legend>
-        {text('email')}
-        {text('phone')}
-        {text('website', { hint: t('form.websiteHint'), className: 'sm:col-span-2' })}
-      </fieldset>
+        <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-2">
+          <legend className="mb-3 text-sm font-bold text-brand-ink">{t('form.contact')}</legend>
+          {text('email')}
+          {text('phone')}
+          {text('website', { hint: t('form.websiteHint'), className: 'sm:col-span-2' })}
+        </fieldset>
 
-      <fieldset className="grid gap-3 sm:grid-cols-6">
-        <legend className="mb-1 text-sm font-semibold">{t('form.address')}</legend>
-        {text('addressStreet', { className: 'sm:col-span-4' })}
-        {text('addressNumber', { className: 'sm:col-span-2' })}
-        {text('addressComplement', { className: 'sm:col-span-3' })}
-        {text('addressDistrict', { className: 'sm:col-span-3' })}
-        {text('addressCity', { className: 'sm:col-span-3' })}
-        {text('addressState', { className: 'sm:col-span-1' })}
-        {text('addressZipCode', { className: 'sm:col-span-2' })}
-        {text('ibgeCityCode', { className: 'sm:col-span-3' })}
-      </fieldset>
+        <fieldset className="m-0 grid gap-4 border-0 p-0 sm:grid-cols-6">
+          <legend className="mb-3 text-sm font-bold text-brand-ink">{t('form.address')}</legend>
+          {text('addressStreet', { className: 'sm:col-span-4' })}
+          {text('addressNumber', { className: 'sm:col-span-2' })}
+          {text('addressComplement', { className: 'sm:col-span-3' })}
+          {text('addressDistrict', { className: 'sm:col-span-3' })}
+          {text('addressCity', { className: 'sm:col-span-3' })}
+          {text('addressState', { className: 'sm:col-span-1' })}
+          {text('addressZipCode', { className: 'sm:col-span-2' })}
+          {text('ibgeCityCode', { className: 'sm:col-span-3' })}
+        </fieldset>
 
-      <p className="text-sm text-muted-foreground">
-        <span className="font-medium">{t('form.logo')}:</span> {t('form.logoPending')}
-      </p>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium">{t('form.logo')}:</span> {t('form.logoPending')}
+        </p>
+      </SheetBody>
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <SheetFooter>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('form.cancel')}
         </Button>
         <Button type="submit" aria-busy={pending} disabled={pending}>
           {pending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

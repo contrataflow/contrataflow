@@ -173,13 +173,22 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Auditoria · Registros | `auditoria.png` | `auditoria-escuro.png` | `auditoria-celular.png` |
 | Notificações | `notificacoes.png` | `notificacoes-escuro.png` | `notificacoes-celular.png` |
 | Meu perfil | `perfil.png` | `perfil-escuro.png` | `perfil-celular.png` |
+| Administração · hub (card 8) | `administracao.png` | `administracao-escuro.png` | `administracao-celular.png` |
+| Usuários · lista | `usuarios.png` | `usuarios-escuro.png` | `usuarios-celular.png` |
+| Usuários · detalhe | `usuario-detalhe.png` | `usuario-detalhe-escuro.png` | `usuario-detalhe-celular.png` |
+| Perfis · matriz de permissões | `perfis-matriz.png` | `perfis-matriz-escuro.png` | `perfis-matriz-celular.png` |
+| Configurações · Segurança | `configuracoes-seguranca.png` | `configuracoes-seguranca-escuro.png` | `configuracoes-seguranca-celular.png` |
+| Configurações · Inteligência artificial | `configuracoes-ia.png` | `configuracoes-ia-escuro.png` | `configuracoes-ia-celular.png` |
+| Estrutura · Órgãos | `estrutura.png` | `estrutura-escuro.png` | `estrutura-celular.png` |
+| Calendário | `calendario.png` | `calendario-escuro.png` | `calendario-celular.png` |
 
 Painéis do card 7 (1280 px, claro): `fornecedores-formulario.png` (painel lateral "Novo
 fornecedor"), `auditoria-filtros.png` (painel "Filtros da auditoria") e `notificacoes-sino.png`
 (popover do sininho com as 5 mais recentes).
 
 Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
-editores (pesquisa de preços, riscos, documentos) e administração. Contraste e rolagem horizontal foram
+editores (pesquisa de preços, riscos, documentos) e a administração B (templates, workflows, tipos de
+documento, catálogos). Contraste e rolagem horizontal foram
 varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
 
 ## Tokens (`packages/ui/src/styles.css`)

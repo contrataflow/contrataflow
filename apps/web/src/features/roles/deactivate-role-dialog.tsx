@@ -3,11 +3,13 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   toast,
 } from '@contrataflow/ui';
 import type { RoleDto } from '@contrataflow/validation';
@@ -85,19 +87,17 @@ function Body({ role, onClose }: { readonly role: RoleDto; readonly onClose: () 
           : t('deactivate.noneAffected')}
       </p>
       {affected > 0 ? (
-        <div className="flex items-start gap-2">
-          <input
+        <div className="flex items-start gap-3">
+          <Checkbox
             id={confirmId}
-            type="checkbox"
-            className="mt-1 h-4 w-4"
             checked={confirmed}
-            onChange={(event) => {
-              setConfirmed(event.target.checked);
+            onCheckedChange={(checked) => {
+              setConfirmed(checked === true);
             }}
           />
-          <label htmlFor={confirmId} className="text-sm">
+          <Label htmlFor={confirmId} className="font-normal">
             {t('deactivate.confirmAffected', { count: affected })}
-          </label>
+          </Label>
         </div>
       ) : null}
       <div aria-live="assertive">{error ? <Alert tone="error" title={error} /> : null}</div>

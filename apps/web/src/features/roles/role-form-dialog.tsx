@@ -3,10 +3,18 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import { createRoleSchema, updateRoleSchema } from '@contrataflow/validation';
@@ -22,8 +30,6 @@ import { useTenantId } from '@/lib/session/session-context';
 
 import { createRole, roleKeys, updateRole } from './roles.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
-
 export interface RoleFormDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -36,18 +42,19 @@ export interface RoleFormDialogProps {
 }
 
 /**
- * `RoleForm` (SCR-030/031 · US-095 · passos 2–3 e 8): nome, descrição e
+ * `RoleForm` (SCR-030/031 · US-095 · passos 2–3 e 8) no painel lateral do kit (`Sheet`): nome, descrição e
  * `allowExternalAssignment`, validados pelos mesmos schemas Zod da API. A edição envia só o que
  * mudou, com `If-Match`; 409 vai para o campo "Nome"; 412 pede recarga; `MFA_REQUIRED` oferece o
  * *step-up* (RN-IAM-83).
  */
 export function RoleFormDialog(props: RoleFormDialogProps) {
+  const t = useTranslations('roles');
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent style={{ maxWidth: '36rem' }}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
+      <SheetContent closeLabel={t('form.close')}>
         {props.open ? <RoleFormBody key={props.role?.id ?? 'novo'} {...props} /> : null}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -129,91 +136,71 @@ function RoleFormBody({ role, onOpenChange, onCreated, returnTo }: RoleFormDialo
     save.mutate();
   };
 
-  const nameId = `${ids}-name`;
-  const nameErrorId = `${ids}-name-error`;
-  const descriptionId = `${ids}-description`;
   const externalId = `${ids}-external`;
   const externalHintId = `${ids}-external-hint`;
 
   return (
-    <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-      <DialogTitle>{t(role ? 'form.editTitle' : 'form.createTitle')}</DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+    <form noValidate onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+      <SheetHeader>
+        <SheetTitle>{t(role ? 'form.editTitle' : 'form.createTitle')}</SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={nameId} className="text-sm font-medium">
-          {t('form.name')}
-        </label>
-        <input
-          id={nameId}
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o diálogo
-          autoFocus
-          className={INPUT}
-          value={name}
-          maxLength={200}
-          aria-invalid={nameError !== null}
-          aria-describedby={nameError ? nameErrorId : undefined}
-          onChange={(event) => {
-            setName(event.target.value);
-          }}
-        />
-        {nameError ? (
-          <p id={nameErrorId} className="text-sm text-destructive">
-            {nameError}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={descriptionId} className="text-sm font-medium">
-          {t('form.descriptionField')}
-        </label>
-        <textarea
-          id={descriptionId}
-          rows={3}
-          maxLength={500}
-          className="rounded-control border border-border bg-surface px-3 py-2 text-sm"
-          value={description}
-          onChange={(event) => {
-            setDescription(event.target.value);
-          }}
-        />
-      </div>
-
-      <div className="flex items-start gap-2">
-        <input
-          id={externalId}
-          type="checkbox"
-          className="mt-1 h-4 w-4"
-          checked={external}
-          aria-describedby={externalHintId}
-          onChange={(event) => {
-            setExternal(event.target.checked);
-          }}
-        />
-        <div>
-          <label htmlFor={externalId} className="text-sm font-medium">
-            {t('form.allowExternalAssignment')}
-          </label>
-          <p id={externalHintId} className="text-sm text-muted-foreground">
-            {t('form.allowExternalAssignmentHint')}
-          </p>
+      <SheetBody>
+        <div aria-live="polite" className="empty:hidden">
+          {formError ? (
+            <Alert tone="error" title={formError}>
+              {needsMfa ? (
+                <a className="font-medium underline" href={stepUpHref(returnTo)}>
+                  {t('errors.stepUp')}
+                </a>
+              ) : null}
+            </Alert>
+          ) : null}
         </div>
-      </div>
 
-      <div aria-live="polite">
-        {formError ? (
-          <Alert tone="error" title={formError}>
-            {needsMfa ? (
-              <a className="font-medium underline" href={stepUpHref(returnTo)}>
-                {t('errors.stepUp')}
-              </a>
-            ) : null}
-          </Alert>
-        ) : null}
-      </div>
+        <Field label={t('form.name')} required error={nameError ?? undefined}>
+          <Input
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o painel
+            autoFocus
+            value={name}
+            maxLength={200}
+            onChange={(event) => {
+              setName(event.target.value);
+            }}
+          />
+        </Field>
 
-      <div className="flex flex-wrap justify-end gap-2">
+        <Field label={t('form.descriptionField')}>
+          <Textarea
+            rows={3}
+            maxLength={500}
+            value={description}
+            onChange={(event) => {
+              setDescription(event.target.value);
+            }}
+          />
+        </Field>
+
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id={externalId}
+            checked={external}
+            aria-describedby={externalHintId}
+            onCheckedChange={(checked) => {
+              setExternal(checked === true);
+            }}
+          />
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={externalId}>{t('form.allowExternalAssignment')}</Label>
+            <p id={externalHintId} className="text-[0.8125rem] text-muted-foreground">
+              {t('form.allowExternalAssignmentHint')}
+            </p>
+          </div>
+        </div>
+      </SheetBody>
+
+      <SheetFooter>
         <Button
           type="button"
           variant="secondary"
@@ -226,7 +213,7 @@ function RoleFormBody({ role, onOpenChange, onCreated, returnTo }: RoleFormDialo
         <Button type="submit" disabled={save.isPending} aria-busy={save.isPending}>
           {t(role ? 'form.save' : 'form.create')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

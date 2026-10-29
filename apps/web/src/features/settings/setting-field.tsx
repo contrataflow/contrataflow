@@ -1,5 +1,20 @@
 'use client';
 
+import {
+  Checkbox,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+  fieldControlProps,
+  useFieldControl,
+} from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
 import type { ReactNode } from 'react';
@@ -12,9 +27,9 @@ import {
   fieldKindOf,
   isLowContrast,
 } from './settings-model';
-import type { Draft } from './settings-model';
+import type { Draft, FieldKind } from './settings-model';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
 export interface SettingFieldProps {
   readonly settingKey: string;
@@ -30,9 +45,10 @@ export interface SettingFieldProps {
 }
 
 /**
- * `SettingField` (SCR-041 · US-103): renderiza o editor certo pelo tipo do schema da chave — texto,
- * interruptor, número, seleção, cor, lista de extensões ou JSON — com rótulo e descrição
- * associados (`aria-describedby`) e o erro em `aria-live`.
+ * `SettingField` (SCR-041 · US-103): o controle do kit certo para o tipo do schema da chave —
+ * `Input` (texto, máscara, número), `Switch`, `Select`, cor com amostra, `Checkbox`es das
+ * extensões ou `Textarea` do JSON — dentro de um `Field` que liga rótulo, ajuda e erro ao controle
+ * (`aria-describedby`, `aria-invalid`). A versão gravada fecha a ajuda.
  */
 export function SettingField({
   settingKey,
@@ -50,7 +66,7 @@ export function SettingField({
   const name = settingKey.slice('features.'.length);
 
   // As chaves do registro são dinâmicas (os textos aninham pelo ponto da chave): o cast só informa
-  // ao tipo das mensagens que o caminho existe — um teste confere os 32 caminhos.
+  // ao tipo das mensagens que o caminho existe — um teste confere os caminhos de todas as chaves.
   const documentType = documentMaskTypeOf(settingKey);
   let label: string;
   let description: string;
@@ -67,73 +83,110 @@ export function SettingField({
       MASK_TOKENS,
     );
   }
-  const describedBy = [
-    `${id}-description`,
-    addon ? `${id}-addon` : undefined,
-    error ? `${id}-error` : undefined,
-    `${id}-version`,
-  ]
-    .filter(Boolean)
-    .join(' ');
 
-  const common = {
-    id,
-    disabled,
-    'aria-describedby': describedBy,
-    'aria-invalid': error ? (true as const) : undefined,
-  };
   const text = typeof draft === 'string' ? draft : '';
+  const contrastWarning = kind === 'color' && isLowContrast(text);
+  const addonId = addon ? `${id}-addon` : undefined;
 
-  let editor;
+  return (
+    <Field
+      id={id}
+      group={kind === 'extensions'}
+      label={label}
+      description={
+        <>
+          {description}
+          <span className="mt-0.5 block text-xs">
+            {version === 0 ? t('field.defaultHint') : t('field.versionHint', { version })}
+          </span>
+        </>
+      }
+      error={error}
+      disabled={disabled}
+    >
+      <SettingControl
+        kind={kind}
+        settingKey={settingKey}
+        draft={draft}
+        addonId={addonId}
+        onChange={onChange}
+      />
+      {addon ? <div id={addonId}>{addon}</div> : null}
+      {contrastWarning && !error ? (
+        <p aria-live="polite" className="text-[0.8125rem] font-semibold text-destructive">
+          {t('field.contrast')}
+        </p>
+      ) : null}
+    </Field>
+  );
+}
+
+function SettingControl({
+  kind,
+  settingKey,
+  draft,
+  addonId,
+  onChange,
+}: {
+  readonly kind: FieldKind;
+  readonly settingKey: string;
+  readonly draft: Draft;
+  readonly addonId: string | undefined;
+  readonly onChange: (draft: Draft) => void;
+}) {
+  const t = useTranslations('settings');
+  const field = useFieldControl();
+  const text = typeof draft === 'string' ? draft : '';
+  // A prévia da máscara (addon) entra na descrição do controle, depois da ajuda e do erro.
+  const describedBy = [field?.describedBy, addonId].filter(Boolean).join(' ') || undefined;
+
   switch (kind) {
     case 'boolean':
-      editor = (
-        <input
-          {...common}
-          type="checkbox"
-          role="switch"
-          className="h-5 w-5"
+      return (
+        <Switch
+          {...fieldControlProps(field, { 'aria-describedby': describedBy })}
           checked={draft === true}
-          onChange={(event) => {
-            onChange(event.target.checked);
+          onCheckedChange={(checked) => {
+            onChange(checked);
           }}
         />
       );
-      break;
     case 'select':
-      editor = (
-        <select
-          {...common}
-          className={INPUT}
+      return (
+        <Select
           value={text}
-          onChange={(event) => {
-            onChange(event.target.value);
-          }}
+          onValueChange={onChange}
+          {...(field?.disabled ? { disabled: true } : {})}
         >
-          {(SELECT_OPTIONS[settingKey] ?? []).map((option) => (
-            <option key={option} value={option}>
-              {t(`options.${option}` as 'options.NONE')}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-describedby={describedBy} className="w-full sm:max-w-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(SELECT_OPTIONS[settingKey] ?? []).map((option) => (
+              <SelectItem key={option} value={option}>
+                {t(`options.${option}` as 'options.NONE')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       );
-      break;
-    case 'color':
-      editor = (
-        <div className="flex items-center gap-2">
+    case 'color': {
+      const valid = HEX_COLOR.test(text);
+      return (
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="color"
             aria-label={t('field.colorPicker')}
-            disabled={disabled}
-            className="h-10 w-12 rounded-control border border-border bg-surface p-1"
-            value={/^#[0-9A-Fa-f]{6}$/.test(text) ? text : '#000000'}
+            disabled={field?.disabled}
+            className="h-11 w-12 rounded-control border border-border bg-surface p-1"
+            value={valid ? text : '#000000'}
             onChange={(event) => {
               onChange(event.target.value.toUpperCase());
             }}
           />
-          <input
-            {...common}
-            className={`${INPUT} w-32 font-mono`}
+          <Input
+            aria-describedby={describedBy}
+            className="w-36 font-mono"
             value={text}
             maxLength={7}
             spellCheck={false}
@@ -143,33 +196,29 @@ export function SettingField({
           />
           <span
             aria-hidden="true"
-            className="h-10 min-w-24 rounded-control px-3 text-center text-sm leading-10 text-white"
-            style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(text) ? text : '#000000' }}
+            className="grid h-11 min-w-24 place-items-center rounded-control px-3 text-sm font-bold text-white"
+            style={{ backgroundColor: valid ? text : '#000000' }}
           >
             Aa
           </span>
         </div>
       );
-      break;
+    }
     case 'extensions':
-      editor = (
-        <fieldset
-          disabled={disabled}
-          aria-describedby={describedBy}
-          className="flex flex-wrap gap-x-4 gap-y-2"
-        >
-          <legend className="sr-only">{label}</legend>
+      return (
+        <div className="flex flex-wrap gap-x-5 gap-y-3">
           {EXTENSION_OPTIONS.map((extension) => {
-            const selected = Array.isArray(draft) && draft.includes(extension);
+            const current = Array.isArray(draft) ? (draft as string[]) : [];
+            const extensionId = `${field?.id ?? settingKey}-${extension}`;
             return (
-              <label key={extension} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={(event) => {
-                    const current = Array.isArray(draft) ? (draft as string[]) : [];
+              <div key={extension} className="flex items-center gap-2.5">
+                <Checkbox
+                  id={extensionId}
+                  checked={current.includes(extension)}
+                  disabled={field?.disabled}
+                  onCheckedChange={(checked) => {
                     onChange(
-                      event.target.checked
+                      checked === true
                         ? EXTENSION_OPTIONS.filter(
                             (item) => item === extension || current.includes(item),
                           )
@@ -177,54 +226,51 @@ export function SettingField({
                     );
                   }}
                 />
-                <span className="font-mono">{extension}</span>
-              </label>
+                <Label htmlFor={extensionId} className="font-mono font-normal">
+                  {extension}
+                </Label>
+              </div>
             );
           })}
-        </fieldset>
+        </div>
       );
-      break;
     case 'json':
-      editor = (
-        <textarea
-          {...common}
+      return (
+        <Textarea
+          aria-describedby={describedBy}
           rows={8}
           spellCheck={false}
-          className="rounded-control border border-border bg-surface p-3 font-mono text-sm"
+          className="font-mono"
           value={text}
           onChange={(event) => {
             onChange(event.target.value);
           }}
         />
       );
-      break;
     case 'readonly':
-      editor = (
-        <p id={id} className="text-sm text-muted-foreground">
+      return (
+        <p id={field?.id} className="text-sm text-muted-foreground">
           {text === '' ? t('field.noLogo') : text}
         </p>
       );
-      break;
     case 'integer':
     case 'number':
-      editor = (
-        <input
-          {...common}
-          type="text"
+      return (
+        <Input
+          aria-describedby={describedBy}
           inputMode={kind === 'integer' ? 'numeric' : 'decimal'}
-          className={`${INPUT} w-40`}
+          className="w-40"
           value={text}
           onChange={(event) => {
             onChange(event.target.value);
           }}
         />
       );
-      break;
     default:
-      editor = (
-        <input
-          {...common}
-          className={`${INPUT} ${kind === 'mask' ? 'font-mono' : ''}`}
+      return (
+        <Input
+          aria-describedby={describedBy}
+          className={kind === 'mask' ? 'font-mono' : undefined}
           value={text}
           onChange={(event) => {
             onChange(event.target.value);
@@ -232,41 +278,4 @@ export function SettingField({
         />
       );
   }
-
-  const contrastWarning = kind === 'color' && isLowContrast(text);
-  const isBoolean = kind === 'boolean';
-  return (
-    <div
-      className={`flex flex-col gap-1 ${isBoolean ? 'sm:flex-row sm:items-start sm:gap-3' : ''}`}
-    >
-      {isBoolean ? <div className="pt-0.5">{editor}</div> : null}
-      <div className="flex flex-1 flex-col gap-1">
-        {kind === 'extensions' ? (
-          <span className="text-sm font-medium">{label}</span>
-        ) : (
-          <label htmlFor={id} className="text-sm font-medium">
-            {label}
-          </label>
-        )}
-        {isBoolean ? null : editor}
-        {addon ? <div id={`${id}-addon`}>{addon}</div> : null}
-        <p id={`${id}-description`} className="text-xs text-muted-foreground">
-          {description}
-        </p>
-        {error ? (
-          <p id={`${id}-error`} className="text-sm text-destructive" aria-live="polite">
-            {error}
-          </p>
-        ) : null}
-        {contrastWarning && !error ? (
-          <p className="text-sm text-destructive" aria-live="polite">
-            {t('field.contrast')}
-          </p>
-        ) : null}
-        <p id={`${id}-version`} className="text-xs text-muted-foreground">
-          {version === 0 ? t('field.defaultHint') : t('field.versionHint', { version })}
-        </p>
-      </div>
-    </div>
-  );
 }

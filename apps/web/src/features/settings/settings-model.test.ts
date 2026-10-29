@@ -1,4 +1,4 @@
-import { SETTING_DEFINITIONS } from '@contrataflow/validation';
+import { SETTING_DEFINITIONS, SETTING_GROUPS } from '@contrataflow/validation';
 import type { SettingsMapDto } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
@@ -7,12 +7,13 @@ import {
   documentMaskTypeOf,
   evaluateDrafts,
   fieldKindOf,
-  groupSettings,
   hasFutureEffect,
   maskNeedsOrganization,
   maskPreviewRequest,
   parseDraft,
   scopeChanged,
+  sectionSettings,
+  SETTINGS_SECTIONS,
   toDraft,
 } from './settings-model';
 
@@ -24,19 +25,36 @@ const settings: SettingsMapDto = Object.fromEntries(
 );
 
 describe('modelo da SCR-041', () => {
-  it('agrupa pelo prefixo na ordem da tela e ignora grupos sem chaves', () => {
-    const groups = groupSettings({
+  it('reúne os grupos em seções na ordem da tela e ignora seções sem chaves', () => {
+    const sections = sectionSettings({
+      'features.beta': { value: true, version: 1 },
+      'calendar.optionalHolidaysAreNonBusiness': { value: true, version: 1 },
+      'deadlines.warnBeforeBusinessDays': { value: 2, version: 1 },
       'security.mfaPolicy': { value: 'ADMINS', version: 1 },
       'labels.department': { value: 'Setor', version: 1 },
-      'features.beta': { value: true, version: 1 },
     });
-    expect(groups.map((group) => [group.group, group.keys])).toEqual([
+    expect(sections.map((section) => [section.id, section.keys])).toEqual([
       ['labels', ['labels.department']],
       ['security', ['security.mfaPolicy']],
+      [
+        'deadlines',
+        ['deadlines.warnBeforeBusinessDays', 'calendar.optionalHolidaysAreNonBusiness'],
+      ],
       ['features', ['features.beta']],
     ]);
-    // 13 grupos da US-103 + "Inteligência artificial" (US-116).
-    expect(groupSettings(settings)).toHaveLength(14);
+    // Todas as chaves do registro caem em alguma seção, sem repetir.
+    const placed = sectionSettings(settings).flatMap((section) => section.keys);
+    expect([...placed].sort()).toEqual(Object.keys(settings).sort());
+    expect(sectionSettings(settings)).toHaveLength(SETTINGS_SECTIONS.length - 1);
+  });
+
+  it('todo grupo do registro pertence a exatamente uma seção', () => {
+    for (const group of SETTING_GROUPS) {
+      const owners = SETTINGS_SECTIONS.filter((section) =>
+        (section.groups as readonly string[]).includes(group),
+      );
+      expect(owners, group).toHaveLength(1);
+    }
   });
 
   it('escolhe o editor pelo tipo da chave', () => {

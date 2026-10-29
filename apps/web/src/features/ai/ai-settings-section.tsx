@@ -9,11 +9,16 @@ import {
 import {
   Alert,
   Button,
+  Card,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Input,
+  Label,
+  Switch,
   toast,
 } from '@contrataflow/ui';
 import { AI_TERMS_CURRENT_VERSION } from '@contrataflow/validation';
@@ -177,9 +182,7 @@ export function AiSettingsSection({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">{t('description')}</p>
-
+    <div className="flex min-w-0 flex-col gap-5">
       {aiTerms?.provider === 'none' ? (
         <Alert tone="warning" title={t('providerUnavailable.title')}>
           {t('providerUnavailable.description')}
@@ -204,35 +207,29 @@ export function AiSettingsSection({
 
       {error === null || termsMode !== null ? null : <Alert tone="error" title={error} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span id={`${ids}-switch`} className="font-medium">
-            {t('switch')}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {accepted === null ? t('termsNone') : t('termsAccepted', { version: accepted })}
+      <Card title={t('title')} description={t('description')}>
+        <div className="flex items-center gap-3">
+          <Switch
+            id={`${ids}-switch`}
+            checked={enabled}
+            disabled={save.isPending}
+            onCheckedChange={toggle}
+          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <Label htmlFor={`${ids}-switch`}>{t('switch')}</Label>
+            <span className="text-[0.8125rem] text-muted-foreground">
+              {accepted === null ? t('termsNone') : t('termsAccepted', { version: accepted })}
+            </span>
+          </div>
+          <span className="ml-auto text-sm font-semibold text-muted-foreground">
+            {enabled ? t('switchOn') : t('switchOff')}
           </span>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-labelledby={`${ids}-switch`}
-          disabled={save.isPending}
-          onClick={toggle}
-          className={`inline-flex h-8 min-w-24 items-center justify-center rounded-full border px-3 text-sm font-medium ${
-            enabled
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-border bg-surface text-foreground'
-          }`}
-        >
-          {enabled ? t('switchOn') : t('switchOff')}
-        </button>
-      </div>
+      </Card>
 
       <form
-        className="flex flex-col gap-4"
-        aria-labelledby={`${ids}-limits`}
+        noValidate
+        aria-labelledby={`${ids}-limits-titulo`}
         onSubmit={(event) => {
           event.preventDefault();
           if (monthlyError !== null || dailyError !== null) return;
@@ -241,53 +238,56 @@ export function AiSettingsSection({
           save.mutate(limitChanges);
         }}
       >
-        <h3 id={`${ids}-limits`} className="font-semibold">
-          {t('limits.title')}
-        </h3>
-        <LimitField
-          id={`${ids}-monthly`}
-          label={t('limits.monthly')}
-          hint={t('limits.monthlyHint', limits)}
-          value={monthly}
-          error={monthlyError}
-          disabled={save.isPending}
-          onChange={(next) => {
-            setMonthly(next);
-            setFieldErrors(({ [MONTHLY]: _removed, ...rest }) => rest);
-          }}
-        />
-        {belowUsage ? (
-          <Alert
-            tone="warning"
-            title={t('limits.belowUsage', { used: format.number(usage.data.usedTokens) })}
-          />
-        ) : null}
-        <LimitField
-          id={`${ids}-daily`}
-          label={t('limits.daily')}
-          hint={t('limits.dailyHint')}
-          value={daily}
-          error={dailyError}
-          disabled={save.isPending}
-          onChange={(next) => {
-            setDaily(next);
-            setFieldErrors(({ [DAILY]: _removed, ...rest }) => rest);
-          }}
-        />
-        <div>
-          <Button
-            type="submit"
-            disabled={
-              save.isPending ||
-              monthlyError !== null ||
-              dailyError !== null ||
-              Object.keys(limitChanges).length === 0
-            }
-            aria-busy={save.isPending}
-          >
-            {save.isPending ? t('limits.saving') : t('limits.save')}
-          </Button>
-        </div>
+        <Card id={`${ids}-limits`} title={t('limits.title')}>
+          <div className="flex max-w-xl flex-col gap-4">
+            <Field
+              label={t('limits.monthly')}
+              description={t('limits.monthlyHint', limits)}
+              error={monthlyError}
+            >
+              <Input
+                inputMode="numeric"
+                value={monthly}
+                disabled={save.isPending}
+                onChange={(event) => {
+                  setMonthly(event.target.value);
+                  setFieldErrors(({ [MONTHLY]: _removed, ...rest }) => rest);
+                }}
+              />
+            </Field>
+            {belowUsage ? (
+              <Alert
+                tone="warning"
+                title={t('limits.belowUsage', { used: format.number(usage.data.usedTokens) })}
+              />
+            ) : null}
+            <Field label={t('limits.daily')} description={t('limits.dailyHint')} error={dailyError}>
+              <Input
+                inputMode="numeric"
+                value={daily}
+                disabled={save.isPending}
+                onChange={(event) => {
+                  setDaily(event.target.value);
+                  setFieldErrors(({ [DAILY]: _removed, ...rest }) => rest);
+                }}
+              />
+            </Field>
+          </div>
+          <div>
+            <Button
+              type="submit"
+              disabled={
+                save.isPending ||
+                monthlyError !== null ||
+                dailyError !== null ||
+                Object.keys(limitChanges).length === 0
+              }
+              aria-busy={save.isPending}
+            >
+              {save.isPending ? t('limits.saving') : t('limits.save')}
+            </Button>
+          </div>
+        </Card>
       </form>
 
       <AiUsageCard />
@@ -318,7 +318,7 @@ export function AiSettingsSection({
           if (!next) setConfirmOff(false);
         }}
       >
-        <DialogContent style={{ maxWidth: '28rem' }}>
+        <DialogContent className="max-w-md">
           <DialogTitle>{t('disable.title')}</DialogTitle>
           <DialogDescription>{t('disable.description')}</DialogDescription>
           <DialogFooter className="mt-6">
@@ -342,52 +342,6 @@ export function AiSettingsSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function LimitField({
-  id,
-  label,
-  hint,
-  value,
-  error,
-  disabled,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly hint: string;
-  readonly value: string;
-  readonly error: string | null;
-  readonly disabled: boolean;
-  readonly onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <input
-        id={id}
-        inputMode="numeric"
-        className="h-10 max-w-xs rounded-control border border-border bg-surface px-3 text-sm"
-        value={value}
-        disabled={disabled}
-        aria-invalid={error !== null}
-        aria-describedby={`${id}-hint${error === null ? '' : ` ${id}-error`}`}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-      />
-      <span id={`${id}-hint`} className="text-xs text-muted-foreground">
-        {hint}
-      </span>
-      {error === null ? null : (
-        <span id={`${id}-error`} className="text-sm text-destructive">
-          {error}
-        </span>
-      )}
     </div>
   );
 }

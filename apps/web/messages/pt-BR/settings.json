@@ -8,20 +8,17 @@
     "title": "Acesso negado",
     "description": "Você não tem permissão para alterar as configurações. Procure o administrador da sua instituição."
   },
-  "tabs": {
-    "label": "Grupos de configurações",
-    "select": "Grupo de configurações"
+  "nav": {
+    "label": "Seções de configurações"
   },
-  "groups": {
-    "labels": "Identidade",
+  "sections": {
     "branding": "Marca",
-    "numbering": "Numeração",
-    "process": "Processos",
-    "access": "Acesso",
-    "approval": "Aprovações",
+    "labels": "Rótulos",
     "security": "Segurança",
+    "approval": "Aprovações",
+    "process": "Processos e acesso",
     "deadlines": "Prazos",
-    "calendar": "Calendário",
+    "numbering": "Numeração",
     "priceResearch": "Pesquisa de preços",
     "risk": "Riscos",
     "uploads": "Arquivos",

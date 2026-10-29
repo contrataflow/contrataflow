@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 // O cadastro da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -42,7 +43,7 @@ test('cria um órgão com máscara no CNPJ e o vê na lista', async ({ page }) =
   await dialog.getByLabel('Sigla *').fill('amt');
   await dialog.getByLabel('CNPJ *').fill('45997418000153');
   await expect(dialog.getByLabel('CNPJ *')).toHaveValue('45.997.418/0001-53');
-  await dialog.getByLabel('Tipo *').selectOption('AUTARCHY');
+  await chooseOption(page, 'Tipo *', 'Autarquia', dialog);
   await expectNoSeriousA11yViolations(page, 'novo órgão');
 
   await dialog.getByRole('button', { name: 'Salvar' }).click();
@@ -63,7 +64,7 @@ test('CNPJ com dígito verificador inválido: erro no campo e o formulário cont
   await dialog.getByLabel('Nome *').fill('Fundo de Teste');
   await dialog.getByLabel('Sigla *').fill('FT');
   await dialog.getByLabel('CNPJ *').fill('11111111111100');
-  await dialog.getByLabel('Tipo *').selectOption('FUND');
+  await chooseOption(page, 'Tipo *', 'Fundo', dialog);
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(dialog.getByText(/CNPJ válido|dígitos verificadores/).first()).toBeVisible();
   await expect(dialog).toBeVisible();
@@ -72,7 +73,8 @@ test('CNPJ com dígito verificador inválido: erro no campo e o formulário cont
 
 test('edita o telefone do órgão com If-Match', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Editar Fundo Municipal de Saúde' }).click();
+  await page.getByRole('button', { name: 'Ações de Fundo Municipal de Saúde' }).click();
+  await page.getByRole('menuitem', { name: 'Editar' }).click();
   const dialog = page.getByRole('dialog', { name: 'Editar Fundo Municipal de Saúde' });
   await dialog.getByLabel('Telefone').fill('4833810000');
   await dialog.getByRole('button', { name: 'Salvar' }).click();
@@ -84,7 +86,8 @@ test('edita o telefone do órgão com If-Match', async ({ page }) => {
 
 test('inativar o órgão principal é bloqueado com explicação (RN-TEN-41)', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('button', { name: 'Inativar Prefeitura Municipal de São José' }).click();
+  await page.getByRole('button', { name: 'Ações de Prefeitura Municipal de São José' }).click();
+  await page.getByRole('menuitem', { name: 'Inativar' }).click();
   const dialog = page.getByRole('dialog', { name: 'Inativar Prefeitura Municipal de São José?' });
   await dialog.getByRole('button', { name: 'Inativar' }).click();
   await expect(dialog.getByText('Ative outro órgão antes de inativar este.')).toBeVisible();

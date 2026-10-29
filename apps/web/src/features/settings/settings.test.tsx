@@ -9,15 +9,18 @@ import { messages } from '@/i18n/messages';
 import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
+import { SETTINGS_SECTIONS } from './settings-model';
 import { SettingsView } from './settings-view';
 
 // A suíte completa roda em paralelo com as demais; o padrão de 1 s é curto para a primeira renderização.
 configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
+const replace = vi.fn();
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace }),
   usePathname: () => '/admin/configuracoes',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 /** SET-01 do tenant provisionado: todas as chaves no padrão, versão 1. */
@@ -104,16 +107,24 @@ const bodyOf = (init?: RequestInit): Record<string, unknown> =>
 const patchCalls = (api: ReturnType<typeof mockApi>) =>
   api.mock.calls.filter(([, init]) => init?.method === 'PATCH');
 
+/** Abre uma seção no `SettingsPage` (botões da navegação à esquerda). */
 async function openGroup(name: string) {
-  await userEvent.click(await screen.findByRole('tab', { name }));
+  await userEvent.click(await screen.findByRole('button', { name }));
+}
+
+/** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
+async function choose(trigger: HTMLElement, option: string) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole('option', { name: option }));
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  replace.mockClear();
 });
 
 describe('textos da SCR-041', () => {
-  it('toda chave do registro tem rótulo e descrição (36 caminhos) e todo grupo tem nome', () => {
+  it('toda chave do registro tem rótulo e descrição (36 caminhos) e toda seção tem nome', () => {
     const fields = messages.settings.fields as unknown as Record<string, unknown>;
     for (const definition of SETTING_DEFINITIONS) {
       let node: unknown = fields;
@@ -125,41 +136,41 @@ describe('textos da SCR-041', () => {
         description: expect.any(String) as unknown,
       });
     }
-    for (const definition of SETTING_DEFINITIONS) {
+    for (const section of SETTINGS_SECTIONS) {
       expect(
-        (messages.settings.groups as Record<string, string>)[definition.group],
-        definition.group,
+        (messages.settings.sections as Record<string, string>)[section.id],
+        section.id,
       ).toBeTruthy();
     }
   });
 });
 
 describe('[Sucesso] SCR-041 · Configurações gerais', () => {
-  it('lê SET-01, agrupa por prefixo, mostra versão e passa no axe', async () => {
+  it('lê SET-01, reúne os grupos em seções, mostra versão e passa no axe', async () => {
     const api = mockApi();
     renderWithShell(<SettingsView />);
 
     expect(await screen.findByRole('heading', { name: 'Configurações gerais' })).toBeTruthy();
-    const tabs = within(await screen.findByRole('tablist', { name: 'Grupos de configurações' }));
-    expect(tabs.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Identidade',
+    const nav = within(await screen.findByRole('navigation', { name: 'Seções de configurações' }));
+    expect(nav.getAllByRole('button').map((item) => item.textContent)).toEqual([
       'Marca',
-      'Numeração',
-      'Processos',
-      'Acesso',
-      'Aprovações',
+      'Rótulos',
       'Segurança',
+      'Aprovações',
+      'Processos e acesso',
       'Prazos',
-      'Calendário',
+      'Numeração',
       'Pesquisa de preços',
       'Riscos',
       'Arquivos',
       'Notificações',
       'Inteligência artificial',
     ]);
-    expect(tabs.getByRole('tab', { name: 'Identidade' }).getAttribute('aria-selected')).toBe(
-      'true',
-    );
+    expect(nav.getByRole('button', { name: 'Marca' }).getAttribute('aria-current')).toBe('true');
+    expect(screen.getByLabelText('Cor principal')).toBeTruthy();
+    await openGroup('Rótulos');
+    expect(nav.getByRole('button', { name: 'Rótulos' }).getAttribute('aria-current')).toBe('true');
+    expect(replace).toHaveBeenCalledWith('/admin/configuracoes?secao=labels', { scroll: false });
     const secretariat = screen.getByLabelText<HTMLInputElement>(
       'Nome do nível de unidade requisitante',
     );
@@ -176,6 +187,7 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
     });
     renderWithShell(<SettingsView />);
 
+    await openGroup('Rótulos');
     const field = await screen.findByLabelText('Nome do nível de unidade requisitante');
     expect(await screen.findByText('Nenhuma alteração pendente')).toBeTruthy();
     await userEvent.clear(field);
@@ -197,12 +209,11 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
     ).toBe('Diretoria');
   });
 
-  it('alterações em grupos diferentes seguem no mesmo lote tudo ou nada', async () => {
+  it('salva por seção: o lote tudo ou nada leva só as chaves da seção aberta', async () => {
     const api = mockApi({
       patch: () =>
         jsonResponse({
           data: {
-            'labels.department': { value: 'Divisão', version: 2 },
             'security.sessionIdleMinutes': { value: 45, version: 2 },
             'security.mfaPolicy': { value: 'ALL', version: 2 },
           },
@@ -210,15 +221,20 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
     });
     renderWithShell(<SettingsView />);
 
+    // O rascunho de outra seção não atravessa a troca e nunca vai no lote.
+    await openGroup('Rótulos');
     const department = await screen.findByLabelText('Nome do nível de setor');
     await userEvent.clear(department);
     await userEvent.type(department, 'Divisão');
     await openGroup('Segurança');
-    const idle = screen.getByLabelText('Inatividade até encerrar a sessão (minutos)');
+    const idle = await screen.findByLabelText('Inatividade até encerrar a sessão (minutos)');
     await userEvent.clear(idle);
     await userEvent.type(idle, '45');
-    await userEvent.selectOptions(screen.getByLabelText('Verificação em duas etapas'), 'ALL');
-    expect(screen.getByText('3 alterações pendentes')).toBeTruthy();
+    await choose(
+      screen.getByRole('combobox', { name: 'Verificação em duas etapas' }),
+      'Todos os usuários',
+    );
+    expect(screen.getByText('2 alterações pendentes')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
 
     await waitFor(() => {
@@ -226,12 +242,10 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
     });
     expect(bodyOf(patchCalls(api)[0]?.[1])).toEqual({
       values: {
-        'labels.department': 'Divisão',
         'security.sessionIdleMinutes': 45,
         'security.mfaPolicy': 'ALL',
       },
       expectedVersions: {
-        'labels.department': 1,
         'security.sessionIdleMinutes': 1,
         'security.mfaPolicy': 1,
       },
@@ -243,13 +257,13 @@ describe('[Sucesso] SCR-041 · Configurações gerais', () => {
     renderWithShell(<SettingsView />);
     await openGroup('Aprovações');
     const toggle = await screen.findByRole('switch', { name: 'Impedir autoaprovação' });
-    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
     await userEvent.click(toggle);
     expect(screen.getByText('1 alteração pendente')).toBeTruthy();
 
     await openGroup('Arquivos');
     const pdf = screen.getByRole('checkbox', { name: 'pdf' });
-    expect((pdf as HTMLInputElement).checked).toBe(true);
+    expect(pdf.getAttribute('aria-checked')).toBe('true');
     await openGroup('Riscos');
     expect(screen.getByLabelText<HTMLTextAreaElement>('Escala de riscos (JSON)').value).toContain(
       '"max": 5',
@@ -280,9 +294,9 @@ describe('[Validação]', () => {
     mockApi();
     renderWithShell(<SettingsView />);
     await openGroup('Numeração');
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Escopo da numeração'),
-      'ORGANIZATION',
+    await choose(
+      await screen.findByRole('combobox', { name: 'Escopo da numeração' }),
+      'Uma sequência por órgão/entidade',
     );
     expect(
       await screen.findByText('Com numeração por órgão, a máscara deve incluir {org}.'),
@@ -325,6 +339,7 @@ describe('[Validação]', () => {
         }),
     });
     renderWithShell(<SettingsView />);
+    await openGroup('Rótulos');
     const field = await screen.findByLabelText('Nome do nível de setor');
     await userEvent.type(field, ' x');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -393,9 +408,9 @@ describe('US-105 · numeração com prévia ao vivo (SET-04)', () => {
     renderWithShell(<SettingsView />);
     await openGroup('Numeração');
     expect(screen.queryByText('Esta mudança vale a partir do próximo exercício')).toBeNull();
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Escopo da numeração'),
-      'ORGANIZATION',
+    await choose(
+      await screen.findByRole('combobox', { name: 'Escopo da numeração' }),
+      'Uma sequência por órgão/entidade',
     );
     expect(await screen.findByText('Esta mudança vale a partir do próximo exercício')).toBeTruthy();
     const mask = screen.getByLabelText('Máscara do número do processo');
@@ -447,6 +462,7 @@ describe('[Concorrência e falhas]', () => {
         problemResponse(412, 'VERSION_CONFLICT', 'Versão desatualizada', { currentVersion: 2 }),
     });
     renderWithShell(<SettingsView />);
+    await openGroup('Rótulos');
     const field = await screen.findByLabelText('Nome do nível de unidade requisitante');
     await userEvent.clear(field);
     await userEvent.type(field, 'Diretoria');
@@ -467,6 +483,7 @@ describe('[Concorrência e falhas]', () => {
   it('503 ao salvar: mantém os valores digitados e informa a indisponibilidade', async () => {
     mockApi({ patch: () => problemResponse(503, 'DEPENDENCY_UNAVAILABLE', 'Indisponível') });
     renderWithShell(<SettingsView />);
+    await openGroup('Rótulos');
     const field = await screen.findByLabelText('Nome do nível de setor');
     await userEvent.type(field, ' novo');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -506,7 +523,7 @@ describe('[Permissão]', () => {
   it('a barra de salvamento só aparece com SETTINGS_MANAGE confirmada por ME-03', async () => {
     mockApi({}, ['PROCESS_VIEW']);
     renderWithShell(<SettingsView />);
-    await screen.findByLabelText('Nome do nível de setor');
+    await screen.findByLabelText('Cor principal');
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Salvar' })).toBeNull();
     });

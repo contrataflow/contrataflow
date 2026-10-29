@@ -149,6 +149,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Ação da linha no menu ⋯ (prd-5 · regra 3). */
+async function rowAction(name: string, action: string) {
+  await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
+/** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
+async function choose(trigger: HTMLElement, option: string) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
+
 describe('[Sucesso] SCR-032 · aba Órgãos', () => {
   it('lista nome, sigla, CNPJ mascarado, tipo, situação e o selo "Principal"; sem violações de a11y', async () => {
     const api = mockApi();
@@ -170,12 +182,42 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
     expect(within(inactive).getByText('Inativo')).toBeTruthy();
     // As ações aparecem quando ME-03 confirma `ORGANIZATION_MANAGE`.
     expect(
-      await within(inactive).findByRole('button', { name: 'Reativar Autarquia de Trânsito' }),
+      await within(inactive).findByRole('button', { name: 'Ações de Autarquia de Trânsito' }),
     ).toBeTruthy();
-    expect(
-      within(principal).getByRole('button', { name: 'Inativar Prefeitura Municipal de São José' }),
-    ).toBeTruthy();
+    await userEvent.click(
+      within(principal).getByRole('button', { name: 'Ações de Prefeitura Municipal de São José' }),
+    );
+    expect(await screen.findByRole('menuitem', { name: 'Inativar' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Reativar' })).toBeNull();
+    await userEvent.keyboard('{Escape}');
     expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('busca e filtros (no navegador): busca por sigla, situação e tipo com chips removíveis', async () => {
+    mockApi();
+    renderWithShell(<OrganizationsView />);
+    const table = await screen.findByRole('table', { name: 'Órgãos e entidades da instituição' });
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar' }), 'fms');
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    expect(within(table).getByText('Fundo Municipal de Saúde')).toBeTruthy();
+    await userEvent.clear(screen.getByRole('searchbox', { name: 'Buscar' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    await choose(await screen.findByRole('combobox', { name: 'Situação' }), 'Inativos');
+    await userEvent.keyboard('{Escape}');
+    expect(
+      screen.getByRole('button', { name: 'Remover o filtro Situação: Inativos' }),
+    ).toBeTruthy();
+    const filtered = screen.getByRole('table', { name: 'Órgãos e entidades da instituição' });
+    expect(within(filtered).getAllByRole('row')).toHaveLength(2);
+    expect(within(filtered).getByText('Autarquia de Trânsito')).toBeTruthy();
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar' }), 'zzz');
+    expect(await screen.findByText('Nenhum órgão encontrado')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Limpar busca e filtros' }));
+    expect(
+      await screen.findByRole('table', { name: 'Órgãos e entidades da instituição' }),
+    ).toBeTruthy();
   });
 
   it('estado de carregamento acessível e estado vazio', async () => {
@@ -210,7 +252,7 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
     const cnpj = within(dialog).getByLabelText<HTMLInputElement>('CNPJ *');
     await userEvent.type(cnpj, '33000167000101');
     expect(cnpj.value).toBe('33.000.167/0001-01');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'FUND');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Fundo');
     await userEvent.type(within(dialog).getByLabelText('Site'), 'https://fas.sj.gov.br');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
@@ -245,9 +287,7 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
         ),
     });
     renderWithShell(<OrganizationsView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar Fundo Municipal de Saúde' }),
-    );
+    await rowAction('Fundo Municipal de Saúde', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Fundo Municipal de Saúde' });
     await userEvent.type(within(dialog).getByLabelText('Telefone'), '4833810000');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -266,9 +306,7 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
       patch: () => jsonResponse({ data: { ...FMS, isActive: false, version: 4 } }),
     });
     renderWithShell(<OrganizationsView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Inativar Fundo Municipal de Saúde' }),
-    );
+    await rowAction('Fundo Municipal de Saúde', 'Inativar');
     const dialog = await screen.findByRole('dialog', {
       name: 'Inativar Fundo Municipal de Saúde?',
     });
@@ -278,7 +316,7 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
     });
     expect(bodyOf(callOf(api, 'PATCH').init)).toEqual({ isActive: false });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Reativar Autarquia de Trânsito' }));
+    await rowAction('Autarquia de Trânsito', 'Reativar');
     await waitFor(() => {
       expect(callsTo(api, 'PATCH')).toHaveLength(2);
     });
@@ -311,7 +349,7 @@ describe('[Validação] criação de órgão', () => {
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Fundo Teste');
     await userEvent.type(within(dialog).getByLabelText('Sigla *'), 'FT');
     await userEvent.type(within(dialog).getByLabelText('CNPJ *'), '11111111111100');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'FUND');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Fundo');
     await userEvent.tab();
     expect(await within(dialog).findByText('Informe um CNPJ válido.')).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -335,7 +373,7 @@ describe('[Validação] criação de órgão', () => {
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Fundo Teste');
     await userEvent.type(within(dialog).getByLabelText('Sigla *'), 'PMSJ');
     await userEvent.type(within(dialog).getByLabelText('CNPJ *'), '11222333000181');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'FUND');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Fundo');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
 
     expect(await within(dialog).findByText('Já existe um órgão com este CNPJ.')).toBeTruthy();
@@ -350,7 +388,7 @@ describe('[Validação] criação de órgão', () => {
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Fundo Teste');
     await userEvent.type(within(dialog).getByLabelText('Sigla *'), 'FT');
     await userEvent.type(within(dialog).getByLabelText('CNPJ *'), '11444777000161');
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'FUND');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Fundo');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     expect(
       await within(dialog).findByText('Não foi possível salvar agora. Tente novamente.'),
@@ -370,9 +408,7 @@ describe('[Regra RN-TEN-41] inativar o órgão principal ou o único ativo', () 
         ),
     });
     renderWithShell(<OrganizationsView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Inativar Prefeitura Municipal de São José' }),
-    );
+    await rowAction('Prefeitura Municipal de São José', 'Inativar');
     const dialog = await screen.findByRole('dialog', {
       name: 'Inativar Prefeitura Municipal de São José?',
     });
@@ -398,9 +434,7 @@ describe('[Concorrência] FA-05 — conflito de versão', () => {
       },
     });
     renderWithShell(<OrganizationsView />);
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Editar Fundo Municipal de Saúde' }),
-    );
+    await rowAction('Fundo Municipal de Saúde', 'Editar');
     const dialog = await screen.findByRole('dialog', { name: 'Editar Fundo Municipal de Saúde' });
     await userEvent.type(within(dialog).getByLabelText('Telefone'), '4833810000');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -437,7 +471,7 @@ describe('[Permissão] ORGANIZATION_MANAGE', () => {
       await screen.findByRole('table', { name: 'Órgãos e entidades da instituição' }),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Novo órgão' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Editar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull();
     expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
   });
 

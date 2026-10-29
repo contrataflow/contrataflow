@@ -1,6 +1,20 @@
 'use client';
 
-import { Button, cx } from '@contrataflow/ui';
+import {
+  ChevronDown,
+  ChevronRight,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Ellipsis,
+  StatusChip,
+  cx,
+} from '@contrataflow/ui';
 import type { DepartmentDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useMemo, useRef, useState } from 'react';
@@ -47,7 +61,6 @@ export function DepartmentTree({
   const tree = useMemo(() => buildTree(departments), [departments]);
   const visible = useMemo(() => visibleNodes(tree, expanded), [tree, expanded]);
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [dragged, setDragged] = useState<DepartmentDto | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const items = useRef(new Map<string, HTMLDivElement>());
@@ -134,10 +147,20 @@ export function DepartmentTree({
       const isExpanded = expanded.has(department.id);
       const hasChildren = node.children.length > 0;
       const type = typeLabel(department.type, labels, (value) => t(`types.${value}`));
+      const groupId = `group-${department.id}`;
+      const secondary = [
+        type,
+        department.headUserId ? t('tree.head') : null,
+        department.deputyUserId ? t('tree.deputy') : null,
+      ].filter(Boolean);
       return (
-        <div
+        <Collapsible
           key={department.id}
           role="none"
+          open={isExpanded}
+          onOpenChange={() => {
+            onToggle(department.id);
+          }}
           className={cx(movingId === department.id && 'opacity-60')}
         >
           <div
@@ -155,7 +178,7 @@ export function DepartmentTree({
             aria-expanded={hasChildren ? isExpanded : undefined}
             aria-selected={activeId === department.id}
             aria-busy={movingId === department.id || undefined}
-            aria-owns={hasChildren && isExpanded ? `group-${department.id}` : undefined}
+            aria-owns={hasChildren && isExpanded ? groupId : undefined}
             tabIndex={activeId === department.id ? 0 : -1}
             onFocus={() => {
               setFocusedId(department.id);
@@ -164,7 +187,7 @@ export function DepartmentTree({
               onKeyDown(event, index);
             }}
             className={cx(
-              'flex flex-wrap items-center gap-2 rounded-control px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              'flex items-center gap-2 rounded-control px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-primary',
               dropTarget === department.id && 'bg-primary/10 ring-2 ring-primary',
               !department.isActive && 'text-muted-foreground',
             )}
@@ -172,93 +195,107 @@ export function DepartmentTree({
             {...dragProps(department)}
           >
             {hasChildren ? (
-              <button
-                type="button"
-                tabIndex={-1}
-                aria-label={t(isExpanded ? 'tree.collapse' : 'tree.expand', {
-                  name: department.name,
-                })}
-                className="inline-flex size-6 items-center justify-center rounded-control text-xs hover:bg-muted"
-                onClick={() => {
-                  onToggle(department.id);
-                }}
-              >
-                <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
-              </button>
-            ) : (
-              <span className="inline-block size-6" aria-hidden="true" />
-            )}
-            <span className="font-medium">{department.name}</span>
-            {department.acronym ? (
-              <span className="font-mono text-xs text-muted-foreground">{department.acronym}</span>
-            ) : null}
-            <span className="rounded-control bg-muted px-2 py-0.5 text-xs">{type}</span>
-            {department.isActive ? null : (
-              <span className="rounded-control bg-muted px-2 py-0.5 text-xs">
-                {t('tree.inactive')}
-              </span>
-            )}
-            {movingId === department.id ? (
-              <span className="text-xs" role="status">
-                {t('moving', { name: department.name })}
-              </span>
-            ) : null}
-            {canManage ? (
-              <span className="ml-auto">
-                <Button
+              <CollapsibleTrigger asChild aria-controls={isExpanded ? groupId : undefined}>
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  // Uma parada de Tab por nó: só o nó ativo expõe o botão de ações.
-                  tabIndex={activeId === department.id ? 0 : -1}
-                  aria-expanded={menuFor === department.id}
-                  aria-label={t('tree.actions', { name: department.name })}
-                  onClick={() => {
-                    setMenuFor((current) => (current === department.id ? null : department.id));
-                  }}
+                  tabIndex={-1}
+                  aria-label={t(isExpanded ? 'tree.collapse' : 'tree.expand', {
+                    name: department.name,
+                  })}
+                  className="inline-grid size-7 flex-none place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  ⋯
-                </Button>
+                  {isExpanded ? (
+                    <ChevronDown aria-hidden="true" className="size-4" />
+                  ) : (
+                    <ChevronRight aria-hidden="true" className="size-4" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+            ) : (
+              <span className="inline-block size-7 flex-none" aria-hidden="true" />
+            )}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="font-bold text-foreground">{department.name}</span>
+                {department.acronym ? (
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {department.acronym}
+                  </span>
+                ) : null}
+                {department.isActive ? null : (
+                  <StatusChip tone="neutral">{t('tree.inactive')}</StatusChip>
+                )}
+                {movingId === department.id ? (
+                  <span className="text-xs" role="status">
+                    {t('moving', { name: department.name })}
+                  </span>
+                ) : null}
               </span>
+              <span className="text-xs text-muted-foreground">{secondary.join(' · ')}</span>
+            </span>
+            {canManage ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    // Uma parada de Tab por nó: só o nó ativo expõe o botão de ações.
+                    tabIndex={activeId === department.id ? 0 : -1}
+                    aria-label={t('tree.actions', { name: department.name })}
+                    className="inline-grid size-9 flex-none place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {department.isActive ? (
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        onAction('addChild', department);
+                      }}
+                    >
+                      {t('actions.addChild')}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      onAction('edit', department);
+                    }}
+                  >
+                    {t('actions.edit')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      onAction('move', department);
+                    }}
+                  >
+                    {t('actions.move')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      onAction(department.isActive ? 'deactivate' : 'activate', department);
+                    }}
+                  >
+                    {t(department.isActive ? 'actions.deactivate' : 'actions.activate')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onSelect={() => {
+                      onAction('delete', department);
+                    }}
+                  >
+                    {t('actions.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
-          {canManage && menuFor === department.id ? (
-            <div
-              role="group"
-              aria-label={t('tree.actions', { name: department.name })}
-              className="my-1 flex flex-wrap gap-2"
-              style={{ paddingLeft: `${level * 1.25 + 0.5}rem` }}
-            >
-              {(
-                [
-                  ...(department.isActive ? (['addChild'] as const) : []),
-                  'edit',
-                  'move',
-                  department.isActive ? 'deactivate' : 'activate',
-                  'delete',
-                ] as const
-              ).map((action) => (
-                <Button
-                  key={action}
-                  type="button"
-                  size="sm"
-                  variant={action === 'delete' ? 'destructive' : 'secondary'}
-                  onClick={() => {
-                    setMenuFor(null);
-                    onAction(action, department);
-                  }}
-                >
-                  {t(`actions.${action}`)}
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          {hasChildren && isExpanded ? (
-            <div role="group" id={`group-${department.id}`}>
+          {hasChildren ? (
+            <CollapsibleContent role="group" id={groupId}>
               {renderNodes(node.children, level + 1)}
-            </div>
+            </CollapsibleContent>
           ) : null}
-        </div>
+        </Collapsible>
       );
     });
 
@@ -268,7 +305,7 @@ export function DepartmentTree({
       <div
         role="tree"
         aria-label={t('tree.label', { organization: organizationName })}
-        className="rounded-card border border-border bg-surface p-2 shadow-card"
+        className="rounded-card bg-surface p-2 shadow-card"
       >
         {renderNodes(tree, 1)}
       </div>

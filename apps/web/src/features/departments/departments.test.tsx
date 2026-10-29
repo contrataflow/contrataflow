@@ -163,10 +163,17 @@ function callOf(api: ReturnType<typeof mockApi>, method: string, index = 0) {
   return { url: requestUrl(call[0]), init: call[1], headers: new Headers(call[1]?.headers) };
 }
 
+/** Abre o menu ⋯ da unidade (prd-5 · regra 3) e devolve o menu para buscar os itens. */
 const actionsOf = async (name: string) => {
   await userEvent.click(await screen.findByRole('button', { name: `Ações de ${name}` }));
-  return screen.getByRole('group', { name: `Ações de ${name}` });
+  return screen.findByRole('menu', { name: `Ações de ${name}` });
 };
+
+/** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
+async function choose(trigger: HTMLElement, option: string) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole('option', { name: option }));
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -221,7 +228,7 @@ describe('[Sucesso] SCR-032 · aba Secretarias', () => {
     renderWithShell(<DepartmentsView />);
     await userEvent.click(await screen.findByRole('button', { name: 'Nova unidade' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nova unidade' });
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'SECRETARIAT');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Secretaria');
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Secretaria de Cultura');
     await userEvent.type(within(dialog).getByLabelText('Sigla'), 'sec');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -254,11 +261,11 @@ describe('[Sucesso] SCR-032 · aba Secretarias', () => {
     });
     renderWithShell(<DepartmentsView />);
     const group = await actionsOf('Secretaria de Saúde');
-    await userEvent.click(within(group).getByRole('button', { name: 'Nova subunidade' }));
+    await userEvent.click(within(group).getByRole('menuitem', { name: 'Nova subunidade' }));
     const dialog = await screen.findByRole('dialog', {
       name: 'Nova unidade em Secretaria de Saúde',
     });
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'SECTOR');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Setor');
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Setor Novo');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
     await waitFor(() => {
@@ -274,15 +281,14 @@ describe('[Sucesso] SCR-032 · aba Secretarias', () => {
     });
     renderWithShell(<DepartmentsView />);
     const group = await actionsOf('Departamento de Projetos');
-    await userEvent.click(within(group).getByRole('button', { name: 'Mover para…' }));
+    await userEvent.click(within(group).getByRole('menuitem', { name: 'Mover para…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Mover Departamento de Projetos' });
-    const select = within(dialog).getByLabelText('Nova unidade superior');
-    const options = within(select)
-      .getAllByRole('option')
-      .map((option) => option.textContent);
+    const select = within(dialog).getByRole('combobox', { name: 'Nova unidade superior' });
+    await userEvent.click(select);
+    const options = (await screen.findAllByRole('option')).map((option) => option.textContent);
     // Nem a própria unidade, nem o descendente, nem o pai atual.
     expect(options).toEqual(['Primeiro nível do órgão', 'Secretaria de Saúde']);
-    await userEvent.selectOptions(select, SAUDE.id);
+    await userEvent.click(screen.getByRole('option', { name: 'Secretaria de Saúde' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Mover' }));
 
     await waitFor(() => {
@@ -324,7 +330,7 @@ describe('[Validação] SCR-032 · aba Secretarias', () => {
     renderWithShell(<DepartmentsView />);
     await userEvent.click(await screen.findByRole('button', { name: 'Nova unidade' }));
     const dialog = await screen.findByRole('dialog', { name: 'Nova unidade' });
-    await userEvent.selectOptions(within(dialog).getByLabelText('Tipo *'), 'SECTOR');
+    await choose(within(dialog).getByRole('combobox', { name: 'Tipo *' }), 'Setor');
     await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Setor Repetido');
     await userEvent.type(within(dialog).getByLabelText('Sigla'), 'SOB');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
@@ -343,7 +349,7 @@ describe('[Validação] SCR-032 · aba Secretarias', () => {
     });
     renderWithShell(<DepartmentsView />);
     const group = await actionsOf('Setor de Topografia');
-    await userEvent.click(within(group).getByRole('button', { name: 'Mover para…' }));
+    await userEvent.click(within(group).getByRole('menuitem', { name: 'Mover para…' }));
     const dialog = await screen.findByRole('dialog', { name: 'Mover Setor de Topografia' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Mover' }));
     expect(await within(dialog).findByText('Esta movimentação criaria um ciclo.')).toBeTruthy();
@@ -359,7 +365,7 @@ describe('[Validação] SCR-032 · aba Secretarias', () => {
     });
     renderWithShell(<DepartmentsView />);
     const group = await actionsOf('Secretaria de Obras');
-    await userEvent.click(within(group).getByRole('button', { name: 'Excluir' }));
+    await userEvent.click(within(group).getByRole('menuitem', { name: 'Excluir' }));
     const dialog = await screen.findByRole('dialog', { name: 'Excluir Secretaria de Obras?' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Excluir' }));
     expect(
@@ -396,7 +402,7 @@ describe('[Concorrência] SCR-032 · aba Secretarias', () => {
     });
     renderWithShell(<DepartmentsView />);
     const group = await actionsOf('Secretaria de Saúde');
-    await userEvent.click(within(group).getByRole('button', { name: 'Editar' }));
+    await userEvent.click(within(group).getByRole('menuitem', { name: 'Editar' }));
     const dialog = await screen.findByRole('dialog', { name: 'Editar Secretaria de Saúde' });
     await userEvent.type(within(dialog).getByLabelText('Código'), 'UO-10');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));

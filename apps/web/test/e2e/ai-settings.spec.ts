@@ -14,7 +14,10 @@ test.describe.configure({ mode: 'serial' });
 async function openAiSection(page: Page): Promise<void> {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/admin/configuracoes')}`);
   await expect(page).toHaveURL(/\/admin\/configuracoes$/);
-  await page.getByRole('tab', { name: 'Inteligência artificial' }).click();
+  await page
+    .getByRole('navigation', { name: 'Seções de configurações' })
+    .getByRole('button', { name: 'Inteligência artificial' })
+    .click();
   await expect(page.getByRole('switch', { name: 'Usar IA neste órgão' })).toBeVisible();
 }
 
@@ -52,7 +55,10 @@ test('ajusta o limite diário e acompanha o consumo do mês', async ({ page }) =
   await expect(page.getByText('Configuração salva', { exact: true })).toBeVisible();
 
   await page.reload();
-  await page.getByRole('tab', { name: 'Inteligência artificial' }).click();
+  await page
+    .getByRole('navigation', { name: 'Seções de configurações' })
+    .getByRole('button', { name: 'Inteligência artificial' })
+    .click();
   await expect(page.getByLabel('Pedidos por usuário por dia')).toHaveValue('20');
 });
 

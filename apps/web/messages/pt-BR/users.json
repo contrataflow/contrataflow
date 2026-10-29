@@ -14,15 +14,15 @@
     "empty": "Nenhum convite pendente",
     "emptyHint": "Os convites enviados e ainda não aceitos aparecem aqui.",
     "caption": "Convites pendentes da instituição",
-    "name": "Nome",
-    "email": "E-mail",
     "type": "Vínculo",
     "inviteExpiresAt": "Convite vale até",
     "actions": "Ações",
     "pager": "Paginação dos convites",
     "previous": "Anterior",
     "next": "Próxima",
-    "pageOf": "Página {page} de {total}"
+    "pageOf": "Página {page} de {total}",
+    "invitee": "Convidado",
+    "count": "{count, plural, =1 {1 convite nesta página} other {# convites nesta página}}"
   },
   "types": {
     "INTERNAL": "Interno",
@@ -33,7 +33,8 @@
     "resend": "Reenviar",
     "resendLabel": "Reenviar convite para {name}",
     "cancel": "Cancelar",
-    "cancelLabel": "Cancelar convite de {name}"
+    "cancelLabel": "Cancelar convite de {name}",
+    "menu": "Ações do convite de {name}"
   },
   "toast": {
     "invited": "Convite enviado para {email}.",
@@ -82,7 +83,13 @@
     "alreadyMemberHint": "Se o convite ainda está pendente, use \"Reenviar\" na lista de convites em vez de convidar de novo.",
     "setPrimary": "Lotação principal: {name}",
     "primaryChoice": "Principal",
-    "primaryGroup": "Lotação principal"
+    "primaryGroup": "Lotação principal",
+    "close": "Fechar",
+    "departmentAdd": "Adicionar unidade",
+    "departmentSelected": "selecionada",
+    "datePlaceholder": "Selecione a data",
+    "dateClear": "Limpar data",
+    "dateCalendar": "Escolher data"
   },
   "cancelDialog": {
     "title": "Cancelar o convite de {name}?",
@@ -106,14 +113,21 @@
     "retry": "Tentar novamente",
     "empty": "Nenhum usuário encontrado",
     "emptyHint": "Ajuste a busca ou os filtros para ver outros resultados.",
-    "name": "Nome",
-    "email": "E-mail",
     "jobTitle": "Cargo",
     "primaryDepartment": "Lotação principal",
     "typeColumn": "Vínculo",
     "statusColumn": "Status",
     "pager": "Paginação dos usuários",
-    "total": "{count, plural, =1 {1 usuário} other {# usuários}}"
+    "total": "{count, plural, =1 {1 usuário} other {# usuários}}",
+    "searchPlaceholder": "Buscar por nome ou e-mail",
+    "chip": "{field}: {value}",
+    "removeChip": "Remover filtro {field}: {value}",
+    "clear": "Limpar busca e filtros",
+    "emptyFirst": "Convide as primeiras pessoas da instituição para começar.",
+    "user": "Usuário",
+    "actions": "Ações",
+    "menu": "Ações de {name}",
+    "open": "Ver detalhes"
   },
   "statuses": {
     "INVITED": "Convidado",
@@ -149,7 +163,6 @@
     "primaryBadge": "principal",
     "inactiveBadge": "inativa",
     "noDepartments": "Sem lotação.",
-    "statusTitle": "Acesso",
     "since": {
       "suspended": "Suspenso em {date}.",
       "revoked": "Revogado em {date}."
@@ -207,7 +220,6 @@
       "empty": "Nenhum perfil atribuído.",
       "listLabel": "Perfis atribuídos",
       "assign": "Atribuir perfil",
-      "revoke": "Revogar",
       "revokeLabel": "Revogar o perfil {role}",
       "scope": "Escopo",
       "validity": "Vigência",
@@ -266,11 +278,17 @@
         "stale": "A lista de perfis mudou. Recarregamos os dados atuais.",
         "lastAdminHint": "Atribua o perfil Administrador do órgão a outra pessoa antes de revogar este.",
         "stepUp": "Confirmar identidade"
-      }
+      },
+      "close": "Fechar",
+      "datePlaceholder": "Selecione a data",
+      "dateClear": "Limpar data",
+      "dateCalendar": "Escolher data",
+      "searchDepartment": "Buscar unidade",
+      "noDepartment": "Nenhuma unidade encontrada.",
+      "menu": "Ações do perfil {role}",
+      "actions": "Ações"
     },
     "mfa": {
-      "title": "Autenticação em duas etapas",
-      "hint": "Se a pessoa perdeu o dispositivo do segundo fator, redefina: os fatores cadastrados são removidos e ela cadastra um novo no próximo desafio.",
       "action": "Redefinir autenticação em duas etapas",
       "dialogTitle": "Redefinir a autenticação em duas etapas de {name}?",
       "dialogDescription": "Os fatores cadastrados (aplicativo autenticador, chave de segurança) são removidos. No próximo desafio, a pessoa cadastra um novo fator antes de continuar.",
@@ -283,6 +301,13 @@
       "permission": "Você não tem permissão para redefinir a autenticação em duas etapas.",
       "self": "Use a recuperação no login para o seu próprio caso.",
       "unavailable": "O serviço de autenticação está indisponível. Tente novamente em instantes."
+    },
+    "more": "Mais",
+    "moreLabel": "Mais ações do usuário",
+    "tabsLabel": "Seções do usuário",
+    "tabs": {
+      "data": "Dados",
+      "roles": "Atribuições"
     }
   }
 }

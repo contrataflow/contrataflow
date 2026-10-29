@@ -34,14 +34,11 @@
     "inactive": "Inativo"
   },
   "actions": {
-    "edit": "Editar {name}",
     "editLabel": "Editar",
-    "deactivate": "Desativar {name}",
     "deactivateLabel": "Desativar",
-    "activate": "Ativar {name}",
     "activateLabel": "Ativar",
-    "delete": "Excluir {name}",
-    "deleteLabel": "Excluir"
+    "deleteLabel": "Excluir",
+    "menu": "Ações de {name}"
   },
   "deactivate": {
     "title": "Desativar {name}?",
@@ -72,7 +69,10 @@
     "active": "Feriado ativo",
     "cancel": "Cancelar",
     "submit": "Salvar",
-    "submitting": "Salvando…"
+    "submitting": "Salvando…",
+    "datePlaceholder": "Selecione a data",
+    "dateClear": "Limpar data",
+    "dateCalendar": "Escolher data"
   },
   "validation": {
     "required": "Informe {field}.",
@@ -102,5 +102,9 @@
     "notFound": "Este feriado não existe mais. Recarregue o calendário.",
     "duplicate": "Já existe um feriado com esta data e nome.",
     "system": "Feriados padrão do sistema não podem ser excluídos."
+  },
+  "view": {
+    "calendarLabel": "Calendário de {year}",
+    "legend": "Os dias em destaque são feriados e pontos facultativos ativos de {year}; a lista ao lado traz todos."
   }
 }

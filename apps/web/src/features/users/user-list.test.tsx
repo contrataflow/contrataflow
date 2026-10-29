@@ -122,6 +122,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Escolhe uma opção de filtro no popover "Filtros" (abre o painel se estiver fechado). */
+async function chooseFilter(
+  user: ReturnType<typeof userEvent.setup>,
+  field: string,
+  option: string,
+) {
+  if (screen.queryByLabelText(field) === null) {
+    await user.click(await screen.findByRole('button', { name: /^Filtros/ }));
+  }
+  await user.click(await screen.findByLabelText(field));
+  await user.click(await screen.findByRole('option', { name: option }));
+}
+
 describe('StatusBadge (RN-IAM-64)', () => {
   it('vínculo externo vencido aparece como "Expirado" antes do job; interno ativo segue "Ativo"', () => {
     const expired = renderWithShell(<StatusBadge membership={PEDRO} />);
@@ -179,12 +192,12 @@ describe('SCR-029 · lista de usuários (US-092)', () => {
       expect(usersCalls(api).some((params) => params.get('q') === 'diego')).toBe(true);
     });
 
-    await user.selectOptions(screen.getByLabelText('Status'), 'SUSPENDED');
+    await chooseFilter(user, 'Status', 'Suspenso');
     await waitFor(() => {
       expect(usersCalls(api).some((params) => params.get('status') === 'SUSPENDED')).toBe(true);
     });
-    await user.selectOptions(screen.getByLabelText('Tipo de vínculo'), 'EXTERNAL');
-    await user.selectOptions(await screen.findByLabelText('Lotação'), LICITACOES);
+    await chooseFilter(user, 'Tipo de vínculo', 'Externo');
+    await chooseFilter(user, 'Lotação', 'Setor de Licitações');
     await waitFor(() => {
       const last = usersCalls(api).at(-1);
       expect(last?.get('q')).toBe('diego');
@@ -193,6 +206,23 @@ describe('SCR-029 · lista de usuários (US-092)', () => {
       expect(last?.get('departmentId')).toBe(LICITACOES);
       expect(last?.get('page')).toBe('1');
     });
+  });
+
+  it('filtro aplicado vira chip removível e o contador aparece no botão "Filtros"', async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    renderWithShell(<UserList />);
+    await screen.findByRole('table');
+    await chooseFilter(user, 'Status', 'Suspenso');
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('button', { name: /^Filtros, 1 filtro ativo/ })).toBeTruthy();
+    const remove = await screen.findByRole('button', { name: 'Remover filtro Status: Suspenso' });
+    await user.click(remove);
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Remover filtro Status: Suspenso' })).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: 'Filtros' })).toBeTruthy();
+    expect(usersCalls(api).some((params) => params.get('status') === 'SUSPENDED')).toBe(true);
   });
 
   it('pagina e volta à página 1 ao mudar o filtro', async () => {
@@ -210,7 +240,7 @@ describe('SCR-029 · lista de usuários (US-092)', () => {
     await screen.findByText('Página 2 de 2');
     expect(usersCalls(api).at(-1)?.get('page')).toBe('2');
 
-    await user.selectOptions(screen.getByLabelText('Status'), 'ACTIVE');
+    await chooseFilter(user, 'Status', 'Ativo');
     await screen.findByText('Página 1 de 2');
     expect(usersCalls(api).at(-1)?.get('page')).toBe('1');
   });

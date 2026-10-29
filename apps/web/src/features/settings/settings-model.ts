@@ -4,7 +4,6 @@ import {
   PLATFORM_UPLOAD_EXTENSIONS,
   SETTING_DEFINITIONS,
   SETTING_DOCUMENT_MASK_KEY,
-  SETTING_GROUPS,
   settingGroupOf,
   settingSchemaOf,
 } from '@contrataflow/validation';
@@ -78,18 +77,46 @@ export function hasFutureEffect(key: string): boolean {
   return key.startsWith('numbering.');
 }
 
-export interface SettingGroupModel {
-  readonly group: SettingGroup;
+/**
+ * Seções da página (prd-5 · `SettingsPage`), na ordem da tela, com os grupos do registro que cada
+ * uma reúne. Todo grupo de `SETTING_GROUPS` pertence a exatamente uma seção (um teste confere).
+ */
+export const SETTINGS_SECTIONS = [
+  { id: 'branding', groups: ['branding'] },
+  { id: 'labels', groups: ['labels'] },
+  { id: 'security', groups: ['security'] },
+  { id: 'approval', groups: ['approval'] },
+  { id: 'process', groups: ['process', 'access'] },
+  { id: 'deadlines', groups: ['deadlines', 'calendar'] },
+  { id: 'numbering', groups: ['numbering'] },
+  { id: 'priceResearch', groups: ['priceResearch'] },
+  { id: 'risk', groups: ['risk'] },
+  { id: 'uploads', groups: ['uploads'] },
+  { id: 'notifications', groups: ['notifications'] },
+  { id: 'features', groups: ['features'] },
+  { id: 'ai', groups: ['ai'] },
+] as const satisfies readonly {
+  readonly id: string;
+  readonly groups: readonly SettingGroup[];
+}[];
+
+export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]['id'];
+
+export interface SettingsSectionModel {
+  readonly id: SettingsSectionId;
   readonly keys: readonly string[];
 }
 
-/** Grupos na ordem da SCR-041; só os que têm alguma chave na resposta (SET-01). */
-export function groupSettings(settings: SettingsMapDto): readonly SettingGroupModel[] {
+/** Seções na ordem da tela; só as que têm alguma chave na resposta (SET-01). */
+export function sectionSettings(settings: SettingsMapDto): readonly SettingsSectionModel[] {
   const keys = Object.keys(settings);
-  return SETTING_GROUPS.map((group) => ({
-    group,
-    keys: keys.filter((key) => settingGroupOf(key) === group),
-  })).filter((model) => model.keys.length > 0);
+  return SETTINGS_SECTIONS.map((section) => {
+    const groups: readonly SettingGroup[] = section.groups;
+    return {
+      id: section.id,
+      keys: groups.flatMap((group) => keys.filter((key) => settingGroupOf(key) === group)),
+    };
+  }).filter((section) => section.keys.length > 0);
 }
 
 /** Rascunho de um campo: texto digitado, booleano, escolha ou lista de extensões. */

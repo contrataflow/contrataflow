@@ -1,6 +1,24 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Card,
+  DetailPage,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  buttonClassName,
+  toast,
+} from '@contrataflow/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useFormatter, useTranslations } from 'next-intl';
@@ -33,17 +51,20 @@ interface FeedbackState {
 }
 
 /**
- * Detalhe do vínculo (SCR-029 `/admin/usuarios/[userId]` · US-092): dados globais somente leitura,
- * `UserDetailForm` (USR-08), lotações com principal explícita (USR-09) e as ações de acesso
- * (suspender, reativar, revogar — USR-10..12) conforme `meta.allowedActions` e a aba "Perfis e
- * acessos" (US-096 · ROL-10..12), e a redefinição da autenticação em duas etapas (US-090 · USR-13,
- * oculta para o próprio vínculo — RN-IAM-43). Toda mutação de vínculo envia
- * `If-Match`; a resposta (mesmo formato do detalhe, novo `ETag`) substitui o detalhe em cache e
- * invalida a lista, sem recarregar a página. 412/409 recarregam o detalhe antes de nova tentativa;
- * 404 devolve à lista.
+ * Detalhe do vínculo (SCR-029 `/admin/usuarios/[userId]` · US-092) no modelo `DetailPage` (prd-5):
+ * faixa com trilha, nome, situação, fatos-chave em linha, "Reativar" como ação primária quando o
+ * vínculo está suspenso e as demais ações de acesso (suspender, revogar — USR-10..12, conforme
+ * `meta.allowedActions` — e a redefinição da autenticação em duas etapas, US-090 · USR-13, oculta
+ * para o próprio vínculo — RN-IAM-43) no menu "Mais". Abas "Dados" (dados da pessoa, `UserDetailForm`
+ * USR-08 e lotações com principal explícita USR-09) e "Atribuições" (US-096 · ROL-10..12). A API não
+ * expõe sessões do usuário: não há aba "Sessões". Toda mutação de vínculo envia `If-Match`; a
+ * resposta (mesmo formato do detalhe, novo `ETag`) substitui o detalhe em cache e invalida a lista,
+ * sem recarregar a página. 412/409 recarregam o detalhe antes de nova tentativa; 404 devolve à
+ * lista.
  */
 export function UserDetailView({ userId }: { readonly userId: string }) {
   const t = useTranslations('users');
+  const tShell = useTranslations('shell');
   const tErrors = useTranslations('users.detail.errors');
   const format = useFormatter();
   const tenantId = useTenantId();
@@ -53,6 +74,7 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
   const [mfaResetOpen, setMfaResetOpen] = useState(false);
   const [state, setState] = useState<FeedbackState | null>(null);
   const [gone, setGone] = useState(false);
+  const [tab, setTab] = useState('data');
   /** Incrementa depois de recarregar o detalhe por conflito: os formulários recomeçam dele. */
   const [resetToken, setResetToken] = useState(0);
   const detailPath = `${USERS_PATH}/${userId}`;
@@ -178,202 +200,231 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
   const dateTime = (iso: string) =>
     format.dateTime(new Date(iso), { dateStyle: 'short', timeStyle: 'short' });
 
-  // POL-16 (FA-03): o próprio ator vê os botões desabilitados, com a explicação.
+  // POL-16 (FA-03): o próprio ator vê os itens desabilitados, com a explicação.
   const selfBlocked = canManage && meta.isSelf;
   const showSuspend = allowed.has('SUSPEND') || (selfBlocked && membership.status === 'ACTIVE');
   const showRevoke =
     allowed.has('REVOKE') ||
     (selfBlocked && (membership.status === 'ACTIVE' || membership.status === 'SUSPENDED'));
   const showReactivate = allowed.has('REACTIVATE');
-  const hasActions = showSuspend || showRevoke || showReactivate;
+  const showMfaReset = allowed.has('MFA_RESET');
+  const hasMore = showSuspend || showRevoke || showMfaReset;
 
-  return (
-    <div className="flex flex-col gap-8">
-      {backLink}
+  const primaryDepartment = membership.departments.find((department) => department.isPrimary);
+  const external = membership.type === 'EXTERNAL';
+  const facts = [
+    { id: 'type', label: t('detail.type'), value: t(`types.${membership.type}`) },
+    {
+      id: 'department',
+      label: t('directory.primaryDepartment'),
+      value: primaryDepartment?.name ?? t('detail.none'),
+    },
+    ...(external
+      ? [
+          {
+            id: 'expiresAt',
+            label: t('detail.expiresAt'),
+            value: membership.expiresAt
+              ? format.dateTime(new Date(membership.expiresAt), { dateStyle: 'short' })
+              : t('detail.none'),
+          },
+        ]
+      : []),
+  ];
 
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{membership.name}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <StatusBadge membership={membership} />
-          <span>{t(`types.${membership.type}`)}</span>
-        </div>
-      </header>
-
-      <div aria-live="assertive">
-        {state ? (
-          <Alert tone="error" title={state.feedback.message}>
-            {state.feedback.hint ? <p>{state.feedback.hint}</p> : null}
-            {state.feedback.kind === 'mfa' ? (
-              <a className="font-medium underline" href={stepUpHref(detailPath)}>
-                {tErrors('stepUp')}
-              </a>
-            ) : null}
-            {state.feedback.kind === 'unavailable' && state.retry ? (
-              <Button variant="secondary" size="sm" onClick={state.retry}>
-                {tErrors('retry')}
-              </Button>
-            ) : null}
-            {state.feedback.kind === 'stale' && locked ? <p>{tErrors('reloading')}</p> : null}
-          </Alert>
-        ) : null}
-      </div>
-
-      {membership.status === 'SUSPENDED' && membership.suspendedAt ? (
-        <Alert
-          tone="warning"
-          live={false}
-          title={t('detail.since.suspended', { date: dateTime(membership.suspendedAt) })}
-        >
-          {membership.suspensionReason
-            ? t('detail.reason', { reason: membership.suspensionReason })
-            : null}
-        </Alert>
-      ) : null}
-      {membership.status === 'REVOKED' && membership.revokedAt ? (
-        <Alert
-          tone="warning"
-          live={false}
-          title={t('detail.since.revoked', { date: dateTime(membership.revokedAt) })}
-        >
-          {membership.revocationReason
-            ? t('detail.reason', { reason: membership.revocationReason })
-            : null}
-        </Alert>
-      ) : null}
-
-      <section aria-labelledby={`${selfNoteId}-identity`} className="flex flex-col gap-3">
-        <h2 id={`${selfNoteId}-identity`} className="text-lg font-semibold">
-          {t('detail.identityTitle')}
-        </h2>
-        <p className="text-sm text-muted-foreground">{t('detail.identityHint')}</p>
-        <dl className="grid gap-3 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="font-medium">{t('detail.name')}</dt>
-            <dd className="text-muted-foreground">{membership.name}</dd>
-          </div>
-          <div>
-            <dt className="font-medium">{t('detail.socialName')}</dt>
-            <dd className="text-muted-foreground">{membership.socialName ?? t('detail.none')}</dd>
-          </div>
-          <div>
-            <dt className="font-medium">{t('detail.email')}</dt>
-            <dd className="break-all text-muted-foreground">{membership.email}</dd>
-          </div>
-        </dl>
-      </section>
-
-      <section aria-labelledby={`${selfNoteId}-membership`} className="flex flex-col gap-3">
-        <h2 id={`${selfNoteId}-membership`} className="text-lg font-semibold">
-          {t('detail.membershipTitle')}
-        </h2>
-        <UserDetailForm
-          key={`profile:${membership.id}:${String(resetToken)}`}
-          membership={membership}
-          canEdit={canManage}
-          locked={locked || pending}
-          onSaved={(result) => {
-            applied(result, 'saved');
-          }}
-          onFailed={failed}
-        />
-      </section>
-
-      <section aria-labelledby={`${selfNoteId}-departments`} className="flex flex-col gap-3">
-        <h2 id={`${selfNoteId}-departments`} className="text-lg font-semibold">
-          {t('detail.departmentsTitle')}
-        </h2>
-        <UserDepartmentsForm
-          key={`departments:${membership.id}:${String(resetToken)}`}
-          membership={membership}
-          canEdit={allowed.has('UPDATE_DEPARTMENTS')}
-          locked={locked || pending}
-          onSaved={(result) => {
-            applied(result, 'departmentsSaved');
-          }}
-          onFailed={failed}
-        />
-      </section>
-
-      <RoleAssignmentsSection
-        key={`roles:${membership.id}`}
-        membership={membership}
-        returnTo={detailPath}
-      />
-
-      {hasActions ? (
-        <section aria-labelledby={`${selfNoteId}-access`} className="flex flex-col gap-3">
-          <h2 id={`${selfNoteId}-access`} className="text-lg font-semibold">
-            {t('detail.statusTitle')}
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {showReactivate ? (
-              <Button
-                disabled={locked || pending}
-                aria-busy={pending}
-                onClick={() => {
-                  runReactivate(membership.version);
-                }}
-              >
-                {t('detail.actions.reactivate')}
-              </Button>
-            ) : null}
+  const actions = (
+    <>
+      {hasMore ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={buttonClassName({ variant: 'secondary', size: 'md' })}
+            aria-label={t('detail.moreLabel')}
+          >
+            <Ellipsis aria-hidden="true" className="size-4" />
+            {t('detail.more')}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
             {showSuspend ? (
-              <Button
-                variant="secondary"
+              <DropdownMenuItem
                 disabled={meta.isSelf || locked || pending}
                 aria-describedby={meta.isSelf ? selfNoteId : undefined}
-                title={meta.isSelf ? t('detail.actions.selfProtected') : undefined}
-                onClick={() => {
+                onSelect={() => {
                   setState(null);
                   setDialog('SUSPEND');
                 }}
               >
                 {t('detail.actions.suspend')}
-              </Button>
+              </DropdownMenuItem>
             ) : null}
             {showRevoke ? (
-              <Button
-                variant="destructive"
+              <DropdownMenuItem
                 disabled={meta.isSelf || locked || pending}
                 aria-describedby={meta.isSelf ? selfNoteId : undefined}
-                title={meta.isSelf ? t('detail.actions.selfProtected') : undefined}
-                onClick={() => {
+                onSelect={() => {
                   setState(null);
                   setDialog('REVOKE');
                 }}
               >
                 {t('detail.actions.revoke')}
-              </Button>
+              </DropdownMenuItem>
+            ) : null}
+            {showMfaReset ? (
+              <>
+                {showSuspend || showRevoke ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  disabled={locked || pending}
+                  onSelect={() => {
+                    setState(null);
+                    setMfaResetOpen(true);
+                  }}
+                >
+                  {t('detail.mfa.action')}
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      {showReactivate ? (
+        <Button
+          disabled={locked || pending}
+          aria-busy={pending}
+          onClick={() => {
+            runReactivate(membership.version);
+          }}
+        >
+          {t('detail.actions.reactivate')}
+        </Button>
+      ) : null}
+    </>
+  );
+
+  return (
+    <Tabs value={tab} onValueChange={setTab}>
+      <DetailPage
+        breadcrumbs={[
+          { label: tShell('admin.title'), href: '/admin' },
+          { label: t('title'), href: USERS_PATH },
+          { label: membership.name },
+        ]}
+        breadcrumbLabel={tShell('pageHeader.breadcrumb')}
+        linkComponent={Link}
+        title={membership.name}
+        status={<StatusBadge membership={membership} />}
+        actions={actions}
+        facts={facts}
+        notices={
+          <div className="flex flex-col gap-3 empty:hidden">
+            <div aria-live="assertive" className="empty:hidden">
+              {state ? (
+                <Alert tone="error" title={state.feedback.message}>
+                  {state.feedback.hint ? <p>{state.feedback.hint}</p> : null}
+                  {state.feedback.kind === 'mfa' ? (
+                    <a className="font-medium underline" href={stepUpHref(detailPath)}>
+                      {tErrors('stepUp')}
+                    </a>
+                  ) : null}
+                  {state.feedback.kind === 'unavailable' && state.retry ? (
+                    <Button variant="secondary" size="sm" onClick={state.retry}>
+                      {tErrors('retry')}
+                    </Button>
+                  ) : null}
+                  {state.feedback.kind === 'stale' && locked ? <p>{tErrors('reloading')}</p> : null}
+                </Alert>
+              ) : null}
+            </div>
+
+            {membership.status === 'SUSPENDED' && membership.suspendedAt ? (
+              <Alert
+                tone="warning"
+                live={false}
+                title={t('detail.since.suspended', { date: dateTime(membership.suspendedAt) })}
+              >
+                {membership.suspensionReason
+                  ? t('detail.reason', { reason: membership.suspensionReason })
+                  : null}
+              </Alert>
+            ) : null}
+            {membership.status === 'REVOKED' && membership.revokedAt ? (
+              <Alert
+                tone="warning"
+                live={false}
+                title={t('detail.since.revoked', { date: dateTime(membership.revokedAt) })}
+              >
+                {membership.revocationReason
+                  ? t('detail.reason', { reason: membership.revocationReason })
+                  : null}
+              </Alert>
+            ) : null}
+            {selfBlocked && (showSuspend || showRevoke) ? (
+              <div id={selfNoteId}>
+                <Alert tone="info" live={false} title={t('detail.actions.selfProtected')} />
+              </div>
             ) : null}
           </div>
-          {selfBlocked && (showSuspend || showRevoke) ? (
-            <p id={selfNoteId} className="text-sm text-muted-foreground">
-              {t('detail.actions.selfProtected')}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
+        }
+        tabs={
+          <TabsList aria-label={t('detail.tabsLabel')}>
+            <TabsTrigger value="data">{t('detail.tabs.data')}</TabsTrigger>
+            <TabsTrigger value="roles">{t('detail.tabs.roles')}</TabsTrigger>
+          </TabsList>
+        }
+      >
+        <TabsContent value="data" className="flex flex-col gap-5 pt-0">
+          <Card title={t('detail.identityTitle')} description={t('detail.identityHint')}>
+            <dl className="grid gap-4 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="font-semibold">{t('detail.name')}</dt>
+                <dd className="text-muted-foreground">{membership.name}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold">{t('detail.socialName')}</dt>
+                <dd className="text-muted-foreground">
+                  {membership.socialName ?? t('detail.none')}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold">{t('detail.email')}</dt>
+                <dd className="break-all text-muted-foreground">{membership.email}</dd>
+              </div>
+            </dl>
+          </Card>
 
-      {allowed.has('MFA_RESET') ? (
-        <section aria-labelledby={`${selfNoteId}-mfa`} className="flex flex-col gap-3">
-          <h2 id={`${selfNoteId}-mfa`} className="text-lg font-semibold">
-            {t('detail.mfa.title')}
-          </h2>
-          <p className="text-sm text-muted-foreground">{t('detail.mfa.hint')}</p>
-          <div>
-            <Button
-              variant="secondary"
-              disabled={locked || pending}
-              onClick={() => {
-                setState(null);
-                setMfaResetOpen(true);
+          <Card title={t('detail.membershipTitle')}>
+            <UserDetailForm
+              key={`profile:${membership.id}:${String(resetToken)}`}
+              membership={membership}
+              canEdit={canManage}
+              locked={locked || pending}
+              onSaved={(result) => {
+                applied(result, 'saved');
               }}
-            >
-              {t('detail.mfa.action')}
-            </Button>
-          </div>
-        </section>
-      ) : null}
+              onFailed={failed}
+            />
+          </Card>
+
+          <Card title={t('detail.departmentsTitle')}>
+            <UserDepartmentsForm
+              key={`departments:${membership.id}:${String(resetToken)}`}
+              membership={membership}
+              canEdit={allowed.has('UPDATE_DEPARTMENTS')}
+              locked={locked || pending}
+              onSaved={(result) => {
+                applied(result, 'departmentsSaved');
+              }}
+              onFailed={failed}
+            />
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="roles" className="pt-0">
+          <RoleAssignmentsSection
+            key={`roles:${membership.id}`}
+            membership={membership}
+            returnTo={detailPath}
+          />
+        </TabsContent>
+      </DetailPage>
 
       <MfaResetDialog
         open={mfaResetOpen}
@@ -406,6 +457,6 @@ export function UserDetailView({ userId }: { readonly userId: string }) {
           showFeedback(feedback);
         }}
       />
-    </div>
+    </Tabs>
   );
 }

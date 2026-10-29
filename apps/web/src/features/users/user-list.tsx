@@ -1,10 +1,39 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Avatar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  Field,
+  FilterToolbar,
+  ListPage,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+  Users,
+} from '@contrataflow/ui';
+import type { TenantMembershipDto } from '@contrataflow/validation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
@@ -22,20 +51,28 @@ import {
 import type { UserListFilters } from './users.api';
 
 const DEBOUNCE_MS = 300;
-const CONTROL = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
+/** O `Select` do kit não aceita valor vazio: "Todos" usa este marcador. */
+const ALL = 'all';
 
 /** Rota do detalhe (SCR-029). */
 export const userDetailPath = (userId: string) => `/admin/usuarios/${userId}`;
 
+export interface UserListProps {
+  /** Cabeçalho da página (`AppPageHeader` com a ação "Convidar"); a lista é o corpo do `ListPage`. */
+  readonly header?: ReactNode;
+  /** Seções extras abaixo da tabela (convites pendentes). */
+  readonly children?: ReactNode;
+}
+
 /**
- * `UserList` (SCR-029 · US-092 · USR-01): vínculos do tenant com busca (≥ 2 caracteres, com
- * debounce), filtros por status, tipo e lotação e paginação; o nome leva ao detalhe. Abaixo de
- * 768 px cada linha vira um cartão (mesma tabela, cabeçalho só para leitores de tela).
+ * `UserList` (SCR-029 · US-092 · USR-01) no modelo `ListPage` (prd-5): busca inline (≥ 2
+ * caracteres, com debounce), situação, vínculo e lotação no popover "Filtros" com chips,
+ * paginação no rodapé da tabela e menu ⋯ por linha ("Ver detalhes"). O nome leva ao detalhe.
+ * A API não devolve perfis nem último acesso na lista: essas colunas ficam de fora.
  */
-export function UserList() {
+export function UserList({ header, children }: UserListProps) {
   const t = useTranslations('users');
   const tenantId = useTenantId();
-  const ids = useId();
   const [search, setSearch] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [selects, setSelects] = useState<Omit<UserListFilters, 'q'>>({
@@ -93,9 +130,14 @@ export function UserList() {
 
   if (users.error && isApiError(users.error) && users.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={header}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
@@ -104,223 +146,303 @@ export function UserList() {
   const filtered =
     filters.q !== '' || filters.status !== '' || filters.type !== '' || filters.departmentId !== '';
 
+  const typeLabel = (value: 'INTERNAL' | 'EXTERNAL') => t(`types.${value}`);
+  const statusLabel = (value: string) =>
+    (USER_STATUS_FILTERS as readonly string[]).includes(value)
+      ? t(`statuses.${value as (typeof USER_STATUS_FILTERS)[number]}`)
+      : value;
+  const departmentLabel = (id: string) => departmentName.get(id) ?? id;
+  const chips = [
+    filters.status === ''
+      ? null
+      : {
+          id: 'status',
+          label: t('directory.chip', {
+            field: t('directory.status'),
+            value: statusLabel(filters.status),
+          }),
+          removeLabel: t('directory.removeChip', {
+            field: t('directory.status'),
+            value: statusLabel(filters.status),
+          }),
+          onRemove: () => {
+            setFilter('status', '');
+          },
+        },
+    filters.type === ''
+      ? null
+      : {
+          id: 'type',
+          label: t('directory.chip', {
+            field: t('directory.type'),
+            value: typeLabel(filters.type),
+          }),
+          removeLabel: t('directory.removeChip', {
+            field: t('directory.type'),
+            value: typeLabel(filters.type),
+          }),
+          onRemove: () => {
+            setFilter('type', '');
+          },
+        },
+    filters.departmentId === ''
+      ? null
+      : {
+          id: 'department',
+          label: t('directory.chip', {
+            field: t('directory.department'),
+            value: departmentLabel(filters.departmentId),
+          }),
+          removeLabel: t('directory.removeChip', {
+            field: t('directory.department'),
+            value: departmentLabel(filters.departmentId),
+          }),
+          onRemove: () => {
+            setFilter('departmentId', '');
+          },
+        },
+  ].filter((chip) => chip !== null);
+
+  const clearAll = () => {
+    setSelects({ status: '', type: '', departmentId: '' });
+  };
+
   return (
-    <section aria-labelledby={`${ids}-title`} className="flex flex-col gap-4">
-      <h2 id={`${ids}-title`} className="text-lg font-semibold">
-        {t('directory.title')}
-      </h2>
-
-      <form
-        role="search"
-        aria-label={t('directory.title')}
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-q`} className="text-sm font-medium">
-            {t('directory.search')}
-          </label>
-          <input
-            id={`${ids}-q`}
-            type="search"
-            autoComplete="off"
-            className={CONTROL}
-            value={search}
-            aria-describedby={`${ids}-q-hint`}
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
-          />
-          <p id={`${ids}-q-hint`} className="text-xs text-muted-foreground">
-            {t('directory.searchHint')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-status`} className="text-sm font-medium">
-            {t('directory.status')}
-          </label>
-          <select
-            id={`${ids}-status`}
-            className={CONTROL}
-            value={filters.status}
-            onChange={(event) => {
-              setFilter('status', event.target.value);
-            }}
-          >
-            <option value="">{t('directory.allStatuses')}</option>
-            {USER_STATUS_FILTERS.map((status) => (
-              <option key={status} value={status}>
-                {t(`statuses.${status}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-type`} className="text-sm font-medium">
-            {t('directory.type')}
-          </label>
-          <select
-            id={`${ids}-type`}
-            className={CONTROL}
-            value={filters.type}
-            onChange={(event) => {
-              const value = event.target.value;
-              setFilter('type', value === 'INTERNAL' || value === 'EXTERNAL' ? value : '');
-            }}
-          >
-            <option value="">{t('directory.allTypes')}</option>
-            <option value="INTERNAL">{t('types.INTERNAL')}</option>
-            <option value="EXTERNAL">{t('types.EXTERNAL')}</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${ids}-department`} className="text-sm font-medium">
-            {t('directory.department')}
-          </label>
-          <select
-            id={`${ids}-department`}
-            className={CONTROL}
-            value={filters.departmentId}
-            onChange={(event) => {
-              setFilter('departmentId', event.target.value);
-            }}
-          >
-            <option value="">{t('directory.allDepartments')}</option>
-            {(departments.data ?? []).map((unit) => (
-              <option key={unit.id} value={unit.id}>
-                {unit.path === unit.name ? unit.name : unit.path}
-              </option>
-            ))}
-          </select>
-        </div>
-      </form>
-
-      {users.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('directory.loading')}</span>
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : null}
-
-      {users.isError ? (
-        <Alert tone="error" title={t('directory.loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void users.refetch();
-            }}
-          >
-            {t('directory.retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      {users.data && items.length === 0 ? (
-        <div className="rounded-card border border-dashed border-border p-6 text-center">
-          <p className="font-medium">{t('directory.empty')}</p>
-          {filtered ? (
-            <p className="mt-1 text-sm text-muted-foreground">{t('directory.emptyHint')}</p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {items.length > 0 ? (
-        <div
-          aria-busy={users.isPlaceholderData}
-          className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto"
-        >
-          <table className="w-full text-left text-sm md:min-w-[56rem]">
-            <caption className="sr-only">{t('directory.caption')}</caption>
-            <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">
-              <tr>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.name')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.email')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.jobTitle')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.primaryDepartment')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.typeColumn')}
-                </th>
-                <th scope="col" className="px-3 py-2">
-                  {t('directory.statusColumn')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((member) => (
-                <tr
-                  key={member.id}
-                  className="border-t border-border align-top max-md:block max-md:py-2"
+    <ListPage
+      header={header}
+      toolbar={
+        <FilterToolbar
+          search={{
+            value: search,
+            onChange: setSearch,
+            label: t('directory.search'),
+            placeholder: t('directory.searchPlaceholder'),
+            description: t('directory.searchHint'),
+          }}
+          activeCount={chips.length}
+          onClearAll={clearAll}
+          chips={chips}
+          filters={
+            <div className="flex flex-col gap-4">
+              <Field label={t('directory.status')}>
+                <Select
+                  value={filters.status === '' ? ALL : filters.status}
+                  onValueChange={(value) => {
+                    setFilter('status', value === ALL ? '' : value);
+                  }}
                 >
-                  <th scope="row" className="px-3 py-2 font-medium max-md:block">
-                    <Link
-                      href={userDetailPath(member.userId)}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {member.name}
-                    </Link>
-                  </th>
-                  <td className="px-3 py-2 break-all max-md:block max-md:py-1">{member.email}</td>
-                  <td className="px-3 py-2 max-md:block max-md:py-1">
-                    {member.jobTitle ?? t('detail.none')}
-                  </td>
-                  <td className="px-3 py-2 max-md:block max-md:py-1">
-                    {(member.primaryDepartmentId
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('directory.allStatuses')}</SelectItem>
+                    {USER_STATUS_FILTERS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {t(`statuses.${status}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t('directory.type')}>
+                <Select
+                  value={filters.type === '' ? ALL : filters.type}
+                  onValueChange={(value) => {
+                    setFilter('type', value === 'INTERNAL' || value === 'EXTERNAL' ? value : '');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('directory.allTypes')}</SelectItem>
+                    <SelectItem value="INTERNAL">{t('types.INTERNAL')}</SelectItem>
+                    <SelectItem value="EXTERNAL">{t('types.EXTERNAL')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={t('directory.department')}>
+                <Select
+                  value={filters.departmentId === '' ? ALL : filters.departmentId}
+                  onValueChange={(value) => {
+                    setFilter('departmentId', value === ALL ? '' : value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL}>{t('directory.allDepartments')}</SelectItem>
+                    {(departments.data ?? []).map((unit) => (
+                      <SelectItem key={unit.id} value={unit.id}>
+                        {unit.path === unit.name ? unit.name : unit.path}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          }
+        />
+      }
+      loading={users.isPending}
+      loadingLabel={t('directory.loading')}
+      error={
+        users.isError ? (
+          <Alert tone="error" title={t('directory.loadFailed')}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void users.refetch();
+              }}
+            >
+              {t('directory.retry')}
+            </Button>
+          </Alert>
+        ) : null
+      }
+      empty={
+        users.data && items.length === 0 ? (
+          <EmptyState
+            icon={<Users />}
+            title={t('directory.empty')}
+            description={filtered ? t('directory.emptyHint') : t('directory.emptyFirst')}
+            action={
+              filtered ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearch('');
+                    setDebouncedQ('');
+                    clearAll();
+                  }}
+                >
+                  {t('directory.clear')}
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : null
+      }
+    >
+      {items.length > 0 && users.data ? (
+        <TableContainer
+          label={t('directory.caption')}
+          aria-busy={users.isPlaceholderData}
+          footer={
+            <TableFooter summary={t('directory.total', { count: users.data.totalItems })}>
+              {totalPages > 1 ? (
+                <nav aria-label={t('directory.pager')} className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => {
+                      goToPage(Math.max(1, page - 1));
+                    }}
+                  >
+                    {t('list.previous')}
+                  </Button>
+                  <span>{t('list.pageOf', { page, total: totalPages })}</span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => {
+                      goToPage(page + 1);
+                    }}
+                  >
+                    {t('list.next')}
+                  </Button>
+                </nav>
+              ) : null}
+            </TableFooter>
+          }
+        >
+          <Table>
+            <caption className="sr-only">{t('directory.caption')}</caption>
+            <TableHead>
+              <Tr>
+                <Th>{t('directory.user')}</Th>
+                <Th className="hidden md:table-cell">{t('directory.jobTitle')}</Th>
+                <Th className="hidden lg:table-cell">{t('directory.primaryDepartment')}</Th>
+                <Th className="hidden md:table-cell">{t('directory.typeColumn')}</Th>
+                <Th>{t('directory.statusColumn')}</Th>
+                <Th className="w-12">
+                  <span className="sr-only">{t('directory.actions')}</span>
+                </Th>
+              </Tr>
+            </TableHead>
+            <TableBody>
+              {items.map((member) => (
+                <UserRow
+                  key={member.id}
+                  member={member}
+                  departmentName={
+                    (member.primaryDepartmentId
                       ? departmentName.get(member.primaryDepartmentId)
-                      : null) ?? t('detail.none')}
-                  </td>
-                  <td className="px-3 py-2 max-md:block max-md:py-1">
-                    {t(`types.${member.type}`)}
-                  </td>
-                  <td className="px-3 py-2 max-md:block max-md:py-1">
-                    <StatusBadge membership={member} />
-                  </td>
-                </tr>
+                      : null) ?? t('detail.none')
+                  }
+                />
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : null}
+      {children}
+    </ListPage>
+  );
+}
 
-      {totalPages > 1 ? (
-        <nav aria-label={t('directory.pager')} className="flex items-center justify-between gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => {
-              goToPage(Math.max(1, page - 1));
-            }}
-          >
-            {t('list.previous')}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {t('list.pageOf', { page, total: totalPages })}
+function UserRow({
+  member,
+  departmentName,
+}: {
+  readonly member: TenantMembershipDto;
+  readonly departmentName: string;
+}) {
+  const t = useTranslations('users');
+  return (
+    <Tr>
+      <th scope="row" className="px-3.5 py-3 text-left font-normal">
+        <span className="flex items-center gap-3">
+          <Avatar name={member.name} />
+          <span className="flex min-w-0 flex-col">
+            <Link
+              href={userDetailPath(member.userId)}
+              className="font-bold text-foreground underline-offset-2 hover:underline"
+            >
+              {member.name}
+            </Link>
+            <span className="text-xs break-all text-muted-foreground">{member.email}</span>
           </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => {
-              goToPage(page + 1);
-            }}
-          >
-            {t('list.next')}
-          </Button>
-        </nav>
-      ) : null}
-    </section>
+        </span>
+      </th>
+      <Td className="hidden md:table-cell">{member.jobTitle ?? t('detail.none')}</Td>
+      <Td className="hidden lg:table-cell">{departmentName}</Td>
+      <Td className="hidden md:table-cell">{t(`types.${member.type}`)}</Td>
+      <Td>
+        <StatusBadge membership={member} />
+      </Td>
+      <Td className="w-12 py-1.5 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={t('directory.menu', { name: member.name })}
+              className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+            >
+              <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={userDetailPath(member.userId)}>{t('directory.open')}</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </Td>
+    </Tr>
   );
 }

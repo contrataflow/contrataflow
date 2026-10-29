@@ -27,7 +27,7 @@ export type ProfileErrors = Partial<Record<ProfileField, string>>;
 export interface ProfileFormState {
   readonly jobTitle: string;
   readonly registrationNumber: string;
-  /** Valor do `<input type="date">` (`AAAA-MM-DD`, dia local); vazio fora de vínculos externos. */
+  /** Valor do seletor de data (`AAAA-MM-DD`, dia local); vazio fora de vínculos externos. */
   readonly expiresDate: string;
 }
 

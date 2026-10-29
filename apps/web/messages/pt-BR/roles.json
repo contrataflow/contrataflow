@@ -2,7 +2,6 @@
   "title": "Perfis e permissões",
   "description": "Crie, ajuste, duplique e desative os perfis do seu órgão. Os 15 perfis padrão sempre existem; o Administrador do órgão mantém as permissões com que foi criado.",
   "list": {
-    "title": "Perfis",
     "new": "Novo perfil",
     "loading": "Carregando os perfis…",
     "loadFailed": "Não foi possível carregar os perfis.",
@@ -10,12 +9,15 @@
     "emptyCustom": "Nenhum perfil personalizado ainda",
     "emptyCustomHint": "Use \"Novo perfil\" ou duplique um perfil padrão para começar.",
     "caption": "Perfis da instituição",
-    "name": "Perfil",
-    "key": "Chave",
-    "status": "Situação",
     "assignments": "Vínculos ativos",
+    "assignmentsCount": "{count, plural, =0 {Nenhum vínculo} one {# vínculo} other {# vínculos}}",
+    "name": "Perfil",
+    "kind": "Tipo",
+    "status": "Situação",
     "actions": "Ações",
-    "assignmentsCount": "{count, plural, =0 {Nenhum vínculo} one {# vínculo} other {# vínculos}}"
+    "count": "{count, plural, =0 {Nenhum perfil} one {# perfil} other {# perfis}}",
+    "noResults": "Nenhum perfil encontrado",
+    "noResultsHint": "Revise a busca ou os filtros."
   },
   "badges": {
     "system": "Padrão",
@@ -32,19 +34,25 @@
     "deactivate": "Desativar {name}",
     "deactivateLabel": "Desativar",
     "edit": "Editar perfil",
-    "back": "Voltar para os perfis"
+    "back": "Voltar para os perfis",
+    "menu": "Ações de {name}",
+    "more": "Mais",
+    "editLabel": "Editar perfil"
   },
   "form": {
     "createTitle": "Novo perfil",
     "editTitle": "Editar perfil",
-    "description": "O nome deve ser único na instituição. A chave técnica é gerada a partir do nome e não muda depois.",
-    "name": "Nome *",
+    "description": "O nome deve ser único na instituição. A chave técnica é gerada a partir do nome e não muda depois. Os campos com * são obrigatórios.",
+    "name": "Nome",
     "descriptionField": "Descrição",
     "allowExternalAssignment": "Permite atribuição a vínculos externos",
     "allowExternalAssignmentHint": "Ao ligar em um perfil com permissão de risco alto, será pedida a confirmação da sua identidade.",
     "cancel": "Cancelar",
     "save": "Salvar",
-    "create": "Criar perfil"
+    "create": "Criar perfil",
+    "close": "Fechar",
+    "creating": "Criando…",
+    "saving": "Salvando…"
   },
   "matrix": {
     "title": "Matriz de permissões",
@@ -59,13 +67,34 @@
     "protectedHint": "Permissão protegida — não pode ser removida do Administrador do órgão.",
     "outOfReachHint": "Você não possui esta permissão e por isso não pode concedê-la.",
     "readonlyHint": "Somente leitura: você não tem permissão para gerenciar perfis.",
-    "readonlyNotice": "Você pode consultar a matriz, mas não alterá-la."
+    "readonlyNotice": "Você pode consultar a matriz, mas não alterá-la.",
+    "search": "Buscar permissão na matriz",
+    "searchPlaceholder": "Nome ou código da permissão",
+    "searchSummary": "{count, plural, one {# permissão encontrada} other {# permissões encontradas}}",
+    "searchEmpty": "Nenhuma permissão encontrada",
+    "searchEmptyHint": "Revise o termo buscado.",
+    "total": "{selected} de {total} permissões concedidas",
+    "groupCount": "{selected} de {total}",
+    "groupCountLabel": "{selected} de {total} permissões concedidas neste módulo"
   },
   "detail": {
     "loadFailed": "Não foi possível carregar o perfil.",
     "notFound": "Perfil não encontrado.",
     "key": "Chave: {key}",
-    "inactiveNotice": "Este perfil está desativado: as atribuições existentes não concedem nenhuma permissão enquanto ele estiver inativo."
+    "inactiveNotice": "Este perfil está desativado: as atribuições existentes não concedem nenhuma permissão enquanto ele estiver inativo.",
+    "breadcrumbLabel": "Trilha",
+    "facts": {
+      "key": "Chave",
+      "assignments": "Vínculos ativos",
+      "permissions": "Permissões",
+      "updated": "Atualizado em"
+    },
+    "permissionsCount": "{selected} de {total}",
+    "catalog": {
+      "show": "Ver catálogo de permissões",
+      "hide": "Ocultar catálogo de permissões"
+    },
+    "loading": "Carregando o perfil…"
   },
   "deactivate": {
     "title": "Desativar o perfil {name}?",
@@ -99,5 +128,20 @@
   "forbidden": {
     "title": "Acesso negado",
     "description": "Você não tem permissão para ver perfis e permissões."
+  },
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Buscar perfil",
+    "searchHint": "Nome, chave ou descrição do perfil.",
+    "status": "Situação",
+    "kind": "Tipo",
+    "all": "Todos",
+    "active": "Ativos",
+    "inactive": "Inativos",
+    "system": "Padrão",
+    "custom": "Personalizados",
+    "chip": "{label}: {value}",
+    "removeChip": "Remover o filtro {label}: {value}",
+    "clear": "Limpar busca e filtros"
   }
 }

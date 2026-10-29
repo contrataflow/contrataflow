@@ -3,18 +3,28 @@
 import {
   Alert,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
+  Field,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
   toast,
 } from '@contrataflow/ui';
 import { DEPARTMENT_TYPES } from '@contrataflow/validation';
 import type { DepartmentDto } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useRef, useState } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 
 import { isApiError } from '@/lib/api/api-error';
 import { newIdempotencyKey } from '@/lib/api/client';
@@ -39,7 +49,6 @@ import {
 } from './departments.api';
 import { UserLookupSelect } from './user-lookup-select';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 const FORM_FIELDS = new Set<string>(DEPARTMENT_FORM_FIELDS);
 
 export type DepartmentFormTarget =
@@ -57,8 +66,8 @@ export interface DepartmentFormDialogProps {
  * `DepartmentFormDialog` (SCR-032 · US-102 · passos 2–6): React Hook Form validado pelos mesmos
  * schemas Zod da API. Criação (DEP-03, com `Idempotency-Key` por intenção) na raiz ou sob a
  * unidade escolhida; edição (DEP-05) só do que mudou, com `If-Match` — 412 oferece "Recarregar e
- * reaplicar minhas alterações". Foco no primeiro campo; erros em `aria-live`; tela cheia abaixo de
- * 768 px.
+ * reaplicar minhas alterações". Painel lateral do kit (`Sheet`, prd-5): cabeçalho e rodapé fixos, só
+ * o corpo rola; foco no primeiro campo; tela cheia abaixo de 768 px.
  */
 export function DepartmentFormDialog({
   target,
@@ -66,6 +75,7 @@ export function DepartmentFormDialog({
   labels,
   onClose,
 }: DepartmentFormDialogProps) {
+  const t = useTranslations('departments');
   const key =
     target === null
       ? 'fechado'
@@ -73,16 +83,13 @@ export function DepartmentFormDialog({
         ? target.department.id
         : `novo-${target.parent?.id ?? 'raiz'}`;
   return (
-    <Dialog
+    <Sheet
       open={target !== null}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <DialogContent
-        className="h-dvh max-h-dvh overflow-y-auto md:h-auto md:max-h-[90vh]"
-        style={{ maxWidth: '40rem' }}
-      >
+      <SheetContent closeLabel={t('form.close')}>
         {target ? (
           <DepartmentFormBody
             key={key}
@@ -92,8 +99,8 @@ export function DepartmentFormDialog({
             onClose={onClose}
           />
         ) : null}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -111,7 +118,6 @@ function DepartmentFormBody({
   const t = useTranslations('departments');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const ids = useId();
   const [base, setBase] = useState(target.mode === 'edit' ? target.department : undefined);
   const [conflict, setConflict] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -243,44 +249,19 @@ function DepartmentFormBody({
   };
 
   const pending = create.isPending || update.isPending;
-  const fieldId = (name: string) => `${ids}-${name}`;
   const errorOf = (name: DepartmentFormField) => errors[name]?.message;
-  const describe = (name: DepartmentFormField, hint?: boolean) => {
-    const parts = [
-      errorOf(name) ? `${fieldId(name)}-error` : undefined,
-      hint ? `${fieldId(name)}-hint` : undefined,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(' ') : undefined;
-  };
-  const errorText = (name: DepartmentFormField) =>
-    errorOf(name) ? (
-      <p id={`${fieldId(name)}-error`} className="text-sm text-destructive" aria-live="polite">
-        {errorOf(name)}
-      </p>
-    ) : null;
   const text = (
     name: Exclude<DepartmentFormField, 'type' | 'headUserId' | 'deputyUserId'>,
     options: { readonly hint?: string; readonly className?: string; readonly type?: string } = {},
   ) => (
-    <div className={`flex flex-col gap-1 ${options.className ?? ''}`}>
-      <label htmlFor={fieldId(name)} className="text-sm font-medium">
-        {t(`form.${name}`)}
-      </label>
-      <input
-        id={fieldId(name)}
-        type={options.type ?? 'text'}
-        aria-invalid={errorOf(name) ? true : undefined}
-        aria-describedby={describe(name, Boolean(options.hint))}
-        className={INPUT}
-        {...register(name)}
-      />
-      {options.hint ? (
-        <p id={`${fieldId(name)}-hint`} className="text-xs text-muted-foreground">
-          {options.hint}
-        </p>
-      ) : null}
-      {errorText(name)}
-    </div>
+    <Field
+      label={t(`form.${name}`)}
+      description={options.hint}
+      error={errorOf(name)}
+      className={options.className}
+    >
+      <Input type={options.type ?? 'text'} {...register(name)} />
+    </Field>
   );
 
   const parentName = base ? null : (parent?.name ?? t('form.root'));
@@ -291,87 +272,96 @@ function DepartmentFormBody({
       : t('form.createTitle');
 
   return (
-    <form noValidate onSubmit={(event) => void onSubmit(event)} className="flex flex-col gap-4">
-      <DialogTitle>{title}</DialogTitle>
-      <DialogDescription>{t('form.description')}</DialogDescription>
+    <form
+      noValidate
+      onSubmit={(event) => void onSubmit(event)}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      <SheetHeader>
+        <SheetTitle>{title}</SheetTitle>
+        <SheetDescription>{t('form.description')}</SheetDescription>
+      </SheetHeader>
 
-      {formError ? <Alert tone="error" title={formError} /> : null}
-      {conflict ? (
-        <Alert tone="warning" title={t('conflict.title')}>
-          <p>{t('conflict.description')}</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-2"
-            onClick={() => void reapply()}
-          >
-            {t('conflict.reapply')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={fieldId('type')} className="text-sm font-medium">
-            {t('form.type')}
-          </label>
-          <select
-            id={fieldId('type')}
-            aria-invalid={errorOf('type') ? true : undefined}
-            aria-describedby={describe('type')}
-            className={INPUT}
-            {...register('type')}
-          >
-            <option value="">{t('form.typePlaceholder')}</option>
-            {DEPARTMENT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {typeLabel(type, labels, (value) => t(`types.${value}`))}
-              </option>
-            ))}
-          </select>
-          {errorText('type')}
+      <SheetBody>
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {formError ? <Alert tone="error" title={formError} /> : null}
+          {conflict ? (
+            <Alert tone="warning" title={t('conflict.title')}>
+              <p>{t('conflict.description')}</p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="mt-2"
+                onClick={() => void reapply()}
+              >
+                {t('conflict.reapply')}
+              </Button>
+            </Alert>
+          ) : null}
         </div>
-        {parentName !== null ? (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">{t('form.parent')}</span>
-            <span className="flex h-10 items-center text-sm text-muted-foreground">
-              {parentName}
-            </span>
-          </div>
-        ) : null}
-        {text('name', { className: 'sm:col-span-2' })}
-        {text('acronym', { hint: t('form.acronymHint') })}
-        {text('code', { hint: t('form.codeHint') })}
-        {text('email', { type: 'email' })}
-        {text('phone', { type: 'tel' })}
-        {text('sortOrder', { type: 'number' })}
-      </div>
 
-      <fieldset className="grid gap-3">
-        <legend className="mb-1 text-sm font-semibold">{t('form.people')}</legend>
-        {(['headUserId', 'deputyUserId'] as const).map((field) => (
-          <UserLookupSelect
-            key={field}
-            id={fieldId(field)}
-            label={t(`form.${field}`)}
-            value={staff[field]}
-            error={errorOf(field)}
-            onClear={() => {
-              setValue(field, '', { shouldDirty: true });
-            }}
-          />
-        ))}
-      </fieldset>
+        <section className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('form.type')} error={errorOf('type')}>
+            <Controller
+              control={control}
+              name="type"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger ref={field.ref}>
+                    <SelectValue placeholder={t('form.typePlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {typeLabel(type, labels, (value) => t(`types.${value}`))}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+          {parentName !== null ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm font-semibold text-foreground">{t('form.parent')}</span>
+              <span className="flex min-h-11 items-center text-sm text-muted-foreground">
+                {parentName}
+              </span>
+            </div>
+          ) : null}
+          {text('name', { className: 'sm:col-span-2' })}
+          {text('acronym', { hint: t('form.acronymHint') })}
+          {text('code', { hint: t('form.codeHint') })}
+          {text('email', { type: 'email' })}
+          {text('phone', { type: 'tel' })}
+          {text('sortOrder', { type: 'number' })}
+        </section>
 
-      <div className="flex flex-wrap justify-end gap-2">
+        <fieldset className="m-0 grid gap-4 border-0 p-0">
+          <legend className="mb-3 text-sm font-bold text-brand-ink">{t('form.people')}</legend>
+          {(['headUserId', 'deputyUserId'] as const).map((field) => (
+            <UserLookupSelect
+              key={field}
+              label={t(`form.${field}`)}
+              value={staff[field]}
+              error={errorOf(field)}
+              onClear={() => {
+                setValue(field, '', { shouldDirty: true });
+              }}
+            />
+          ))}
+        </fieldset>
+      </SheetBody>
+
+      <SheetFooter>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('form.cancel')}
         </Button>
         <Button type="submit" aria-busy={pending} disabled={pending}>
           {pending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

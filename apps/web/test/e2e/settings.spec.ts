@@ -10,20 +10,33 @@ import { expectNoSeriousA11yViolations } from './support/a11y';
 // As configurações da API simulada são globais: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
 
+const NAV_LABEL = 'Seções de configurações';
+
 async function openScreen(page: Page): Promise<void> {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/admin/configuracoes')}`);
   await expect(page).toHaveURL(/\/admin\/configuracoes$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Configurações gerais' })).toBeVisible();
 }
 
-test('lista os grupos e os campos da aba Identidade, sem violações de acessibilidade', async ({
+/** Abre uma seção na navegação à esquerda do `SettingsPage` (prd-5). */
+async function openSection(page: Page, name: string): Promise<void> {
+  const nav = page.getByRole('navigation', { name: NAV_LABEL });
+  await nav.getByRole('button', { name, exact: true }).click();
+  await expect(nav.getByRole('button', { name, exact: true })).toHaveAttribute(
+    'aria-current',
+    'true',
+  );
+}
+
+test('lista as seções e os campos da seção Rótulos, sem violações de acessibilidade', async ({
   page,
 }) => {
   await openScreen(page);
-  await expect(page.getByRole('tab', { name: 'Identidade' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect(
+    page.getByRole('navigation', { name: NAV_LABEL }).getByRole('button', { name: 'Marca' }),
+  ).toHaveAttribute('aria-current', 'true');
+  await openSection(page, 'Rótulos');
+  await expect(page).toHaveURL(/\?secao=labels$/);
   await expect(page.getByLabel('Nome do nível de unidade requisitante')).toHaveValue('Secretaria');
   await expect(page.getByRole('link', { name: 'Configurações' })).toHaveAttribute(
     'aria-current',
@@ -36,6 +49,7 @@ test('altera o rótulo de secretaria, salva e o valor persiste após recarregar'
   page,
 }) => {
   await openScreen(page);
+  await openSection(page, 'Rótulos');
   const field = page.getByLabel('Nome do nível de unidade requisitante');
   await field.fill('Diretoria');
   await expect(page.getByText('1 alteração pendente')).toBeVisible();
@@ -49,7 +63,7 @@ test('altera o rótulo de secretaria, salva e o valor persiste após recarregar'
 
 test('máscara de numeração sem {year}: erro inline e "Salvar" desabilitado', async ({ page }) => {
   await openScreen(page);
-  await page.getByRole('tab', { name: 'Numeração' }).click();
+  await openSection(page, 'Numeração');
   await page.getByLabel('Máscara do número do processo').fill('PROC-{seq:4}');
   await expect(
     page.getByText('A máscara deve conter {seq:N} e {year}; verifique os marcadores usados.'),
@@ -63,7 +77,7 @@ test('prévia da máscara de numeração: exemplo do próximo número sem salvar
   page,
 }) => {
   await openScreen(page);
-  await page.getByRole('tab', { name: 'Numeração' }).click();
+  await openSection(page, 'Numeração');
   await expect(page.getByText('Próximo número: 0012/2026')).toBeVisible();
   await page.getByLabel('Máscara do número do processo').fill('{org}-{seq:5}/{year}');
   await expect(page.getByText('Próximo número: PMSJ-00012/2026')).toBeVisible();

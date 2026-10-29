@@ -7,19 +7,36 @@
     "departments": "Secretarias"
   },
   "organizations": {
-    "title": "Órgãos",
     "new": "Novo órgão",
     "loading": "Carregando os órgãos…",
     "loadFailed": "Não foi possível carregar os órgãos.",
     "retry": "Tentar novamente",
     "empty": "Nenhum órgão cadastrado",
-    "emptyHint": "Cadastre o primeiro órgão para poder abrir processos."
+    "emptyHint": "Cadastre o primeiro órgão para poder abrir processos.",
+    "noResults": "Nenhum órgão encontrado",
+    "noResultsHint": "Revise a busca ou os filtros.",
+    "count": "{count, plural, =0 {Nenhum órgão} one {# órgão} other {# órgãos}}"
+  },
+  "filters": {
+    "search": "Buscar",
+    "searchPlaceholder": "Buscar órgão",
+    "searchHint": "Nome, sigla ou CNPJ.",
+    "status": "Situação",
+    "type": "Tipo",
+    "all": "Todos",
+    "allTypes": "Todos os tipos",
+    "active": "Ativos",
+    "inactive": "Inativos",
+    "statusChip": "Situação: {value}",
+    "typeChip": "Tipo: {value}",
+    "removeStatusChip": "Remover o filtro Situação: {value}",
+    "removeTypeChip": "Remover o filtro Tipo: {value}",
+    "clearAll": "Limpar filtros",
+    "clear": "Limpar busca e filtros"
   },
   "table": {
     "caption": "Órgãos e entidades da instituição",
-    "name": "Nome",
-    "shortName": "Sigla",
-    "cnpj": "CNPJ",
+    "name": "Órgão / Sigla / CNPJ",
     "type": "Tipo",
     "status": "Situação",
     "actions": "Ações"
@@ -41,11 +58,9 @@
     "OTHER": "Outro"
   },
   "actions": {
-    "edit": "Editar {name}",
+    "menu": "Ações de {name}",
     "editLabel": "Editar",
-    "deactivate": "Inativar {name}",
     "deactivateLabel": "Inativar",
-    "reactivate": "Reativar {name}",
     "reactivateLabel": "Reativar"
   },
   "form": {
@@ -79,7 +94,8 @@
     "logoPending": "O envio do logotipo fica disponível com a gestão de anexos.",
     "cancel": "Cancelar",
     "submit": "Salvar",
-    "submitting": "Salvando…"
+    "submitting": "Salvando…",
+    "close": "Fechar"
   },
   "validation": {
     "required": "Informe o campo {field}.",

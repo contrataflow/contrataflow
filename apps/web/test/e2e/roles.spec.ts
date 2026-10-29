@@ -17,7 +17,17 @@ async function openList(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'Perfis e permissões' })).toBeVisible();
 }
 
-const switchOf = (page: Page, code: string) => page.locator(`[role="switch"][data-code="${code}"]`);
+/** Caixa da permissão na matriz: a busca abre o módulo recolhido em que ela está (prd-5). */
+async function checkboxOf(page: Page, code: string) {
+  await page.getByLabel('Buscar permissão na matriz').fill(code);
+  return page.locator(`[role="checkbox"][data-code="${code}"]`);
+}
+
+/** Ação do menu "Mais" do cabeçalho do perfil. */
+async function moreAction(page: Page, action: string): Promise<void> {
+  await page.getByRole('button', { name: 'Mais', exact: true }).click();
+  await page.getByRole('menuitem', { name: action, exact: true }).click();
+}
 
 test('lista os perfis padrão; o ADMIN_ORGAO não oferece "Desativar"; sem violações de acessibilidade', async ({
   page,
@@ -25,12 +35,12 @@ test('lista os perfis padrão; o ADMIN_ORGAO não oferece "Desativar"; sem viola
   await openList(page);
   const admin = page.getByRole('row', { name: /Administrador do órgão/ });
   await expect(admin.getByText('Protegido')).toBeVisible();
-  await expect(
-    admin.getByRole('button', { name: 'Duplicar Administrador do órgão' }),
-  ).toBeVisible();
-  await expect(admin.getByRole('button', { name: /Desativar/ })).toHaveCount(0);
   await expect(page.getByText('Nenhum perfil personalizado ainda')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'lista de perfis');
+  await admin.getByRole('button', { name: 'Ações de Administrador do órgão' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Duplicar' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Desativar' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
 });
 
 test('cria um perfil, ajusta a matriz e vê as permissões fora do seu alcance travadas', async ({
@@ -39,23 +49,25 @@ test('cria um perfil, ajusta a matriz e vê as permissões fora do seu alcance t
   await openList(page);
   await page.getByRole('button', { name: 'Novo perfil' }).click();
   const dialog = page.getByRole('dialog', { name: 'Novo perfil' });
-  await expect(dialog.getByLabel('Nome *')).toBeFocused();
-  await dialog.getByLabel('Nome *').fill('Fiscal de Obras');
+  await expect(dialog.getByRole('textbox', { name: 'Nome', exact: true })).toBeFocused();
+  await dialog.getByRole('textbox', { name: 'Nome', exact: true }).fill('Fiscal de Obras');
   await dialog.getByRole('button', { name: 'Criar perfil' }).click();
 
   await expect(page).toHaveURL(/\/admin\/perfis\/[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Fiscal de Obras' })).toBeVisible();
   // Fora do alcance da Ana: o ME-03 simulado não traz PROCESS_VIEW (USER_MANAGE entrou com a
   // US-092 para a gestão de usuários).
-  await expect(switchOf(page, 'PROCESS_VIEW')).toHaveAttribute('aria-disabled', 'true');
-  await expect(switchOf(page, 'PROCESS_VIEW')).toHaveAttribute(
+  const processView = await checkboxOf(page, 'PROCESS_VIEW');
+  await expect(processView).toHaveAttribute('aria-disabled', 'true');
+  await expect(processView).toHaveAttribute(
     'title',
     'Você não possui esta permissão e por isso não pode concedê-la.',
   );
   await expectNoSeriousA11yViolations(page, 'matriz de permissões');
 
-  await switchOf(page, 'PROCESS_CREATE').click();
-  await expect(switchOf(page, 'PROCESS_CREATE')).toHaveAttribute('aria-checked', 'true');
+  const processCreate = await checkboxOf(page, 'PROCESS_CREATE');
+  await processCreate.click();
+  await expect(processCreate).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('button', { name: 'Salvar matriz' }).click();
   await expect(page.getByText('Matriz atualizada.', { exact: true })).toBeVisible();
   await expect(page.getByText('Nenhuma alteração pendente.')).toBeVisible();
@@ -66,15 +78,15 @@ test('RN-IAM-83: ligar a atribuição externa em perfil com permissão de risco 
 }) => {
   await openList(page);
   await page.getByRole('link', { name: 'Abrir Fiscal de Obras' }).click();
-  await switchOf(page, 'SETTINGS_MANAGE').click();
+  await (await checkboxOf(page, 'SETTINGS_MANAGE')).click();
   await page.getByRole('button', { name: 'Salvar matriz' }).click();
   await expect(page.getByText('Matriz atualizada.', { exact: true })).toBeVisible();
   const detailUrl = page.url();
 
   const enableExternal = async () => {
-    await page.getByRole('button', { name: 'Editar perfil' }).click();
+    await moreAction(page, 'Editar perfil');
     const dialog = page.getByRole('dialog', { name: 'Editar perfil' });
-    await dialog.getByLabel('Permite atribuição a vínculos externos').check();
+    await dialog.getByRole('checkbox', { name: 'Permite atribuição a vínculos externos' }).click();
     await dialog.getByRole('button', { name: 'Salvar' }).click();
   };
   // Sem MFA na sessão, a API responde MFA_REQUIRED e o BFF conduz o step-up de volta ao perfil.
@@ -93,12 +105,12 @@ test('duplica e desativa a cópia', async ({ page }) => {
   await openList(page);
   await page.getByRole('link', { name: 'Abrir Fiscal de Obras' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Fiscal de Obras' })).toBeVisible();
-  await page.getByRole('button', { name: 'Duplicar', exact: true }).click();
+  await moreAction(page, 'Duplicar');
   await expect(
     page.getByRole('heading', { level: 1, name: 'Fiscal de Obras (cópia)' }),
   ).toBeVisible();
 
-  await page.getByRole('button', { name: 'Desativar', exact: true }).click();
+  await moreAction(page, 'Desativar');
   const dialog = page.getByRole('dialog', { name: 'Desativar o perfil Fiscal de Obras (cópia)?' });
   await expect(dialog.getByText('Nenhum vínculo ativo usa este perfil.')).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'desativar perfil');

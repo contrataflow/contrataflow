@@ -41,7 +41,26 @@
     "documentTypes": "Tipos de documento",
     "catalogs": "Catálogos",
     "calendar": "Calendário",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "hub": {
+      "groups": {
+        "people": "Pessoas e acesso",
+        "structure": "Estrutura",
+        "documents": "Documentos e fluxos",
+        "system": "Sistema"
+      },
+      "descriptions": {
+        "users": "Convide pessoas, acompanhe a situação de cada conta e atribua perfis.",
+        "roles": "Defina perfis e as permissões que cada um concede.",
+        "structure": "Órgãos, secretarias e unidades, com titulares e substitutos.",
+        "calendar": "Feriados e dias úteis usados na contagem de prazos.",
+        "templates": "Modelos dos documentos do planejamento e suas versões.",
+        "workflows": "Etapas, transições e regras de cada tipo de processo.",
+        "documentTypes": "Tipos de documento aceitos nos processos e anexos.",
+        "catalogs": "Listas de itens e valores reutilizados nos formulários.",
+        "settings": "Marca, segurança, aprovações, prazos, numeração e inteligência artificial."
+      }
+    }
   },
   "search": {
     "label": "Busca global",

@@ -9,6 +9,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 // O cadastro da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -41,7 +42,9 @@ test('convida um usuário interno e o convite aparece na lista pendente', async 
   await dialog.getByLabel('E-mail *').fill('marta@exemplo.gov.br');
   await dialog.getByLabel('Nome *').fill('Marta Lima');
   await dialog.getByLabel('Cargo ou função').fill('Engenheira');
-  await dialog.getByRole('checkbox', { name: 'Gabinete', exact: true }).check();
+  await dialog.getByRole('button', { name: 'Adicionar unidade' }).click();
+  await page.getByRole('option', { name: /^Gabinete/ }).click();
+  await page.keyboard.press('Escape');
   await expect(dialog.getByRole('list', { name: 'Unidades selecionadas' })).toContainText(
     'Gabinete',
   );
@@ -66,12 +69,18 @@ test('vínculo externo exige a validade e a pessoa que já tem vínculo recebe a
   const dialog = page.getByRole('dialog', { name: 'Convidar usuário' });
   await dialog.getByLabel('E-mail *').fill('existente@exemplo.gov.br');
   await dialog.getByLabel('Nome *').fill('Pessoa Existente');
-  await dialog.getByLabel('Tipo de vínculo *').selectOption('EXTERNAL');
+  await chooseOption(page, 'Tipo de vínculo *', /^Externo/, dialog);
   await dialog.getByRole('button', { name: 'Enviar convite' }).click();
   await expect(dialog.getByText('Informe a validade do vínculo externo.')).toBeVisible();
   await expect(dialog.getByLabel('Validade do vínculo *')).toBeFocused();
 
-  await dialog.getByLabel('Validade do vínculo *').fill('2099-12-31');
+  await dialog.getByRole('button', { name: 'Validade do vínculo *' }).click();
+  const calendar = page.getByRole('dialog', { name: /^Escolher/ });
+  await calendar.getByRole('button', { name: 'Ir para o próximo mês' }).click();
+  await calendar
+    .locator('td[role="gridcell"]:not([data-outside]) button')
+    .getByText('15', { exact: true })
+    .click();
   await dialog.getByRole('button', { name: 'Enviar convite' }).click();
   await expect(
     dialog.getByText('Esta pessoa já tem um vínculo com esta instituição.'),
@@ -85,18 +94,26 @@ test('vínculo externo exige a validade e a pessoa que já tem vínculo recebe a
 test('reenvia e cancela um convite pendente (com confirmação)', async ({ page }) => {
   await openList(page);
   const row = page.getByRole('row', { name: /Marta Lima/ });
-  await row.getByRole('button', { name: 'Reenviar convite para Marta Lima' }).click();
+  await row.getByRole('button', { name: 'Ações do convite de Marta Lima' }).click();
+  await page.getByRole('menuitem', { name: 'Reenviar convite para Marta Lima' }).click();
   await expect(
     page.getByText('Convite reenviado para marta@exemplo.gov.br.', { exact: true }),
   ).toBeVisible();
 
-  await row.getByRole('button', { name: 'Cancelar convite de Marta Lima' }).click();
+  await row.getByRole('button', { name: 'Ações do convite de Marta Lima' }).click();
+  await page.getByRole('menuitem', { name: 'Cancelar convite de Marta Lima' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Cancelar o convite de Marta Lima?' });
   await expectNoSeriousA11yViolations(page, 'cancelar convite');
   await confirm.getByRole('button', { name: 'Cancelar convite' }).click();
   await expect(page.getByText('Convite de Marta Lima cancelado.', { exact: true })).toBeVisible();
   await expect(page.getByText('Nenhum convite pendente')).toBeVisible();
 });
+
+/** Ação do menu "Mais" do cabeçalho do usuário (prd-5 · regra 1). */
+async function moreAction(page: Page, action: string): Promise<void> {
+  await page.getByRole('button', { name: 'Mais ações do usuário' }).click();
+  await page.getByRole('menuitem', { name: action }).click();
+}
 
 async function openDetail(page: Page): Promise<void> {
   await openList(page);
@@ -120,7 +137,9 @@ test('a lista de usuários mostra o vínculo, busca por nome e tem estado vazio'
   await expect(page.getByText('Nenhum usuário encontrado')).toBeVisible();
   await page.getByRole('searchbox', { name: 'Buscar por nome ou e-mail' }).fill('dieg');
   await expect(table.getByRole('row', { name: /Diego Ramos/ })).toBeVisible();
-  await page.getByLabel('Status', { exact: true }).selectOption('SUSPENDED');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
+  await chooseOption(page, 'Status', 'Suspenso');
+  await page.keyboard.press('Escape');
   await expect(page.getByText('Nenhum usuário encontrado')).toBeVisible();
 });
 
@@ -150,7 +169,9 @@ test('troca a lotação principal do usuário', async ({ page }) => {
   await openDetail(page);
   const selected = page.getByRole('list', { name: 'Unidades selecionadas' });
   await expect(selected).toContainText('Gabinete');
-  await page.getByRole('checkbox', { name: 'Licitações', exact: true }).check();
+  await page.getByRole('button', { name: 'Adicionar unidade' }).click();
+  await page.getByRole('option', { name: /^Licitações/ }).click();
+  await page.keyboard.press('Escape');
   await page.getByRole('radio', { name: 'Lotação principal: Licitações' }).check();
   await page.getByRole('button', { name: 'Remover Gabinete' }).click();
   await expectNoSeriousA11yViolations(page, 'lotações do usuário');
@@ -168,7 +189,7 @@ test('troca a lotação principal do usuário', async ({ page }) => {
 
 test('suspende e reativa o usuário (com confirmação e motivo)', async ({ page }) => {
   await openDetail(page);
-  await page.getByRole('button', { name: 'Suspender acesso' }).click();
+  await moreAction(page, 'Suspender acesso');
   const dialog = page.getByRole('alertdialog', { name: 'Suspender o acesso de Diego Ramos?' });
   await expect(dialog.getByRole('textbox', { name: 'Motivo (opcional)' })).toBeFocused();
   await expectNoSeriousA11yViolations(page, 'suspender usuário');
@@ -176,23 +197,25 @@ test('suspende e reativa o usuário (com confirmação e motivo)', async ({ page
   await dialog.getByRole('button', { name: 'Suspender acesso' }).click();
   await expect(page.getByText('Acesso de Diego Ramos suspenso.', { exact: true })).toBeVisible();
   await expect(page.getByText('Motivo: Licença')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Suspender acesso' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Reativar' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'usuário suspenso');
 
   await page.getByRole('button', { name: 'Reativar' }).click();
   await expect(page.getByText('Acesso de Diego Ramos reativado.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Suspender acesso' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reativar' })).toBeHidden();
 });
 
 test('perfis e acessos: atribui e revoga um perfil; o último administrador fica protegido', async ({
   page,
 }) => {
   await openDetail(page);
-  const list = page.getByRole('list', { name: 'Perfis atribuídos' });
+  await page.getByRole('tab', { name: 'Atribuições' }).click();
+  const list = page.getByRole('table', { name: 'Perfis atribuídos' });
   await expect(list).toContainText('Administrador do órgão');
 
   // US-096 · POL-12: Diego é o único administrador — a revogação é recusada com a sugestão.
-  await page.getByRole('button', { name: 'Revogar o perfil Administrador do órgão' }).click();
+  await page.getByRole('button', { name: 'Ações do perfil Administrador do órgão' }).click();
+  await page.getByRole('menuitem', { name: 'Revogar o perfil Administrador do órgão' }).click();
   const blocked = page.getByRole('alertdialog', {
     name: 'Revogar o perfil Administrador do órgão?',
   });
@@ -213,13 +236,14 @@ test('perfis e acessos: atribui e revoga um perfil; o último administrador fica
   await expect(perfil).toBeFocused();
   await dialog.getByRole('button', { name: 'Atribuir', exact: true }).click();
   await expect(dialog.getByText('Selecione o perfil e o escopo.')).toBeVisible();
-  await perfil.selectOption({ label: 'Auditor' });
+  await chooseOption(page, 'Perfil', /^Auditor/, dialog);
   await expectNoSeriousA11yViolations(page, 'atribuir perfil');
   await dialog.getByRole('button', { name: 'Atribuir', exact: true }).click();
   await expect(page.getByText('Perfil atribuído: Auditor.', { exact: true })).toBeVisible();
   await expect(list).toContainText('Auditor');
 
-  await page.getByRole('button', { name: 'Revogar o perfil Auditor' }).click();
+  await page.getByRole('button', { name: 'Ações do perfil Auditor' }).click();
+  await page.getByRole('menuitem', { name: 'Revogar o perfil Auditor' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Revogar o perfil Auditor?' });
   await confirm.getByRole('textbox', { name: 'Motivo (opcional)' }).fill('Fim da auditoria');
   await confirm.getByRole('button', { name: 'Revogar perfil' }).click();

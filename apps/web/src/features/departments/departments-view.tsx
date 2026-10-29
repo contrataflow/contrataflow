@@ -8,13 +8,22 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
-  Skeleton,
+  EmptyState,
+  Field,
+  ListPage,
+  Building2,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   toast,
 } from '@contrataflow/ui';
 import type { DepartmentDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
@@ -43,6 +52,8 @@ import {
   fetchOrganizations,
   organizationKeys,
 } from '../organizations/organizations.api';
+import { PrimaryAction } from '../organizations/primary-action-slot';
+import type { PrimaryActionSlot } from '../organizations/primary-action-slot';
 import { fetchPublicSettings, settingsKeys } from '../settings/settings.api';
 
 /**
@@ -51,13 +62,19 @@ import { fetchPublicSettings, settingsKeys } from '../settings/settings.api';
  * (DEP-06), desativar/ativar (DEP-07/08) e excluir unidade sem uso (DEP-09; em uso → oferece
  * "Desativar"). Leitura é implícita; as ações só aparecem com `DEPARTMENT_MANAGE`. Órgão sem
  * unidades e quem gerencia → assistente de implantação (US-099 · FA-09). Rótulos conforme
- * `labels.*` (FA-06).
+ * `labels.*` (FA-06). Modelo `ListPage` (prd-5): "Nova unidade" no cabeçalho da página, órgão no
+ * seletor do kit e ações de cada unidade no menu ⋯ (árvore em `DepartmentTree`); criar/editar em
+ * painel lateral (`Sheet`).
  */
-export function DepartmentsView() {
+export interface DepartmentsViewProps {
+  /** Lugar da ação "Nova unidade" no cabeçalho da página (ver `PrimaryAction`). */
+  readonly actionsSlot?: PrimaryActionSlot;
+}
+
+export function DepartmentsView({ actionsSlot }: DepartmentsViewProps = {}) {
   const t = useTranslations('departments');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const selectId = useId();
   const canManage = usePermission('DEPARTMENT_MANAGE').allowed;
 
   const organizations = useQuery({
@@ -212,19 +229,8 @@ export function DepartmentsView() {
     }
   };
 
-  if (organizations.isPending) {
-    return (
-      <div role="status" className="flex flex-col gap-2">
-        <span className="sr-only">{t('organizationsLoading')}</span>
-        <Skeleton className="h-10 w-full" />
-      </div>
-    );
-  }
-  if (!organization) {
-    return <p className="text-sm text-muted-foreground">{t('noOrganizations')}</p>;
-  }
-
   const showAssistant =
+    organization !== undefined &&
     !assistantDismissed &&
     departments.data !== undefined &&
     shouldShowImplementationAssistant({
@@ -233,71 +239,71 @@ export function DepartmentsView() {
     });
 
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">{t('title')}</h2>
-          {activeOrganizations.length > 1 ? (
-            <>
-              <label htmlFor={selectId} className="text-sm font-medium">
-                {t('organization')}
-              </label>
-              <select
-                id={selectId}
-                className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
-                value={organizationId}
-                onChange={(event) => {
-                  setChosenId(event.target.value);
+    <ListPage
+      header={
+        <PrimaryAction slot={actionsSlot}>
+          {organization && departments.data && !showAssistant ? (
+            <Can permission="DEPARTMENT_MANAGE">
+              <Button
+                iconLeft={<Plus />}
+                onClick={() => {
+                  setForm({ mode: 'create', parent: null });
                 }}
               >
-                {activeOrganizations.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </>
+                {t('new')}
+              </Button>
+            </Can>
+          ) : null}
+        </PrimaryAction>
+      }
+      toolbar={
+        organization ? (
+          activeOrganizations.length > 1 ? (
+            <Field label={t('organization')} className="max-w-sm">
+              <Select value={organizationId} onValueChange={setChosenId}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeOrganizations.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           ) : (
             <p className="text-sm text-muted-foreground">{organization.name}</p>
-          )}
-        </div>
-        {departments.data && !showAssistant ? (
-          <Can permission="DEPARTMENT_MANAGE">
+          )
+        ) : null
+      }
+      loading={organizations.isPending || (organization !== undefined && departments.isPending)}
+      loadingLabel={organizations.isPending ? t('organizationsLoading') : t('loading')}
+      error={
+        departments.isError ? (
+          <Alert tone="error" title={t('loadFailed')}>
             <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
-                setForm({ mode: 'create', parent: null });
+                void departments.refetch();
               }}
             >
-              {t('new')}
+              {t('retry')}
             </Button>
-          </Can>
-        ) : null}
-      </header>
-
-      {departments.isPending ? (
-        <div role="status" className="flex flex-col gap-2">
-          <span className="sr-only">{t('loading')}</span>
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-11/12" />
-          <Skeleton className="h-8 w-10/12" />
-        </div>
-      ) : null}
-
-      {departments.isError ? (
-        <Alert tone="error" title={t('loadFailed')}>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              void departments.refetch();
-            }}
-          >
-            {t('retry')}
-          </Button>
-        </Alert>
-      ) : null}
-
-      {showAssistant ? (
+          </Alert>
+        ) : null
+      }
+      empty={
+        !organizations.isPending && !organization ? (
+          <EmptyState icon={<Building2 />} title={t('noOrganizations')} />
+        ) : departments.data?.length === 0 && !showAssistant ? (
+          <EmptyState icon={<Building2 />} title={t('empty')} description={t('emptyHint')} />
+        ) : null
+      }
+    >
+      {organization && showAssistant ? (
         <ImplementationAssistant
           organizationName={organization.name}
           createDepartment={async (input, idempotencyKey) =>
@@ -320,14 +326,7 @@ export function DepartmentsView() {
         />
       ) : null}
 
-      {departments.data?.length === 0 && !showAssistant ? (
-        <div className="rounded-card border border-dashed border-border p-6 text-center">
-          <p className="font-medium">{t('empty')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('emptyHint')}</p>
-        </div>
-      ) : null}
-
-      {departments.data && departments.data.length > 0 ? (
+      {organization && departments.data && departments.data.length > 0 ? (
         <DepartmentTree
           departments={departments.data}
           organizationName={organization.name}
@@ -448,6 +447,6 @@ export function DepartmentsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ListPage>
   );
 }

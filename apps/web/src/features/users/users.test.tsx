@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { RoleDto, TenantMembershipDto } from '@contrataflow/validation';
-import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -195,9 +195,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function openInviteDialog(user: ReturnType<typeof userEvent.setup>) {
+type User = ReturnType<typeof userEvent.setup>;
+
+async function openInviteDialog(user: User) {
   await user.click(await screen.findByRole('button', { name: 'Convidar usuário' }));
   return screen.findByRole('dialog', { name: 'Convidar usuário' });
+}
+
+/** Abre um `Select`/`Combobox` do kit pelo nome e escolhe a opção (a lista é um portal). */
+async function pick(user: User, scope: HTMLElement, field: string, option: string | RegExp) {
+  await user.click(within(scope).getByLabelText(field));
+  await user.click(await screen.findByRole('option', { name: option }));
+}
+
+/** Escolhe o dia 15 do mês seguinte no `DatePicker`; devolve ano e mês (0-11) escolhidos. */
+async function pickNextMonthDay15(user: User, scope: HTMLElement, field: string) {
+  await user.click(within(scope).getByLabelText(field));
+  const calendar = await screen.findByRole('dialog', { name: 'Escolher data' });
+  await user.click(within(calendar).getByRole('button', { name: 'Ir para o próximo mês' }));
+  const [day] = within(calendar).getAllByRole('button', { name: /, 15 de / });
+  if (!day) throw new Error('dia 15 não encontrado no calendário');
+  await user.click(day);
+  const target = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 15);
+  return { year: target.getFullYear(), month: target.getMonth() };
+}
+
+/** Abre "Adicionar unidade" e marca as unidades pelo nome (a lista continua aberta). */
+async function addDepartments(user: User, scope: HTMLElement, names: readonly RegExp[]) {
+  await user.click(within(scope).getByRole('button', { name: 'Adicionar unidade' }));
+  for (const name of names) {
+    await user.click(await screen.findByRole('option', { name }));
+  }
+  await user.keyboard('{Escape}');
+}
+
+/** Abre o menu ⋯ do convite e escolhe a ação. */
+async function chooseInviteAction(user: User, invitee: string, action: string) {
+  await user.click(await screen.findByRole('button', { name: `Ações do convite de ${invitee}` }));
+  await user.click(await screen.findByRole('menuitem', { name: action }));
 }
 
 describe('modelo do formulário de convite (RN-IAM-52)', () => {
@@ -242,12 +277,14 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     expect(within(table).getByRole('row', { name: /Pedro Alves/ }).textContent).toContain(
       'Externo',
     );
+    await userEvent.click(
+      await within(carla).findByRole('button', { name: 'Ações do convite de Carla Mendes' }),
+    );
     expect(
-      await within(carla).findByRole('button', { name: 'Reenviar convite para Carla Mendes' }),
+      await screen.findByRole('menuitem', { name: 'Reenviar convite para Carla Mendes' }),
     ).toBeTruthy();
-    expect(
-      within(carla).getByRole('button', { name: 'Cancelar convite de Carla Mendes' }),
-    ).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Cancelar convite de Carla Mendes' })).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
     expect(await screen.findByRole('button', { name: 'Convidar usuário' })).toBeTruthy();
     expect(callsOf(api, 'GET', 'status=INVITED')[0]?.url).toBe(
       '/api/v1/users?status=INVITED&page=1&pageSize=20',
@@ -305,7 +342,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Convidar usuário' })).toBeNull();
     });
-    expect(screen.queryByRole('button', { name: /Reenviar|Cancelar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ações do convite/ })).toBeNull();
   });
 
   it('[Reenvio] USR-04 envia o reenvio; 429 mostra a mensagem da API', async () => {
@@ -320,10 +357,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     });
     const user = userEvent.setup();
     renderWithShell(<UsersView />);
-    const resend = await screen.findByRole('button', {
-      name: 'Reenviar convite para Carla Mendes',
-    });
-    await user.click(resend);
+    await chooseInviteAction(user, 'Carla Mendes', 'Reenviar convite para Carla Mendes');
     await waitFor(() => {
       expect(callsOf(api, 'POST', '/resend')).toHaveLength(1);
     });
@@ -331,7 +365,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
       `/api/v1/users/invitations/${CARLA.userId}/resend`,
     );
 
-    await user.click(resend);
+    await chooseInviteAction(user, 'Carla Mendes', 'Reenviar convite para Carla Mendes');
     expect(await screen.findByText('Aguarde 1 minuto para reenviar este convite.')).toBeTruthy();
   });
 
@@ -340,9 +374,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     const user = userEvent.setup();
     renderWithShell(<UsersView />);
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Cancelar convite de Carla Mendes' }),
-    );
+    await chooseInviteAction(user, 'Carla Mendes', 'Cancelar convite de Carla Mendes');
     const dialog = await screen.findByRole('alertdialog', {
       name: 'Cancelar o convite de Carla Mendes?',
     });
@@ -352,7 +384,7 @@ describe('SCR-029 · convites pendentes (US-091)', () => {
     });
     expect(callsOf(api, 'DELETE', '/users/invitations/')).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: 'Cancelar convite de Carla Mendes' }));
+    await chooseInviteAction(user, 'Carla Mendes', 'Cancelar convite de Carla Mendes');
     const again = await screen.findByRole('alertdialog');
     await user.click(within(again).getByRole('button', { name: 'Cancelar convite' }));
     await waitFor(() => {
@@ -383,14 +415,13 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
     await user.type(within(dialog).getByLabelText('E-mail *'), '  Marta@Exemplo.gov.br ');
     await user.type(within(dialog).getByLabelText('Nome *'), 'Marta Lima');
     await user.type(within(dialog).getByLabelText('Cargo ou função'), 'Engenheira');
-    await user.click(await within(dialog).findByRole('checkbox', { name: 'Secretaria de Obras' }));
-    await user.click(await within(dialog).findByRole('checkbox', { name: /^Protocolo/ }));
+    await addDepartments(user, dialog, [/^Secretaria de Obras/, /^Protocolo/]);
     expect(
       within(within(dialog).getByRole('list', { name: 'Unidades selecionadas' })).getByText(
         '(principal)',
       ),
     ).toBeTruthy();
-    await user.selectOptions(within(dialog).getByLabelText('Perfil inicial'), 'Solicitante');
+    await pick(user, dialog, 'Perfil inicial', 'Solicitante');
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 
     await waitFor(() => {
@@ -416,7 +447,7 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
 
     await user.type(within(dialog).getByLabelText('E-mail *'), 'sem-arroba');
     await user.type(within(dialog).getByLabelText('Nome *'), 'Pedro Alves');
-    await user.selectOptions(within(dialog).getByLabelText('Tipo de vínculo *'), 'EXTERNAL');
+    await pick(user, dialog, 'Tipo de vínculo *', /^Externo/);
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 
     expect(await within(dialog).findByText('Informe um e-mail válido.')).toBeTruthy();
@@ -442,13 +473,11 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
 
     await user.type(within(dialog).getByLabelText('E-mail *'), 'pedro@fornecedor.com.br');
     await user.type(within(dialog).getByLabelText('Nome *'), 'Pedro Alves');
-    await user.selectOptions(within(dialog).getByLabelText('Tipo de vínculo *'), 'EXTERNAL');
-    fireEvent.change(within(dialog).getByLabelText('Validade do vínculo *'), {
-      target: { value: '2026-12-31' },
-    });
-    const roleSelect = await within(dialog).findByLabelText('Perfil inicial');
-    expect(within(roleSelect).queryByRole('option', { name: 'Solicitante' })).toBeNull();
-    await user.selectOptions(roleSelect, 'Fornecedor');
+    await pick(user, dialog, 'Tipo de vínculo *', /^Externo/);
+    const { year, month } = await pickNextMonthDay15(user, dialog, 'Validade do vínculo *');
+    await user.click(await within(dialog).findByLabelText('Perfil inicial'));
+    expect(screen.queryByRole('option', { name: 'Solicitante' })).toBeNull();
+    await user.click(await screen.findByRole('option', { name: 'Fornecedor' }));
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 
     await waitFor(() => {
@@ -462,7 +491,7 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
       expires.getMonth(),
       expires.getDate(),
       expires.getHours(),
-    ]).toEqual([2026, 11, 31, 23]);
+    ]).toEqual([year, month, 15, 23]);
   });
 
   it('[Perfil] sem ROLE_VIEW (403) o campo "Perfil inicial" não aparece', async () => {
@@ -473,7 +502,8 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
     const user = userEvent.setup();
     renderWithShell(<UsersView />);
     const dialog = await openInviteDialog(user);
-    await within(dialog).findByRole('checkbox', { name: 'Secretaria de Obras' });
+    await user.click(within(dialog).getByRole('button', { name: 'Adicionar unidade' }));
+    await screen.findByRole('option', { name: /^Secretaria de Obras/ });
     expect(within(dialog).queryByLabelText('Perfil inicial')).toBeNull();
   });
 
@@ -521,10 +551,8 @@ describe('InviteUserForm (US-091 · USR-03)', () => {
     const dialog = await openInviteDialog(user);
     await user.type(within(dialog).getByLabelText('E-mail *'), 'pedro@fornecedor.com.br');
     await user.type(within(dialog).getByLabelText('Nome *'), 'Pedro Alves');
-    await user.selectOptions(within(dialog).getByLabelText('Tipo de vínculo *'), 'EXTERNAL');
-    fireEvent.change(within(dialog).getByLabelText('Validade do vínculo *'), {
-      target: { value: '2026-12-31' },
-    });
+    await pick(user, dialog, 'Tipo de vínculo *', /^Externo/);
+    await pickNextMonthDay15(user, dialog, 'Validade do vínculo *');
     await user.click(within(dialog).getByRole('button', { name: 'Enviar convite' }));
 
     expect(await within(dialog).findByText('A validade deve ser uma data futura.')).toBeTruthy();

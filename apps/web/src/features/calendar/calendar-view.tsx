@@ -3,18 +3,30 @@
 import {
   Alert,
   Button,
+  Calendar,
+  CalendarDays,
+  Card,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  EmptyState,
+  Field,
+  Plus,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
+  fromIsoDate,
   toast,
 } from '@contrataflow/ui';
 import type { HolidayDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
@@ -35,9 +47,10 @@ import { HolidayTable } from './holiday-table';
 type Banner = 'conflict' | 'unavailable' | 'generic' | null;
 
 /**
- * SCR-110 — Administração › Calendário (`/admin/calendario` · US-106): seletor de ano, tabela de
- * feriados (CAL-01), cadastro e edição (CAL-02/03), desativação/ativação e exclusão com `If-Match`
- * (CAL-03/04). Leitura é capacidade implícita do vínculo ativo; as ações de escrita só aparecem
+ * SCR-110 — Administração › Calendário (`/admin/calendario` · US-106 · prd-5): seletor de ano, o
+ * `Calendar` do kit com os feriados ativos em destaque e, ao lado (empilhados em tela estreita), a
+ * lista do ano (CAL-01) com menu ⋯ por linha; "Novo feriado" é a ação do cabeçalho. Cadastro e
+ * edição (CAL-02/03) num `Dialog`, desativação/ativação e exclusão com `If-Match` (CAL-03/04). Leitura é capacidade implícita do vínculo ativo; as ações de escrita só aparecem
  * com `CALENDAR_MANAGE` (a API decide cada requisição) e feriado de sistema nunca oferece
  * "Excluir". Estados: skeleton, vazio, erro com "Tentar novamente", conflito de versão e
  * indicador de salvamento.
@@ -46,9 +59,9 @@ export function CalendarView() {
   const t = useTranslations('calendar');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
-  const yearFieldId = useId();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
+  const [month, setMonth] = useState(() => new Date());
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<HolidayDto | null>(null);
   const [deactivating, setDeactivating] = useState<HolidayDto | null>(null);
@@ -60,6 +73,21 @@ export function CalendarView() {
     queryFn: async ({ signal }) => (await fetchHolidays(year, signal)).data,
     staleTime: CALENDAR_STALE_TIME_MS,
   });
+
+  // Dias em destaque no calendário: só os feriados ativos (os inativos voltam a contar como úteis).
+  const markedDays = useMemo(
+    () =>
+      (holidays.data ?? [])
+        .filter((holiday) => holiday.isActive)
+        .flatMap((holiday) => fromIsoDate(holiday.date) ?? []),
+    [holidays.data],
+  );
+
+  const changeYear = (next: number) => {
+    setYear(next);
+    setMonth(next === currentYear ? new Date() : new Date(next, 0, 1));
+    setBanner(null);
+  };
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: calendarKeys.all(tenantId) });
@@ -119,47 +147,51 @@ export function CalendarView() {
 
   return (
     <section className="flex flex-col gap-6">
-      <AppPageHeader section="admin" title={t('title')} description={t('description')} />
+      <AppPageHeader
+        section="admin"
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Can permission="CALENDAR_MANAGE">
+            <Button
+              iconLeft={<Plus />}
+              onClick={() => {
+                setCreating(true);
+              }}
+            >
+              {t('list.new')}
+            </Button>
+          </Can>
+        }
+      />
 
       {holidays.error && isApiError(holidays.error) && holidays.error.status === 403 ? (
         <Alert tone="error" title={t('errors.permission')} />
       ) : (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={yearFieldId} className="text-sm font-medium">
-                {t('year.label')}
-              </label>
-              <select
-                id={yearFieldId}
-                className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
-                value={year}
-                onChange={(event) => {
-                  setYear(Number(event.target.value));
-                  setBanner(null);
+            <Field label={t('year.label')} className="w-40">
+              <Select
+                value={String(year)}
+                onValueChange={(next) => {
+                  changeYear(Number(next));
                 }}
               >
-                {yearOptions(currentYear, year).map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-3">
-              <p role="status" className="text-sm text-muted-foreground">
-                {saving ? t('list.saving') : ''}
-              </p>
-              <Can permission="CALENDAR_MANAGE">
-                <Button
-                  onClick={() => {
-                    setCreating(true);
-                  }}
-                >
-                  {t('list.new')}
-                </Button>
-              </Can>
-            </div>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions(currentYear, year).map((option) => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <p role="status" className="text-sm text-muted-foreground">
+              {saving ? t('list.saving') : ''}
+            </p>
           </div>
 
           {banner ? (
@@ -203,24 +235,58 @@ export function CalendarView() {
           ) : null}
 
           {holidays.data?.length === 0 ? (
-            <div className="rounded-card border border-dashed border-border p-6 text-center">
-              <p className="font-medium">{t('list.empty')}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{t('list.emptyHint')}</p>
-            </div>
+            <EmptyState
+              icon={<CalendarDays />}
+              title={t('list.empty')}
+              description={t('list.emptyHint')}
+              action={
+                <Can permission="CALENDAR_MANAGE">
+                  <Button
+                    iconLeft={<Plus />}
+                    onClick={() => {
+                      setCreating(true);
+                    }}
+                  >
+                    {t('list.new')}
+                  </Button>
+                </Can>
+              }
+            />
           ) : null}
 
           {holidays.data && holidays.data.length > 0 ? (
-            <HolidayTable
-              caption={t('table.caption', { year })}
-              holidays={holidays.data}
-              busy={saving}
-              onEdit={setEditing}
-              onDeactivate={setDeactivating}
-              onActivate={(holiday) => {
-                setActive.mutate({ holiday, isActive: true });
-              }}
-              onDelete={setDeleting}
-            />
+            <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[auto_minmax(0,1fr)]">
+              <Card
+                title={t('view.calendarLabel', { year })}
+                description={t('view.legend', { year })}
+                className="min-w-0 xl:w-[24rem]"
+              >
+                <Calendar
+                  month={month}
+                  onMonthChange={setMonth}
+                  startMonth={new Date(year, 0, 1)}
+                  endMonth={new Date(year, 11, 1)}
+                  modifiers={{ holiday: markedDays }}
+                  // Sem modo de seleção o dia é texto na própria célula (sem botão): o destaque
+                  // vai na célula.
+                  modifiersClassNames={{
+                    holiday: 'rounded-full bg-primary-soft font-bold text-primary-soft-foreground',
+                  }}
+                  className="mx-auto"
+                />
+              </Card>
+              <HolidayTable
+                caption={t('table.caption', { year })}
+                holidays={holidays.data}
+                busy={saving}
+                onEdit={setEditing}
+                onDeactivate={setDeactivating}
+                onActivate={(holiday) => {
+                  setActive.mutate({ holiday, isActive: true });
+                }}
+                onDelete={setDeleting}
+              />
+            </div>
           ) : null}
         </div>
       )}

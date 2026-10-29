@@ -1,13 +1,6 @@
-import { getTranslations } from 'next-intl/server';
+import { AdminHub } from '@/components/shell/admin-hub';
 
-import { AppPageHeader } from '@/components/shell/page-header';
-
-/** Entrada da administração; cada área (`/admin/*`) chega com a sua story. */
-export default async function AdminHomePage() {
-  const t = await getTranslations('shell.admin');
-  return (
-    <section>
-      <AppPageHeader title={t('title')} description={t('description')} />
-    </section>
-  );
+/** Entrada da administração: cartões das áreas, agrupados, com as permissões do menu. */
+export default function AdminHomePage() {
+  return <AdminHub />;
 }

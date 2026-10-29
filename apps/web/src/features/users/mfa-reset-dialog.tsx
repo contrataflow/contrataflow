@@ -8,6 +8,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Textarea,
 } from '@contrataflow/ui';
 import {
   MEMBERSHIP_REASON_MAX,
@@ -118,34 +120,24 @@ function Body({ membership, returnTo, onClose, onDone, onStale }: MfaResetDialog
       <DialogTitle>{t('dialogTitle', { name: membership.name })}</DialogTitle>
       <DialogDescription>{t('dialogDescription')}</DialogDescription>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={reasonId} className="text-sm font-medium">
-          {t('reason')}
-        </label>
-        <textarea
-          id={reasonId}
+      <Field
+        label={t('reason')}
+        id={reasonId}
+        description={t('reasonHint', { min: MFA_RESET_REASON_MIN, max: MEMBERSHIP_REASON_MAX })}
+        error={reasonError ?? undefined}
+      >
+        <Textarea
           rows={3}
-          required
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no motivo, o único campo
+          aria-required
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo do diálogo
           autoFocus
-          className="rounded-control border border-border bg-surface px-3 py-2 text-sm"
           value={reason}
-          aria-invalid={reasonError !== null}
-          aria-describedby={`${reasonId}-hint${reasonError ? ` ${reasonId}-error` : ''}`}
           onChange={(event) => {
             setReason(event.target.value);
             setReasonError(null);
           }}
         />
-        <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
-          {t('reasonHint', { min: MFA_RESET_REASON_MIN, max: MEMBERSHIP_REASON_MAX })}
-        </p>
-        {reasonError ? (
-          <p id={`${reasonId}-error`} className="text-sm text-destructive">
-            {reasonError}
-          </p>
-        ) : null}
-      </div>
+      </Field>
 
       <div aria-live="assertive">
         {feedback ? (

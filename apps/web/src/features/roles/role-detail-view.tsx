@@ -1,6 +1,20 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  ChevronDown,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  DetailPage,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Skeleton,
+  toast,
+} from '@contrataflow/ui';
 import type { PermissionDto, RoleWithPermissionsDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -10,18 +24,18 @@ import { useMemo, useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { stepUpHref } from '@/lib/api/error-policy';
-import { Can } from '@/lib/permissions/can';
+import { formatDate } from '@/lib/i18n/format';
 import { useEffectivePermissions, usePermission } from '@/lib/permissions/use-permission';
 import { permissionKeys } from '@/lib/query/keys';
 import { shouldThrowToBoundary } from '@/lib/query/query-client';
-import { useTenantId } from '@/lib/session/session-context';
+import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
 import { DeactivateRoleDialog } from './deactivate-role-dialog';
 import { PermissionMatrix } from './permission-matrix';
 import { actorReach, matrixDiff } from './permission-matrix-model';
 import type { ActorReach } from './permission-matrix-model';
+import { ROLES_PATH, RoleBadges, canDeactivate } from './role-chips';
 import { RoleFormDialog } from './role-form-dialog';
-import { ROLES_PATH, RoleBadges, canDeactivate } from './roles-view';
 import {
   ROLES_STALE_TIME_MS,
   duplicateRole,
@@ -29,6 +43,7 @@ import {
   roleKeys,
   updateRolePermissions,
 } from './roles.api';
+import { PermissionCatalogPanel } from '../permissions/permission-catalog-panel';
 import {
   PERMISSION_CATALOG_STALE_TIME_MS,
   fetchPermissionCatalog,
@@ -36,19 +51,16 @@ import {
 } from '../permissions/permissions.api';
 
 /**
- * SCR-031 (`/admin/perfis/[roleId]` · US-095): dados do perfil (ROL-04) com "Editar perfil"
- * (ROL-05), "Duplicar" (ROL-07) e "Desativar" (ROL-08 — nunca no `ADMIN_ORGAO`), e a matriz de
- * permissões por módulo salva de uma vez (ROL-06, `If-Match`). Sem `ROLE_MANAGE` a tela é só
- * leitura.
+ * SCR-031 (`/admin/perfis/[roleId]` · US-095) no modelo `DetailPage` (prd-5): faixa com trilha,
+ * nome, chips de situação e fatos-chave (chave, vínculos ativos, permissões, atualização). "Salvar
+ * matriz" (ROL-06, `If-Match`) é a ação primária; "Editar perfil" (ROL-05), "Duplicar" (ROL-07) e
+ * "Desativar" (ROL-08 — nunca no `ADMIN_ORGAO`) ficam no menu "Mais". O conteúdo é a matriz de
+ * permissões por módulo; o catálogo completo (US-094) fica atrás de "Ver catálogo de permissões".
+ * Sem `ROLE_MANAGE` a tela é só leitura.
  */
 export function RoleDetailView({ roleId }: { readonly roleId: string }) {
   const t = useTranslations('roles');
   const tenantId = useTenantId();
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const returnTo = `${ROLES_PATH}/${roleId}`;
 
   const role = useQuery({
@@ -71,24 +83,6 @@ export function RoleDetailView({ roleId }: { readonly roleId: string }) {
     [effective.data],
   );
 
-  const duplicate = useMutation({
-    mutationFn: () => duplicateRole(roleId),
-    onSuccess: (result) => {
-      toast({ title: t('toast.duplicated', { name: result.data.name }), tone: 'success' });
-      void queryClient.invalidateQueries({ queryKey: roleKeys.all(tenantId) });
-      router.push(`${ROLES_PATH}/${result.data.id}`);
-    },
-    onError: (error) => {
-      setActionError(
-        isApiError(error) && error.code === 'PRIVILEGE_ESCALATION_FORBIDDEN'
-          ? t('errors.escalation')
-          : isApiError(error)
-            ? error.message
-            : t('errors.generic'),
-      );
-    },
-  });
-
   if (role.error && isApiError(role.error) && role.error.status === 403) {
     return (
       <Alert tone="error" title={t('forbidden.title')}>
@@ -108,11 +102,12 @@ export function RoleDetailView({ roleId }: { readonly roleId: string }) {
 
   if (role.isPending || catalog.isPending) {
     return (
-      <div role="status" className="flex flex-col gap-2">
-        <span className="sr-only">{t('matrix.loading')}</span>
-        <Skeleton className="h-10 w-1/2" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+      <div role="status" className="flex w-full flex-col gap-5">
+        <span className="sr-only">{t('detail.loading')}</span>
+        <Skeleton className="h-4 w-48 max-w-full" />
+        <Skeleton className="h-8 w-96 max-w-full" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-56 w-full" />
       </div>
     );
   }
@@ -134,106 +129,48 @@ export function RoleDetailView({ roleId }: { readonly roleId: string }) {
     );
   }
 
-  const current = role.data;
   return (
-    <div className="flex flex-col gap-6">
-      <Link href={ROLES_PATH} className="text-sm underline-offset-2 hover:underline">
-        {t('actions.back')}
-      </Link>
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{current.name}</h1>
-          <code className="font-mono text-xs text-muted-foreground">
-            {t('detail.key', { key: current.key })}
-          </code>
-          {current.description ? (
-            <p className="max-w-3xl text-muted-foreground">{current.description}</p>
-          ) : null}
-          <RoleBadges role={current} />
-        </div>
-        <Can permission="ROLE_MANAGE">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setEditing(true);
-              }}
-            >
-              {t('actions.edit')}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={duplicate.isPending}
-              aria-busy={duplicate.isPending}
-              onClick={() => {
-                setActionError(null);
-                duplicate.mutate();
-              }}
-            >
-              {t('actions.duplicateLabel')}
-            </Button>
-            {canDeactivate(current) ? (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setDeactivating(true);
-                }}
-              >
-                {t('actions.deactivateLabel')}
-              </Button>
-            ) : null}
-          </div>
-        </Can>
-      </header>
-
-      <div aria-live="polite">
-        {actionError ? <Alert tone="error" title={actionError} /> : null}
-      </div>
-      {current.isActive ? null : (
-        <Alert tone="warning" live={false} title={t('detail.inactiveNotice')} />
-      )}
-
-      <MatrixEditor
-        key={`${current.id}:${String(current.version)}`}
-        role={current}
-        catalog={catalog.data}
-        canManage={canManage}
-        actor={actor}
-        returnTo={returnTo}
-        onReload={() => {
-          void role.refetch();
-        }}
-      />
-
-      <RoleFormDialog open={editing} onOpenChange={setEditing} role={current} returnTo={returnTo} />
-      <DeactivateRoleDialog
-        role={deactivating ? current : null}
-        onClose={() => {
-          setDeactivating(false);
-        }}
-      />
-    </div>
+    <RoleDetailBody
+      key={`${role.data.id}:${String(role.data.version)}`}
+      role={role.data}
+      catalog={catalog.data}
+      canManage={canManage}
+      actor={actor}
+      returnTo={returnTo}
+      onReload={() => {
+        void role.refetch();
+      }}
+    />
   );
 }
 
-function MatrixEditor({
-  role,
-  catalog,
-  canManage,
-  actor,
-  returnTo,
-  onReload,
-}: {
+interface RoleDetailBodyProps {
   readonly role: RoleWithPermissionsDto;
   readonly catalog: readonly PermissionDto[];
   readonly canManage: boolean;
   readonly actor: ActorReach;
   readonly returnTo: string;
   readonly onReload: () => void;
-}) {
+}
+
+function RoleDetailBody({
+  role,
+  catalog,
+  canManage,
+  actor,
+  returnTo,
+  onReload,
+}: RoleDetailBodyProps) {
   const t = useTranslations('roles');
+  const tShell = useTranslations('shell');
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const timeZone = useShellSession().activeTenant.timezone;
+  const [editing, setEditing] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const granted = useMemo(() => new Set(role.permissions), [role.permissions]);
   const [selected, setSelected] = useState<ReadonlySet<string>>(granted);
   const [error, setError] = useState<{
@@ -242,6 +179,24 @@ function MatrixEditor({
   } | null>(null);
   const diff = matrixDiff(granted, selected);
   const dirty = diff.added.length + diff.removed.length > 0;
+
+  const duplicate = useMutation({
+    mutationFn: () => duplicateRole(role.id),
+    onSuccess: (result) => {
+      toast({ title: t('toast.duplicated', { name: result.data.name }), tone: 'success' });
+      void queryClient.invalidateQueries({ queryKey: roleKeys.all(tenantId) });
+      router.push(`${ROLES_PATH}/${result.data.id}`);
+    },
+    onError: (failure) => {
+      setActionError(
+        isApiError(failure) && failure.code === 'PRIVILEGE_ESCALATION_FORBIDDEN'
+          ? t('errors.escalation')
+          : isApiError(failure)
+            ? failure.message
+            : t('errors.generic'),
+      );
+    },
+  });
 
   const save = useMutation({
     mutationFn: () => updateRolePermissions(role.id, [...selected], role.version),
@@ -257,11 +212,11 @@ function MatrixEditor({
       if (!isApiError(failure)) {
         setError({ message: t('errors.generic'), kind: 'plain' });
       } else if (failure.code === 'PRIVILEGE_ESCALATION_FORBIDDEN') {
-        // O interruptor volta a desmarcado (Casos de erro).
+        // A caixa volta a desmarcada (Casos de erro).
         setSelected(new Set([...selected].filter((code) => granted.has(code))));
         setError({ message: t('errors.escalation'), kind: 'plain' });
       } else if (failure.code === 'BUSINESS_RULE_VIOLATION') {
-        // O interruptor protegido volta a marcado.
+        // A caixa protegida volta a marcada.
         setSelected(new Set([...selected, ...diff.removed]));
         setError({ message: t('errors.protected'), kind: 'plain' });
       } else if (failure.code === 'MFA_REQUIRED') {
@@ -282,37 +237,54 @@ function MatrixEditor({
   });
 
   return (
-    <section aria-labelledby="role-matrix-title" className="flex flex-col gap-3">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 id="role-matrix-title" className="text-lg font-semibold">
-            {t('matrix.title')}
-          </h2>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            {canManage ? t('matrix.description') : t('matrix.readonlyNotice')}
-          </p>
-        </div>
-        {canManage ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <p role="status" className="text-sm text-muted-foreground">
-              {dirty
-                ? t('matrix.pending', {
-                    added: diff.added.length,
-                    removed: diff.removed.length,
-                    separator: diff.added.length > 0 && diff.removed.length > 0 ? ' · ' : '',
-                  })
-                : t('matrix.noChanges')}
-            </p>
-            <Button
-              variant="secondary"
-              disabled={!dirty || save.isPending}
-              onClick={() => {
-                setSelected(granted);
-                setError(null);
-              }}
-            >
-              {t('matrix.discard')}
-            </Button>
+    <DetailPage
+      breadcrumbs={[
+        { label: tShell('admin.title'), href: '/admin' },
+        { label: t('title'), href: ROLES_PATH },
+        { label: role.name },
+      ]}
+      breadcrumbLabel={t('detail.breadcrumbLabel')}
+      linkComponent={Link}
+      title={role.name}
+      status={<RoleBadges role={role} />}
+      subtitle={role.description}
+      actions={
+        canManage ? (
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="secondary" iconRight={<ChevronDown />}>
+                  {t('actions.more')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setEditing(true);
+                  }}
+                >
+                  {t('actions.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={duplicate.isPending}
+                  onSelect={() => {
+                    setActionError(null);
+                    duplicate.mutate();
+                  }}
+                >
+                  {t('actions.duplicateLabel')}
+                </DropdownMenuItem>
+                {canDeactivate(role) ? (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setDeactivating(true);
+                    }}
+                  >
+                    {t('actions.deactivateLabel')}
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               disabled={!dirty || save.isPending}
               aria-busy={save.isPending}
@@ -323,41 +295,124 @@ function MatrixEditor({
             >
               {save.isPending ? t('matrix.saving') : t('matrix.save')}
             </Button>
+          </>
+        ) : null
+      }
+      facts={[
+        {
+          id: 'key',
+          label: t('detail.facts.key'),
+          value: <code className="font-mono">{role.key}</code>,
+        },
+        {
+          id: 'assignments',
+          label: t('detail.facts.assignments'),
+          value: t('list.assignmentsCount', { count: role.activeAssignmentsCount }),
+        },
+        {
+          id: 'permissions',
+          label: t('detail.facts.permissions'),
+          value: t('detail.permissionsCount', { selected: granted.size, total: catalog.length }),
+        },
+        {
+          id: 'updated',
+          label: t('detail.facts.updated'),
+          value: formatDate(role.updatedAt, timeZone),
+        },
+      ]}
+      notices={
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {actionError ? <Alert tone="error" title={actionError} /> : null}
+          {role.isActive ? null : (
+            <Alert tone="warning" live={false} title={t('detail.inactiveNotice')} />
+          )}
+        </div>
+      }
+    >
+      <section aria-labelledby="role-matrix-title" className="flex flex-col gap-4">
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 id="role-matrix-title" className="text-lg font-bold text-brand-ink">
+              {t('matrix.title')}
+            </h2>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              {canManage ? t('matrix.description') : t('matrix.readonlyNotice')}
+            </p>
           </div>
-        ) : null}
-      </header>
-
-      <div aria-live="assertive">
-        {error ? (
-          <Alert tone="error" title={error.message}>
-            {error.kind === 'conflict' ? (
-              <Button variant="secondary" size="sm" onClick={onReload}>
-                {t('errors.reload')}
+          {canManage ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p role="status" className="text-sm text-muted-foreground">
+                {dirty
+                  ? t('matrix.pending', {
+                      added: diff.added.length,
+                      removed: diff.removed.length,
+                      separator: diff.added.length > 0 && diff.removed.length > 0 ? ' · ' : '',
+                    })
+                  : t('matrix.noChanges')}
+              </p>
+              <Button
+                variant="secondary"
+                disabled={!dirty || save.isPending}
+                onClick={() => {
+                  setSelected(granted);
+                  setError(null);
+                }}
+              >
+                {t('matrix.discard')}
               </Button>
-            ) : null}
-            {error.kind === 'mfa' ? (
-              <a className="font-medium underline" href={stepUpHref(returnTo)}>
-                {t('errors.stepUp')}
-              </a>
-            ) : null}
-          </Alert>
-        ) : null}
-      </div>
+            </div>
+          ) : null}
+        </header>
 
-      <PermissionMatrix
-        catalog={catalog}
-        granted={granted}
-        selected={selected}
-        isProtectedRole={role.isProtected}
-        canManage={canManage}
-        actor={actor}
-        onToggle={(code, checked) => {
-          const next = new Set(selected);
-          if (checked) next.add(code);
-          else next.delete(code);
-          setSelected(next);
+        <div aria-live="assertive" className="empty:hidden">
+          {error ? (
+            <Alert tone="error" title={error.message}>
+              {error.kind === 'conflict' ? (
+                <Button variant="secondary" size="sm" onClick={onReload}>
+                  {t('errors.reload')}
+                </Button>
+              ) : null}
+              {error.kind === 'mfa' ? (
+                <a className="font-medium underline" href={stepUpHref(returnTo)}>
+                  {t('errors.stepUp')}
+                </a>
+              ) : null}
+            </Alert>
+          ) : null}
+        </div>
+
+        <PermissionMatrix
+          catalog={catalog}
+          granted={granted}
+          selected={selected}
+          isProtectedRole={role.isProtected}
+          canManage={canManage}
+          actor={actor}
+          onToggle={(code, checked) => {
+            const next = new Set(selected);
+            if (checked) next.add(code);
+            else next.delete(code);
+            setSelected(next);
+          }}
+        />
+      </section>
+
+      <Collapsible open={catalogOpen} onOpenChange={setCatalogOpen} className="flex flex-col gap-4">
+        <CollapsibleTrigger className="self-start">
+          {catalogOpen ? t('detail.catalog.hide') : t('detail.catalog.show')}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <PermissionCatalogPanel />
+        </CollapsibleContent>
+      </Collapsible>
+
+      <RoleFormDialog open={editing} onOpenChange={setEditing} role={role} returnTo={returnTo} />
+      <DeactivateRoleDialog
+        role={deactivating ? role : null}
+        onClose={() => {
+          setDeactivating(false);
         }}
       />
-    </section>
+    </DetailPage>
   );
 }

@@ -8,10 +8,16 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@contrataflow/ui';
 import type { DepartmentDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 
 import { moveTargets } from './department-tree-model';
 
@@ -74,7 +80,6 @@ function MoveBody({
   onConfirm,
 }: Omit<MoveDepartmentDialogProps, 'department'> & { readonly department: DepartmentDto }) {
   const t = useTranslations('departments');
-  const selectId = useId();
   const targets = moveTargets(departments, department);
   const canGoRoot = department.parentId !== null;
   const [choice, setChoice] = useState<string>(canGoRoot ? ROOT : (targets[0]?.id ?? ''));
@@ -94,26 +99,21 @@ function MoveBody({
       {nothing ? (
         <p className="text-sm text-muted-foreground">{t('move.noTargets')}</p>
       ) : (
-        <div className="flex flex-col gap-1">
-          <label htmlFor={selectId} className="text-sm font-medium">
-            {t('move.target')}
-          </label>
-          <select
-            id={selectId}
-            className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
-            value={choice}
-            onChange={(event) => {
-              setChoice(event.target.value);
-            }}
-          >
-            {canGoRoot ? <option value={ROOT}>{t('form.root')}</option> : null}
-            {targets.map((target) => (
-              <option key={target.id} value={target.id}>
-                {`${'— '.repeat(target.depth)}${target.name}`}
-              </option>
-            ))}
-          </select>
-        </div>
+        <Field label={t('move.target')}>
+          <Select value={choice} onValueChange={setChoice}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {canGoRoot ? <SelectItem value={ROOT}>{t('form.root')}</SelectItem> : null}
+              {targets.map((target) => (
+                <SelectItem key={target.id} value={target.id}>
+                  {`${'— '.repeat(target.depth)}${target.name}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       )}
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onCancel}>

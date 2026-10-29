@@ -18,7 +18,8 @@
     "collapse": "Recolher {name}",
     "actions": "Ações de {name}",
     "inactive": "Inativa",
-    "head": "Titular definido"
+    "head": "Titular definido",
+    "deputy": "Substituto definido"
   },
   "actions": {
     "addChild": "Nova subunidade",
@@ -59,13 +60,16 @@
     "people": "Responsáveis",
     "cancel": "Cancelar",
     "submit": "Salvar",
-    "submitting": "Salvando…"
+    "submitting": "Salvando…",
+    "close": "Fechar"
   },
   "people": {
     "defined": "Pessoa definida",
     "none": "Não definido",
     "clear": "Remover {field}",
-    "pending": "A busca de pessoas chega com o cadastro de usuários; por ora o titular e o substituto são definidos pela API."
+    "pending": "A busca de pessoas chega com o cadastro de usuários; por ora o titular e o substituto são definidos pela API.",
+    "search": "Buscar pessoa",
+    "empty": "Nenhuma pessoa encontrada."
   },
   "validation": {
     "required": "Informe o {field}.",

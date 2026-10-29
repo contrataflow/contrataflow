@@ -1,6 +1,18 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  ChevronDown,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  Field,
+  Input,
+  Search,
+  Skeleton,
+  StatusChip,
+} from '@contrataflow/ui';
 import type { PermissionDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -50,8 +62,8 @@ export function PermissionCatalogPanel() {
   const t = useTranslations('permissions');
   const tenantId = useTenantId();
   const headingId = useId();
-  const searchId = useId();
   const [search, setSearch] = useState('');
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
 
   const catalog = useQuery({
     queryKey: permissionCatalogKeys.all(tenantId),
@@ -117,21 +129,17 @@ export function PermissionCatalogPanel() {
       {catalog.data ? (
         <>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="flex flex-col gap-1">
-              <label htmlFor={searchId} className="text-sm font-medium">
-                {t('search.label')}
-              </label>
-              <input
-                id={searchId}
+            <Field label={t('search.label')} className="w-80 max-w-full">
+              <Input
                 type="search"
+                icon={<Search aria-hidden="true" />}
                 value={search}
                 placeholder={t('search.placeholder')}
                 onChange={(event) => {
                   setSearch(event.target.value);
                 }}
-                className="h-10 w-80 max-w-full rounded-control border border-border bg-surface px-3 text-sm"
               />
-            </div>
+            </Field>
             <p role="status" className="pb-2 text-sm text-muted-foreground">
               {t('search.summary', { count: total })}
             </p>
@@ -142,13 +150,19 @@ export function PermissionCatalogPanel() {
               {t('search.emptyHint')}
             </Alert>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col divide-y divide-border rounded-card bg-surface shadow-card">
               {groups.map((group) => (
                 <ModuleGroup
                   key={group.module}
                   module={group.module}
                   items={group.items}
-                  forceOpen={filtering}
+                  open={filtering || opened.has(group.module)}
+                  onOpenChange={(open) => {
+                    const next = new Set(opened);
+                    if (open) next.add(group.module);
+                    else next.delete(group.module);
+                    setOpened(next);
+                  }}
                 />
               ))}
             </div>
@@ -162,33 +176,46 @@ export function PermissionCatalogPanel() {
 function ModuleGroup({
   module,
   items,
-  forceOpen,
+  open,
+  onOpenChange,
 }: {
   readonly module: string;
   readonly items: readonly PermissionDto[];
-  readonly forceOpen: boolean;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations('permissions');
   const label = t.has(`modules.${module as KnownModule}`)
     ? t(`modules.${module as KnownModule}`)
     : module;
   return (
-    <details
-      open={forceOpen || undefined}
-      className="rounded-card border border-border bg-surface shadow-card"
-    >
-      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-4 py-3 font-semibold">
-        <span>{label}</span>
-        <span className="text-sm font-normal text-muted-foreground">
-          {t('group.count', { count: items.length })}
-        </span>
-      </summary>
-      <ul aria-label={t('group.listLabel', { module: label })} className="border-t border-border">
-        {items.map((permission) => (
-          <PermissionRow key={permission.code} permission={permission} />
-        ))}
-      </ul>
-    </details>
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <h3 className="m-0">
+        <CollapsibleTrigger
+          hideChevron
+          className="group flex min-h-12 w-full items-center justify-between gap-3 rounded-none px-4 py-2 text-left text-foreground hover:bg-muted/60"
+        >
+          <span data-module-label className="flex items-center gap-2 font-semibold">
+            <ChevronDown
+              aria-hidden="true"
+              className="size-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90"
+            />
+            {label}
+          </span>
+          <span className="text-sm font-normal text-muted-foreground">
+            {t('group.count', { count: items.length })}
+          </span>
+        </CollapsibleTrigger>
+      </h3>
+      {/* `forceMount`: o conteúdo continua no DOM (oculto) com o módulo fechado, como o `details`. */}
+      <CollapsibleContent forceMount>
+        <ul aria-label={t('group.listLabel', { module: label })} className="border-t border-border">
+          {items.map((permission) => (
+            <PermissionRow key={permission.code} permission={permission} />
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -197,18 +224,12 @@ function PermissionRow({ permission }: { readonly permission: PermissionDto }) {
   return (
     <li className="flex flex-col gap-1 border-t border-border px-4 py-3 first:border-t-0">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{permission.name}</span>
+        <span className="font-bold">{permission.name}</span>
         <code className="font-mono text-xs text-muted-foreground">{permission.code}</code>
         <RiskLevelBadge level={permission.riskLevel} />
-        {permission.scopable ? (
-          <span className="inline-flex rounded-control bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            {t('badges.scopable')}
-          </span>
-        ) : null}
+        {permission.scopable ? <StatusChip tone="info">{t('badges.scopable')}</StatusChip> : null}
         {permission.isDeprecated ? (
-          <span className="inline-flex rounded-control border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-            {t('badges.deprecated')}
-          </span>
+          <StatusChip tone="neutral">{t('badges.deprecated')}</StatusChip>
         ) : null}
       </div>
       <p className="text-sm text-muted-foreground">{permission.description}</p>

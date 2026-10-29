@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@contrataflow/ui';
+import { Button, DatePicker, Field, Input, fromIsoDate, toIsoDate } from '@contrataflow/ui';
 import type { TenantMembershipDetailDto } from '@contrataflow/validation';
 import { useMutation } from '@tanstack/react-query';
 import { useFormatter, useTranslations } from 'next-intl';
@@ -20,8 +20,6 @@ import {
 import type { ProfileErrors, ProfileField, ProfileFormState } from './user-detail-model';
 import { updateUser } from './users.api';
 import type { UserDetailResult } from './users.api';
-
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
 
 export interface UserDetailFormProps {
   readonly membership: TenantMembershipDetailDto;
@@ -55,7 +53,6 @@ export function UserDetailForm({
   const external = membership.type === 'EXTERNAL';
 
   const idOf = (field: ProfileField) => `${ids}-${field}`;
-  const errorIdOf = (field: ProfileField) => `${ids}-${field}-error`;
 
   useEffect(() => {
     if (!focusRequest) return;
@@ -114,15 +111,6 @@ export function UserDetailForm({
   };
 
   const dirty = hasProfileChanges(membership, form);
-  const describedBy = (field: ProfileField, extra?: string) =>
-    [extra, errors[field] ? errorIdOf(field) : undefined].filter(Boolean).join(' ') || undefined;
-  const fieldError = (field: ProfileField) =>
-    errors[field] ? (
-      <p id={errorIdOf(field)} className="text-sm text-destructive">
-        {errors[field]}
-      </p>
-    ) : null;
-
   const expiresLabel = membership.expiresAt
     ? format.dateTime(new Date(membership.expiresAt), { dateStyle: 'short' })
     : t('detail.none');
@@ -153,66 +141,52 @@ export function UserDetailForm({
   return (
     <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idOf('jobTitle')} className="text-sm font-medium">
-            {t('detail.jobTitle')}
-          </label>
-          <input
-            id={idOf('jobTitle')}
+        <Field label={t('detail.jobTitle')} id={idOf('jobTitle')} error={errors.jobTitle}>
+          <Input
             autoComplete="off"
             // eslint-disable-next-line jsx-a11y/no-autofocus -- foco no primeiro campo ao abrir o formulário
             autoFocus
-            className={INPUT}
             value={form.jobTitle}
-            aria-invalid={errors.jobTitle !== undefined}
-            aria-describedby={describedBy('jobTitle')}
             onChange={(event) => {
               update('jobTitle', event.target.value);
             }}
           />
-          {fieldError('jobTitle')}
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor={idOf('registrationNumber')} className="text-sm font-medium">
-            {t('detail.registrationNumber')}
-          </label>
-          <input
-            id={idOf('registrationNumber')}
+        <Field
+          label={t('detail.registrationNumber')}
+          id={idOf('registrationNumber')}
+          error={errors.registrationNumber}
+        >
+          <Input
             autoComplete="off"
-            className={INPUT}
             value={form.registrationNumber}
-            aria-invalid={errors.registrationNumber !== undefined}
-            aria-describedby={describedBy('registrationNumber')}
             onChange={(event) => {
               update('registrationNumber', event.target.value);
             }}
           />
-          {fieldError('registrationNumber')}
-        </div>
+        </Field>
 
         {external ? (
-          <div className="flex flex-col gap-1">
-            <label htmlFor={idOf('expiresAt')} className="text-sm font-medium">
-              {t('detail.expiresAt')}
-            </label>
-            <input
-              id={idOf('expiresAt')}
-              type="date"
-              min={todayLocalDate()}
-              className={INPUT}
-              value={form.expiresDate}
-              aria-invalid={errors.expiresAt !== undefined}
-              aria-describedby={describedBy('expiresAt', `${idOf('expiresAt')}-hint`)}
-              onChange={(event) => {
-                update('expiresDate', event.target.value);
+          <Field
+            label={t('detail.expiresAt')}
+            id={idOf('expiresAt')}
+            description={t('detail.expiresAtHint')}
+            error={errors.expiresAt}
+          >
+            <DatePicker
+              value={fromIsoDate(form.expiresDate)}
+              disabledDays={{ before: fromIsoDate(todayLocalDate()) ?? new Date() }}
+              labels={{
+                placeholder: t('form.datePlaceholder'),
+                clear: t('form.dateClear'),
+                calendar: t('form.dateCalendar'),
+              }}
+              onValueChange={(date) => {
+                update('expiresDate', date ? toIsoDate(date) : '');
               }}
             />
-            <p id={`${idOf('expiresAt')}-hint`} className="text-xs text-muted-foreground">
-              {t('detail.expiresAtHint')}
-            </p>
-            {fieldError('expiresAt')}
-          </div>
+          </Field>
         ) : null}
       </div>
 

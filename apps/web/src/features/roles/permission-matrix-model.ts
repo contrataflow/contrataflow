@@ -83,3 +83,32 @@ export function groupByModule(
   }
   return [...groups].map(([module, items]) => ({ module, items }));
 }
+
+/** Busca sem acento e sem diferença de maiúsculas ("Descricao" encontra "Descrição"). */
+export function foldText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+/** Permissões cujo nome ou código contém o termo (vazio = todas). */
+export function filterPermissions(
+  permissions: readonly PermissionDto[],
+  search: string,
+): PermissionDto[] {
+  const term = foldText(search.trim());
+  if (term === '') return [...permissions];
+  return permissions.filter(
+    (permission) =>
+      foldText(permission.name).includes(term) || foldText(permission.code).includes(term),
+  );
+}
+
+/** Quantas permissões do conjunto estão marcadas. */
+export function countSelected(
+  permissions: readonly PermissionDto[],
+  selected: ReadonlySet<string>,
+): number {
+  return permissions.filter((permission) => selected.has(permission.code)).length;
+}

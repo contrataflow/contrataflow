@@ -1,13 +1,38 @@
 'use client';
 
-import { Alert, Button, Skeleton, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Avatar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  EmptyState,
+  Inbox,
+  ListPage,
+  Plus,
+  Skeleton,
+  Table,
+  TableBody,
+  TableContainer,
+  TableFooter,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+  toast,
+} from '@contrataflow/ui';
 import type { TenantMembershipDto } from '@contrataflow/validation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useState } from 'react';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
+import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { CancelInvitationDialog } from './cancel-invitation-dialog';
@@ -23,17 +48,18 @@ import {
 export const USERS_PATH = '/admin/usuarios';
 
 /**
- * SCR-029 (`/admin/usuarios` · US-091/US-092): a lista de usuários (USR-01 — `UserList`, com busca,
- * filtros e link para o detalhe), "Convidar usuário" (USR-03, só com `USER_INVITE`) e os convites
- * pendentes (USR-01 `status=INVITED`) com "Reenviar" (USR-04) e "Cancelar" (USR-05). Sem
- * `USER_VIEW` a API responde 403 e a tela mostra o aviso de acesso (RN-FND-92). Abaixo de 768 px
- * cada linha vira um cartão (mesma tabela, cabeçalho só para leitores de tela).
+ * SCR-029 (`/admin/usuarios` · US-091/US-092) no modelo `ListPage` (prd-5): "Convidar usuário"
+ * (USR-03, só com `USER_INVITE`) é a ação primária do cabeçalho; a lista de usuários (USR-01 —
+ * `UserList`, com busca, filtros e link para o detalhe) e, abaixo, os convites pendentes (USR-01
+ * `status=INVITED`) com "Reenviar" (USR-04) e "Cancelar" (USR-05) no menu ⋯ da linha. Sem
+ * `USER_VIEW` a API responde 403 e a tela mostra o aviso de acesso (RN-FND-92).
  */
 export function UsersView() {
   const t = useTranslations('users');
   const format = useFormatter();
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
+  const canInvite = usePermission('USER_INVITE').allowed;
   const [inviting, setInviting] = useState(false);
   const [cancelling, setCancelling] = useState<TenantMembershipDto | null>(null);
   const [page, setPage] = useState(1);
@@ -67,11 +93,36 @@ export function UsersView() {
     },
   });
 
+  const header = (
+    <AppPageHeader
+      section="admin"
+      title={t('title')}
+      description={t('description')}
+      actions={
+        <Can permission="USER_INVITE">
+          <Button
+            iconLeft={<Plus />}
+            onClick={() => {
+              setInviting(true);
+            }}
+          >
+            {t('list.invite')}
+          </Button>
+        </Can>
+      }
+    />
+  );
+
   if (invitations.error && isApiError(invitations.error) && invitations.error.status === 403) {
     return (
-      <Alert tone="error" title={t('forbidden.title')}>
-        {t('forbidden.description')}
-      </Alert>
+      <ListPage
+        header={<AppPageHeader section="admin" title={t('title')} description={t('description')} />}
+        error={
+          <Alert tone="error" title={t('forbidden.title')}>
+            {t('forbidden.description')}
+          </Alert>
+        }
+      />
     );
   }
 
@@ -81,166 +132,153 @@ export function UsersView() {
     iso ? format.dateTime(new Date(iso), { dateStyle: 'short', timeStyle: 'short' }) : '—';
 
   return (
-    <div className="flex flex-col gap-8">
-      <Can permission="USER_INVITE">
-        <div className="flex justify-end">
-          <Button
-            onClick={() => {
-              setInviting(true);
-            }}
-          >
-            {t('list.invite')}
-          </Button>
-        </div>
-      </Can>
+    <>
+      <UserList header={header}>
+        <section aria-labelledby="pending-invitations-title" className="flex flex-col gap-3">
+          <h2 id="pending-invitations-title" className="text-section-title text-brand-ink">
+            {t('list.title')}
+          </h2>
 
-      <UserList />
+          {invitations.isPending ? (
+            <div role="status" className="flex flex-col gap-2">
+              <span className="sr-only">{t('list.loading')}</span>
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : null}
 
-      <section aria-labelledby="pending-invitations-title" className="flex flex-col gap-4">
-        <h2 id="pending-invitations-title" className="text-lg font-semibold">
-          {t('list.title')}
-        </h2>
+          {invitations.isError ? (
+            <Alert tone="error" title={t('list.loadFailed')}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void invitations.refetch();
+                }}
+              >
+                {t('list.retry')}
+              </Button>
+            </Alert>
+          ) : null}
 
-        {invitations.isPending ? (
-          <div role="status" className="flex flex-col gap-2">
-            <span className="sr-only">{t('list.loading')}</span>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
+          <div aria-live="polite" className="empty:hidden">
+            {actionError ? <Alert tone="error" title={actionError} /> : null}
           </div>
-        ) : null}
 
-        {invitations.isError ? (
-          <Alert tone="error" title={t('list.loadFailed')}>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                void invitations.refetch();
-              }}
+          {invitations.data && items.length === 0 ? (
+            <EmptyState
+              icon={<Inbox />}
+              title={t('list.empty')}
+              description={t('list.emptyHint')}
+            />
+          ) : null}
+
+          {items.length > 0 ? (
+            <TableContainer
+              label={t('list.caption')}
+              footer={
+                totalPages > 1 ? (
+                  <TableFooter summary={t('list.count', { count: items.length })}>
+                    <nav aria-label={t('list.pager')} className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page <= 1}
+                        onClick={() => {
+                          setPage((current) => Math.max(1, current - 1));
+                        }}
+                      >
+                        {t('list.previous')}
+                      </Button>
+                      <span>{t('list.pageOf', { page, total: totalPages })}</span>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page >= totalPages}
+                        onClick={() => {
+                          setPage((current) => current + 1);
+                        }}
+                      >
+                        {t('list.next')}
+                      </Button>
+                    </nav>
+                  </TableFooter>
+                ) : undefined
+              }
             >
-              {t('list.retry')}
-            </Button>
-          </Alert>
-        ) : null}
-
-        <div aria-live="polite">
-          {actionError ? <Alert tone="error" title={actionError} /> : null}
-        </div>
-
-        {invitations.data && items.length === 0 ? (
-          <div className="rounded-card border border-dashed border-border p-6 text-center">
-            <p className="font-medium">{t('list.empty')}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{t('list.emptyHint')}</p>
-          </div>
-        ) : null}
-
-        {items.length > 0 ? (
-          <div className="relative rounded-card border border-border bg-surface shadow-card md:overflow-x-auto">
-            <table className="w-full text-left text-sm md:min-w-[48rem]">
-              <caption className="sr-only">{t('list.caption')}</caption>
-              <thead className="bg-muted text-xs text-muted-foreground uppercase max-md:sr-only">
-                <tr>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.name')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.email')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.type')}
-                  </th>
-                  <th scope="col" className="px-3 py-2">
-                    {t('list.inviteExpiresAt')}
-                  </th>
-                  <Can permission="USER_INVITE">
-                    <th scope="col" className="px-3 py-2">
-                      {t('list.actions')}
-                    </th>
-                  </Can>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((invitation) => (
-                  <tr
-                    key={invitation.id}
-                    className="border-t border-border align-top max-md:block max-md:py-2"
-                  >
-                    <th scope="row" className="px-3 py-2 font-medium max-md:block">
-                      {invitation.name}
-                    </th>
-                    <td className="px-3 py-2 break-all max-md:block max-md:py-1">
-                      {invitation.email}
-                    </td>
-                    <td className="px-3 py-2 max-md:block max-md:py-1">
-                      {t(`types.${invitation.type}`)}
-                    </td>
-                    <td className="px-3 py-2 max-md:block max-md:py-1">
-                      {dateTime(invitation.inviteExpiresAt)}
-                    </td>
-                    <Can permission="USER_INVITE">
-                      <td className="px-3 py-2 max-md:block">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={resend.isPending && resend.variables.id === invitation.id}
-                            aria-label={t('actions.resendLabel', { name: invitation.name })}
-                            onClick={() => {
-                              setActionError(null);
-                              resend.mutate(invitation);
-                            }}
-                          >
-                            {t('actions.resend')}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={t('actions.cancelLabel', { name: invitation.name })}
-                            onClick={() => {
-                              setCancelling(invitation);
-                            }}
-                          >
-                            {t('actions.cancel')}
-                          </Button>
-                        </div>
-                      </td>
-                    </Can>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-
-        {totalPages > 1 ? (
-          <nav aria-label={t('list.pager')} className="flex items-center justify-between gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => {
-                setPage((current) => Math.max(1, current - 1));
-              }}
-            >
-              {t('list.previous')}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t('list.pageOf', { page, total: totalPages })}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => {
-                setPage((current) => current + 1);
-              }}
-            >
-              {t('list.next')}
-            </Button>
-          </nav>
-        ) : null}
-      </section>
+              <Table>
+                <caption className="sr-only">{t('list.caption')}</caption>
+                <TableHead>
+                  <Tr>
+                    <Th>{t('list.invitee')}</Th>
+                    <Th className="hidden md:table-cell">{t('list.type')}</Th>
+                    <Th className="hidden sm:table-cell">{t('list.inviteExpiresAt')}</Th>
+                    {canInvite ? (
+                      <Th className="w-12">
+                        <span className="sr-only">{t('list.actions')}</span>
+                      </Th>
+                    ) : null}
+                  </Tr>
+                </TableHead>
+                <TableBody>
+                  {items.map((invitation) => (
+                    <Tr key={invitation.id}>
+                      <th scope="row" className="px-3.5 py-3 text-left font-normal">
+                        <span className="flex items-center gap-3">
+                          <Avatar name={invitation.name} />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="font-bold text-foreground">{invitation.name}</span>
+                            <span className="text-xs break-all text-muted-foreground">
+                              {invitation.email}
+                            </span>
+                          </span>
+                        </span>
+                      </th>
+                      <Td className="hidden md:table-cell">{t(`types.${invitation.type}`)}</Td>
+                      <Td className="hidden whitespace-nowrap sm:table-cell">
+                        {dateTime(invitation.inviteExpiresAt)}
+                      </Td>
+                      {canInvite ? (
+                        <Td className="w-12 py-1.5 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={t('actions.menu', { name: invitation.name })}
+                                className="inline-grid size-11 place-items-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground md:size-9"
+                              >
+                                <Ellipsis aria-hidden="true" className="size-[1.125rem]" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                disabled={resend.isPending && resend.variables.id === invitation.id}
+                                onSelect={() => {
+                                  setActionError(null);
+                                  resend.mutate(invitation);
+                                }}
+                              >
+                                {t('actions.resendLabel', { name: invitation.name })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setCancelling(invitation);
+                                }}
+                              >
+                                {t('actions.cancelLabel', { name: invitation.name })}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </Td>
+                      ) : null}
+                    </Tr>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : null}
+        </section>
+      </UserList>
 
       <InviteUserForm open={inviting} onOpenChange={setInviting} returnTo={USERS_PATH} />
       <CancelInvitationDialog
@@ -249,6 +287,6 @@ export function UsersView() {
           setCancelling(null);
         }}
       />
-    </div>
+    </>
   );
 }

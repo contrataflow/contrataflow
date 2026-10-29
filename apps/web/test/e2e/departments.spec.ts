@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { expectNoSeriousA11yViolations } from './support/a11y';
+import { chooseOption } from './support/kit';
 
 // A árvore da API simulada é global: os passos desta jornada rodam em série.
 test.describe.configure({ mode: 'serial' });
@@ -23,12 +24,12 @@ async function createUnit(
 ): Promise<void> {
   if (options.parent) {
     await page.getByRole('button', { name: `Ações de ${options.parent}` }).click();
-    await page.getByRole('button', { name: 'Nova subunidade' }).click();
+    await page.getByRole('menuitem', { name: 'Nova subunidade' }).click();
   } else {
     await page.getByRole('button', { name: 'Nova unidade' }).click();
   }
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Tipo *').selectOption(options.type);
+  await chooseOption(page, 'Tipo *', options.type, dialog);
   await dialog.getByLabel('Nome *').fill(options.name);
   await dialog.getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByText(`Unidade ${options.name} criada.`, { exact: true })).toBeVisible();
@@ -41,15 +42,15 @@ const item = (page: Page, name: string) =>
 test('monta uma árvore de 3 níveis sem violações de acessibilidade', async ({ page }) => {
   await openTab(page);
   await expectNoSeriousA11yViolations(page, 'árvore inicial');
-  await createUnit(page, { name: 'Secretaria de Obras', type: 'SECRETARIAT' });
+  await createUnit(page, { name: 'Secretaria de Obras', type: 'Secretaria' });
   await createUnit(page, {
     name: 'Departamento de Projetos',
-    type: 'DEPARTMENT',
+    type: 'Departamento',
     parent: 'Secretaria de Obras',
   });
   await createUnit(page, {
     name: 'Setor de Topografia',
-    type: 'SECTOR',
+    type: 'Setor',
     parent: 'Departamento de Projetos',
   });
   await expect(item(page, 'Setor de Topografia')).toHaveAttribute('aria-level', '3');
@@ -68,7 +69,7 @@ test('move uma unidade arrastando para outra secretaria', async ({ page }) => {
 test('desativa uma unidade e não consegue excluir a que está em uso', async ({ page }) => {
   await openTab(page);
   await page.getByRole('button', { name: 'Ações de Departamento de Projetos' }).click();
-  await page.getByRole('button', { name: 'Desativar' }).click();
+  await page.getByRole('menuitem', { name: 'Desativar' }).click();
   const confirm = page.getByRole('dialog', { name: 'Desativar Departamento de Projetos?' });
   await confirm.getByRole('button', { name: 'Desativar' }).click();
   await expect(
@@ -77,7 +78,7 @@ test('desativa uma unidade e não consegue excluir a que está em uso', async ({
   await expect(item(page, 'Departamento de Projetos')).toContainText('Inativa');
 
   await page.getByRole('button', { name: 'Ações de Gabinete' }).click();
-  await page.getByRole('button', { name: 'Excluir' }).click();
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
   const dialog = page.getByRole('dialog', { name: 'Excluir Gabinete?' });
   await dialog.getByRole('button', { name: 'Excluir' }).click();
   await expect(

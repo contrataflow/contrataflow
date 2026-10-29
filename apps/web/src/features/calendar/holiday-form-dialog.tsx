@@ -4,10 +4,23 @@ import type { HolidayScope } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  Checkbox,
+  DatePicker,
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
+  Field,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
 import type { HolidayDto } from '@contrataflow/validation';
@@ -28,8 +41,6 @@ import {
 import type { FieldErrors, FormValues } from './calendar-model';
 import { calendarKeys, createHoliday, updateHoliday } from './calendar.api';
 
-const INPUT = 'h-10 rounded-control border border-border bg-surface px-3 text-sm';
-
 export interface HolidayFormDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -43,8 +54,8 @@ export interface HolidayFormDialogProps {
  * `HolidayFormDialog` (SCR-110 · US-106 · passos 2–4): data, nome, escopo e recorrência, validados
  * com os mesmos schemas Zod da API. A data só é editável no cadastro (RN-TEN-75: excluir e
  * recadastrar para mudá-la); o nome de feriado de sistema fica bloqueado (RN-TEN-77). A edição
- * envia só o que mudou, com `If-Match`. Foco no primeiro campo ao abrir; erros em `aria-live`;
- * tela cheia abaixo de 768 px.
+ * envia só o que mudou, com `If-Match`. Controles do kit (`DatePicker`, `Select`, `Checkbox`) dentro
+ * de `Field`, que liga rótulo, ajuda e erro; foco preso e `Esc` fecha (Radix Dialog).
  */
 export function HolidayFormDialog({
   open,
@@ -54,10 +65,7 @@ export function HolidayFormDialog({
 }: HolidayFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="h-dvh max-h-dvh overflow-y-auto md:h-auto md:max-h-[90vh]"
-        style={{ maxWidth: '32rem' }}
-      >
+      <DialogContent>
         <HolidayFormBody
           key={holiday?.id ?? 'novo'}
           holiday={holiday}
@@ -180,21 +188,6 @@ function HolidayFormBody({
     }
   };
 
-  const fieldId = (name: string) => `${ids}-${name}`;
-  const errorText = (name: string) =>
-    errors[name] ? (
-      <p id={`${fieldId(name)}-error`} className="text-sm text-destructive" aria-live="polite">
-        {errors[name]}
-      </p>
-    ) : null;
-  const describedBy = (name: string, hint?: boolean) =>
-    [
-      errors[name] ? `${fieldId(name)}-error` : undefined,
-      hint ? `${fieldId(name)}-hint` : undefined,
-    ]
-      .filter(Boolean)
-      .join(' ') || undefined;
-
   return (
     <form
       noValidate
@@ -209,130 +202,98 @@ function HolidayFormBody({
       </DialogTitle>
       <DialogDescription>{t('form.description')}</DialogDescription>
 
-      {formError ? <Alert tone="error" title={formError} /> : null}
-
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('date')} className="text-sm font-medium">
-          {t('form.date')}
-        </label>
-        <input
-          id={fieldId('date')}
-          type="date"
-          className={INPUT}
-          value={values.date}
-          readOnly={isEdit}
-          aria-readonly={isEdit ? true : undefined}
-          aria-invalid={errors.date ? true : undefined}
-          aria-describedby={describedBy('date', true)}
-          onChange={(event) => {
-            setValues((current) => ({ ...current, date: event.target.value }));
-          }}
-        />
-        <p id={`${fieldId('date')}-hint`} className="text-xs text-muted-foreground">
-          {t('form.dateHint')}
-        </p>
-        {errorText('date')}
+      <div aria-live="polite" className="empty:hidden">
+        {formError ? <Alert tone="error" title={formError} /> : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('name')} className="text-sm font-medium">
-          {t('form.name')}
-        </label>
-        <input
-          id={fieldId('name')}
-          className={INPUT}
+      <Field label={t('form.date')} description={t('form.dateHint')} error={errors.date}>
+        <DatePicker
+          value={fromIsoDate(values.date)}
+          disabled={isEdit}
+          labels={{
+            placeholder: t('form.datePlaceholder'),
+            clear: t('form.dateClear'),
+            calendar: t('form.dateCalendar'),
+          }}
+          onValueChange={(date) => {
+            setValues((current) => ({ ...current, date: date ? toIsoDate(date) : '' }));
+          }}
+        />
+      </Field>
+
+      <Field
+        label={t('form.name')}
+        description={holiday?.isSystem ? t('form.nameLockedSystem') : t('form.nameHint')}
+        error={errors.name}
+      >
+        <Input
           value={values.name}
           readOnly={holiday?.isSystem === true}
-          aria-readonly={holiday?.isSystem ? true : undefined}
-          aria-invalid={errors.name ? true : undefined}
-          aria-describedby={describedBy('name', true)}
           autoComplete="off"
           onChange={(event) => {
             setValues((current) => ({ ...current, name: event.target.value }));
           }}
         />
-        <p id={`${fieldId('name')}-hint`} className="text-xs text-muted-foreground">
-          {holiday?.isSystem ? t('form.nameLockedSystem') : t('form.nameHint')}
-        </p>
-        {errorText('name')}
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor={fieldId('scope')} className="text-sm font-medium">
-          {t('form.scope')}
-        </label>
-        <select
-          id={fieldId('scope')}
-          className={INPUT}
+      <Field label={t('form.scope')} description={t('form.scopeHint')} error={errors.scope}>
+        <Select
           value={values.scope}
-          aria-invalid={errors.scope ? true : undefined}
-          aria-describedby={describedBy('scope', true)}
-          onChange={(event) => {
-            setValues((current) => ({
-              ...current,
-              scope: event.target.value as HolidayScope | '',
-            }));
+          onValueChange={(scope) => {
+            setValues((current) => ({ ...current, scope: scope as HolidayScope }));
           }}
         >
-          <option value="">{t('form.scopePlaceholder')}</option>
-          {scopeOptions(holiday).map((scope) => (
-            <option key={scope} value={scope}>
-              {t(`scopes.${scope}`)}
-            </option>
-          ))}
-        </select>
-        <p id={`${fieldId('scope')}-hint`} className="text-xs text-muted-foreground">
-          {t('form.scopeHint')}
-        </p>
-        {errorText('scope')}
-      </div>
+          <SelectTrigger>
+            <SelectValue placeholder={t('form.scopePlaceholder')} />
+          </SelectTrigger>
+          <SelectContent>
+            {scopeOptions(holiday).map((scope) => (
+              <SelectItem key={scope} value={scope}>
+                {t(`scopes.${scope}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <input
-            id={fieldId('recurring')}
-            type="checkbox"
-            className="size-4"
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2.5">
+          <Checkbox
+            id={`${ids}-recurring`}
             checked={values.isRecurring}
-            aria-describedby={`${fieldId('recurring')}-hint`}
-            onChange={(event) => {
-              setValues((current) => ({ ...current, isRecurring: event.target.checked }));
+            aria-describedby={`${ids}-recurring-hint`}
+            onCheckedChange={(checked) => {
+              setValues((current) => ({ ...current, isRecurring: checked === true }));
             }}
           />
-          <label htmlFor={fieldId('recurring')} className="text-sm font-medium">
-            {t('form.recurring')}
-          </label>
+          <Label htmlFor={`${ids}-recurring`}>{t('form.recurring')}</Label>
         </div>
-        <p id={`${fieldId('recurring')}-hint`} className="text-xs text-muted-foreground">
+        <p id={`${ids}-recurring-hint`} className="text-[0.8125rem] text-muted-foreground">
           {t('form.recurringHint')}
         </p>
       </div>
 
       {isEdit ? (
-        <div className="flex items-center gap-2">
-          <input
-            id={fieldId('active')}
-            type="checkbox"
-            className="size-4"
+        <div className="flex items-center gap-2.5">
+          <Checkbox
+            id={`${ids}-active`}
             checked={values.isActive}
-            onChange={(event) => {
-              setValues((current) => ({ ...current, isActive: event.target.checked }));
+            onCheckedChange={(checked) => {
+              setValues((current) => ({ ...current, isActive: checked === true }));
             }}
           />
-          <label htmlFor={fieldId('active')} className="text-sm font-medium">
-            {t('form.active')}
-          </label>
+          <Label htmlFor={`${ids}-active`}>{t('form.active')}</Label>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <DialogFooter>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('form.cancel')}
         </Button>
         <Button type="submit" aria-busy={pending} disabled={pending}>
           {pending ? t('form.submitting') : t('form.submit')}
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

@@ -307,19 +307,31 @@ describe('modelo do formulário (RN-IAM-89/93)', () => {
   });
 });
 
-describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
+/** Abre um `Select`/`Combobox` do kit pelo nome e escolhe a opção. */
+const pick = async (
+  user: ReturnType<typeof userEvent.setup>,
+  scope: HTMLElement,
+  field: string,
+  option: string | RegExp,
+) => {
+  await user.click(within(scope).getByRole('combobox', { name: field }));
+  await user.click(await screen.findByRole('option', { name: option }));
+};
+
+describe('Aba "Atribuições" (SCR-029 · US-096)', () => {
   it('lista perfil, escopo, vigência e quem concedeu; sem ROLE_ASSIGN não mostra ações', async () => {
     mockApi({
       list: () => jsonResponse({ data: [assignment()], meta: { canAssign: false, isSelf: false } }),
     });
     open();
-    const list = await screen.findByRole('list', { name: 'Perfis atribuídos' });
-    const card = within(list).getByRole('listitem');
+    const table = await screen.findByRole('table', { name: 'Perfis atribuídos' });
+    const card = within(table).getByRole('row', { name: /Requisitante/ });
     expect(card.textContent).toContain('Requisitante');
-    expect(card.textContent).toContain('Unidade — Secretaria de Obras (com subunidades)');
+    expect(card.textContent).toContain('Unidade — Secretaria de Obras');
+    expect(card.textContent).toContain('com subunidades');
     expect(card.textContent).toContain('Carla Souza');
     expect(screen.queryByRole('button', { name: 'Atribuir perfil' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Revogar/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Ações do perfil/ })).toBeNull();
   });
 
   it('estado vazio', async () => {
@@ -338,25 +350,19 @@ describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
     expect(document.activeElement).toBe(roleSelect);
 
     // V-02: escopo de unidade sem unidade.
-    await user.selectOptions(roleSelect, REQUISITANTE);
-    await user.selectOptions(
-      within(dialog).getByRole('combobox', { name: 'Escopo' }),
-      'DEPARTMENT',
-    );
+    await pick(user, dialog, 'Perfil', 'Requisitante');
+    await pick(user, dialog, 'Escopo', 'Unidade');
     await user.click(within(dialog).getByRole('button', { name: 'Atribuir' }));
     expect(await within(dialog).findByText('Informe a unidade para este escopo.')).toBeTruthy();
     expect(callsOf(api, 'POST', '/role-assignments')).toHaveLength(0);
 
-    const departmentSelect = within(dialog).getByRole('combobox', { name: 'Unidade' });
-    await waitFor(() => {
-      expect(
-        within(departmentSelect).getByRole('option', { name: 'Secretaria de Obras' }),
-      ).toBeTruthy();
-    });
-    await user.selectOptions(departmentSelect, OBRAS);
+    await user.click(within(dialog).getByRole('combobox', { name: 'Unidade' }));
+    await user.click(await screen.findByRole('option', { name: 'Secretaria de Obras' }));
     expect(
-      within(dialog).getByRole<HTMLInputElement>('checkbox', { name: /Incluir subárvore/ }).checked,
-    ).toBe(true);
+      within(dialog)
+        .getByRole('checkbox', { name: /Incluir subárvore/ })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
     expect(await seriousA11yViolations()).toEqual([]);
     await user.click(within(dialog).getByRole('button', { name: 'Atribuir' }));
 
@@ -380,14 +386,11 @@ describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
     open(member({ type: 'EXTERNAL', expiresAt: '2099-12-31T23:59:59.000Z' }));
     await user.click(await screen.findByRole('button', { name: 'Atribuir perfil' }));
     const dialog = await screen.findByRole('dialog');
-    const auditor = await within(dialog).findByRole<HTMLOptionElement>('option', {
-      name: 'Auditor',
-    });
-    expect(auditor.disabled).toBe(false);
-    const blocked = within(dialog).getByRole<HTMLOptionElement>('option', {
-      name: /Requisitante — não permitido/,
-    });
-    expect(blocked.disabled).toBe(true);
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Perfil' }));
+    const auditor = await screen.findByRole('option', { name: 'Auditor' });
+    expect(auditor.getAttribute('aria-disabled')).toBeNull();
+    const blocked = screen.getByRole('option', { name: /Requisitante — não permitido/ });
+    expect(blocked.getAttribute('aria-disabled')).toBe('true');
     expect(blocked.getAttribute('title')).toBe(
       'Este perfil não pode ser atribuído a um vínculo externo.',
     );
@@ -417,10 +420,8 @@ describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
     open();
     await user.click(await screen.findByRole('button', { name: 'Atribuir perfil' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(
-      await within(dialog).findByRole('combobox', { name: 'Perfil' }),
-      ADMIN,
-    );
+    await within(dialog).findByRole('combobox', { name: 'Perfil' });
+    await pick(user, dialog, 'Perfil', 'Administrador do órgão');
     await user.click(within(dialog).getByRole('button', { name: 'Atribuir' }));
     expect(
       await within(dialog).findByText(
@@ -447,7 +448,10 @@ describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
       },
     });
     open();
-    await user.click(await screen.findByRole('button', { name: 'Revogar o perfil Requisitante' }));
+    await user.click(await screen.findByRole('button', { name: 'Ações do perfil Requisitante' }));
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Revogar o perfil Requisitante' }),
+    );
     const dialog = await screen.findByRole('alertdialog');
     await user.type(
       within(dialog).getByRole('textbox', { name: 'Motivo (opcional)' }),
@@ -487,7 +491,10 @@ describe('Aba "Perfis e acessos" (SCR-029 · US-096)', () => {
     });
     open();
     await user.click(
-      await screen.findByRole('button', { name: 'Revogar o perfil Administrador do órgão' }),
+      await screen.findByRole('button', { name: 'Ações do perfil Administrador do órgão' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Revogar o perfil Administrador do órgão' }),
     );
     expect(
       await screen.findByText('Você não pode remover seu próprio último perfil administrativo.'),

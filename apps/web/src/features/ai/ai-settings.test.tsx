@@ -16,8 +16,9 @@ configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/admin/configuracoes',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const LUCIA = '0192a116-0000-7000-8000-0000000000a6';
@@ -116,7 +117,7 @@ const patches = (api: ReturnType<typeof mockApi>) =>
   api.mock.calls.filter(([, init]) => init?.method === 'PATCH').map(([, init]) => bodyOf(init));
 
 async function openAiGroup() {
-  await userEvent.click(await screen.findByRole('tab', { name: 'Inteligência artificial' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Inteligência artificial' }));
 }
 
 afterEach(() => {
