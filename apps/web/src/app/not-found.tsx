@@ -11,10 +11,11 @@ export default async function NotFound() {
   return (
     <main className="px-4">
       <ErrorView
+        illustration="not-found"
         title={t('pages.404.title')}
         description={t('pages.404.description')}
         actions={
-          <Link href={HOME_PATH} className={buttonClassName({ variant: 'secondary' })}>
+          <Link href={HOME_PATH} className={buttonClassName()}>
             {t('actions.home')}
           </Link>
         }

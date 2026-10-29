@@ -161,7 +161,7 @@ async function openPanel() {
   await user.click(await screen.findByRole('button', { name: 'Gerar rascunho com IA' }));
   return {
     user,
-    panel: screen.getByRole('complementary', { name: 'Assistente de redação com IA' }),
+    panel: screen.getByRole('dialog', { name: 'Assistente de redação com IA' }),
   };
 }
 

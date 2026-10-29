@@ -188,7 +188,7 @@ async function openProposal(onRisksApplied = vi.fn()) {
       }}
     />,
   );
-  const panel = await screen.findByRole('complementary', {
+  const panel = await screen.findByRole('dialog', {
     name: 'Assistente de redação com IA',
   });
   return { panel, onRisksApplied };
@@ -256,14 +256,15 @@ describe('SCR-117 no SCR-011 — aplicar a proposta de riscos (US-119)', () => {
   it('cartões com nível pela escala vigente, selo "Parecido com R03" desmarcado e aviso de entrada ausente; acessível', async () => {
     mockApi();
     const { panel } = await openProposal();
-    const first = await within(panel).findByRole<HTMLInputElement>('checkbox', {
+    const first = await within(panel).findByRole('checkbox', {
       name: 'Especificação insuficiente',
     });
-    expect(first.checked).toBe(true);
+    expect(first.getAttribute('aria-checked')).toBe('true');
     expect(
-      within(panel).getByRole<HTMLInputElement>('checkbox', { name: 'Fornecedores insuficientes' })
-        .checked,
-    ).toBe(false);
+      within(panel)
+        .getByRole('checkbox', { name: 'Fornecedores insuficientes' })
+        .getAttribute('aria-checked'),
+    ).toBe('false');
     expect(within(panel).getByText('Parecido com R03')).toBeTruthy();
     expect(within(panel).getByText('Alto')).toBeTruthy();
     expect(within(panel).getByText('P 3 × I 4')).toBeTruthy();

@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, SectionDiffView, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, Checkbox, SectionDiffView, Skeleton } from '@contrataflow/ui';
 import type { AiGenerationDto, DocumentDto, DraftSection } from '@contrataflow/validation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -187,15 +187,14 @@ export function AiProposalSectionList({
           const warningId = `${checkboxId}-warning`;
           const replaces = replacesText(draft);
           return (
-            <div key={section.sectionKey} className="rounded-md border border-border p-3">
+            <div key={section.sectionKey} className="rounded-card border border-border p-4">
               <div className="flex items-start gap-2">
-                <input
+                <Checkbox
                   id={checkboxId}
-                  type="checkbox"
-                  className="mt-1 size-4"
+                  className="mt-0.5"
                   checked={chosen.has(section.sectionKey)}
                   aria-describedby={replaces ? warningId : undefined}
-                  onChange={() => {
+                  onCheckedChange={() => {
                     toggle(section.sectionKey);
                   }}
                 />

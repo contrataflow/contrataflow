@@ -12,6 +12,11 @@ import { SignOutButton } from './sign-out-button';
 export function NoMembershipPage() {
   const t = useTranslations('errors.pages.sem-vinculo');
   return (
-    <ErrorView title={t('title')} description={t('description')} actions={<SignOutButton />} />
+    <ErrorView
+      illustration="membership"
+      title={t('title')}
+      description={t('description')}
+      actions={<SignOutButton />}
+    />
   );
 }

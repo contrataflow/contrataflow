@@ -206,7 +206,7 @@ async function openPanel() {
   await user.click(await screen.findByRole('button', { name: 'Gerar rascunho com IA' }));
   return {
     user,
-    panel: screen.getByRole('complementary', { name: 'Assistente de redação com IA' }),
+    panel: screen.getByRole('dialog', { name: 'Assistente de redação com IA' }),
   };
 }
 
@@ -268,8 +268,8 @@ describe('SCR-117 — rascunho do TR com IA (US-120)', () => {
     expect(within(panel).getByText(/\[a confirmar: local de entrega\]/)).toBeTruthy();
     const object = await within(panel).findByRole('checkbox', { name: /Definição do objeto/ });
     const delivery = within(panel).getByRole('checkbox', { name: /Modelo de execução e entrega/ });
-    expect((object as HTMLInputElement).checked).toBe(false);
-    expect((delivery as HTMLInputElement).checked).toBe(true);
+    expect(object.getAttribute('aria-checked')).toBe('false');
+    expect(delivery.getAttribute('aria-checked')).toBe('true');
   });
 
   it('sem ETP (FA-01): 422 AI_PREREQUISITE_MISSING orienta e oferece o atalho para os documentos', async () => {

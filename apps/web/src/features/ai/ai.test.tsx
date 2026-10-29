@@ -226,7 +226,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
     renderAssistant();
     await user.click(await screen.findByRole('button', { name: 'Gerar rascunho com IA' }));
 
-    const panel = screen.getByRole('complementary', { name: 'Assistente de redação com IA' });
+    const panel = screen.getByRole('dialog', { name: 'Assistente de redação com IA' });
     expect(document.activeElement).toBe(within(panel).getByRole('heading', { level: 2 }));
     expect(within(panel).getByText(/Conteúdo gerado por IA pode conter erros/)).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
@@ -263,7 +263,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
     expect(await within(panel).findAllByText('Proposta descartada.')).not.toHaveLength(0);
 
     await user.click(within(panel).getByRole('button', { name: 'Fechar o assistente' }));
-    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(
       screen.getByRole('button', { name: 'Gerar rascunho com IA' }),
     );
@@ -273,7 +273,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
     const user = userEvent.setup();
     mockAiApi({ generations: [generation({ status: 'FAILED', errorCode: 'TIMEOUT' })] });
     renderAssistant({ initialGenerationId: GEN });
-    const panel = await screen.findByRole('complementary');
+    const panel = await screen.findByRole('dialog');
     expect(await within(panel).findByText('Não foi possível gerar agora')).toBeTruthy();
     expect(within(panel).getByText('A IA demorou demais para responder.')).toBeTruthy();
     await user.click(within(panel).getByRole('button', { name: 'Tentar novamente' }));
@@ -291,7 +291,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
     });
     renderAssistant();
     await user.click(await screen.findByRole('button', { name: 'Gerar rascunho com IA' }));
-    const panel = screen.getByRole('complementary');
+    const panel = screen.getByRole('dialog');
     await user.type(
       within(panel).getByRole('textbox', { name: /Descreva a necessidade/ }),
       SUMMARY,
@@ -309,7 +309,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
       history: [{ ...item, id: GEN }],
     });
     renderAssistant({ editable: false, initialGenerationId: GEN });
-    const panel = await screen.findByRole('complementary');
+    const panel = await screen.findByRole('dialog');
     expect(await within(panel).findByText('Proposta pronta')).toBeTruthy();
     // Sem AI_GENERATE: sem a aba "Gerar".
     expect(within(panel).queryByRole('tab', { name: 'Gerar' })).toBeNull();
@@ -317,7 +317,7 @@ describe('SCR-117 — assistente de redação com IA (US-115)', () => {
     const list = await within(panel).findByRole('list', { name: 'Histórico de IA' });
     expect(within(list).getByText('Rascunho completo')).toBeTruthy();
     expect(within(list).getByText('Pronta')).toBeTruthy();
-    expect(within(list).getByText('1.200 tokens')).toBeTruthy();
+    expect(within(list).getByText(/1.200 tokens/)).toBeTruthy();
     expect(within(list).getByText(/Por Ana Souza/)).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
   });

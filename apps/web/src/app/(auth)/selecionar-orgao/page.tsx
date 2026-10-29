@@ -6,6 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import { safeReturnTo } from '@/bff/return-to';
 import { currentSessionOrUnavailable } from '@/bff/server-session';
 import { toShellSession } from '@/bff/session/view';
+import { LoginFrame } from '@/features/auth/login-frame';
 
 import { TenantSelection } from './tenant-selection';
 
@@ -54,21 +55,23 @@ export default async function SelectTenantPage({ searchParams }: SelectTenantPag
   const name = firstName(session.user.displayName);
   const switchNotCompleted = single(query.motivo) === 'troca-nao-concluida';
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-col py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {name ? t('title', { name }) : t('titleAnonymous')}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {session.memberships.length > 1 ? t('description') : t('descriptionSingle')}
-      </p>
-      {switchNotCompleted ? (
-        <Alert tone="warning" title={t('switchNotCompleted')} className="mt-6" />
-      ) : null}
-      <TenantSelection
-        memberships={session.memberships}
-        activeTenantId={session.activeTenant?.id ?? null}
-        returnTo={returnTo}
-      />
-    </section>
+    <LoginFrame wide>
+      <section className="flex flex-col">
+        <h1 className="text-page-title text-brand-ink">
+          {name ? t('title', { name }) : t('titleAnonymous')}
+        </h1>
+        <p className="mt-2 text-[0.9375rem] text-muted-foreground">
+          {session.memberships.length > 1 ? t('description') : t('descriptionSingle')}
+        </p>
+        {switchNotCompleted ? (
+          <Alert tone="warning" title={t('switchNotCompleted')} className="mt-6" />
+        ) : null}
+        <TenantSelection
+          memberships={session.memberships}
+          activeTenantId={session.activeTenant?.id ?? null}
+          returnTo={returnTo}
+        />
+      </section>
+    </LoginFrame>
   );
 }

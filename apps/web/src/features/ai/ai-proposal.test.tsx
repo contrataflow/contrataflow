@@ -196,7 +196,7 @@ async function openProposal(onApplied = vi.fn()) {
       onApplied={onApplied}
     />,
   );
-  const panel = await screen.findByRole('complementary', {
+  const panel = await screen.findByRole('dialog', {
     name: 'Assistente de redação com IA',
   });
   await within(panel).findByRole('group', { name: 'Escolha as seções a aplicar' });
@@ -218,11 +218,10 @@ describe('SCR-117 — aplicar a proposta do DFD (US-117)', () => {
       ],
     });
     const { panel } = await openProposal();
-    const checkbox = (name: RegExp) =>
-      within(panel).getByRole<HTMLInputElement>('checkbox', { name });
-    expect(checkbox(/Justificativa da necessidade/).checked).toBe(true);
-    expect(checkbox(/Resultados esperados/).checked).toBe(false);
-    expect(checkbox(/Observações/).checked).toBe(false);
+    const checkbox = (name: RegExp) => within(panel).getByRole('checkbox', { name });
+    expect(checkbox(/Justificativa da necessidade/).getAttribute('aria-checked')).toBe('true');
+    expect(checkbox(/Resultados esperados/).getAttribute('aria-checked')).toBe('false');
+    expect(checkbox(/Observações/).getAttribute('aria-checked')).toBe('false');
     expect(within(panel).getAllByText(/Substituirá o texto atual/)).toHaveLength(2);
     expect(within(panel).getByText('1 [a confirmar]')).toBeTruthy();
     expect(within(panel).getByText(/O DFD não tem data prevista/)).toBeTruthy();
@@ -313,8 +312,10 @@ describe('SCR-117 — aplicar a proposta do DFD (US-117)', () => {
       ).toBeGreaterThanOrEqual(2);
     });
     expect(
-      within(panel).getByRole<HTMLInputElement>('checkbox', { name: /Observações/ }).checked,
-    ).toBe(false);
+      within(panel)
+        .getByRole('checkbox', { name: /Observações/ })
+        .getAttribute('aria-checked'),
+    ).toBe('false');
     expect(within(panel).getByRole('button', { name: 'Aplicar 2 seções' })).toBeTruthy();
   });
 
@@ -329,7 +330,7 @@ describe('SCR-117 — aplicar a proposta do DFD (US-117)', () => {
         initialGenerationId={GEN}
       />,
     );
-    const panel = await screen.findByRole('complementary');
+    const panel = await screen.findByRole('dialog');
     expect(
       await within(panel).findByText(/Proposta de outra pessoa: somente leitura/),
     ).toBeTruthy();

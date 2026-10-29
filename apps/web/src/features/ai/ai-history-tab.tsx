@@ -1,6 +1,7 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, EmptyState, History, Skeleton, StatusChip } from '@contrataflow/ui';
+import type { StatusTone } from '@contrataflow/ui';
 import type { AiGenerationListItemDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -16,9 +17,21 @@ export interface AiHistoryTabProps {
   readonly onOpen: (generationId: string) => void;
 }
 
+const STATUS_TONE: Readonly<Record<AiGenerationListItemDto['status'], StatusTone>> = {
+  QUEUED: 'info',
+  RUNNING: 'info',
+  SUCCEEDED: 'success',
+  FAILED: 'danger',
+  CANCELED: 'neutral',
+  APPLIED: 'approval',
+  DISCARDED: 'neutral',
+  EXPIRED: 'warning',
+};
+
 /**
  * `AiHistoryTab` (SCR-117 · AI-03): quem pediu, quando, tipo, seção, modelo, versão do prompt,
- * tokens e status — sem o texto da proposta. Lista de cartões (cabe em 360 px).
+ * tokens e status — sem o texto da proposta. Lista compacta: tipo e situação em destaque, o resto
+ * numa linha secundária (cabe em 360 px).
  */
 export function AiHistoryTab({ processId, onOpen }: AiHistoryTabProps) {
   const t = useTranslations('ai.history');
@@ -53,32 +66,33 @@ export function AiHistoryTab({ processId, onOpen }: AiHistoryTabProps) {
       </Alert>
     );
   }
-  if (query.data.length === 0) return <p className="text-sm text-muted-foreground">{t('empty')}</p>;
+  if (query.data.length === 0) {
+    return <EmptyState icon={<History />} title={t('empty')} />;
+  }
 
   return (
-    <ul className="flex flex-col gap-3" aria-label={t('title')}>
+    <ul className="flex flex-col divide-y divide-border" aria-label={t('title')}>
       {query.data.map((item: AiGenerationListItemDto) => (
-        <li key={item.id} className="rounded-md border border-border p-3 text-sm">
+        <li key={item.id} className="flex flex-col gap-1 py-3 text-sm first:pt-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium">{t(`kind.${item.kind}`)}</span>
-            <span className="rounded bg-muted px-2 py-0.5 text-xs">
-              {t(`status.${item.status}`)}
-            </span>
+            <span className="font-semibold text-brand-ink">{t(`kind.${item.kind}`)}</span>
+            <StatusChip tone={STATUS_TONE[item.status]}>{t(`status.${item.status}`)}</StatusChip>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {t('by', { name: item.requestedBy.name })} · {formatDateTime(item.createdAt, timeZone)}
+            {item.sectionKey ? ` · ${item.sectionKey}` : null}
           </p>
-          {item.sectionKey ? <p className="text-muted-foreground">{item.sectionKey}</p> : null}
-          <p className="text-muted-foreground">
-            {item.model ? t('model', { model: item.model, version: item.promptVersion }) : null}
-          </p>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
+            {item.model
+              ? `${t('model', { model: item.model, version: item.promptVersion })} · `
+              : null}
             {t('tokens', { count: item.usage.totalTokens ?? 0 })}
           </p>
           {item.status === 'SUCCEEDED' || item.status === 'QUEUED' || item.status === 'RUNNING' ? (
             <Button
-              variant="secondary"
-              className="mt-2"
+              variant="ghost"
+              size="sm"
+              className="self-start"
               onClick={() => {
                 onOpen(item.id);
               }}

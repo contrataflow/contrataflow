@@ -2,7 +2,24 @@
 
 import { AI_GENERATION_ERROR_CODES } from '@contrataflow/types';
 import type { AiTargetModule } from '@contrataflow/types';
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Field,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Skeleton,
+  Sparkles,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+} from '@contrataflow/ui';
 import {
   AI_INSTRUCTION_MAX,
   AI_NEED_SUMMARY_MAX,
@@ -17,7 +34,7 @@ import type {
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode, SyntheticEvent } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
@@ -73,7 +90,8 @@ export { previewText };
  * IA". O pedido é assíncrono (AI-01 → 202) e o acompanhamento, por AI-02 com recuo; o editor nunca
  * fica bloqueado. US-117: na proposta pronta do próprio solicitante, a aplicação seletiva por seção
  * com comparação (`AiProposalSectionList` → DOC-26); para os demais, a prévia somente leitura
- * (FA-06). Abaixo de 768 px ocupa a tela inteira.
+ * (FA-06). `Sheet` não modal à direita (480 px; 576 px em telas muito largas), em tela cheia
+ * abaixo de 768 px; só o corpo rola.
  */
 export function AiAssistantPanel({
   processId,
@@ -92,8 +110,6 @@ export function AiAssistantPanel({
   const session = useShellSession();
   const timeZone = session.activeTenant.timezone;
   const queryClient = useQueryClient();
-  const titleId = useId();
-  const tabsId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState<Tab>(
     initialGenerationId !== null || !canGenerate ? 'proposal' : 'generate',
@@ -112,10 +128,6 @@ export function AiAssistantPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const { generation, stalled } = useAiGeneration(generationId);
-
-  useEffect(() => {
-    heading.current?.focus();
-  }, []);
 
   const request = useIdempotentMutation({
     mutationFn: (_: undefined, context) =>
@@ -202,141 +214,156 @@ export function AiAssistantPanel({
   const announcement = status === undefined ? '' : t(`history.status.${status}`);
 
   return (
-    <aside
-      aria-labelledby={titleId}
-      className="fixed inset-0 z-40 flex flex-col gap-4 overflow-y-auto bg-background p-4 shadow-lg md:inset-y-0 md:right-0 md:left-auto md:w-[28rem] md:border-l md:border-border"
+    <Sheet
+      open
+      // Não modal: o editor continua editável enquanto a IA gera (SCR-117).
+      modal={false}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
-          {t('panel.title')}
-        </h2>
-        <Button variant="secondary" onClick={onClose}>
-          {t('panel.close')}
-        </Button>
-      </div>
-      <AiDisclaimer />
-      <p aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
-
-      <div
-        role="tablist"
-        aria-label={t('panel.tabs.label')}
-        className="flex gap-2 border-b border-border"
+      <SheetContent
+        closeLabel={t('panel.close')}
+        aria-describedby={undefined}
+        className="md:max-w-[30rem] 2xl:max-w-xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          heading.current?.focus();
+        }}
+        // Clicar no editor não fecha o painel; `Esc` e "Fechar" fecham.
+        onInteractOutside={(event) => {
+          event.preventDefault();
+        }}
       >
-        {TABS.filter((item) => item !== 'generate' || canGenerate).map((item) => (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            id={`${tabsId}-${item}`}
-            aria-selected={tab === item}
-            aria-controls={`${tabsId}-${item}-panel`}
-            className={`px-3 py-2 text-sm ${tab === item ? 'border-b-2 border-primary font-medium' : 'text-muted-foreground'}`}
-            onClick={() => {
-              setTab(item);
-            }}
-          >
-            {t(`panel.tabs.${item}`)}
-          </button>
-        ))}
-      </div>
-
-      {notice ? (
-        <Alert tone="info" title={notice}>
-          {null}
-        </Alert>
-      ) : null}
-
-      <div role="tabpanel" id={`${tabsId}-${tab}-panel`} aria-labelledby={`${tabsId}-${tab}`}>
-        {tab === 'generate' ? (
-          <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)} noValidate>
-            {targetModule === 'ETP' ? <EtpRequestGuide /> : null}
-            {requestGuide}
-            {asksSummary ? (
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">{t('form.needSummary')}</span>
-                <textarea
-                  className="min-h-28 rounded-md border border-border p-2"
-                  value={needSummary}
-                  required={needSummaryRequired}
-                  aria-invalid={formError !== null && summaryInvalid}
-                  maxLength={AI_NEED_SUMMARY_MAX + 200}
-                  onChange={(event) => {
-                    setNeedSummary(event.target.value);
-                  }}
-                />
-                <span className="text-xs text-muted-foreground">{t('form.needSummaryHint')}</span>
-                <span className="text-xs text-muted-foreground" aria-live="polite">
-                  {t('form.needSummaryCount', { count: summaryLength })}
-                </span>
-              </label>
-            ) : null}
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium">{t('form.instruction')}</span>
-              <textarea
-                className="min-h-16 rounded-md border border-border p-2"
-                value={instruction}
-                aria-invalid={formError !== null && instructionInvalid}
-                onChange={(event) => {
-                  setInstruction(event.target.value);
-                }}
-              />
-            </label>
-            {formError ? (
-              <Alert tone="error" title={formError}>
-                {missingSource ? (
-                  <Link href={`/processos/${processId}`} className="text-primary underline">
-                    {t('form.prerequisiteLink')}
-                  </Link>
-                ) : null}
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            setTab(value as Tab);
+          }}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <SheetHeader className="gap-3 pb-0">
+            <SheetTitle ref={heading} tabIndex={-1} className="outline-none">
+              <span className="inline-flex items-center gap-2">
+                <Sparkles aria-hidden="true" className="size-5 text-primary" />
+                {t('panel.title')}
+              </span>
+            </SheetTitle>
+            <TabsList aria-label={t('panel.tabs.label')} className="-mx-1 border-b-0">
+              {TABS.filter((item) => item !== 'generate' || canGenerate).map((item) => (
+                <TabsTrigger key={item} value={item}>
+                  {t(`panel.tabs.${item}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </SheetHeader>
+          <SheetBody>
+            <p aria-live="polite" className="sr-only">
+              {announcement}
+            </p>
+            {notice ? (
+              <Alert tone="info" title={notice}>
+                {null}
               </Alert>
             ) : null}
-            <div>
-              <Button type="submit" disabled={request.isPending}>
-                {request.isPending ? t('form.submitting') : t('form.submit')}
-              </Button>
-            </div>
-          </form>
-        ) : null}
 
-        {tab === 'proposal' ? (
-          <ProposalView
-            generation={generation}
-            generationId={generationId}
-            stalled={stalled}
-            discarding={discarding}
-            timeZone={timeZone}
-            documentId={documentId}
-            processId={processId}
-            targetModule={targetModule}
-            riskContext={riskContext}
-            userId={session.user.id}
-            canApply={canGenerate}
-            onDiscard={(current) => void discard(current)}
-            onRetry={canGenerate ? retry : null}
-            onApplied={(document, count) => {
-              setNotice(t('apply.done', { count }));
-              onApplied?.(document);
-            }}
-            onRisksApplied={(count) => {
-              setNotice(t('riskProposal.done', { count }));
-              riskContext?.onRisksApplied?.();
-            }}
-          />
-        ) : null}
+            {canGenerate ? (
+              <TabsContent value="generate" className="pt-0">
+                <form
+                  className="flex flex-col gap-5"
+                  onSubmit={(event) => void submit(event)}
+                  noValidate
+                >
+                  {targetModule === 'ETP' ? <EtpRequestGuide /> : null}
+                  {requestGuide}
+                  {asksSummary ? (
+                    <Field
+                      label={t('form.needSummary')}
+                      required={needSummaryRequired}
+                      description={`${t('form.needSummaryHint')} ${t('form.needSummaryCount', { count: summaryLength })}`}
+                    >
+                      <Textarea
+                        rows={5}
+                        value={needSummary}
+                        aria-invalid={formError !== null && summaryInvalid}
+                        maxLength={AI_NEED_SUMMARY_MAX + 200}
+                        onChange={(event) => {
+                          setNeedSummary(event.target.value);
+                        }}
+                      />
+                    </Field>
+                  ) : null}
+                  <Field label={t('form.instruction')}>
+                    <Textarea
+                      rows={2}
+                      value={instruction}
+                      aria-invalid={formError !== null && instructionInvalid}
+                      onChange={(event) => {
+                        setInstruction(event.target.value);
+                      }}
+                    />
+                  </Field>
+                  {formError ? (
+                    <Alert tone="error" title={formError}>
+                      {missingSource ? (
+                        <Link href={`/processos/${processId}`} className="text-primary underline">
+                          {t('form.prerequisiteLink')}
+                        </Link>
+                      ) : null}
+                    </Alert>
+                  ) : null}
+                  <div>
+                    <Button type="submit" disabled={request.isPending}>
+                      <Sparkles aria-hidden="true" />
+                      {request.isPending ? t('form.submitting') : t('form.submit')}
+                    </Button>
+                  </div>
+                </form>
+              </TabsContent>
+            ) : null}
 
-        {tab === 'history' ? (
-          <AiHistoryTab
-            processId={processId}
-            onOpen={(id) => {
-              setGenerationId(id);
-              setTab('proposal');
-            }}
-          />
-        ) : null}
-      </div>
-    </aside>
+            <TabsContent value="proposal" className="pt-0">
+              <ProposalView
+                generation={generation}
+                generationId={generationId}
+                stalled={stalled}
+                discarding={discarding}
+                timeZone={timeZone}
+                documentId={documentId}
+                processId={processId}
+                targetModule={targetModule}
+                riskContext={riskContext}
+                userId={session.user.id}
+                canApply={canGenerate}
+                onDiscard={(current) => void discard(current)}
+                onRetry={canGenerate ? retry : null}
+                onApplied={(document, count) => {
+                  setNotice(t('apply.done', { count }));
+                  onApplied?.(document);
+                }}
+                onRisksApplied={(count) => {
+                  setNotice(t('riskProposal.done', { count }));
+                  riskContext?.onRisksApplied?.();
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="history" className="pt-0">
+              <AiHistoryTab
+                processId={processId}
+                onOpen={(id) => {
+                  setGenerationId(id);
+                  setTab('proposal');
+                }}
+              />
+            </TabsContent>
+          </SheetBody>
+        </Tabs>
+        <SheetFooter className="justify-start py-3">
+          <AiDisclaimer />
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 

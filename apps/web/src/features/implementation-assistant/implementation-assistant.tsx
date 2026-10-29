@@ -2,19 +2,28 @@
 
 import {
   Alert,
+  ArrowRight,
   Button,
   Checkbox,
+  CircleCheck,
+  CircleX,
+  Clock,
   Input,
   Label,
+  LoaderCircle,
+  Progress,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  StatusChip,
 } from '@contrataflow/ui';
+import type { StatusTone } from '@contrataflow/ui';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import {
   DEPARTMENT_TYPES,
@@ -53,13 +62,25 @@ export interface ImplementationAssistantProps {
 
 type UnitProgress = 'pending' | 'creating' | 'created' | 'failed';
 
+/** Situação de cada unidade na criação: tom e ícone do chip (o texto vem das mensagens). */
+const PROGRESS_CHIP: Readonly<Record<UnitProgress, { tone: StatusTone; icon: ReactNode }>> = {
+  pending: { tone: 'neutral', icon: <Clock aria-hidden="true" /> },
+  creating: {
+    tone: 'info',
+    icon: <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />,
+  },
+  created: { tone: 'success', icon: <CircleCheck aria-hidden="true" /> },
+  failed: { tone: 'danger', icon: <CircleX aria-hidden="true" /> },
+};
+
 /**
  * Assistente de implantação (US-099 · FA-09 · SCR-032): estado vazio da aba "Secretarias" quando o
  * órgão ainda não tem unidades e o usuário tem `DEPARTMENT_MANAGE` (RN-TEN-18 —
  * `shouldShowImplementationAssistant`). Sugere a estrutura mínima editável, cria as unidades uma a
  * uma (pais primeiro, uma `Idempotency-Key` por unidade), anuncia o progresso em `aria-live`,
- * mostra o que já foi criado numa falha parcial e permite repetir; ao concluir, leva o foco ao
- * título dos "Primeiros passos".
+ * com a barra geral e a situação de cada unidade, mostra o que já foi criado numa falha parcial e
+ * permite repetir; ao concluir, leva o foco ao título dos "Primeiros passos" (estado concluído com
+ * ícone, uma frase e os atalhos da implantação).
  */
 export function ImplementationAssistant({
   organizationName,
@@ -125,23 +146,32 @@ export function ImplementationAssistant({
 
   if (done) {
     return (
-      <section aria-labelledby={`${formId}-done`} className="flex flex-col gap-4">
-        <h2
-          id={`${formId}-done`}
-          ref={doneHeading}
-          tabIndex={-1}
-          className="text-lg font-semibold outline-none"
-        >
-          {t('firstSteps.title')}
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {t('firstSteps.description', { count: createdCount })}
-        </p>
-        <ul className="flex flex-col gap-2">
+      <section aria-labelledby={`${formId}-done`} className="flex flex-col gap-5">
+        <div className="flex flex-col items-center gap-2.5 text-center">
+          <span className="grid size-11 place-items-center rounded-control bg-success-soft text-success-soft-foreground">
+            <CircleCheck aria-hidden="true" className="size-[1.375rem]" />
+          </span>
+          <h2
+            id={`${formId}-done`}
+            ref={doneHeading}
+            tabIndex={-1}
+            className="text-lg font-bold text-brand-ink outline-none"
+          >
+            {t('firstSteps.title')}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t('firstSteps.description', { count: createdCount })}
+          </p>
+        </div>
+        <ul className="mx-auto flex w-full max-w-xl flex-col divide-y divide-border">
           {FIRST_STEPS.map((step) => (
             <li key={step.key}>
-              <Link href={step.href} className="text-sm font-medium text-primary underline">
+              <Link
+                href={step.href}
+                className="flex min-h-11 items-center justify-between gap-3 py-2.5 text-sm font-semibold text-primary-soft-foreground hover:underline"
+              >
                 {t(`firstSteps.items.${step.key}`)}
+                <ArrowRight aria-hidden="true" className="size-4 flex-none" />
               </Link>
             </li>
           ))}
@@ -224,9 +254,13 @@ export function ImplementationAssistant({
                   </Select>
                 </div>
                 {state ? (
-                  <span className="mb-2 text-sm text-muted-foreground">
+                  <StatusChip
+                    className="mb-3"
+                    tone={PROGRESS_CHIP[state].tone}
+                    icon={PROGRESS_CHIP[state].icon}
+                  >
                     {t(`progress.${state}`)}
-                  </span>
+                  </StatusChip>
                 ) : null}
               </div>
               {error ? (
@@ -239,6 +273,14 @@ export function ImplementationAssistant({
         })}
       </fieldset>
 
+      {locked ? (
+        <Progress
+          aria-label={t('progress.summary', { created: createdCount, total: plan.length })}
+          value={createdCount}
+          max={Math.max(plan.length, 1)}
+          tone={failed ? 'danger' : createdCount === plan.length ? 'success' : 'info'}
+        />
+      ) : null}
       <p aria-live="polite" className="text-sm">
         {running || failed || createdCount > 0
           ? t('progress.summary', { created: createdCount, total: plan.length })

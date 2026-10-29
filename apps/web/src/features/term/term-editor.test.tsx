@@ -881,7 +881,7 @@ describe('SCR-012 — rascunho do TR com IA (US-120)', () => {
     const user = userEvent.setup();
     renderWithShell(<TermEditor processId={PROCESS_ID} termId={TERM_ID} aiGenerationId={GEN} />);
     expect(await screen.findByRole('button', { name: 'Gerar rascunho com IA' })).toBeTruthy();
-    const panel = await screen.findByRole('complementary', {
+    const panel = await screen.findByRole('dialog', {
       name: 'Assistente de redação com IA',
     });
     await user.click(await within(panel).findByRole('button', { name: 'Aplicar 1 seção' }));

@@ -705,19 +705,21 @@ describe('SCR-101 — /selecionar-orgao', () => {
 });
 
 describe('grupo (auth): casca', () => {
-  it('/entrar não duplica a marca no cabeçalho; as demais páginas do grupo mantêm o cabeçalho', () => {
-    server.clientPathname = '/entrar';
-    const login = renderIntl(
-      <AuthLayout>
-        <p>Moldura de login</p>
-      </AuthLayout>,
-    );
-    expect(screen.getByRole('main').textContent).toBe('Moldura de login');
-    expect(screen.queryByText('ContrataFlow')).toBeNull();
-    expect(login.container.querySelector('main.min-h-screen.bg-surface')).toBeTruthy();
-    login.unmount();
+  it('entrada e telas secundárias usam a própria moldura; só as páginas de erro levam o cabeçalho', () => {
+    for (const pathname of ['/entrar', '/recuperar-senha', '/selecionar-orgao', '/convite/abc']) {
+      server.clientPathname = pathname;
+      const page = renderIntl(
+        <AuthLayout>
+          <p>Moldura de login</p>
+        </AuthLayout>,
+      );
+      expect(screen.getByRole('main').textContent, pathname).toBe('Moldura de login');
+      expect(screen.queryByText('ContrataFlow'), pathname).toBeNull();
+      expect(page.container.querySelector('main.min-h-screen.bg-surface'), pathname).toBeTruthy();
+      page.unmount();
+    }
 
-    server.clientPathname = '/recuperar-senha';
+    server.clientPathname = '/erro/404';
     renderIntl(
       <AuthLayout>
         <p>Conteúdo</p>

@@ -1,10 +1,9 @@
 'use client';
 
-import { Alert } from '@contrataflow/ui';
+import { Alert, Info, Switch } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
-import { AuthIcon } from '@/features/auth/auth-icons';
 import { InstitutionList } from '@/features/auth/institution-list';
 import { SignOutButton } from '@/features/auth/sign-out-button';
 import { ApiError } from '@/lib/api/api-error';
@@ -108,16 +107,11 @@ export function TenantSelection({
         }}
       />
       <div className="mt-6 flex items-start gap-3">
-        <input
+        <Switch
           id={defaultSwitchId}
-          type="checkbox"
-          role="switch"
           checked={setAsDefault}
           disabled={pending !== null}
-          onChange={(event) => {
-            setSetAsDefault(event.target.checked);
-          }}
-          className="mt-0.5 size-4 flex-none accent-primary"
+          onCheckedChange={setSetAsDefault}
         />
         <label htmlFor={defaultSwitchId} className="text-sm">
           <span className="font-medium text-foreground">{t('setAsDefault')}</span>
@@ -126,7 +120,7 @@ export function TenantSelection({
       </div>
       <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <p className="flex gap-2 text-sm text-muted-foreground">
-          <AuthIcon name="info" className="mt-0.5 size-4 flex-none" />
+          <Info aria-hidden="true" className="mt-0.5 size-4 flex-none" />
           {t('help')}
         </p>
         <SignOutButton variant="ghost" withIcon className="flex-none" />

@@ -23,12 +23,6 @@ const NOT_MIGRATED: Readonly<Record<string, string>> = {
   'risks/risk-filter-bar.tsx': 'card 6',
   'risks/risk-form-drawer.tsx': 'card 6',
   'risks/treatment-status-select.tsx': 'card 6',
-  // Card 10 — assistente de IA.
-  'ai/ai-proposal-section-list.tsx': 'card 10',
-  'ai/ai-risk-proposal-list.tsx': 'card 10',
-  'ai/ai-section-assistant.tsx': 'card 10',
-  'ai/ai-terms-dialog.tsx': 'card 10',
-  'ai/ai-usage-card.tsx': 'card 10',
 };
 
 const FEATURES = 'apps/web/src/features';

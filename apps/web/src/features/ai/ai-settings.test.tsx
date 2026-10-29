@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SettingsView } from '@/features/settings/settings-view';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { parseLimit } from './ai-settings-section';
@@ -298,10 +299,10 @@ describe('SCR-041 · seção "Inteligência artificial" (US-116)', () => {
       screen.getByRole('link', { name: 'Ver na auditoria as ações de IA' }).getAttribute('href'),
     ).toBe('/auditoria?action=ai.*');
 
-    const month = screen.getByLabelText<HTMLSelectElement>('Mês');
-    await userEvent.selectOptions(month, '2026-09');
+    const user = userEvent.setup();
+    await chooseOption(user, 'Mês', '2026-09');
     expect(await screen.findByText('Nenhuma geração neste mês.')).toBeTruthy();
-    await userEvent.selectOptions(month, '2026-08');
+    await chooseOption(user, 'Mês', '2026-08');
     expect(await screen.findByText('Não foi possível carregar o consumo.')).toBeTruthy();
     expect(calls).toBeGreaterThanOrEqual(3);
     expect(api).toHaveBeenCalled();

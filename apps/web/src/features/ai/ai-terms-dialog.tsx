@@ -3,6 +3,7 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -74,13 +75,12 @@ export function AiTermsDialog({
         </div>
         {error === null ? null : <Alert tone="error" title={error} className="mt-4" />}
         <div className="mt-4 flex items-start gap-2">
-          <input
+          <Checkbox
             id={checkboxId}
-            type="checkbox"
-            className="mt-1 size-4"
+            className="mt-0.5"
             checked={accepted}
-            onChange={(event) => {
-              setAccepted(event.target.checked);
+            onCheckedChange={(checked) => {
+              setAccepted(checked === true);
             }}
           />
           <label htmlFor={checkboxId} className="text-sm font-medium">

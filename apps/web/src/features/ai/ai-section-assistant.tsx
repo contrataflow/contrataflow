@@ -9,8 +9,23 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Field,
+  RadioGroup,
+  RadioGroupItem,
   SectionDiffView,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
   Skeleton,
+  Sparkles,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Textarea,
 } from '@contrataflow/ui';
 import {
   AI_INSTRUCTION_MAX,
@@ -231,7 +246,6 @@ export function AiSectionPanel({
   const tenantId = useTenantId();
   const session = useShellSession();
   const queryClient = useQueryClient();
-  const titleId = useId();
   const formId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   const undoButton = useRef<HTMLButtonElement>(null);
@@ -252,9 +266,6 @@ export function AiSectionPanel({
     throwOnError: false,
   });
 
-  useEffect(() => {
-    heading.current?.focus();
-  }, []);
   useEffect(() => {
     if (applied !== null) undoButton.current?.focus();
   }, [applied]);
@@ -465,55 +476,55 @@ export function AiSectionPanel({
   if (phase === 'form') {
     body = (
       <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)} noValidate>
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">{t('actionLegend')}</legend>
-          {options.map((option) => (
-            <div key={option.action} className="flex items-start gap-2 text-sm">
-              <input
-                id={`${formId}-${option.action}`}
-                type="radio"
-                name={`${formId}-action`}
-                className="mt-1 size-4"
-                value={option.action}
-                checked={action === option.action}
-                disabled={option.problem !== null}
-                onChange={() => {
-                  setAction(option.action);
-                }}
-              />
-              <label htmlFor={`${formId}-${option.action}`} className="flex flex-col">
-                <span className="font-medium">{t(`actions.${option.action}`)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {option.problem === 'AI_SECTION_EMPTY'
-                    ? t('tooShort')
-                    : t(`actionHints.${option.action}`)}
-                </span>
-              </label>
-            </div>
-          ))}
-        </fieldset>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">{t('instruction')}</span>
-          <textarea
-            className="min-h-20 rounded-md border border-border p-2"
+        <Field label={t('actionLegend')} group>
+          <RadioGroup
+            value={action}
+            onValueChange={(value) => {
+              setAction(value as AiSectionAction);
+            }}
+          >
+            {options.map((option) => (
+              <div key={option.action} className="flex items-start gap-2 text-sm">
+                <RadioGroupItem
+                  id={`${formId}-${option.action}`}
+                  className="mt-0.5"
+                  value={option.action}
+                  disabled={option.problem !== null}
+                />
+                <label htmlFor={`${formId}-${option.action}`} className="flex flex-col">
+                  <span className="font-medium">{t(`actions.${option.action}`)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {option.problem === 'AI_SECTION_EMPTY'
+                      ? t('tooShort')
+                      : t(`actionHints.${option.action}`)}
+                  </span>
+                </label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+        <Field
+          label={t('instruction')}
+          description={
+            <>
+              {t('instructionHint')}
+              <span
+                className={`block ${instructionLength > AI_INSTRUCTION_MAX ? 'font-semibold text-destructive' : ''}`}
+                aria-live="polite"
+              >
+                {t('instructionCount', { count: instructionLength })}
+              </span>
+            </>
+          }
+        >
+          <Textarea
             value={instruction}
             aria-invalid={instructionProblem(instruction) !== null}
-            aria-describedby={`${formId}-hint ${formId}-count`}
             onChange={(event) => {
               setInstruction(event.target.value);
             }}
           />
-          <span id={`${formId}-hint`} className="text-xs text-muted-foreground">
-            {t('instructionHint')}
-          </span>
-          <span
-            id={`${formId}-count`}
-            className={`text-xs ${instructionLength > AI_INSTRUCTION_MAX ? 'text-destructive' : 'text-muted-foreground'}`}
-            aria-live="polite"
-          >
-            {t('instructionCount', { count: instructionLength })}
-          </span>
-        </label>
+        </Field>
         <div className="flex flex-col gap-1 text-sm">
           <p className="font-medium">{t('inputsTitle')}</p>
           <ul className="list-disc pl-5 text-muted-foreground">
@@ -580,27 +591,27 @@ export function AiSectionPanel({
           </Alert>
         ) : null}
         {/* Abaixo de 768 px a comparação vira abas "Atual" / "Sugerido". */}
-        <div className="flex flex-col gap-2 md:hidden">
-          <div role="tablist" className="flex gap-2 border-b border-border">
-            {(['current', 'suggested'] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                aria-selected={tab === item}
-                className={`px-3 py-2 text-sm ${tab === item ? 'border-b-2 border-primary font-medium' : 'text-muted-foreground'}`}
-                onClick={() => {
-                  setTab(item);
-                }}
-              >
-                {item === 'current' ? t('current') : t('suggested')}
-              </button>
-            ))}
-          </div>
-          <div role="tabpanel" className="rounded-control border border-border p-2 text-sm">
-            <HighlightedText text={tab === 'current' ? text : suggestedText} />
-          </div>
-        </div>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => {
+            setTab(value as 'current' | 'suggested');
+          }}
+          className="md:hidden"
+        >
+          <TabsList>
+            <TabsTrigger value="current">{t('current')}</TabsTrigger>
+            <TabsTrigger value="suggested">{t('suggested')}</TabsTrigger>
+          </TabsList>
+          {(['current', 'suggested'] as const).map((item) => (
+            <TabsContent
+              key={item}
+              value={item}
+              className="mt-3 rounded-control bg-muted p-3 pt-3 text-sm"
+            >
+              <HighlightedText text={item === 'current' ? text : suggestedText} />
+            </TabsContent>
+          ))}
+        </Tabs>
         <div className="hidden md:block">
           <SectionDiffView
             serverText={text}
@@ -613,7 +624,7 @@ export function AiSectionPanel({
               empty: '—',
             }}
           />
-          <div className="mt-2 rounded-control border border-border p-2 text-sm">
+          <div className="mt-2 rounded-control bg-muted p-3 text-sm">
             <HighlightedText text={suggestedText} />
           </div>
         </div>
@@ -684,30 +695,51 @@ export function AiSectionPanel({
   }
 
   return (
-    <aside
-      aria-labelledby={titleId}
-      className="fixed inset-0 z-40 flex flex-col gap-4 overflow-y-auto bg-background p-4 shadow-lg md:inset-y-0 md:right-0 md:left-auto md:w-[32rem] md:border-l md:border-border"
+    <Sheet
+      open
+      // Não modal: o editor continua editável enquanto a IA ajusta a seção (SCR-117).
+      modal={false}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h2 id={titleId} ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
-          {t('panelTitle', { title: section.title })}
-        </h2>
-        <Button variant="secondary" onClick={onClose}>
-          {t('close')}
-        </Button>
-      </div>
-      <AiDisclaimer />
-      {notice ? (
-        <Alert tone="info" title={notice}>
-          {null}
-        </Alert>
-      ) : null}
-      {error ? (
-        <Alert tone="error" title={error}>
-          {null}
-        </Alert>
-      ) : null}
-      {body}
-    </aside>
+      <SheetContent
+        closeLabel={t('close')}
+        aria-describedby={undefined}
+        className="md:max-w-[30rem] 2xl:max-w-xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          heading.current?.focus();
+        }}
+        onInteractOutside={(event) => {
+          event.preventDefault();
+        }}
+      >
+        <SheetHeader>
+          <SheetTitle ref={heading} tabIndex={-1} className="outline-none">
+            <span className="inline-flex items-center gap-2">
+              <Sparkles aria-hidden="true" className="size-5 flex-none text-primary" />
+              {t('panelTitle', { title: section.title })}
+            </span>
+          </SheetTitle>
+        </SheetHeader>
+        <SheetBody>
+          {notice ? (
+            <Alert tone="info" title={notice}>
+              {null}
+            </Alert>
+          ) : null}
+          {error ? (
+            <Alert tone="error" title={error}>
+              {null}
+            </Alert>
+          ) : null}
+          {body}
+        </SheetBody>
+        <SheetFooter className="justify-start py-3">
+          <AiDisclaimer />
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

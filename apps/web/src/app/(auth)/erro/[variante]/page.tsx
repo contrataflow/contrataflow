@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 
 import { isValidCorrelationId } from '@/bff/correlation';
 import { safeReturnTo } from '@/bff/return-to';
+import type { ErrorIllustrationKind } from '@/components/errors/error-illustration';
 import { ErrorView } from '@/components/errors/error-view';
 import { NoMembershipPage } from '@/features/auth/no-membership-page';
 import { SignOutButton } from '@/features/auth/sign-out-button';
@@ -36,6 +37,21 @@ const ERROR_VARIANTS = [
 ] as const;
 
 type Variant = (typeof ERROR_VARIANTS)[number];
+
+/** Ilustração de cada variante (prd-5 · card 10): o motivo em desenho, acima do título. */
+const ILLUSTRATIONS = {
+  '403': 'forbidden',
+  '404': 'not-found',
+  '500': 'failure',
+  'sessao-expirada': 'session',
+  manutencao: 'maintenance',
+  'sem-vinculo': 'membership',
+  'vinculo-inativo': 'membership',
+  'acesso-bloqueado': 'forbidden',
+  'acesso-indisponivel': 'membership',
+  'confirmacao-indisponivel': 'confirmation',
+  'confirmacao-nao-concluida': 'confirmation',
+} as const satisfies Record<Variant, ErrorIllustrationKind>;
 
 function isVariant(value: string): value is Variant {
   return (ERROR_VARIANTS as readonly string[]).includes(value);
@@ -73,7 +89,7 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
   const secondary = buttonClassName({ variant: 'secondary' });
   // Novo desafio de MFA para o mesmo destino; "início" não repete a ação bloqueada (US-090).
   const stepUpRetry = (
-    <div className="flex flex-wrap items-start gap-3">
+    <div className="flex flex-wrap justify-center gap-3">
       <a href={`/api/auth/step-up?returnTo=${encodeURIComponent(retorno)}`} className={primary}>
         {t('actions.retry')}
       </a>
@@ -84,12 +100,12 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
   );
   const actions = {
     '403': (
-      <Link href={HOME_PATH} className={secondary}>
+      <Link href={HOME_PATH} className={primary}>
         {t('actions.home')}
       </Link>
     ),
     '404': (
-      <Link href={HOME_PATH} className={secondary}>
+      <Link href={HOME_PATH} className={primary}>
         {t('actions.home')}
       </Link>
     ),
@@ -110,7 +126,7 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
     ),
     // Vínculo suspenso/revogado durante o uso (FA-08 da US-088): outra instituição ou sair.
     'vinculo-inativo': (
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex flex-wrap justify-center gap-3">
         <Link href="/selecionar-orgao" className={primary}>
           {t('actions.switchTenant')}
         </Link>
@@ -130,6 +146,7 @@ export default async function ErrorPage({ params, searchParams }: ErrorPageProps
 
   return (
     <ErrorView
+      illustration={ILLUSTRATIONS[variante]}
       title={t(`pages.${variante}.title`)}
       description={t(`pages.${variante}.description`)}
       correlationId={correlationId}

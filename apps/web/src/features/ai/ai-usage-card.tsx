@@ -1,6 +1,16 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+} from '@contrataflow/ui';
 import type { AiUsageDto } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -61,29 +71,29 @@ export function AiUsageCard() {
           {t('title')}
         </h2>
         <div className="flex flex-col gap-1">
-          <label htmlFor={selectId} className="text-sm font-medium">
-            {t('month')}
-          </label>
-          <select
-            id={selectId}
-            className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
+          <Label htmlFor={selectId}>{t('month')}</Label>
+          <Select
             disabled={currentMonth === null}
             value={month ?? currentMonth ?? ''}
-            onChange={(event) => {
-              setMonth(event.target.value === currentMonth ? null : event.target.value);
+            onValueChange={(next) => {
+              setMonth(next === currentMonth ? null : next);
             }}
           >
-            {currentMonth === null ? <option value="">—</option> : null}
-            {currentMonth === null
-              ? null
-              : Array.from({ length: MONTHS_BACK }, (_, index) =>
-                  shiftMonth(currentMonth, -index),
-                ).map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-          </select>
+            <SelectTrigger id={selectId} className="min-w-36">
+              <SelectValue placeholder="—" />
+            </SelectTrigger>
+            <SelectContent>
+              {currentMonth === null
+                ? null
+                : Array.from({ length: MONTHS_BACK }, (_, index) =>
+                    shiftMonth(currentMonth, -index),
+                  ).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

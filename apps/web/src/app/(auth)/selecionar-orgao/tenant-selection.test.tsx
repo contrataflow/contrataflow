@@ -258,7 +258,7 @@ describe('seleção de instituição (FA-01)', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { assign } = renderSelection(TENANT_A.id);
     const toggle = screen.getByRole('switch', { name: /Usar como padrão/ });
-    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
     await userEvent.click(toggle);
     await userEvent.click(screen.getByRole('button', { name: /Prefeitura B/ }));
     await waitFor(() => {

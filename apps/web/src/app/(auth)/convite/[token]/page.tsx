@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 
 import { currentSessionOrUnavailable } from '@/bff/server-session';
+import { LoginFrame } from '@/features/auth/login-frame';
 
 import { InvitationAcceptCard } from './invitation-accept-card';
 
@@ -34,5 +35,9 @@ export default async function InvitePage({ params }: InvitePageProps) {
     redirect(`/api/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
-  return <InvitationAcceptCard token={token} currentTenantId={lookup.record.activeTenantId} />;
+  return (
+    <LoginFrame>
+      <InvitationAcceptCard token={token} currentTenantId={lookup.record.activeTenantId} />
+    </LoginFrame>
+  );
 }

@@ -638,7 +638,7 @@ describe('SCR-008 — rascunho do ETP com IA (US-118)', () => {
     const user = userEvent.setup();
     renderWithShell(<EtpEditor processId={PROCESS_ID} etpId={ETP_ID} aiGenerationId={GEN} />);
     expect(await screen.findByRole('button', { name: 'Gerar rascunho com IA' })).toBeTruthy();
-    const panel = await screen.findByRole('complementary', {
+    const panel = await screen.findByRole('dialog', {
       name: 'Assistente de redação com IA',
     });
     await user.click(await within(panel).findByRole('button', { name: 'Aplicar 1 seção' }));

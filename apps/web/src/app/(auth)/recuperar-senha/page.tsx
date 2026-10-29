@@ -5,13 +5,14 @@ import { getTranslations } from 'next-intl/server';
 
 import { safeReturnTo } from '@/bff/return-to';
 import { FocusedHeading } from '@/features/auth/focused-heading';
+import { LoginFrame } from '@/features/auth/login-frame';
 import { LoginReasonMessage } from '@/features/auth/login-reason-message';
 
 /*
  * `/recuperar-senha` (SCR-002 · US-089): não há formulário no ContrataFlow — a página só aciona
  * `GET /api/auth/forgot-password`, que redireciona ao *flow* de recuperação do Authentik. Quando
  * o BFF não alcança o IdP, volta aqui com `motivo=indisponivel`: a mensagem de SCR-001, "Tentar
- * novamente" e "Voltar para a entrada", preservando o `returnTo`.
+ * novamente" e "Voltar para a entrada", preservando o `returnTo`, na mesma moldura da entrada.
  */
 
 function single(value: string | string[] | undefined): string | undefined {
@@ -39,20 +40,22 @@ export default async function PasswordRecoveryPage({ searchParams }: PasswordRec
 
   const t = await getTranslations('auth.recovery');
   return (
-    <section className="flex w-full max-w-md flex-col gap-6 py-12">
-      <FocusedHeading className="text-2xl font-semibold tracking-tight outline-none">
-        {t('title')}
-      </FocusedHeading>
-      <LoginReasonMessage reason="indisponivel" />
-      <a href={recoveryHref} className={buttonClassName({ size: 'md', className: 'w-full' })}>
-        {t('retry')}
-      </a>
-      <a
-        href={withReturnTo('/entrar', returnTo)}
-        className="self-center text-sm font-medium text-primary hover:underline"
-      >
-        {t('back')}
-      </a>
-    </section>
+    <LoginFrame>
+      <section className="flex flex-col gap-6">
+        <FocusedHeading className="text-page-title text-brand-ink outline-none">
+          {t('title')}
+        </FocusedHeading>
+        <LoginReasonMessage reason="indisponivel" />
+        <a href={recoveryHref} className={buttonClassName({ size: 'md', className: 'w-full' })}>
+          {t('retry')}
+        </a>
+        <a
+          href={withReturnTo('/entrar', returnTo)}
+          className="self-center text-sm font-semibold text-primary-soft-foreground hover:underline"
+        >
+          {t('back')}
+        </a>
+      </section>
+    </LoginFrame>
   );
 }

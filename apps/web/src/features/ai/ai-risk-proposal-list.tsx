@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button } from '@contrataflow/ui';
+import { Alert, Button, Checkbox } from '@contrataflow/ui';
 import {
   RISK_MAP_TREATMENT_REQUIRED_LEVELS,
   RISK_PHASE_LABELS,
@@ -178,15 +178,14 @@ export function AiRiskProposalList({
             risk.similarToRiskId === undefined ? undefined : codes.get(risk.similarToRiskId);
           const checkboxId = `${legendId}-${risk.proposalKey}`;
           return (
-            <li key={risk.proposalKey} className="rounded-md border border-border p-3">
+            <li key={risk.proposalKey} className="rounded-card border border-border p-4">
               <div className="flex items-start gap-2">
-                <input
+                <Checkbox
                   id={checkboxId}
-                  type="checkbox"
-                  className="mt-1 size-4"
+                  className="mt-0.5"
                   checked={selection.risks.has(risk.proposalKey)}
-                  onChange={(event) => {
-                    toggle('risks', risk.proposalKey, event.target.checked);
+                  onCheckedChange={(checked) => {
+                    toggle('risks', risk.proposalKey, checked === true);
                   }}
                 />
                 <div className="flex min-w-0 flex-col gap-1">
@@ -235,23 +234,28 @@ export function AiRiskProposalList({
               </dl>
               <fieldset className="mt-2 flex flex-col gap-1">
                 <legend className="text-sm font-medium">{t('treatments')}</legend>
-                {risk.treatments.map((treatment) => (
-                  <label key={treatment.proposalKey} className="flex items-start gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-1 size-4"
-                      disabled={!selection.risks.has(risk.proposalKey)}
-                      checked={selection.treatments.has(treatment.proposalKey)}
-                      onChange={(event) => {
-                        toggle('treatments', treatment.proposalKey, event.target.checked);
-                      }}
-                    />
-                    <span className="break-words">
-                      <span className="font-medium">{TREATMENT_TYPE_LABELS[treatment.type]}: </span>
-                      {treatment.description}
-                    </span>
-                  </label>
-                ))}
+                {risk.treatments.map((treatment) => {
+                  const treatmentId = `${checkboxId}-${treatment.proposalKey}`;
+                  return (
+                    <div key={treatment.proposalKey} className="flex items-start gap-2 text-sm">
+                      <Checkbox
+                        id={treatmentId}
+                        className="mt-0.5"
+                        disabled={!selection.risks.has(risk.proposalKey)}
+                        checked={selection.treatments.has(treatment.proposalKey)}
+                        onCheckedChange={(checked) => {
+                          toggle('treatments', treatment.proposalKey, checked === true);
+                        }}
+                      />
+                      <label htmlFor={treatmentId} className="break-words">
+                        <span className="font-medium">
+                          {TREATMENT_TYPE_LABELS[treatment.type]}:{' '}
+                        </span>
+                        {treatment.description}
+                      </label>
+                    </div>
+                  );
+                })}
               </fieldset>
             </li>
           );

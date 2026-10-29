@@ -74,7 +74,9 @@ export {
   Upload,
   User,
   UserRound,
+  UserX,
   Users,
   Workflow,
+  Wrench,
   X,
 } from 'lucide-react';

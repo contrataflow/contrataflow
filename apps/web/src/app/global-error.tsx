@@ -24,6 +24,7 @@ export default function GlobalError({
       <body className="bg-background px-4 font-sans text-foreground antialiased">
         <main>
           <ErrorView
+            illustration="failure"
             title={errors.pages['500'].title}
             description={errors.pages['500'].description}
             correlationId={correlationId}

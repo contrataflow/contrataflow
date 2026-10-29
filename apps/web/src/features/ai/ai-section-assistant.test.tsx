@@ -285,7 +285,7 @@ function Editor({
 async function openPanel(user: ReturnType<typeof userEvent.setup>, action: RegExp) {
   await user.click(await screen.findByRole('button', { name: /Ajustar a seção/ }));
   await user.click(await screen.findByRole('menuitem', { name: action }));
-  return screen.findByRole('complementary', { name: /Ajustar seção/ });
+  return screen.findByRole('dialog', { name: /Ajustar seção/ });
 }
 
 afterEach(() => {
@@ -448,8 +448,10 @@ describe('AiSectionMenu + painel (US-121 · SCR-117)', () => {
     expect(within(panel).getByLabelText<HTMLTextAreaElement>(/Orientação/).value).toBe(
       'Mais formal.',
     );
-    expect(within(panel).getByRole<HTMLInputElement>('radio', { name: /Reescrever/ }).checked).toBe(
-      true,
-    );
+    expect(
+      within(panel)
+        .getByRole('radio', { name: /Reescrever/ })
+        .getAttribute('aria-checked'),
+    ).toBe('true');
   });
 });

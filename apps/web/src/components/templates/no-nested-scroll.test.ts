@@ -22,8 +22,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/ui/src/components/dialog.tsx': DIALOG,
   'packages/ui/src/components/sheet.tsx': `SheetBody: ${DRAWER}`,
   'apps/web/src/components/shell/mobile-nav.tsx': `gaveta móvel do menu: ${DRAWER}`,
-  'apps/web/src/features/ai/ai-assistant-panel.tsx': DRAWER,
-  'apps/web/src/features/ai/ai-section-assistant.tsx': DRAWER,
   'apps/web/src/features/ai/ai-terms-dialog.tsx': DIALOG,
   'apps/web/src/features/approval-decision/approval-pending-actions.tsx': DIALOG,
   'apps/web/src/features/audit/audit-detail-panel.tsx': DRAWER,

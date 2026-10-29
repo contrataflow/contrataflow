@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Avatar, Button, Skeleton, StatusChip } from '@contrataflow/ui';
 import { INVITATION_TOKEN_PATTERN } from '@contrataflow/validation';
 import type { InvitationPreviewDto } from '@contrataflow/validation';
 import Link from 'next/link';
@@ -51,7 +51,8 @@ function hardNavigate(href: string): void {
  * `InvitationAcceptCard` (SCR-102 · US-091 · USR-14/USR-06): mostra o que o convite concede
  * (instituição, tipo, cargo, lotação e validade) e aceita com "Aceitar convite". Token malformado
  * é inválido sem chamar a API. Depois do aceite a instituição passa a ser a ativa (troca de tenant
- * da mesma sessão) e a pessoa segue para o início; se a troca exigir MFA, vai ao *step-up*.
+ * da mesma sessão) e a pessoa segue para o início; se a troca exigir MFA, vai ao *step-up*. Dentro
+ * da `LoginFrame`: a instituição com o avatar em destaque e os demais dados em linhas.
  */
 export function InvitationAcceptCard({
   token,
@@ -135,8 +136,8 @@ export function InvitationAcceptCard({
   const none = t('noValue');
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-12">
-      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+    <section className="flex flex-col gap-5">
+      <h1 className="text-page-title text-brand-ink">{t('title')}</h1>
 
       {state.kind === 'loading' ? (
         <div role="status" className="flex flex-col gap-2">
@@ -149,29 +150,43 @@ export function InvitationAcceptCard({
 
       {state.kind === 'ready' ? (
         <>
-          <p className="text-muted-foreground">{t('description')}</p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-card border border-border bg-surface p-4 text-sm">
-            <dt className="text-muted-foreground">{t('tenant')}</dt>
-            <dd className="font-medium">{state.preview.tenant.name}</dd>
-            <dt className="text-muted-foreground">{t('type')}</dt>
-            <dd>{t(`types.${state.preview.type}`)}</dd>
-            <dt className="text-muted-foreground">{t('jobTitle')}</dt>
-            <dd>{state.preview.jobTitle ?? none}</dd>
-            <dt className="text-muted-foreground">{t('departments')}</dt>
-            <dd>
-              {state.preview.departments.length === 0
-                ? none
-                : state.preview.departments.map((department) => department.name).join(', ')}
-            </dd>
-            {state.preview.expiresAt ? (
-              <>
-                <dt className="text-muted-foreground">{t('expiresAt')}</dt>
-                <dd>{dateTime(state.preview.expiresAt)}</dd>
-              </>
-            ) : null}
-            <dt className="text-muted-foreground">{t('inviteExpiresAt')}</dt>
-            <dd>{dateTime(state.preview.inviteExpiresAt)}</dd>
-          </dl>
+          <p className="text-[0.9375rem] text-muted-foreground">{t('description')}</p>
+          <div className="rounded-card border border-border bg-surface">
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3.5">
+              <Avatar name={state.preview.tenant.name} className="size-11 text-sm" />
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="sr-only">{t('tenant')}</span>
+                <span className="font-semibold break-words text-brand-ink">
+                  {state.preview.tenant.name}
+                </span>
+                <StatusChip
+                  tone={state.preview.type === 'EXTERNAL' ? 'approval' : 'info'}
+                  className="self-start"
+                >
+                  <span className="sr-only">{`${t('type')}: `}</span>
+                  <span>{t(`types.${state.preview.type}`)}</span>
+                </StatusChip>
+              </div>
+            </div>
+            <dl className="flex flex-col divide-y divide-border px-4 text-sm">
+              <InviteRow label={t('jobTitle')} value={state.preview.jobTitle ?? none} />
+              <InviteRow
+                label={t('departments')}
+                value={
+                  state.preview.departments.length === 0
+                    ? none
+                    : state.preview.departments.map((department) => department.name).join(', ')
+                }
+              />
+              {state.preview.expiresAt ? (
+                <InviteRow label={t('expiresAt')} value={dateTime(state.preview.expiresAt)} />
+              ) : null}
+              <InviteRow
+                label={t('inviteExpiresAt')}
+                value={dateTime(state.preview.inviteExpiresAt)}
+              />
+            </dl>
+          </div>
 
           <div aria-live="polite">
             {acceptError ? <Alert tone="error" title={acceptError} /> : null}
@@ -184,7 +199,7 @@ export function InvitationAcceptCard({
             ) : null}
           </div>
 
-          <div className="bg-background max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:border-t max-md:border-border max-md:px-4 max-md:py-3">
+          <div className="bg-surface max-md:sticky max-md:bottom-0 max-md:-mx-4 max-md:border-t max-md:border-border max-md:px-4 max-md:py-3">
             <Button
               className="w-full"
               disabled={accepting}
@@ -210,7 +225,10 @@ export function InvitationAcceptCard({
           <Alert tone="error" title={t('invalid.title')}>
             {t('invalid.description')}
           </Alert>
-          <Link className="font-medium underline" href={SIGN_IN_PATH}>
+          <Link
+            className="self-center text-sm font-semibold text-primary-soft-foreground hover:underline"
+            href={SIGN_IN_PATH}
+          >
             {t('invalid.signIn')}
           </Link>
         </>
@@ -231,5 +249,15 @@ export function InvitationAcceptCard({
         </Alert>
       ) : null}
     </section>
+  );
+}
+
+/** Linha dos dados do convite: rótulo à esquerda, valor à direita (empilha em telas estreitas). */
+function InviteRow({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:justify-between sm:gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium break-words sm:text-right">{value}</dd>
+    </div>
   );
 }

@@ -1,11 +1,9 @@
 'use client';
 
-import { cx } from '@contrataflow/ui';
+import { Avatar, ChevronRight, StatusChip, cx } from '@contrataflow/ui';
 import { useFormatter, useTranslations } from 'next-intl';
 
 import type { ShellMembership } from '@/lib/session/types';
-
-import { AuthIcon } from './auth-icons';
 
 const EXTERNAL = 'EXTERNAL';
 const ACTIVE = 'ACTIVE';
@@ -23,7 +21,8 @@ function noteKey(
 
 /**
  * Lista de instituições de SCR-101 (`TenantList` — login da US-087 e troca da US-093): utilizáveis
- * primeiro, a ativa destacada, as indisponíveis desabilitadas com o motivo.
+ * primeiro, a ativa destacada, as indisponíveis desabilitadas com o motivo. Cada vínculo é um cartão
+ * com o avatar (iniciais) da instituição, o nome, os chips "Atual"/"Vínculo externo" e a validade.
  */
 export function InstitutionList({
   memberships,
@@ -47,7 +46,7 @@ export function InstitutionList({
   ];
 
   return (
-    <ul aria-label={t('listLabel')} className="mt-6 space-y-3">
+    <ul aria-label={t('listLabel')} className="mt-6 flex flex-col gap-3">
       {ordered.map((membership) => {
         const { tenant } = membership;
         const pending = pendingMembershipId === membership.membershipId;
@@ -79,7 +78,7 @@ export function InstitutionList({
                 if (membership.usable && !busy) onSelect(membership);
               }}
               className={cx(
-                'group flex w-full items-center gap-4 rounded-xl border p-5 text-left transition',
+                'group flex w-full items-center gap-4 rounded-card border px-5 py-4 text-left transition',
                 membership.usable
                   ? 'border-border bg-surface shadow-card hover:border-primary/50 hover:bg-primary-soft'
                   : 'cursor-not-allowed border-border bg-muted',
@@ -87,16 +86,10 @@ export function InstitutionList({
                 membership.usable && busy && !pending && 'cursor-wait opacity-70',
               )}
             >
-              <span
-                className={cx(
-                  'grid size-12 flex-none place-items-center rounded-lg',
-                  membership.usable
-                    ? 'bg-primary-soft text-primary'
-                    : 'bg-surface text-muted-foreground',
-                )}
-              >
-                <AuthIcon name={external ? 'building' : 'landmark'} className="size-6" />
-              </span>
+              <Avatar
+                name={tenant.name}
+                className={cx('size-11 text-sm', membership.usable ? undefined : 'opacity-60')}
+              />
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span
@@ -107,16 +100,8 @@ export function InstitutionList({
                   >
                     {tenant.name}
                   </span>
-                  {current ? (
-                    <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-primary">
-                      {t('current')}
-                    </span>
-                  ) : null}
-                  {external ? (
-                    <span className="rounded-full bg-approval-soft px-2 py-0.5 text-xs font-medium whitespace-nowrap text-approval-soft-foreground">
-                      {t('external')}
-                    </span>
-                  ) : null}
+                  {current ? <StatusChip tone="info">{t('current')}</StatusChip> : null}
+                  {external ? <StatusChip tone="approval">{t('external')}</StatusChip> : null}
                 </span>
                 {validity ? (
                   <span className="mt-1 block text-xs text-muted-foreground">{validity}</span>
@@ -136,8 +121,8 @@ export function InstitutionList({
               {pending ? (
                 <span className="flex-none text-sm font-medium text-primary">{t('selecting')}</span>
               ) : membership.usable ? (
-                <AuthIcon
-                  name="chevronRight"
+                <ChevronRight
+                  aria-hidden="true"
                   className="size-5 flex-none text-muted-foreground group-hover:text-primary"
                 />
               ) : null}

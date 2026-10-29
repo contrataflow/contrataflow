@@ -1,8 +1,9 @@
 'use client';
 
-import { Button, Skeleton } from '@contrataflow/ui';
+import { Button, Progress } from '@contrataflow/ui';
 import type { AiGenerationDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
+import { useId } from 'react';
 
 export interface AiGenerationProgressProps {
   readonly status: AiGenerationDto['status'];
@@ -11,9 +12,13 @@ export interface AiGenerationProgressProps {
   readonly onCancel: () => void;
 }
 
+/** Fração da barra por fase: a API não informa percentual, só a fase (fila → redação). */
+const PHASE_PROGRESS = { QUEUED: 20, RUNNING: 60 } as const;
+
 /**
  * `AiGenerationProgress` (SCR-117): "Gerando… você pode continuar editando" — o editor não fica
- * bloqueado. "Cancelar" chama AI-04 (o servidor descarta a resposta que chegar depois).
+ * bloqueado. A barra mostra a fase (na fila → redigindo). "Cancelar" chama AI-04 (o servidor
+ * descarta a resposta que chegar depois).
  */
 export function AiGenerationProgress({
   status,
@@ -22,15 +27,20 @@ export function AiGenerationProgress({
   onCancel,
 }: AiGenerationProgressProps) {
   const t = useTranslations('ai.progress');
+  const titleId = useId();
+  const phase = status === 'QUEUED' ? t('queued') : t('running');
   return (
     <div className="flex flex-col gap-3" aria-busy="true">
-      <p className="font-medium">{t('title')}</p>
-      <p className="text-sm text-muted-foreground">
-        {status === 'QUEUED' ? t('queued') : t('running')}
+      <p id={titleId} className="font-semibold text-brand-ink">
+        {t('title')}
       </p>
-      <Skeleton className="h-3 w-full" />
-      <Skeleton className="h-3 w-4/5" />
-      <Skeleton className="h-3 w-3/5" />
+      <Progress
+        aria-labelledby={titleId}
+        value={status === 'QUEUED' ? PHASE_PROGRESS.QUEUED : PHASE_PROGRESS.RUNNING}
+        getValueLabel={() => phase}
+        className="animate-pulse motion-reduce:animate-none"
+      />
+      <p className="text-sm text-muted-foreground">{phase}</p>
       {stalled ? <p className="text-sm text-muted-foreground">{t('slow')}</p> : null}
       <div>
         <Button variant="secondary" onClick={onCancel} disabled={canceling}>

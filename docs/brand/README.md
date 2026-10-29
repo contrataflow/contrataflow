@@ -186,6 +186,12 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Workflows · editor | `editor-de-workflow.png` | `editor-de-workflow-escuro.png` | `editor-de-workflow-celular.png` |
 | Workflows · regras | `regras-do-workflow.png` | `regras-do-workflow-escuro.png` | `regras-do-workflow-celular.png` |
 | Catálogos | `catalogos.png` | `catalogos-escuro.png` | `catalogos-celular.png` |
+| IA · Gerar (card 10) | `ia-gerar.png` | `ia-gerar-escuro.png` | `ia-gerar-celular.png` |
+| IA · Progresso | `ia-progresso.png` | `ia-progresso-escuro.png` | `ia-progresso-celular.png` |
+| IA · Proposta | `ia-proposta.png` | `ia-proposta-escuro.png` | `ia-proposta-celular.png` |
+| Selecionar órgão | `selecionar-orgao.png` | `selecionar-orgao-escuro.png` | `selecionar-orgao-celular.png` |
+| Convite | `convite.png` | `convite-escuro.png` | `convite-celular.png` |
+| Erro 404 | `erro-404.png` | `erro-404-escuro.png` | `erro-404-celular.png` |
 
 Painéis do card 7 (1280 px, claro): `fornecedores-formulario.png` (painel lateral "Novo
 fornecedor"), `auditoria-filtros.png` (painel "Filtros da auditoria") e `notificacoes-sino.png`
