@@ -1,6 +1,6 @@
 import type { PermissionCode } from '@contrataflow/types';
 import { PROTECTED_ROLE_KEY } from '@contrataflow/validation';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { hasSecondFactor } from '#shared/auth/mfa-policy.js';
 import type { MfaPolicy } from '#shared/auth/mfa-policy.js';
@@ -8,44 +8,36 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
-import { ROLE_REPOSITORY } from './ports.js';
-import type { RoleRepository } from './ports.js';
-import { DEFAULT_ROLE_GRANTS } from '../domain/default-roles.js';
+import { EffectivePermissionsService } from './effective-permissions.service.js';
 import { PERMISSION_RISKS } from '../domain/permission-grants.js';
 import type { ActorGrants } from '../domain/role-management.js';
 
-const DEFAULT_GRANTS: Readonly<Record<string, readonly PermissionCode[] | undefined>> =
-  DEFAULT_ROLE_GRANTS;
-
 /**
- * Permissões efetivas do ator na gestão de perfis (US-095 · POL-13 · RN-IAM-81): a união das
- * concessões ATUAIS dos perfis do tenant cujas chaves estão no vínculo (`roleKeys` do contexto) —
- * perfil inativo não concede nada (RN-IAM-84). Chave sem perfil no tenant (tenant ainda não semeado,
- * modo fake) cai na matriz padrão, como `AccessFacade.assertCan`.
+ * Permissões do ator na gestão de perfis (US-095 · POL-13 · RN-IAM-81): as permissões efetivas da
+ * requisição (US-097 · DEC-134) em qualquer escopo — o retrato que o `AuthorizationGuard` pôs no
+ * contexto, o mesmo de ROL-01 e ME-03, que une as atribuições vigentes de perfis ativos e, só sem
+ * nenhuma atribuição gravada, a ponte das chaves do vínculo. Fora do pipeline HTTP (sem retrato no
+ * contexto), calculadas no `tx` do chamador. Isento do anti-escalonamento: quem detém `ADMIN_ORGAO`
+ * com escopo `TENANT` numa atribuição que concede agora (ou pela ponte).
  *
- * PONTE até a US-097: ela troca esta leitura pelo `AuthorizationService` (escopos, vigência e cache
- * de 5 min); a resolução por chave já reflete as matrizes editadas aqui, o que o `assertCan` dos
- * demais módulos (matriz padrão) ainda não faz.
+ * As chaves do vínculo não decidem sozinhas: o vínculo lido do PostgreSQL não as traz (spec-530).
  */
 @Injectable()
 export class RoleActorResolver {
-  constructor(@Inject(ROLE_REPOSITORY) private readonly roles: RoleRepository) {}
+  constructor(private readonly effective: EffectivePermissionsService) {}
 
   async resolve(tx: TenantTx): Promise<ActorGrants> {
-    const keys = requireRequestContext().roleKeys ?? [];
-    const tenantRoles = new Map(
-      (await this.roles.grantsByKeys(tx, keys)).map((role) => [role.key, role]),
-    );
-    const permissions = new Set<PermissionCode>();
-    let isTenantAdmin = false;
-    for (const key of keys) {
-      const role = tenantRoles.get(key);
-      const active = role?.isActive ?? true;
-      if (key === PROTECTED_ROLE_KEY && active) isTenantAdmin = true;
-      const granted = role ? (role.isActive ? role.permissions : []) : (DEFAULT_GRANTS[key] ?? []);
-      for (const code of granted) permissions.add(code);
+    const context = requireRequestContext();
+    const { membershipId, userId } = context.actor;
+    if (membershipId === null || userId === null) {
+      return { permissions: new Set(), isTenantAdmin: false };
     }
-    return { permissions, isTenantAdmin };
+    const subject = { membershipId, userId, roleKeys: context.roleKeys ?? [] };
+    const snapshot = context.permissions ?? (await this.effective.computeFor(tx, subject));
+    return {
+      permissions: new Set<PermissionCode>(snapshot.grants.flatMap((grant) => grant.permissions)),
+      isTenantAdmin: await this.effective.holdsTenantWideRole(tx, subject, PROTECTED_ROLE_KEY),
+    };
   }
 }
 

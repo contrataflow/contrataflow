@@ -10,7 +10,7 @@ import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CACHE_STORE } from '#shared/cache/cache-store.js';
-import type { CacheStore } from '#shared/cache/cache-store.js';
+import type { InMemoryCacheStore } from '#shared/cache/cache-store.js';
 import { DatabaseUnavailableError } from '#shared/database/errors.js';
 import { newId } from '#shared/database/ids.js';
 import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake-directory.js';
@@ -88,7 +88,7 @@ const dataOf = (response: request.Response): RoleAssignmentDto =>
 
 describe('Feature: Atribuir perfis com escopo e vigência (US-096)', () => {
   let api: TestApi;
-  let cache: CacheStore;
+  let cache: InMemoryCacheStore;
   let assignments: InMemoryRoleAssignmentRepository;
   let roles: Map<string, Role>;
   let rolesOfB: Map<string, Role>;
@@ -116,7 +116,7 @@ describe('Feature: Atribuir perfis com escopo e vigência (US-096)', () => {
 
   beforeAll(async () => {
     api = await createTestApi({ providers: [{ token: ACCESS_CLOCK, value: () => clock }] });
-    cache = api.app.get<CacheStore>(CACHE_STORE, { strict: false });
+    cache = api.app.get<InMemoryCacheStore>(CACHE_STORE, { strict: false });
     assignments = api.app.get(InMemoryRoleAssignmentRepository, { strict: false });
     seedOrganizations(
       api,
@@ -158,12 +158,17 @@ describe('Feature: Atribuir perfis com escopo e vigência (US-096)', () => {
   });
   beforeEach(() => {
     clock = NOW;
-    // Background: Carla é a administradora do tenant (`ADMIN_ORGAO`/`TENANT` vigente).
+    // Background: Carla é a administradora do tenant (`ADMIN_ORGAO`/`TENANT` vigente). As
+    // atribuições entram direto no repositório, sem invalidar o cache: os retratos de permissões
+    // efetivas (US-097) de um caso não valem no seguinte.
     assignments.assignments.length = 0;
+    cache.entries.clear();
     assignRole(api, {
       tenantId: A,
       membershipId: membershipOf(CARLA.id),
       roleId: role('ADMIN_ORGAO').id,
+      // Vigente também no relógio do POL-15 (2025-12-01): o ator decide pelas atribuições.
+      validFrom: new Date('2025-01-01T00:00:00.000Z'),
     });
   });
   afterEach(() => {

@@ -99,9 +99,9 @@ function failureCode(error: unknown): string | null {
 
 /**
  * Permissões e escopos do ator na atribuição de perfis (US-096 · POL-13): as atribuições VIGENTES
- * do vínculo da requisição, com as concessões ATUAIS de cada perfil ativo. PONTE até a US-097: sem
- * nenhuma atribuição gravada (vínculo ainda sem `role_assignments`, modo fake), valem as chaves do
- * contexto (`RoleActorResolver`) com escopo `TENANT`, como no restante do `access`.
+ * do vínculo da requisição, com as concessões ATUAIS de cada perfil ativo. Sem nenhuma vigente
+ * (modo fake, vínculo sem `role_assignments`), valem as permissões efetivas da requisição
+ * (`RoleActorResolver` — a ponte das chaves só sem nenhuma atribuição gravada) com escopo `TENANT`.
  */
 @Injectable()
 export class AssignmentActorResolver {

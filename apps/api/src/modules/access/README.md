@@ -46,10 +46,14 @@ O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[]
 - Casos de uso em `application/role.commands.ts` (`RoleCommandSupport` concentra transação,
   autorização, auditoria e outbox) e `application/role.queries.ts`; regras puras em
   `domain/role-management.ts` (chave gerada do nome, diff da matriz, POL-12/13, RN-IAM-82/83/86).
-- **Permissões do ator (POL-13):** `RoleActorResolver` lê, na transação do comando, as concessões
-  ATUAIS dos perfis do tenant cujas chaves estão no vínculo (`roleKeys`); perfil inativo não concede
-  nada (RN-IAM-84); chave sem perfil no tenant cai na matriz padrão. `ROLE_VIEW`/`ROLE_MANAGE` são
-  conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`.
+- **Permissões do ator (POL-13):** `RoleActorResolver` usa as permissões efetivas da requisição
+  (US-097), em qualquer escopo — o retrato que o `AuthorizationGuard` pôs no contexto, o mesmo de
+  ROL-01 e ME-03; sem ele, calculadas na transação do caso de uso. Atribuição vigente de perfil
+  ativo concede; perfil inativo não concede nada (RN-IAM-84); a ponte pelas chaves do vínculo só vale
+  sem nenhuma atribuição gravada. Isento do anti-escalonamento: `ADMIN_ORGAO` vigente com escopo
+  `TENANT` (`EffectivePermissionsService.holdsTenantWideRole`). `ROLE_VIEW`/`ROLE_MANAGE` são
+  conferidas com o mesmo conjunto (`authorizeActor`), com MFA por `security.mfaPolicy`. O vínculo
+  lido do PostgreSQL não traz `roleKeys` (spec-530): nada aqui decide só por elas.
 - **Protegidas do `ADMIN_ORGAO`:** `ADMIN_ORGAO_SEEDED_PERMISSIONS` (`@contrataflow/validation`, usada
   também pela UI); um teste confere a igualdade com a coluna `ADMIN_ORGAO` de `DEFAULT_ROLE_GRANTS`.
 - **Vínculos ativos:** porta `RoleAssignmentCounter`, implementada pelo repositório de atribuições
@@ -66,8 +70,8 @@ O escopo padrão de atribuição de cada perfil (§3.1) fica em `DEFAULT_ROLES[]
   US-092 e a contagem por perfil (US-095).
 - **Ator (POL-13):** `AssignmentActorResolver` lê as atribuições VIGENTES do vínculo da requisição com
   as concessões atuais de cada perfil ativo e o escopo de cada uma; `ADMIN_ORGAO`/`TENANT` é isento.
-  Sem nenhuma atribuição gravada (modo fake, vínculo antigo), vale a ponte das chaves do contexto
-  com escopo `TENANT`.
+  Sem nenhuma vigente (modo fake, vínculo sem atribuição), valem as permissões efetivas da requisição
+  (`RoleActorResolver`) com escopo `TENANT`.
 - **Escopo "igual ou mais amplo":** `TENANT` cobre tudo; órgão cobre a si e as unidades dele;
   unidade cobre a si e, com subárvore, as descendentes (pedir subárvore exige tê-la);
   `OWN_DEPARTMENTS` só cobre `OWN_DEPARTMENTS`. Órgãos/unidades (nome, situação, órgão e caminho)

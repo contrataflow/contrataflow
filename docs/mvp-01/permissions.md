@@ -329,6 +329,8 @@ Regras complementares:
 | POL-17 | **Retirar solicitação de aprovação** | `APV-04`: `PROCESS_FORWARD` + ser o solicitante (`Approval.requestedById`) **ou** pertencer à unidade de origem do movimento que levou o processo à etapa `APPROVAL` atual (custódia anterior), com escopo sobre essa unidade; `Approval` em `PENDING`. Retirada de submissão avulsa (`DOC-11`): permissão de submissão do tipo do documento (US-053) |
 | POL-18 | **Gerar com IA** | `AI-01`: `AI_GENERATE` cobrindo o processo + permissão de edição do tipo do documento alvo (`DFD_UPDATE`, `ETP_UPDATE`, `RISK_MANAGE`, `TERM_UPDATE`) + POL-02 sobre o alvo + IA ligada no órgão (`ai.enabled`) + provedor disponível + limites mensal do órgão e diário do usuário (US-116). Revalidada no worker antes da chamada ao provedor (falhou → geração `CANCELED`). Aplicar (`DOC-26`, `RSK-11`) e descartar (`AI-04`) são exclusivos do solicitante; revisar (`DOC-27`, `RSK-12`) exige a permissão de edição do tipo + POL-02. Erros: `AI_DISABLED` (403), `AI_PROVIDER_UNAVAILABLE` (503), `AI_USAGE_LIMIT_REACHED` / `AI_USER_DAILY_LIMIT_REACHED` (422), `AI_GENERATION_NOT_OWNED` (403) |
 
+**Ator das operações de perfil (POL-13 · ROL-02..08):** as permissões do ator são as efetivas da requisição (§1.2 — atribuições vigentes de perfis ativos, em qualquer escopo; a ponte pelas chaves do vínculo só vale para vínculo sem nenhuma atribuição gravada), nunca as chaves do registro do vínculo. A isenção do `ADMIN_ORGAO` exige atribuição vigente dele com escopo `TENANT`, como na atribuição de perfis (ROL-09..12, que também confere o escopo de cada concessão).
+
 ---
 
 ## 7. Capacidades implícitas

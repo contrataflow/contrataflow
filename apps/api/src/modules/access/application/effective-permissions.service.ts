@@ -40,6 +40,7 @@ import {
   subtreeRoots,
 } from '../domain/effective-permissions.js';
 import type { AssignedRole } from '../domain/effective-permissions.js';
+import { isEffective } from '../domain/role-assignment.js';
 import type { ScopeType } from '../domain/role.js';
 
 /*
@@ -220,6 +221,32 @@ export class EffectivePermissionsService {
    */
   computeFor(tx: TenantTx, subject: MembershipSubject): Promise<EffectivePermissionsSnapshot> {
     return this.computeIn(tx, subject, this.clock());
+  }
+
+  /**
+   * O vínculo detém o perfil (pela chave) com escopo `TENANT` numa atribuição que concede agora —
+   * vigente, não revogada, perfil ativo — ou, sem nenhuma atribuição gravada, pela ponte das chaves
+   * (US-095 · POL-13: o `ADMIN_ORGAO` é isento do anti-escalonamento). No `tx` do chamador, sem
+   * cache — a mesma regra de `assignedRoles`.
+   */
+  async holdsTenantWideRole(
+    tx: TenantTx,
+    subject: MembershipSubject,
+    roleKey: string,
+  ): Promise<boolean> {
+    const rows = await this.assignments.listByMembership(tx, subject.membershipId);
+    if (rows.length === 0 && !(await this.assignments.hasAnyAssignment(tx, subject.membershipId))) {
+      if (!subject.roleKeys.includes(roleKey) || BRIDGE_SCOPES.get(roleKey) !== 'TENANT') {
+        return false;
+      }
+      const [bridged] = await this.roles.findByKeys(tx, [roleKey]);
+      return bridged?.isActive ?? true;
+    }
+    const now = this.clock();
+    const tenantWide = rows.filter((row) => row.scopeType === 'TENANT' && isEffective(row, now));
+    if (tenantWide.length === 0) return false;
+    const [role] = await this.roles.findByKeys(tx, [roleKey]);
+    return role?.isActive === true && tenantWide.some((row) => row.roleId === role.id);
   }
 
   private async computeIn(
