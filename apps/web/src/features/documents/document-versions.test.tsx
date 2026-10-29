@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { ID, PROCESS_ID, callsTo, problemResponse } from '@test/support/process-fixtures';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
@@ -326,8 +327,8 @@ describe('SCR-106 · Versões e comparação (DOC-15/18)', () => {
   it('lista desc com motivo, autor, resumo ou "Sem resumo informado" e o prefixo do hash (axe)', async () => {
     mockApi();
     renderVersions();
-    const list = await screen.findByRole('list', { name: 'Versões do documento' });
-    const items = within(list).getAllByRole('listitem');
+    const table = await screen.findByRole('table', { name: 'Versões do documento' });
+    const items = within(table).getAllByRole('row').slice(1);
     const item = (index: number) => {
       const found = items[index];
       if (!found) throw new Error(`item ${String(index)} ausente`);
@@ -381,8 +382,8 @@ describe('SCR-106 · Versões e comparação (DOC-15/18)', () => {
     renderVersions();
     const user = userEvent.setup();
     const picker = await screen.findByRole('form', { name: 'Comparar duas versões' });
-    await user.selectOptions(within(picker).getByLabelText('Versão de origem'), V1);
-    await user.selectOptions(within(picker).getByLabelText('Versão de destino'), V1);
+    await chooseOption(user, 'Versão de origem', /^Versão 1 —/, picker);
+    await chooseOption(user, 'Versão de destino', /^Versão 1 —/, picker);
     await user.click(within(picker).getByRole('button', { name: 'Comparar' }));
     expect(within(picker).getByRole('alert').textContent).toBe(
       'Escolha duas versões diferentes para comparar.',
@@ -391,7 +392,7 @@ describe('SCR-106 · Versões e comparação (DOC-15/18)', () => {
       false,
     );
 
-    await user.selectOptions(within(picker).getByLabelText('Versão de destino'), V3);
+    await chooseOption(user, 'Versão de destino', /^Versão 3 —/, picker);
     await user.click(within(picker).getByRole('button', { name: 'Comparar' }));
     await waitFor(() => {
       expect(

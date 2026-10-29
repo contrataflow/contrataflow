@@ -4,23 +4,32 @@ import { localDateOf } from '@contrataflow/types';
 import {
   Alert,
   Button,
+  DatePicker,
+  DetailPage,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
   Skeleton,
+  StatusChip,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   buttonClassName,
-  cx,
+  fromIsoDate,
+  toIsoDate,
   toast,
 } from '@contrataflow/ui';
+import type { DetailFact } from '@contrataflow/ui';
 import { PRICE_RESEARCH_MESSAGES, referenceDateIssue } from '@contrataflow/validation';
 import type { PriceItemDto, PriceResearchDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import { useState } from 'react';
 
 import { isApiError } from '@/lib/api/api-error';
 import { formatCivilDate, formatMoney } from '@/lib/i18n/format';
@@ -51,7 +60,6 @@ import { PriceSourcesPanel } from './price-sources-panel';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { useProcessItems } from '../process-items/process-items.api';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
-import { FormField, INPUT_CLASS } from '../processes/form-field';
 import { fetchProcess, processKeys } from '../processes/processes.api';
 
 interface Notice {
@@ -210,7 +218,6 @@ function LoadedView({
   });
 
   const [tab, setTab] = useState<Tab>('items');
-  const tabsId = useId();
 
   /** Link da lista de pendências: abre o item e leva o foco à justificativa (ou ao cálculo). */
   const openPendingItem = (item: PendingItem) => {
@@ -224,31 +231,71 @@ function LoadedView({
     }, 0);
   };
 
+  const total = research.totalEstimatedValueMasked ? (
+    <span title={tItems('maskedHint')}>{tItems('masked')}</span>
+  ) : research.totalEstimatedValue === null ? (
+    <span className="text-muted-foreground">{t('summary.notCalculated')}</span>
+  ) : (
+    formatMoney(research.totalEstimatedValue)
+  );
+  const facts: DetailFact[] = [
+    { id: 'items', label: t('summary.items'), value: research.itemsCount },
+    { id: 'withAlerts', label: t('summary.withAlerts'), value: research.itemsWithAlertsCount },
+    { id: 'total', label: t('summary.total'), value: total },
+    {
+      id: 'referenceDate',
+      label: t('referenceDate.label'),
+      value: formatCivilDate(research.referenceDate),
+    },
+  ];
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Link href={`/processos/${processId}`} className="text-sm text-primary underline">
-          {t('backToProcess')}
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{research.code ?? t('title')}</h1>
+    <DetailPage
+      className="mx-auto w-full max-w-6xl"
+      breadcrumbs={[
+        {
+          label:
+            process.data === undefined
+              ? t('backToProcess')
+              : t('processCrumb', { code: process.data.code ?? t('draftCode') }),
+          href: `/processos/${processId}`,
+        },
+        { label: research.code ?? t('title') },
+      ]}
+      breadcrumbLabel={t('breadcrumbLabel')}
+      linkComponent={Link}
+      title={research.code ?? t('title')}
+      status={
+        <>
           <DocumentStatusBadge status={research.status} />
           {research.pendingApprovalId === null ? null : <PendingApprovalBadge />}
           {research.completedAt === null ? null : (
             <CompletedBadge completedAt={research.completedAt} timeZone={timeZone} />
           )}
           {research.confidentiality === 'RESTRICTED' ? (
-            <span className="inline-flex items-center rounded-control border border-border px-2 py-0.5 text-xs font-medium">
-              {t('confidential')}
-            </span>
+            <StatusChip tone="warning">{t('confidential')}</StatusChip>
           ) : null}
-        </div>
-        <p className="text-base">{research.title}</p>
-        <div className="flex flex-wrap gap-2">
+        </>
+      }
+      subtitle={
+        <>
+          <span className="break-words text-foreground">{research.title}</span>
+          {process.data === undefined ? null : (
+            <span className="block">
+              {t('processLine', {
+                code: process.data.code ?? t('draftCode'),
+                title: process.data.title,
+              })}
+            </span>
+          )}
+        </>
+      }
+      actions={
+        <>
           {/* SCR-010 (US-031): leitura e exportação para quem vê a pesquisa (PROCESS_VIEW). */}
           <Link
             href={comparativeMapHref(processId, research.id)}
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            className={buttonClassName({ variant: 'secondary' })}
           >
             {t('openMap')}
           </Link>
@@ -278,77 +325,37 @@ function LoadedView({
               }}
             />
           ) : null}
-        </div>
-        {process.data === undefined ? null : (
-          <p className="text-sm text-muted-foreground">
-            {t('processLine', {
-              code: process.data.code ?? t('draftCode'),
-              title: process.data.title,
-            })}
-          </p>
-        )}
-      </div>
-      {readOnly ? (
-        <Alert tone="info" title={t('lock.title')}>
-          <p>{t(`lock.${meta.lockReason ?? 'READ_ONLY'}`)}</p>
-        </Alert>
-      ) : null}
-      {notice === null ? null : <Alert tone={notice.tone} title={notice.text} />}
-      {pending.length === 0 || research.completedAt !== null ? null : (
-        <IncompleteItemsList pending={pending} onOpenItem={openPendingItem} />
-      )}
-      <Summary research={research} />
-      <ReferenceDateEditor
-        research={research}
-        version={result.version}
-        canUpdate={canUpdate}
-        today={localDateOf(new Date(), timeZone)}
-        processId={processId}
-        onNotice={setNotice}
-        onWriteError={handleWriteError}
-      />
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section aria-label={t('tabs.label')} className="flex min-w-0 flex-col gap-4">
-          <Tabs id={tabsId} active={tab} onChange={setTab} />
-          <div
-            role="tabpanel"
-            id={`${tabsId}-panel`}
-            aria-labelledby={`${tabsId}-tab-${tab}`}
-            className="min-w-0"
-          >
-            {tab === 'items' ? (
-              <ItemsPanel
-                processId={processId}
-                research={research}
-                items={items}
-                status={itemsStatus}
-                canAdd={canAdd}
-                canUpdate={canUpdate}
-                canRemove={canRemove}
-                removing={remove.isPending}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onRetry={onRetryItems}
-                onRemove={setRemoving}
-                onNotice={setNotice}
-                onWriteError={handleWriteError}
-                refresh={refresh}
-              />
+        </>
+      }
+      facts={facts}
+      factsExtra={
+        canUpdate ? (
+          <ReferenceDateEditor
+            research={research}
+            version={result.version}
+            today={localDateOf(new Date(), timeZone)}
+            processId={processId}
+            onNotice={setNotice}
+            onWriteError={handleWriteError}
+          />
+        ) : undefined
+      }
+      notices={
+        readOnly || notice !== null || (pending.length > 0 && research.completedAt === null) ? (
+          <div className="flex flex-col gap-3">
+            {readOnly ? (
+              <Alert tone="info" title={t('lock.title')}>
+                <p>{t(`lock.${meta.lockReason ?? 'READ_ONLY'}`)}</p>
+              </Alert>
             ) : null}
-            {tab === 'sources' ? (
-              <PriceSourcesPanel
-                processId={processId}
-                research={research}
-                items={items}
-                editable={canUpdate}
-                allowedActions={meta.allowedActions}
-              />
-            ) : null}
-            {tab === 'document' ? (
-              <DocumentPanel processId={processId} research={research} />
-            ) : null}
+            {notice === null ? null : <Alert tone={notice.tone} title={notice.text} />}
+            {pending.length === 0 || research.completedAt !== null ? null : (
+              <IncompleteItemsList pending={pending} onOpenItem={openPendingItem} />
+            )}
           </div>
-        </section>
+        ) : undefined
+      }
+      aside={
         <ParametersPanel
           researchId={research.id}
           parameters={research.parameters}
@@ -359,7 +366,55 @@ function LoadedView({
           onSaved={refresh}
           onWriteError={handleWriteError}
         />
-      </div>
+      }
+      asideLabel={t('parametersLabel')}
+    >
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setTab(value as Tab);
+        }}
+        className="min-w-0"
+      >
+        <TabsList aria-label={t('tabs.label')}>
+          {TABS.map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {t(`tabs.${value}`)}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="items" className="min-w-0">
+          <ItemsPanel
+            processId={processId}
+            research={research}
+            items={items}
+            status={itemsStatus}
+            canAdd={canAdd}
+            canUpdate={canUpdate}
+            canRemove={canRemove}
+            removing={remove.isPending}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onRetry={onRetryItems}
+            onRemove={setRemoving}
+            onNotice={setNotice}
+            onWriteError={handleWriteError}
+            refresh={refresh}
+          />
+        </TabsContent>
+        <TabsContent value="sources" className="min-w-0">
+          <PriceSourcesPanel
+            processId={processId}
+            research={research}
+            items={items}
+            editable={canUpdate}
+            allowedActions={meta.allowedActions}
+          />
+        </TabsContent>
+        <TabsContent value="document" className="min-w-0">
+          <DocumentPanel processId={processId} research={research} />
+        </TabsContent>
+      </Tabs>
       <Dialog
         open={removing !== null}
         onOpenChange={(open) => {
@@ -401,46 +456,14 @@ function LoadedView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </DetailPage>
   );
 }
 
-function Summary({ research }: { readonly research: PriceResearchDto }) {
-  const t = useTranslations('priceResearch.page.summary');
-  const tItems = useTranslations('priceResearch.items');
-  const total = research.totalEstimatedValueMasked ? (
-    <span title={tItems('maskedHint')}>{tItems('masked')}</span>
-  ) : research.totalEstimatedValue === null ? (
-    <span className="text-muted-foreground">{t('notCalculated')}</span>
-  ) : (
-    formatMoney(research.totalEstimatedValue)
-  );
-  return (
-    <dl
-      aria-label={t('label')}
-      className="grid grid-cols-1 gap-3 rounded-card border border-border bg-surface p-4 text-sm sm:grid-cols-3"
-    >
-      <div>
-        <dt className="text-muted-foreground">{t('items')}</dt>
-        <dd className="text-lg font-semibold">{research.itemsCount}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">{t('withAlerts')}</dt>
-        <dd className="text-lg font-semibold">{research.itemsWithAlertsCount}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">{t('total')}</dt>
-        <dd className="text-lg font-semibold">{total}</dd>
-      </div>
-    </dl>
-  );
-}
-
-/** Data-base (RN-PRICE-06 · FA-07): editável com `UPDATE`; senão, só o texto. */
+/** Data-base (RN-PRICE-06 · FA-07): editável com `UPDATE` (sem ela, só o fato no cabeçalho). */
 function ReferenceDateEditor({
   research,
   version,
-  canUpdate,
   today,
   processId,
   onNotice,
@@ -448,7 +471,6 @@ function ReferenceDateEditor({
 }: {
   readonly research: PriceResearchDto;
   readonly version: number;
-  readonly canUpdate: boolean;
   readonly today: string;
   readonly processId: string;
   readonly onNotice: (notice: Notice | null) => void;
@@ -465,6 +487,7 @@ function ReferenceDateEditor({
       ? PRICE_RESEARCH_MESSAGES.referenceDateRequired
       : (referenceDateIssue(value, today)?.message ?? null);
   const changed = value !== research.referenceDate;
+  const latest = fromIsoDate(today);
 
   const save = useMutation({
     mutationFn: () => updatePriceResearch(research.id, { referenceDate: value }, version),
@@ -487,43 +510,35 @@ function ReferenceDateEditor({
     },
   });
 
-  if (!canUpdate) {
-    return (
-      <p className="text-sm">
-        <span className="text-muted-foreground">{t('label')}: </span>
-        <span className="font-medium">{formatCivilDate(research.referenceDate)}</span>
-      </p>
-    );
-  }
   return (
     <form
-      className="flex flex-wrap items-end gap-3"
+      className="flex flex-wrap items-end gap-3 border-t border-border pt-4"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
         if (changed && issue === null && !save.isPending) save.mutate();
       }}
     >
-      <FormField
+      <Field
         id="pr-page-reference-date"
         label={t('label')}
-        hint={t('hint')}
+        description={t('hint')}
         error={changed ? (issue ?? undefined) : undefined}
-        className="w-56"
+        className="w-64"
       >
-        {(control) => (
-          <input
-            {...control}
-            type="date"
-            className={INPUT_CLASS}
-            value={value}
-            max={today}
-            onChange={(event) => {
-              setDraft(event.target.value);
-            }}
-          />
-        )}
-      </FormField>
+        <DatePicker
+          value={fromIsoDate(value)}
+          onValueChange={(date) => {
+            setDraft(date ? toIsoDate(date) : '');
+          }}
+          disabledDays={latest ? { after: latest } : undefined}
+          labels={{
+            placeholder: t('placeholder'),
+            calendar: t('calendar'),
+            clear: t('clear'),
+          }}
+        />
+      </Field>
       <Button
         type="submit"
         variant="secondary"
@@ -532,64 +547,6 @@ function ReferenceDateEditor({
         {save.isPending ? t('saving') : t('save')}
       </Button>
     </form>
-  );
-}
-
-function Tabs({
-  id,
-  active,
-  onChange,
-}: {
-  readonly id: string;
-  readonly active: Tab;
-  readonly onChange: (tab: Tab) => void;
-}) {
-  const t = useTranslations('priceResearch.page.tabs');
-  const refs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const index = TABS.indexOf(active);
-    let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % TABS.length;
-    else if (event.key === 'ArrowLeft') next = (index - 1 + TABS.length) % TABS.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = TABS.length - 1;
-    else return;
-    event.preventDefault();
-    const tab = TABS[next] ?? 'items';
-    onChange(tab);
-    refs.current[tab]?.focus();
-  };
-  return (
-    <div
-      role="tablist"
-      aria-label={t('label')}
-      className="flex gap-1 overflow-x-auto border-b border-border"
-    >
-      {TABS.map((tab) => (
-        <button
-          key={tab}
-          ref={(element) => {
-            refs.current[tab] = element;
-          }}
-          type="button"
-          role="tab"
-          id={`${id}-tab-${tab}`}
-          aria-selected={active === tab}
-          aria-controls={`${id}-panel`}
-          onKeyDown={onKeyDown}
-          tabIndex={active === tab ? 0 : -1}
-          className={cx(
-            'min-h-10 px-4 text-sm font-medium whitespace-nowrap',
-            active === tab ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground',
-          )}
-          onClick={() => {
-            onChange(tab);
-          }}
-        >
-          {t(tab)}
-        </button>
-      ))}
-    </div>
   );
 }
 

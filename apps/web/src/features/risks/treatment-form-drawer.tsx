@@ -1,6 +1,26 @@
 'use client';
 
-import { Alert, Button, Dialog, DialogTitle, SheetContent, toast } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  DatePicker,
+  Field,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Sheet,
+  SheetBody,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  Textarea,
+  fromIsoDate,
+  toIsoDate,
+  toast,
+} from '@contrataflow/ui';
 import {
   TREATMENT_LIMITS,
   TREATMENT_MESSAGES,
@@ -29,7 +49,6 @@ import type {
   TreatmentFormValues,
   TreatmentProblem,
 } from './treatments-model';
-import { FormField, INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 
 export interface TreatmentFormDrawerProps {
   readonly risk: RiskDto;
@@ -51,18 +70,18 @@ export interface TreatmentFormDrawerProps {
 export function TreatmentFormDrawer(props: TreatmentFormDrawerProps) {
   const t = useTranslations('risks.treatments.form');
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent closeLabel={t('close')} aria-describedby={undefined}>
-        <div className="border-b border-border p-4 pr-12">
-          <DialogTitle>
+        <SheetHeader>
+          <SheetTitle>
             {props.treatment === null
               ? t('addTitle', { code: props.risk.code })
               : t('editTitle', { code: props.risk.code })}
-          </DialogTitle>
-        </div>
+          </SheetTitle>
+        </SheetHeader>
         {props.open ? <TreatmentForm key={props.treatment?.id ?? 'new'} {...props} /> : null}
       </SheetContent>
-    </Dialog>
+    </Sheet>
   );
 }
 
@@ -154,7 +173,7 @@ function TreatmentForm({ risk, treatment, onOpenChange, onChanged }: TreatmentFo
         submit();
       }}
     >
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <SheetBody>
         <div aria-live="polite" className="flex flex-col gap-2">
           {problem?.kind === 'fields' ? (
             <Alert tone="error" title={t('form.errors.formErrors')} />
@@ -211,49 +230,45 @@ function TreatmentForm({ risk, treatment, onOpenChange, onChanged }: TreatmentFo
           ) : null}
         </div>
 
-        <FormField
+        <Field
           id={fieldId('type')}
           label={t('form.fields.type')}
-          hint={t('form.hints.type')}
+          description={t('form.hints.type')}
           error={messages.type}
           required
         >
-          {(control) => (
-            <select
-              {...control}
-              className={INPUT_CLASS}
-              value={values.type}
-              onChange={(event) => {
-                set('type', event.target.value as TreatmentType | '');
-              }}
-            >
-              <option value="">{t('form.select')}</option>
+          <Select
+            value={values.type}
+            onValueChange={(value) => {
+              set('type', value as TreatmentType);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t('form.select')} />
+            </SelectTrigger>
+            <SelectContent>
               {TREATMENT_TYPES.map((type) => (
-                <option key={type} value={type}>
+                <SelectItem key={type} value={type}>
                   {TREATMENT_TYPE_LABELS[type]}
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          )}
-        </FormField>
-        <FormField
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field
           id={fieldId('description')}
           label={t('form.fields.description')}
           error={messages.description}
           required
         >
-          {(control) => (
-            <textarea
-              {...control}
-              className={TEXTAREA_CLASS}
-              maxLength={TREATMENT_LIMITS.descriptionMax}
-              value={values.description}
-              onChange={(event) => {
-                set('description', event.target.value);
-              }}
-            />
-          )}
-        </FormField>
+          <Textarea
+            maxLength={TREATMENT_LIMITS.descriptionMax}
+            value={values.description}
+            onChange={(event) => {
+              set('description', event.target.value);
+            }}
+          />
+        </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <OwnerLookup
             id={fieldId('responsibleId')}
@@ -282,39 +297,36 @@ function TreatmentForm({ risk, treatment, onOpenChange, onChanged }: TreatmentFo
             disabled={pending}
           />
         </div>
-        <FormField
+        <Field
           id={fieldId('dueDate')}
           label={t('form.fields.dueDate')}
-          hint={t('form.hints.dueDate')}
+          description={t('form.hints.dueDate')}
           error={messages.dueDate}
         >
-          {(control) => (
-            <input
-              {...control}
-              type="date"
-              className={INPUT_CLASS}
-              value={values.dueDate}
-              onChange={(event) => {
-                set('dueDate', event.target.value);
-              }}
-            />
-          )}
-        </FormField>
-        <FormField id={fieldId('notes')} label={t('form.fields.notes')} error={messages.notes}>
-          {(control) => (
-            <textarea
-              {...control}
-              className={TEXTAREA_CLASS}
-              maxLength={TREATMENT_LIMITS.notesMax}
-              value={values.notes}
-              onChange={(event) => {
-                set('notes', event.target.value);
-              }}
-            />
-          )}
-        </FormField>
-      </div>
-      <div className="flex flex-col-reverse gap-2 border-t border-border p-4 sm:flex-row sm:justify-end">
+          <DatePicker
+            clearable
+            value={fromIsoDate(values.dueDate)}
+            onValueChange={(date) => {
+              set('dueDate', date ? toIsoDate(date) : '');
+            }}
+            labels={{
+              placeholder: t('form.datePlaceholder'),
+              calendar: t('form.dateCalendar'),
+              clear: t('form.dateClear'),
+            }}
+          />
+        </Field>
+        <Field id={fieldId('notes')} label={t('form.fields.notes')} error={messages.notes}>
+          <Textarea
+            maxLength={TREATMENT_LIMITS.notesMax}
+            value={values.notes}
+            onChange={(event) => {
+              set('notes', event.target.value);
+            }}
+          />
+        </Field>
+      </SheetBody>
+      <SheetFooter>
         <Button
           type="button"
           variant="secondary"
@@ -327,7 +339,7 @@ function TreatmentForm({ risk, treatment, onOpenChange, onChanged }: TreatmentFo
         <Button type="submit" disabled={pending}>
           {pending ? t('form.saving') : t('form.save')}
         </Button>
-      </div>
+      </SheetFooter>
     </form>
   );
 }

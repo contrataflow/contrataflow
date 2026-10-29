@@ -14,19 +14,14 @@ const NATIVE_CONTROL = /<select\b|type="(checkbox|radio|date)"/;
  */
 const NOT_MIGRATED: Readonly<Record<string, string>> = {
   // Card 6 — pesquisa de preços, riscos, documentos, versões e anexos.
-  'documents/acknowledge-warnings-dialog.tsx': 'card 6',
-  'documents/ai-review.tsx': 'card 6',
-  'documents/document-versions-view.tsx': 'card 6',
   'price-research/create-price-research-dialog.tsx': 'card 6',
   'price-research/exclude-quotation-dialog.tsx': 'card 6',
   'price-research/parameters-panel.tsx': 'card 6',
   'price-research/price-item-calculation.tsx': 'card 6',
-  'price-research/price-research-view.tsx': 'card 6',
   'price-research/price-source-form-dialog.tsx': 'card 6',
   'risks/risk-ai-review.tsx': 'card 6',
   'risks/risk-filter-bar.tsx': 'card 6',
   'risks/risk-form-drawer.tsx': 'card 6',
-  'risks/treatment-form-drawer.tsx': 'card 6',
   'risks/treatment-status-select.tsx': 'card 6',
   // Card 7 — fornecedores, auditoria, notificações e perfil.
   'audit/audit-export-dialog.tsx': 'card 7',

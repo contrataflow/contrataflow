@@ -3,18 +3,20 @@
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Label,
   toast,
 } from '@contrataflow/ui';
 import type { DocumentAiReview, DocumentDto, DocumentMeta } from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
@@ -208,6 +210,7 @@ export function ReviewAllDialog({
 }) {
   const t = useTranslations('documents.aiReview');
   const returnFocus = useReturnFocus();
+  const confirmId = useId();
   const [confirmed, setConfirmed] = useState(false);
   const review = useAiReview(document, (reviewed) => {
     toast({ title: t('toast.many', { count: reviewed }), tone: 'success' });
@@ -235,17 +238,18 @@ export function ReviewAllDialog({
             <li key={section.key}>{sectionLabelOf(section.key)}</li>
           ))}
         </ul>
-        <label className="flex items-start gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            className="mt-1 size-4"
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id={confirmId}
             checked={confirmed}
-            onChange={(event) => {
-              setConfirmed(event.target.checked);
+            onCheckedChange={(checked) => {
+              setConfirmed(checked === true);
             }}
           />
-          {t('reviewAll.confirmLabel', { count })}
-        </label>
+          <Label htmlFor={confirmId} className="font-medium">
+            {t('reviewAll.confirmLabel', { count })}
+          </Label>
+        </div>
         <div aria-live="assertive">
           <OutcomeMessage outcome={review.outcome} onRetry={() => void review.retry()} />
         </div>

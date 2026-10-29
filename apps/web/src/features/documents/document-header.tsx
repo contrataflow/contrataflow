@@ -23,6 +23,8 @@ export interface DocumentHeaderProps {
   readonly processCode?: string | null | undefined;
   /** Último item da trilha (o documento: código ou título curto). */
   readonly current: string;
+  /** Itens entre o processo e o item atual (ex.: o documento, quando o atual é "Versões"). */
+  readonly parents?: readonly { readonly label: string; readonly href: string }[] | undefined;
   readonly title: ReactNode;
   /** Com ref, o título recebe `tabIndex=-1` para receber o foco ao carregar. */
   readonly titleRef?: Ref<HTMLHeadingElement> | undefined;
@@ -47,6 +49,7 @@ export function DocumentHeader({
   processId,
   processCode,
   current,
+  parents = [],
   title,
   titleRef,
   status,
@@ -67,6 +70,7 @@ export function DocumentHeader({
             label: processCode ? t('process', { code: processCode }) : t('processFallback'),
             href: `/processos/${processId}`,
           },
+          ...parents,
           { label: current },
         ]}
       />

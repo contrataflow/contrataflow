@@ -7,6 +7,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Checkbox,
+  Label,
 } from '@contrataflow/ui';
 import type { Violation } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
@@ -38,7 +40,7 @@ export interface AcknowledgeWarningsDialogProps {
  */
 export function AcknowledgeWarningsDialog(props: AcknowledgeWarningsDialogProps) {
   const { open, pending, onCancel } = props;
-  const checkbox = useRef<HTMLInputElement>(null);
+  const checkbox = useRef<HTMLButtonElement>(null);
   const returnFocus = useReturnFocus();
   return (
     <Dialog
@@ -71,7 +73,7 @@ function Body({
   onCancel,
   checkbox,
 }: AcknowledgeWarningsDialogProps & {
-  readonly checkbox: RefObject<HTMLInputElement | null>;
+  readonly checkbox: RefObject<HTMLButtonElement | null>;
 }) {
   const t = useTranslations('documents.acknowledge');
   const tPanel = useTranslations('documents.completeness');
@@ -84,19 +86,19 @@ function Body({
 
       <ViolationList label={t('listLabel')} violations={warnings} />
 
-      <label htmlFor={`${id}-ack`} className="flex items-start gap-2 text-sm font-medium">
-        <input
+      <div className="flex items-start gap-2">
+        <Checkbox
           id={`${id}-ack`}
           ref={checkbox}
-          type="checkbox"
-          className="mt-0.5 size-4"
           checked={acknowledged}
-          onChange={(event) => {
-            setAcknowledged(event.target.checked);
+          onCheckedChange={(checked) => {
+            setAcknowledged(checked === true);
           }}
         />
-        {t('checkbox')}
-      </label>
+        <Label htmlFor={`${id}-ack`} className="font-medium">
+          {t('checkbox')}
+        </Label>
+      </div>
 
       <div aria-live="assertive">
         {feedback ? <OutcomeAlert outcome={feedback} onRetry={onRetry} /> : null}

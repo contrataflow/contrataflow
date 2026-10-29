@@ -183,6 +183,13 @@
     "reload": "Recarregar",
     "empty": "Nenhuma versão salva ainda",
     "listLabel": "Versões do documento",
+    "columns": {
+      "version": "Versão",
+      "reason": "Origem",
+      "summary": "Resumo",
+      "pdf": "PDF oficial",
+      "actions": "Ações"
+    },
     "number": "Versão {number}",
     "by": "Por {author} em {date}",
     "unknownAuthor": "Usuário desconhecido",

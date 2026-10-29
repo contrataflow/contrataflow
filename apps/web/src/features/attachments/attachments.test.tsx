@@ -259,7 +259,7 @@ describe('AttachmentsSection (US-068)', () => {
     expect(
       await screen.findByText('Arquivo rejeitado pela verificação de segurança.'),
     ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Remover da lista' })).toBeTruthy();
   });
 
@@ -292,12 +292,13 @@ describe('AttachmentsSection (US-068)', () => {
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     if (!input) throw new Error('input de arquivo ausente');
     await user.upload(input, pdf());
-    await user.click(await screen.findByRole('button', { name: 'Excluir' }));
+    await user.click(await screen.findByRole('button', { name: 'Ações de comprovante.pdf' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Excluir' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Excluir anexo' }));
     expect(within(dialog).getByText('Informe o motivo da exclusão.')).toBeTruthy();
     expect(wasDeleted()).toBe(false);
-    await user.type(within(dialog).getByLabelText('Motivo da exclusão'), 'Enviado por engano');
+    await user.type(within(dialog).getByLabelText(/Motivo da exclusão/), 'Enviado por engano');
     await user.click(within(dialog).getByRole('button', { name: 'Excluir anexo' }));
     await screen.findByText('Excluído');
     const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE');

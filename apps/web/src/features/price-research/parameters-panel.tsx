@@ -69,9 +69,9 @@ export function ParametersPanel({
   const editable =
     canUpdate && researchId !== undefined && version !== undefined && onSaved !== undefined;
   return (
-    <aside
+    <section
       aria-labelledby="pr-parameters-title"
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4"
+      className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
     >
       <h2 id="pr-parameters-title" className="text-base font-semibold">
         {t('title')}
@@ -113,7 +113,7 @@ export function ParametersPanel({
       <p className="text-xs text-muted-foreground">
         {PRICE_RESEARCH_MESSAGES.parametersNote(formatDate(createdAt, timeZone))}
       </p>
-    </aside>
+    </section>
   );
 }
 

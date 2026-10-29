@@ -93,12 +93,12 @@
     "noCategories": "Nenhuma categoria de risco ativa. Peça ao administrador para cadastrar.",
     "statusHint": "A situação também muda pelas ações de tratamento; use este ajuste só quando necessário.",
     "fields": {
-      "title": "Título *",
+      "title": "Título",
       "description": "Descrição",
-      "categoryId": "Categoria *",
-      "phase": "Fase *",
-      "cause": "Causa *",
-      "consequence": "Consequência *",
+      "categoryId": "Categoria",
+      "phase": "Fase",
+      "cause": "Causa",
+      "consequence": "Consequência",
       "status": "Situação"
     },
     "fieldNames": {
@@ -220,11 +220,14 @@
       "cancel": "Cancelar",
       "select": "Selecione",
       "fields": {
-        "type": "Tipo *",
-        "description": "Descrição *",
+        "type": "Tipo",
+        "description": "Descrição",
         "dueDate": "Prazo",
         "notes": "Observações"
       },
+      "datePlaceholder": "Selecione o prazo",
+      "dateCalendar": "Escolher o prazo",
+      "dateClear": "Limpar o prazo",
       "hints": {
         "type": "Prevenção reduz a probabilidade ou o impacto; contingência prepara a resposta se o risco ocorrer.",
         "dueDate": "Opcional. Pode ser uma data passada."

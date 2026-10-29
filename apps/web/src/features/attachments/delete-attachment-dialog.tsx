@@ -8,10 +8,12 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Textarea,
 } from '@contrataflow/ui';
 import { deleteAttachmentSchema } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
-import { useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 export interface DeleteAttachmentDialogProps {
   /** Nome do arquivo a excluir; `null` = fechado. */
@@ -56,7 +58,6 @@ function Body({
   readonly onClose: () => void;
 }) {
   const t = useTranslations('attachments.delete');
-  const id = useId();
   const field = useRef<HTMLTextAreaElement>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -87,32 +88,19 @@ function Body({
     <>
       <DialogTitle>{t('title')}</DialogTitle>
       <DialogDescription>{t('description', { fileName })}</DialogDescription>
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${id}-reason`} className="text-sm font-medium">
-          {t('label')}
-        </label>
-        <textarea
-          id={`${id}-reason`}
+      <Field label={t('label')} required error={error}>
+        <Textarea
           ref={field}
           // eslint-disable-next-line jsx-a11y/no-autofocus -- foco inicial do diálogo no campo obrigatório
           autoFocus
           rows={3}
           value={reason}
           maxLength={1000}
-          aria-required="true"
-          aria-invalid={error === null ? undefined : true}
-          aria-describedby={error === null ? undefined : `${id}-error`}
           onChange={(event) => {
             setReason(event.target.value);
           }}
-          className="min-h-20 rounded-control border border-border-strong bg-background px-3 py-2 text-sm"
         />
-        {error === null ? null : (
-          <p id={`${id}-error`} className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-      </div>
+      </Field>
       {failed ? <Alert tone="error" title={t('failed')} /> : null}
       <DialogFooter>
         <Button variant="secondary" onClick={onClose} disabled={pending}>

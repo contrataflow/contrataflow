@@ -593,8 +593,8 @@ describe('SCR-106 · Gerar PDF desta versão', () => {
         }),
     });
     renderWithShell(<DocumentVersionsView processId={PROCESS_ID} documentId={DOC} />);
-    const list = await screen.findByRole('list', { name: 'Versões do documento' });
-    const items = within(list).getAllByRole('listitem');
+    const table = await screen.findByRole('table', { name: 'Versões do documento' });
+    const items = within(table).getAllByRole('row').slice(1);
     expect(items).toHaveLength(2);
     expect(
       within(itemAt(items, 0)).getByRole('button', { name: /Gerar PDF.*versão 2/ }),
@@ -613,7 +613,7 @@ describe('SCR-106 · Gerar PDF desta versão', () => {
   it('documento externo (UPLOADED): sem "Gerar PDF desta versão"', async () => {
     mockApi({ document: UPLOADED });
     renderWithShell(<DocumentVersionsView processId={PROCESS_ID} documentId={DOC} />);
-    await screen.findByRole('list', { name: 'Versões do documento' });
+    await screen.findByRole('table', { name: 'Versões do documento' });
     expect(screen.queryByRole('button', { name: /Gerar PDF/ })).toBeNull();
   });
 });

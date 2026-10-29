@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { Toaster, clearToasts } from '@contrataflow/ui';
-import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { pickDate } from '@test/support/kit';
 import {
   RESEARCH_ID,
   priceItem,
@@ -236,11 +237,11 @@ describe('/processos/[id]/pesquisa-precos/[researchId] (SCR-009 · US-024)', () 
           : undefined,
       readRoutes({}),
     );
-    const date = await screen.findByLabelText(/Data-base/);
+    await screen.findByRole('button', { name: /^Data-base/ });
     expect(
       screen.getByRole<HTMLButtonElement>('button', { name: 'Alterar data-base' }).disabled,
     ).toBe(true);
-    fireEvent.change(date, { target: { value: '2026-01-10' } });
+    await pickDate(user, /^Data-base/, '2026-01-10');
     await user.click(screen.getByRole('button', { name: 'Alterar data-base' }));
     await waitFor(() => {
       expect(callsTo(fetchMock, 'PATCH', RESEARCH_URL)).toHaveLength(1);
@@ -253,11 +254,23 @@ describe('/processos/[id]/pesquisa-precos/[researchId] (SCR-009 · US-024)', () 
     ).toBeTruthy();
   });
 
-  it('data-base futura não é enviada', async () => {
+  it('data-base futura não pode ser escolhida: dias depois de hoje ficam desabilitados', async () => {
+    const user = userEvent.setup();
     await renderPage(readRoutes({}));
-    const date = await screen.findByLabelText(/Data-base/);
-    fireEvent.change(date, { target: { value: '2999-01-01' } });
-    expect(await screen.findByText('A data-base não pode ser posterior a hoje.')).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: /^Data-base/ }));
+    const calendar = await screen.findByRole('dialog', { name: /^Escolher/ });
+    // O calendário abre no mês da data-base (outubro de 2026); avança até o mês seguinte ao de hoje.
+    const now = new Date();
+    const ahead = now.getFullYear() * 12 + now.getMonth() - (2026 * 12 + 9) + 1;
+    for (let step = 0; step < ahead; step += 1) {
+      await user.click(within(calendar).getByRole('button', { name: 'Ir para o próximo mês' }));
+    }
+    const days = within(calendar)
+      .getAllByRole('gridcell')
+      .filter((cell) => !cell.hasAttribute('data-outside'))
+      .map((cell) => cell.querySelector('button'));
+    expect(days.length).toBeGreaterThan(0);
+    expect(days.every((button) => button?.disabled === true)).toBe(true);
     expect(
       screen.getByRole<HTMLButtonElement>('button', { name: 'Alterar data-base' }).disabled,
     ).toBe(true);
@@ -272,8 +285,8 @@ describe('/processos/[id]/pesquisa-precos/[researchId] (SCR-009 · US-024)', () 
           : undefined,
       readRoutes({}),
     );
-    const date = await screen.findByLabelText(/Data-base/);
-    fireEvent.change(date, { target: { value: '2026-01-10' } });
+    await screen.findByRole('button', { name: /^Data-base/ });
+    await pickDate(user, /^Data-base/, '2026-01-10');
     await user.click(screen.getByRole('button', { name: 'Alterar data-base' }));
     expect(
       await screen.findByText('A pesquisa foi alterada por outra pessoa. Recarregue.'),

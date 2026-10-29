@@ -1,6 +1,27 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  EmptyState,
+  Field,
+  History,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Skeleton,
+  StatusChip,
+  Table,
+  TableBody,
+  TableContainer,
+  TableHead,
+  Td,
+  Th,
+  Tr,
+} from '@contrataflow/ui';
+import type { StatusTone } from '@contrataflow/ui';
 import { DOCUMENT_VERSION_LIMITS, DOCUMENT_VERSION_MESSAGES } from '@contrataflow/validation';
 import type {
   CollectionDiff,
@@ -15,12 +36,12 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 
 import { ErrorView } from '@/components/errors/error-view';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
+import { DocumentHeader } from './document-header';
 import {
   compareDocumentVersions,
   documentKeys,
@@ -98,24 +119,47 @@ export function DocumentVersionsView({ processId, documentId }: DocumentVersions
   const items = versions.data?.items ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
-      <header className="flex min-w-0 flex-col gap-2">
-        <Link href={documentHref} className="text-sm text-primary underline">
-          {t('backToDocument')}
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">{t('title')}</h1>
-        {current ? (
-          <p className="text-sm break-words text-muted-foreground">
-            {current.document.code ? `${current.document.code} — ` : ''}
-            {current.document.title}
-          </p>
-        ) : null}
-        {canSave ? (
-          <div>
-            <SaveVersionAction document={current.document} />
-          </div>
-        ) : null}
-      </header>
+    <div className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-5">
+      <DocumentHeader
+        processId={processId}
+        current={t('title')}
+        parents={[
+          {
+            label: current
+              ? (current.document.code ?? current.document.title)
+              : t('backToDocument'),
+            href: documentHref,
+          },
+        ]}
+        title={t('title')}
+        facts={
+          current
+            ? [
+                {
+                  id: 'document',
+                  content: (
+                    <span className="break-words">
+                      {current.document.code ? `${current.document.code} — ` : ''}
+                      {current.document.title}
+                    </span>
+                  ),
+                },
+                {
+                  id: 'back',
+                  content: (
+                    <Link
+                      href={documentHref}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      {t('backToDocument')}
+                    </Link>
+                  ),
+                },
+              ]
+            : []
+        }
+        actions={canSave ? <SaveVersionAction document={current.document} /> : undefined}
+      />
 
       {versions.isPending ? (
         <div role="status" className="flex flex-col gap-2">
@@ -137,7 +181,7 @@ export function DocumentVersionsView({ processId, documentId }: DocumentVersions
           </Button>
         </Alert>
       ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('empty')}</p>
+        <EmptyState icon={<History aria-hidden="true" />} title={t('empty')} />
       ) : (
         <>
           <VersionList
@@ -183,74 +227,86 @@ function VersionList({
   const t = useTranslations('documents.versions');
   const format = useFormatter();
   return (
-    <ol aria-label={t('listLabel')} className="flex flex-col gap-3">
-      {versions.map((version, index) => {
-        const previous = versions[index + 1];
-        return (
-          <li
-            key={version.id}
-            className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4"
-          >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="font-medium">
-                  <span>{t('number', { number: version.versionNumber })}</span>
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    {t(`reasons.${version.reason}`)}
-                  </span>
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {t('by', {
-                    author: version.createdByName ?? t('unknownAuthor'),
-                    date: format.dateTime(new Date(version.createdAt), {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    }),
-                  })}
-                </p>
-                <p className="text-sm break-words">
-                  {version.changeSummary ?? (
-                    <span className="text-muted-foreground">
-                      {DOCUMENT_VERSION_MESSAGES.noSummary}
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t('hash')}{' '}
-                  <code title={version.contentHash}>
-                    {version.contentHash.slice(0, DOCUMENT_VERSION_LIMITS.hashPrefix)}
-                  </code>
-                </p>
-              </div>
-              {previous ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    onCompare({ from: previous.id, to: version.id });
-                  }}
-                >
-                  {t('compareWithPrevious')}
-                  <span className="sr-only">
-                    {' '}
-                    {t('compareWithPreviousTarget', { number: version.versionNumber })}
-                  </span>
-                </Button>
-              ) : null}
-            </div>
-            {pdfEnabled ? (
-              <GeneratePdfButton
-                source={{
-                  kind: 'version',
-                  versionId: version.id,
-                  versionNumber: version.versionNumber,
-                }}
-              />
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
+    <TableContainer label={t('listLabel')}>
+      <Table aria-label={t('listLabel')}>
+        <TableHead>
+          <Tr>
+            <Th>{t('columns.version')}</Th>
+            <Th>{t('columns.reason')}</Th>
+            <Th>{t('columns.summary')}</Th>
+            {pdfEnabled ? <Th>{t('columns.pdf')}</Th> : null}
+            <Th>{t('columns.actions')}</Th>
+          </Tr>
+        </TableHead>
+        <TableBody>
+          {versions.map((version, index) => {
+            const previous = versions[index + 1];
+            return (
+              <Tr key={version.id} className="align-top">
+                <Td className="align-top">
+                  <p className="font-semibold">{t('number', { number: version.versionNumber })}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('by', {
+                      author: version.createdByName ?? t('unknownAuthor'),
+                      date: format.dateTime(new Date(version.createdAt), {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      }),
+                    })}
+                  </p>
+                </Td>
+                <Td className="align-top">
+                  <StatusChip tone="neutral">{t(`reasons.${version.reason}`)}</StatusChip>
+                </Td>
+                <Td className="min-w-48 align-top">
+                  <p className="break-words">
+                    {version.changeSummary ?? (
+                      <span className="text-muted-foreground">
+                        {DOCUMENT_VERSION_MESSAGES.noSummary}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('hash')}{' '}
+                    <code title={version.contentHash}>
+                      {version.contentHash.slice(0, DOCUMENT_VERSION_LIMITS.hashPrefix)}
+                    </code>
+                  </p>
+                </Td>
+                {pdfEnabled ? (
+                  <Td className="min-w-56 align-top">
+                    <GeneratePdfButton
+                      source={{
+                        kind: 'version',
+                        versionId: version.id,
+                        versionNumber: version.versionNumber,
+                      }}
+                    />
+                  </Td>
+                ) : null}
+                <Td className="align-top">
+                  {previous ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        onCompare({ from: previous.id, to: version.id });
+                      }}
+                    >
+                      {t('compareWithPrevious')}
+                      <span className="sr-only">
+                        {' '}
+                        {t('compareWithPreviousTarget', { number: version.versionNumber })}
+                      </span>
+                    </Button>
+                  ) : null}
+                </Td>
+              </Tr>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
@@ -281,16 +337,20 @@ function VersionComparePicker({
     }
   }
 
-  const option = (version: DocumentVersionSummaryDto) => (
-    <option key={version.id} value={version.id}>
+  const options = versions.map((version) => (
+    <SelectItem key={version.id} value={version.id}>
       {t('number', { number: version.versionNumber })} — {t(`reasons.${version.reason}`)}
-    </option>
-  );
+    </SelectItem>
+  ));
+  const invalid = {
+    'aria-invalid': error !== null,
+    'aria-describedby': error ? `${id}-error` : undefined,
+  } as const;
 
   return (
     <form
       aria-label={t('picker.label')}
-      className="flex flex-col gap-3 rounded-card border border-border bg-surface p-4"
+      className="flex flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
       onSubmit={(event) => {
         event.preventDefault();
         if (from === to) {
@@ -301,43 +361,35 @@ function VersionComparePicker({
         onCompare({ from, to });
       }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${id}-from`} className="text-sm font-medium">
-            {t('picker.from')}
-          </label>
-          <select
-            id={`${id}-from`}
-            className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label={t('picker.from')} className="min-w-56 flex-1">
+          <Select
             value={from}
-            aria-invalid={error !== null}
-            aria-describedby={error ? `${id}-error` : undefined}
-            onChange={(event) => {
-              setFrom(event.target.value);
+            onValueChange={(value) => {
+              setFrom(value);
               setError(null);
             }}
           >
-            {versions.map(option)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor={`${id}-to`} className="text-sm font-medium">
-            {t('picker.to')}
-          </label>
-          <select
-            id={`${id}-to`}
-            className="h-10 rounded-control border border-border bg-surface px-3 text-sm"
+            <SelectTrigger {...invalid}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>{options}</SelectContent>
+          </Select>
+        </Field>
+        <Field label={t('picker.to')} className="min-w-56 flex-1">
+          <Select
             value={to}
-            aria-invalid={error !== null}
-            aria-describedby={error ? `${id}-error` : undefined}
-            onChange={(event) => {
-              setTo(event.target.value);
+            onValueChange={(value) => {
+              setTo(value);
               setError(null);
             }}
           >
-            {versions.map(option)}
-          </select>
-        </div>
+            <SelectTrigger {...invalid}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>{options}</SelectContent>
+          </Select>
+        </Field>
         <Button type="submit" variant="primary">
           {t('picker.compare')}
         </Button>
@@ -399,24 +451,21 @@ function VersionComparison({
   return <VersionDiffView comparison={comparison.data} />;
 }
 
-const CHANGE_TONES: Record<VersionChangeType, string> = {
-  ADDED: 'bg-success-soft text-foreground',
-  REMOVED: 'bg-destructive-soft text-foreground',
-  CHANGED: 'bg-warning-soft text-foreground',
-  UNCHANGED: 'bg-muted text-muted-foreground',
-  MASKED: 'bg-muted text-foreground',
+const CHANGE_TONES: Record<VersionChangeType, StatusTone> = {
+  ADDED: 'success',
+  REMOVED: 'danger',
+  CHANGED: 'warning',
+  UNCHANGED: 'neutral',
+  MASKED: 'neutral',
 };
 
 /** Indicador de mudança: o texto ("Alterado", "Valor sigiloso"…) diz a situação, nunca só a cor. */
 function ChangeBadge({ changeType }: { readonly changeType: VersionChangeType }) {
   const t = useTranslations('documents.versions.changes');
   return (
-    <span
-      data-change={changeType}
-      className={`inline-flex items-center rounded-control px-2 py-0.5 text-xs font-medium whitespace-nowrap ${CHANGE_TONES[changeType]}`}
-    >
+    <StatusChip data-change={changeType} tone={CHANGE_TONES[changeType]}>
       {t(changeType)}
-    </span>
+    </StatusChip>
   );
 }
 
@@ -490,68 +539,44 @@ function MaskedValue() {
   );
 }
 
-/**
- * Tabela rolável na horizontal em telas estreitas: região nomeada e focável para quem navega por
- * teclado (axe `scrollable-region-focusable`).
- */
-function ScrollRegion({
-  label,
-  children,
-}: {
-  readonly label: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- região rolável precisa de foco (axe)
-    <div role="region" aria-label={label} tabIndex={0} className="overflow-x-auto">
-      {children}
-    </div>
-  );
-}
-
 function HeaderBlock({ entries, fromLabel, toLabel }: BlockProps<HeaderDiff>) {
   const t = useTranslations('documents.versions');
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <h3 className="font-semibold">{t('diff.header')}</h3>
-      <ScrollRegion label={t('diff.header')}>
-        <table aria-label={t('diff.header')} className="w-full min-w-[32rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border">
-              <th scope="col" className="py-2 pr-3">
-                {t('diff.field')}
-              </th>
-              <th scope="col" className="py-2 pr-3">
-                {fromLabel}
-              </th>
-              <th scope="col" className="py-2 pr-3">
-                {toLabel}
-              </th>
-              <th scope="col" className="py-2">
-                {t('diff.status')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer label={t('diff.header')}>
+        <Table aria-label={t('diff.header')} className="min-w-[32rem]">
+          <TableHead>
+            <Tr>
+              <Th>{t('diff.field')}</Th>
+              <Th>{fromLabel}</Th>
+              <Th>{toLabel}</Th>
+              <Th>{t('diff.status')}</Th>
+            </Tr>
+          </TableHead>
+          <TableBody>
             {entries.map((entry) => (
-              <tr key={entry.field} className="border-b border-border align-top">
-                <th scope="row" className="py-2 pr-3 font-medium">
+              <Tr key={entry.field} className="align-top">
+                <Th
+                  scope="row"
+                  className="align-top font-semibold whitespace-normal text-foreground normal-case"
+                >
                   {isKnownField(entry.field) ? t(`fields.${entry.field}`) : entry.field}
-                </th>
-                <td className="py-2 pr-3 break-words">
+                </Th>
+                <Td className="align-top break-words">
                   {entry.changeType === 'MASKED' ? <MaskedValue /> : display(entry.from)}
-                </td>
-                <td className="py-2 pr-3 break-words">
+                </Td>
+                <Td className="align-top break-words">
                   {entry.changeType === 'MASKED' ? <MaskedValue /> : display(entry.to)}
-                </td>
-                <td className="py-2">
+                </Td>
+                <Td className="align-top">
                   <ChangeBadge changeType={entry.changeType} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
-      </ScrollRegion>
+          </TableBody>
+        </Table>
+      </TableContainer>
     </section>
   );
 }
@@ -565,7 +590,7 @@ function SectionText({
 }) {
   const t = useTranslations('documents.versions');
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-control border border-border p-3">
+    <div className="flex min-w-0 flex-col gap-1 rounded-control bg-muted/50 p-3">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       {side === null ? (
         <p className="text-sm text-muted-foreground">{t('diff.absent')}</p>
@@ -593,7 +618,7 @@ function SectionsBlock({ entries, fromLabel, toLabel }: BlockProps<SectionDiff>)
       <h3 className="font-semibold">{t('diff.sections')}</h3>
       <ul className="flex flex-col gap-2">
         {entries.map((entry) => (
-          <li key={entry.sectionKey} className="rounded-card border border-border bg-surface p-3">
+          <li key={entry.sectionKey} className="rounded-card bg-surface p-4 shadow-card">
             <details>
               <summary className="flex cursor-pointer flex-wrap items-center gap-2">
                 <span className="font-medium break-all">{entry.sectionKey}</span>
@@ -629,59 +654,56 @@ function CollectionsBlock({ entries, fromLabel, toLabel }: BlockProps<Collection
       {groups.map((collection) => (
         <div key={collection} className="flex min-w-0 flex-col gap-2">
           <h4 className="text-sm font-medium">{collection}</h4>
-          <ScrollRegion label={collection}>
-            <table aria-label={collection} className="w-full min-w-[36rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th scope="col" className="py-2 pr-3">
-                    {t('diff.item')}
-                  </th>
-                  <th scope="col" className="py-2 pr-3">
-                    {fromLabel}
-                  </th>
-                  <th scope="col" className="py-2 pr-3">
-                    {toLabel}
-                  </th>
-                  <th scope="col" className="py-2">
-                    {t('diff.status')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableContainer label={collection}>
+            <Table aria-label={collection} className="min-w-[36rem]">
+              <TableHead>
+                <Tr>
+                  <Th>{t('diff.item')}</Th>
+                  <Th>{fromLabel}</Th>
+                  <Th>{toLabel}</Th>
+                  <Th>{t('diff.status')}</Th>
+                </Tr>
+              </TableHead>
+              <TableBody>
                 {entries
                   .filter((entry) => entry.collection === collection)
                   .map((entry) => (
-                    <tr
+                    <Tr
                       key={`${entry.collection}:${entry.itemId}`}
-                      className={`border-b border-border align-top ${entry.changeType === 'UNCHANGED' ? '' : 'bg-warning-soft/40'}`}
+                      className={`align-top ${entry.changeType === 'UNCHANGED' ? '' : 'bg-warning-soft/40'}`}
                     >
-                      <th scope="row" className="py-2 pr-3 font-medium break-all">
+                      <Th
+                        scope="row"
+                        className="align-top font-semibold break-all whitespace-normal text-foreground normal-case"
+                      >
                         {entry.itemId}
-                      </th>
-                      <td className="py-2 pr-3 break-words">
+                      </Th>
+                      <Td className="align-top break-words">
                         {rowSummary(entry.from, entry.maskedFields)}
-                      </td>
-                      <td className="py-2 pr-3 break-words">
+                      </Td>
+                      <Td className="align-top break-words">
                         {rowSummary(entry.to, entry.maskedFields)}
-                      </td>
-                      <td className="flex flex-col items-start gap-1 py-2">
-                        <ChangeBadge changeType={entry.changeType} />
-                        {entry.changedFields.length > 0 ? (
-                          <span className="text-xs text-muted-foreground">
-                            {t('diff.changedFields', { fields: entry.changedFields.join(', ') })}
-                          </span>
-                        ) : null}
-                        {entry.maskedFields.length > 0 ? (
-                          <span className="text-xs text-muted-foreground">
-                            {t('diff.maskedFields', { fields: entry.maskedFields.join(', ') })}
-                          </span>
-                        ) : null}
-                      </td>
-                    </tr>
+                      </Td>
+                      <Td className="align-top">
+                        <div className="flex flex-col items-start gap-1">
+                          <ChangeBadge changeType={entry.changeType} />
+                          {entry.changedFields.length > 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              {t('diff.changedFields', { fields: entry.changedFields.join(', ') })}
+                            </span>
+                          ) : null}
+                          {entry.maskedFields.length > 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              {t('diff.maskedFields', { fields: entry.maskedFields.join(', ') })}
+                            </span>
+                          ) : null}
+                        </div>
+                      </Td>
+                    </Tr>
                   ))}
-              </tbody>
-            </table>
-          </ScrollRegion>
+              </TableBody>
+            </Table>
+          </TableContainer>
         </div>
       ))}
     </section>

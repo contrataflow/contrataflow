@@ -1,12 +1,14 @@
 {
   "section": {
     "title": "Anexos",
-    "description": "Comprovantes, propostas, atas e imagens. Todo arquivo passa por verificação de segurança antes de ficar disponível.",
+    "description": "Comprovantes, propostas, atas e imagens.",
+    "helpLabel": "Sobre a verificação dos anexos",
+    "help": "Todo arquivo passa por verificação de segurança antes de ficar disponível.",
     "empty": "Nenhum arquivo enviado nesta sessão. A lista completa de anexos do processo chega em breve."
   },
   "uploader": {
     "button": "Anexar arquivo",
-    "dropzone": "Arraste arquivos para cá ou use o botão \"Anexar arquivo\".",
+    "dropzone": "Arraste arquivos para cá ou use o botão abaixo.",
     "hint": "Tipos aceitos: {types}. Até {maxMb} MB por arquivo.",
     "typeNotAllowed": "Este tipo de arquivo não é permitido. Tipos aceitos: {types}.",
     "tooLarge": "O arquivo excede o limite de {maxMb} MB.",
@@ -15,6 +17,7 @@
   "item": {
     "uploading": "Enviando… {progress}%",
     "progressLabel": "Envio de {fileName}",
+    "actionsLabel": "Ações de {fileName}",
     "scanning": "Verificando segurança do arquivo…",
     "available": "Disponível",
     "deleted": "Excluído",
@@ -53,6 +56,8 @@
     "empty": "Nenhum anexo",
     "uploadedAt": "Enviado em {date}",
     "verifying": "Arquivo em verificação. Tente novamente em instantes.",
+    "verifyingLabel": "Verificando segurança do arquivo…",
+    "actionsLabel": "Ações de {fileName}",
     "rejected": "Arquivo rejeitado pela verificação de segurança.",
     "noPreview": "Sem prévia disponível — baixar arquivo.",
     "download": "Baixar",

@@ -1,7 +1,17 @@
 'use client';
 
 import type { AttachmentTargetType } from '@contrataflow/types';
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  Skeleton,
+  buttonClassName,
+} from '@contrataflow/ui';
 import { hasInlinePreview } from '@contrataflow/validation';
 import type { AttachmentDto } from '@contrataflow/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +27,8 @@ import {
   fetchProcessAttachments,
   startAttachmentDownload,
 } from './attachments.api';
+import { FileKindIcon } from './file-kind-icon';
+import { ScanProgress } from './scan-progress';
 import { formatFileSize } from './upload-rules';
 
 const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set(['png', 'jpg', 'jpeg']);
@@ -102,7 +114,7 @@ export function AttachmentList({
     ) : null;
   }
   return (
-    <ul aria-label={t('label')} className="grid min-w-0 grid-cols-1 gap-2">
+    <ul aria-label={t('label')} className="flex min-w-0 flex-col divide-y divide-border">
       {items.map((item) => (
         <AttachmentRow
           key={item.id}
@@ -170,75 +182,79 @@ function AttachmentRow({
     isApiError(failure) && failure.code !== 'PERMISSION_DENIED' ? failure.correlationId : null;
 
   return (
-    <li
-      aria-label={description}
-      className="flex min-w-0 flex-col gap-2 rounded-card border border-border p-3"
-    >
-      <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium" title={attachment.fileName}>
-          {attachment.fileName}
-        </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {formatFileSize(attachment.sizeBytes)}
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        {t('uploadedAt', {
-          date: format.dateTime(new Date(attachment.createdAt), { dateStyle: 'short' }),
-        })}
-      </p>
-
-      {verifying ? <p className="text-sm">{t('verifying')}</p> : null}
-      {attachment.status === 'INFECTED' || attachment.status === 'REJECTED' ? (
-        <p className="text-sm text-destructive">{t('rejected')}</p>
-      ) : null}
-      {attachment.status === 'AVAILABLE' && !previewable ? (
-        <p className="text-xs text-muted-foreground">{t('noPreview')}</p>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={unavailable || download.isPending}
-          aria-busy={download.isPending}
-          aria-label={t('downloadLabel', { fileName: attachment.fileName })}
-          aria-describedby={failureMessage === null ? undefined : messageId}
-          onClick={() => {
-            download.mutate();
-          }}
-        >
-          {download.isPending ? t('downloading') : t('download')}
-        </Button>
-        {previewable ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-expanded={previewing}
-            aria-label={t(previewing ? 'closePreviewLabel' : 'previewLabel', {
-              fileName: attachment.fileName,
-            })}
-            onClick={() => {
-              setPreviewing((open) => !open);
-            }}
+    <li aria-label={description} className="flex min-w-0 flex-col gap-2 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <FileKindIcon extension={attachment.extension} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-semibold" title={attachment.fileName}>
+            {attachment.fileName}
+          </span>
+          <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            <span>{formatFileSize(attachment.sizeBytes)}</span>
+            <span>
+              {t('uploadedAt', {
+                date: format.dateTime(new Date(attachment.createdAt), { dateStyle: 'short' }),
+              })}
+            </span>
+            {download.isPending ? <span aria-live="polite">{t('downloading')}</span> : null}
+            {attachment.status === 'AVAILABLE' && !previewable ? (
+              <span>{t('noPreview')}</span>
+            ) : null}
+          </span>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={buttonClassName({ variant: 'ghost', size: 'icon' })}
+            aria-label={t('actionsLabel', { fileName: attachment.fileName })}
+            aria-describedby={failureMessage === null ? undefined : messageId}
           >
-            {previewing ? t('closePreview') : t('preview')}
-          </Button>
-        ) : null}
+            <Ellipsis aria-hidden="true" className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={unavailable || download.isPending}
+              aria-label={t('downloadLabel', { fileName: attachment.fileName })}
+              onSelect={() => {
+                download.mutate();
+              }}
+            >
+              {t('download')}
+            </DropdownMenuItem>
+            {previewable ? (
+              <DropdownMenuItem
+                aria-label={t(previewing ? 'closePreviewLabel' : 'previewLabel', {
+                  fileName: attachment.fileName,
+                })}
+                onSelect={() => {
+                  setPreviewing((open) => !open);
+                }}
+              >
+                {previewing ? t('closePreview') : t('preview')}
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <div id={messageId} aria-live="polite" className="text-sm">
-        {failureMessage === null ? null : (
-          <p className="text-destructive">
-            {failureMessage}
-            {correlationId === null ? null : (
-              <span className="block text-xs text-muted-foreground">
-                {t('correlation', { id: correlationId })}
-              </span>
-            )}
-          </p>
-        )}
-      </div>
+      {verifying ? (
+        <>
+          <ScanProgress label={t('verifyingLabel')} />
+          <p className="text-sm">{t('verifying')}</p>
+        </>
+      ) : null}
+      {attachment.status === 'INFECTED' || attachment.status === 'REJECTED' ? (
+        <Alert tone="error" live={false} title={t('rejected')} />
+      ) : null}
+
+      {failureMessage === null ? null : (
+        <Alert tone="error" id={messageId} title={failureMessage}>
+          {correlationId === null ? null : (
+            <span className="text-xs text-muted-foreground">
+              {t('correlation', { id: correlationId })}
+            </span>
+          )}
+        </Alert>
+      )}
 
       {previewing ? (
         IMAGE_EXTENSIONS.has(attachment.extension.toLowerCase()) ? (
@@ -292,11 +308,7 @@ function AttachmentViewer({
   );
 
   if (bytes.isError) {
-    return (
-      <p role="alert" className="text-sm text-destructive">
-        {t('previewFailed')}
-      </p>
-    );
+    return <Alert tone="error" title={t('previewFailed')} />;
   }
   if (objectUrl === null) {
     return (

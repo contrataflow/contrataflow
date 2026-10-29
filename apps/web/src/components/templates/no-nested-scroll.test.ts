@@ -40,7 +40,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/document-types/document-type-form.tsx': DIALOG,
   'apps/web/src/features/document-types/document-types-view.tsx': TABLE,
   'apps/web/src/features/documents/ai-review.tsx': DIALOG,
-  'apps/web/src/features/documents/document-versions-view.tsx': TABLE,
   'apps/web/src/features/etp/create-etp-dialog.tsx': DIALOG,
   'apps/web/src/features/etp/etp-alternatives-section.tsx': DRAWER,
   'apps/web/src/features/organizations/organization-form-dialog.tsx': DIALOG,
@@ -67,7 +66,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'apps/web/src/features/risks/risk-ai-review.tsx': DIALOG,
   'apps/web/src/features/risks/risk-form-drawer.tsx': DRAWER,
   'apps/web/src/features/risks/risk-heatmap-grid.tsx': TABLE,
-  'apps/web/src/features/risks/treatment-form-drawer.tsx': DRAWER,
   'apps/web/src/features/roles/roles-view.tsx': TABLE,
   'apps/web/src/features/suppliers/supplier-form-dialog.tsx': DIALOG,
   'apps/web/src/features/suppliers/supplier-list.tsx': TABLE,
@@ -96,7 +94,6 @@ const ALLOWED: Readonly<Record<string, string>> = {
 const PENDING: Readonly<Record<string, string>> = {
   'apps/web/src/features/price-research/comparative-map-grid.tsx':
     'card 6 — mapa comparativo com altura máxima e rolagem nos dois eixos',
-  'apps/web/src/features/price-research/price-research-view.tsx': 'card 6 — abas roláveis',
   'apps/web/src/features/risks/risks-screen.tsx': 'card 6 — abas roláveis',
   'apps/web/src/features/roles/permission-matrix.tsx':
     'card 8 — matriz com altura máxima e rolagem nos dois eixos',

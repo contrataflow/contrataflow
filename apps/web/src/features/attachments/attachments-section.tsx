@@ -1,7 +1,19 @@
 'use client';
 
 import type { AttachmentTargetType } from '@contrataflow/types';
-import { Alert, Button } from '@contrataflow/ui';
+import {
+  Alert,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Ellipsis,
+  InfoTooltip,
+  Progress,
+  Upload,
+  buttonClassName,
+} from '@contrataflow/ui';
 import { PLATFORM_UPLOAD_EXTENSIONS } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useRef, useState } from 'react';
@@ -11,7 +23,14 @@ import { Can } from '@/lib/permissions/can';
 
 import { AttachmentList } from './attachment-list';
 import { DeleteAttachmentDialog } from './delete-attachment-dialog';
-import { ACCEPT_ATTRIBUTE, DEFAULT_MAX_FILE_SIZE_MB, formatFileSize } from './upload-rules';
+import { FileKindIcon } from './file-kind-icon';
+import { ScanProgress } from './scan-progress';
+import {
+  ACCEPT_ATTRIBUTE,
+  DEFAULT_MAX_FILE_SIZE_MB,
+  extensionOf,
+  formatFileSize,
+} from './upload-rules';
 import { useAttachmentUploads } from './use-attachment-uploads';
 import type { UploadDeps, UploadItem } from './use-attachment-uploads';
 
@@ -77,9 +96,12 @@ export function AttachmentsSection({
   return (
     <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h2 id={headingId} className="text-lg font-semibold">
-          {t('section.title')}
-        </h2>
+        <div className="flex items-center gap-1.5">
+          <h2 id={headingId} className="text-lg font-semibold">
+            {t('section.title')}
+          </h2>
+          <InfoTooltip label={t('section.helpLabel')}>{t('section.help')}</InfoTooltip>
+        </div>
         <p className="text-sm text-muted-foreground">{t('section.description')}</p>
       </div>
 
@@ -102,14 +124,12 @@ export function AttachmentsSection({
               setDragging(false);
             }}
             onDrop={disabled ? undefined : onDrop}
-            className={`flex flex-col items-start gap-2 rounded-card border border-dashed p-4 ${
-              dragging ? 'border-primary bg-primary/5' : 'border-border'
+            className={`flex flex-col items-center gap-2 rounded-card border border-dashed px-4 py-6 text-center ${
+              dragging ? 'border-primary bg-primary/5' : 'border-border-strong'
             }`}
           >
+            <Upload aria-hidden="true" className="size-6 text-muted-foreground" />
             <p className="text-sm">{t('uploader.dropzone')}</p>
-            <p id={hintId} className="text-xs text-muted-foreground">
-              {t('uploader.hint', { types: TYPES, maxMb: DEFAULT_MAX_FILE_SIZE_MB })}
-            </p>
             <input
               ref={input}
               type="file"
@@ -124,12 +144,16 @@ export function AttachmentsSection({
               }}
             />
             <Button
+              variant="secondary"
               disabled={disabled}
               aria-describedby={[hintId, describedBy].filter(Boolean).join(' ')}
               onClick={() => input.current?.click()}
             >
               {t('uploader.button')}
             </Button>
+            <p id={hintId} className="text-xs text-muted-foreground">
+              {t('uploader.hint', { types: TYPES, maxMb: DEFAULT_MAX_FILE_SIZE_MB })}
+            </p>
           </div>
         )}
       </Can>
@@ -153,7 +177,7 @@ export function AttachmentsSection({
           <p className="text-sm text-muted-foreground">{t('section.empty')}</p>
         ) : null
       ) : (
-        <ul className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2">
+        <ul className="flex min-w-0 flex-col divide-y divide-border">
           {uploads.items.map((item) => (
             <AttachmentCard
               key={item.key}
@@ -202,41 +226,58 @@ function AttachmentCard({
   const t = useTranslations('attachments');
   // Anúncio a cada 10% (não a cada evento de progresso).
   const announced = Math.floor(item.progress / 10) * 10;
+  const problem = item.phase === 'failed' || item.phase === 'rejected';
   return (
-    <li className="flex min-w-0 flex-col gap-2 rounded-card border border-border p-3">
-      <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-medium" title={item.file.name}>
-          {item.file.name}
-        </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {formatFileSize(item.file.size)}
-        </span>
+    <li className="flex min-w-0 flex-col gap-2 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <FileKindIcon extension={extensionOf(item.file.name)} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-semibold" title={item.file.name}>
+            {item.file.name}
+          </span>
+          <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+            <span>{formatFileSize(item.file.size)}</span>
+            {item.phase === 'uploading' ? (
+              <span>{t('item.uploading', { progress: item.progress })}</span>
+            ) : problem ? null : (
+              <span aria-live="polite">
+                <StatusText item={item} failedMessage={failedMessage} />
+              </span>
+            )}
+          </span>
+        </div>
+        {item.phase === 'available' ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className={buttonClassName({ variant: 'ghost', size: 'icon' })}
+              aria-label={t('item.actionsLabel', { fileName: item.file.name })}
+            >
+              <Ellipsis aria-hidden="true" className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onDelete}>{t('item.delete')}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
 
       {item.phase === 'uploading' ? (
         <>
-          <progress
-            className="h-2 w-full"
-            max={100}
+          <Progress
             value={item.progress}
             aria-label={t('item.progressLabel', { fileName: item.file.name })}
           />
-          <p className="text-xs text-muted-foreground">
-            {t('item.uploading', { progress: item.progress })}
-          </p>
           <p aria-live="polite" className="sr-only">
             {t('item.progressAnnouncement', { fileName: item.file.name, progress: announced })}
           </p>
         </>
       ) : null}
 
-      <p aria-live="polite" className="text-sm">
-        <StatusText item={item} failedMessage={failedMessage} />
-      </p>
+      {item.phase === 'scanning' ? <ScanProgress label={t('item.scanning')} /> : null}
 
-      <div className="flex flex-wrap gap-2">
-        {item.phase === 'failed' || item.phase === 'rejected' ? (
-          <>
+      {problem ? (
+        <Alert tone="error" title={<StatusText item={item} failedMessage={failedMessage} />}>
+          <div className="flex flex-wrap gap-2">
             {item.phase === 'failed' ? (
               <Button size="sm" variant="secondary" onClick={onRetry}>
                 {t('item.retry')}
@@ -245,14 +286,9 @@ function AttachmentCard({
             <Button size="sm" variant="ghost" onClick={onDismiss}>
               {t('item.dismiss')}
             </Button>
-          </>
-        ) : null}
-        {item.phase === 'available' ? (
-          <Button size="sm" variant="ghost" onClick={onDelete}>
-            {t('item.delete')}
-          </Button>
-        ) : null}
-      </div>
+          </div>
+        </Alert>
+      ) : null}
     </li>
   );
 }

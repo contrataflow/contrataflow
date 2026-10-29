@@ -98,6 +98,11 @@ function mockApi(
   return { fetchMock, downloads };
 }
 
+/** Abre o menu ⋯ da linha do arquivo (Radix: o gatilho abre por clique). */
+async function openMenu(user: ReturnType<typeof userEvent.setup>, fileName: string) {
+  await user.click(await screen.findByRole('button', { name: `Ações de ${fileName}` }));
+}
+
 const renderList = (
   props: Partial<React.ComponentProps<typeof AttachmentList>> = {},
   navigate = vi.fn<(url: string) => void>(),
@@ -134,12 +139,13 @@ describe('AttachmentList (US-069)', () => {
     );
     expect(requestUrl(listCall?.[0] ?? '')).toContain(`targetType=DOCUMENT&targetId=${DOCUMENT}`);
 
-    const button = screen.getByRole('button', { name: 'Baixar parecer.pdf' });
-    await user.click(button);
+    await openMenu(user, 'parecer.pdf');
+    await user.click(screen.getByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith(SIGNED_URL);
     });
-    await user.click(screen.getByRole('button', { name: 'Baixar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(screen.getByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledTimes(2);
     });
@@ -149,15 +155,18 @@ describe('AttachmentList (US-069)', () => {
 
   it('[Validação] anexo em verificação: sem download ativo e a mensagem de espera (FA-01)', async () => {
     const { downloads } = mockApi([SCANNING]);
+    const user = userEvent.setup();
     renderList();
     expect(
       await screen.findByText('Arquivo em verificação. Tente novamente em instantes.'),
     ).toBeTruthy();
-    const button = screen.getByRole<HTMLButtonElement>('button', {
-      name: 'Baixar em-verificacao.pdf',
-    });
-    expect(button.disabled).toBe(true);
-    expect(screen.queryByRole('button', { name: /Visualizar/ })).toBeNull();
+    expect(
+      screen.getByRole('progressbar', { name: 'Verificando segurança do arquivo…' }),
+    ).toBeTruthy();
+    await openMenu(user, 'em-verificacao.pdf');
+    const item = screen.getByRole('menuitem', { name: 'Baixar em-verificacao.pdf' });
+    expect(item.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.queryByRole('menuitem', { name: /Visualizar/ })).toBeNull();
     expect(downloads).toEqual([]);
   });
 
@@ -167,9 +176,12 @@ describe('AttachmentList (US-069)', () => {
     renderList();
     await screen.findByRole('listitem', { name: 'planilha.xlsx (2 KB)' });
     expect(screen.getByText('Sem prévia disponível — baixar arquivo.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Visualizar planilha.xlsx' })).toBeNull();
+    await openMenu(user, 'planilha.xlsx');
+    expect(screen.queryByRole('menuitem', { name: 'Visualizar planilha.xlsx' })).toBeNull();
+    await user.keyboard('{Escape}');
 
-    await user.click(screen.getByRole('button', { name: 'Visualizar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(screen.getByRole('menuitem', { name: 'Visualizar parecer.pdf' }));
     expect(await screen.findByText(/A prévia de PDF na tela chega/)).toBeTruthy();
   });
 
@@ -178,13 +190,15 @@ describe('AttachmentList (US-069)', () => {
     const fetchBytes = vi.fn(() => Promise.resolve(new Blob(['png'], { type: 'image/png' })));
     const user = userEvent.setup();
     const { navigate } = renderList({ fetchBytes });
-    await user.click(await screen.findByRole('button', { name: 'Visualizar foto.png' }));
+    await openMenu(user, 'foto.png');
+    await user.click(await screen.findByRole('menuitem', { name: 'Visualizar foto.png' }));
     const image = await screen.findByRole('img', { name: 'Prévia de foto.png' });
     expect(image.getAttribute('src')).toBe('blob:preview');
     expect(fetchBytes).toHaveBeenCalledWith(SIGNED_URL);
     expect(downloads).toEqual([IMAGE.id]);
     expect(navigate).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Fechar a prévia de foto.png' }));
+    await openMenu(user, 'foto.png');
+    await user.click(screen.getByRole('menuitem', { name: 'Fechar a prévia de foto.png' }));
     expect(screen.queryByRole('img', { name: 'Prévia de foto.png' })).toBeNull();
   });
 
@@ -192,7 +206,8 @@ describe('AttachmentList (US-069)', () => {
     const { fetchMock } = mockApi([PDF], () => problem(409, 'ATTACHMENT_NOT_AVAILABLE'));
     const user = userEvent.setup();
     const { navigate } = renderList();
-    await user.click(await screen.findByRole('button', { name: 'Baixar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(await screen.findByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     expect(
       await screen.findByText('Arquivo em verificação. Tente novamente em instantes.'),
     ).toBeTruthy();
@@ -209,7 +224,8 @@ describe('AttachmentList (US-069)', () => {
     mockApi([PDF], () => problem(403, 'PERMISSION_DENIED'));
     const user = userEvent.setup();
     const { navigate } = renderList();
-    await user.click(await screen.findByRole('button', { name: 'Baixar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(await screen.findByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     expect(
       await screen.findByText('Você não tem permissão para baixar este arquivo.'),
     ).toBeTruthy();
@@ -226,7 +242,8 @@ describe('AttachmentList (US-069)', () => {
     );
     const user = userEvent.setup();
     const { navigate } = renderList();
-    await user.click(await screen.findByRole('button', { name: 'Baixar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(await screen.findByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     expect(
       await screen.findByText(
         'Não foi possível baixar o arquivo agora. Tente novamente em instantes.',
@@ -234,7 +251,8 @@ describe('AttachmentList (US-069)', () => {
     ).toBeTruthy();
     expect(screen.getByText('Código de suporte: corr-503')).toBeTruthy();
     healthy = true;
-    await user.click(screen.getByRole('button', { name: 'Baixar parecer.pdf' }));
+    await openMenu(user, 'parecer.pdf');
+    await user.click(screen.getByRole('menuitem', { name: 'Baixar parecer.pdf' }));
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith(SIGNED_URL);
     });

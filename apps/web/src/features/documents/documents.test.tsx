@@ -318,7 +318,9 @@ describe('DocumentActionsBar · botões por meta.allowedActions', () => {
     // prévia em PDF (US-067) aparece para quem vê o documento, sem depender de `allowedActions`.
     const outsideComments = screen
       .queryAllByRole('button')
-      .filter((button) => !button.closest('section[aria-label="Comentários"]'));
+      .filter((button) => !button.closest('section[aria-label="Comentários"]'))
+      // A ajuda dos anexos (ícone com tooltip) não é ação do documento.
+      .filter((button) => button.getAttribute('aria-label') !== 'Sobre a verificação dos anexos');
     expect(outsideComments.map((button) => button.textContent)).toEqual([
       'Salvar versão',
       'Gerar prévia em PDF',

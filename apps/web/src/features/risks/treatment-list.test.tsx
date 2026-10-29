@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeQueryClient } from '@/lib/query/query-client';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption, pickDate } from '@test/support/kit';
 import {
   ID,
   PROCESS_ID,
@@ -163,7 +164,7 @@ describe('SCR-011 · ações de tratamento (US-034)', () => {
     expect(within(dialog).getByText('Informe a descrição.')).toBeTruthy();
     expect(callsTo(api, 'POST', POST)).toEqual([]);
 
-    await user.selectOptions(within(dialog).getByLabelText(/^Tipo/), 'PREVENTIVE');
+    await chooseOption(user, /^Tipo/, 'Prevenção', dialog);
     await user.type(within(dialog).getByLabelText(/^Descrição/), 'curta');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar ação' }));
     expect(
@@ -171,7 +172,7 @@ describe('SCR-011 · ações de tratamento (US-034)', () => {
     ).toBeTruthy();
 
     await user.type(within(dialog).getByLabelText(/^Descrição/), ' demais para valer');
-    await user.type(within(dialog).getByLabelText('Prazo'), '2026-11-30');
+    await pickDate(user, /^Prazo/, '2026-11-30');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar ação' }));
     await waitFor(() => {
       expect(callsTo(api, 'POST', POST)).toHaveLength(1);
@@ -305,7 +306,7 @@ describe('SCR-011 · ações de tratamento (US-034)', () => {
       within(panel).getByRole('button', { name: 'Nova ação de tratamento para R01' }),
     );
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText(/^Tipo/), 'CONTINGENCY');
+    await chooseOption(user, /^Tipo/, 'Contingência', dialog);
     await user.type(within(dialog).getByLabelText(/^Descrição/), 'Contratação emergencial');
     await user.click(within(dialog).getByRole('button', { name: 'Salvar ação' }));
     expect(
