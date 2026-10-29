@@ -13,13 +13,6 @@ const NATIVE_CONTROL = /<select\b|type="(checkbox|radio|date)"/;
  * zero no card 11 (varredura final); o teste reprova entrada que já não tem controle nativo.
  */
 const NOT_MIGRATED: Readonly<Record<string, string>> = {
-  // Card 3 — caixa de tarefas e aprovações.
-  'approval-decision/approval-decision-panel.tsx': 'card 3',
-  'approval-decision/approval-pending-actions.tsx': 'card 3',
-  'approval-decision/decision-fields.tsx': 'card 3',
-  'approval-list/approval-list-page.tsx': 'card 3',
-  'task-inbox/task-bulk-actions.tsx': 'card 3',
-  'task-inbox/task-inbox-page.tsx': 'card 3',
   // Card 4 — processo: página, lista e novo processo.
   'comments/comment-composer.tsx': 'card 4',
   'movements/movement-filter-bar.tsx': 'card 4',

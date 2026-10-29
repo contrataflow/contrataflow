@@ -8,7 +8,14 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  Field,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import { PROCESS_ASSIGN_LIMITS } from '@contrataflow/validation';
@@ -18,7 +25,6 @@ import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
 import { useDepartmentMembers } from '@/features/process-assign/process-assign.api';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '@/features/processes/form-field';
 import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -56,7 +62,7 @@ export interface TaskBulkActionsProps {
  * `BulkActionBar` (US-058 · SCR-013): "{N} selecionados" com "Assumir selecionados" (TSK-03, com
  * confirmação) e "Atribuir selecionados" (TSK-04, SCR-115 adaptado); durante o envio os botões
  * ficam desabilitados ("Processando {N} processos…"); o `BulkResultSummary` anuncia o resultado por
- * `aria-live`. Fixa no rodapé em telas pequenas.
+ * `aria-live`. Barra flutuante no rodapé da tela (prd-5), em largura total nas telas pequenas.
  */
 export function TaskBulkActions({
   selection,
@@ -120,7 +126,7 @@ export function TaskBulkActions({
         <div
           role="region"
           aria-label={t('label')}
-          className="flex flex-wrap items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-card max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-20 max-md:rounded-none"
+          className="fixed inset-x-0 bottom-0 z-30 flex flex-wrap items-center gap-2 bg-surface px-4 py-3 shadow-popover md:inset-x-auto md:bottom-6 md:left-1/2 md:w-[min(48rem,calc(100vw-3rem))] md:-translate-x-1/2 md:rounded-card md:px-5"
         >
           <p className="text-sm font-medium" aria-live="polite">
             {processing ? t('processing', { count }) : t('selected', { count })}
@@ -362,58 +368,45 @@ function BulkAssignDialog({
               submit();
             }}
           >
-            <div className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={selectId} className="text-sm font-medium">
-                {t('assignee')}
-              </label>
+            <Field label={t('assignee')} id={selectId} required error={errors.assignee}>
               {members.isPending && members.fetchStatus !== 'idle' ? (
                 <div role="status">
                   <span className="sr-only">{t('loading')}</span>
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-11 w-full" />
                 </div>
               ) : null}
               {members.isError ? <Alert tone="error" title={t('loadError')} /> : null}
-              <select
-                id={selectId}
+              <Select
                 value={assigneeId}
-                aria-required
-                aria-invalid={errors.assignee ? true : undefined}
-                aria-describedby={errors.assignee ? `${selectId}-error` : undefined}
-                className={`${INPUT_CLASS} min-h-11`}
-                onChange={(event) => {
-                  setAssigneeId(event.target.value);
+                onValueChange={(value) => {
+                  setAssigneeId(value);
                   setErrors(({ reason: current }) =>
                     current === undefined ? {} : { reason: current },
                   );
                 }}
               >
-                <option value="">{t('placeholder')}</option>
-                {(members.data ?? []).map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-              {errors.assignee ? (
-                <p id={`${selectId}-error`} className="text-xs text-destructive">
-                  {errors.assignee}
-                </p>
-              ) : null}
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <label htmlFor={reasonId} className="text-sm font-medium">
-                {t('reason')}
-              </label>
-              <textarea
-                id={reasonId}
+                <SelectTrigger>
+                  <SelectValue placeholder={t('placeholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(members.data ?? []).map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field
+              label={t('reason')}
+              id={reasonId}
+              required
+              description={t('reasonHint')}
+              error={errors.reason}
+            >
+              <Textarea
                 value={reason}
                 maxLength={PROCESS_ASSIGN_LIMITS.reasonMax}
-                aria-required
-                aria-invalid={errors.reason ? true : undefined}
-                aria-describedby={[`${reasonId}-hint`, errors.reason ? `${reasonId}-error` : '']
-                  .filter(Boolean)
-                  .join(' ')}
-                className={TEXTAREA_CLASS}
                 onChange={(event) => {
                   setReason(event.target.value);
                   setErrors(({ assignee: current }) =>
@@ -421,15 +414,7 @@ function BulkAssignDialog({
                   );
                 }}
               />
-              <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
-                {t('reasonHint')}
-              </p>
-              {errors.reason ? (
-                <p id={`${reasonId}-error`} className="text-xs text-destructive">
-                  {errors.reason}
-                </p>
-              ) : null}
-            </div>
+            </Field>
             <DialogFooter>
               <Button type="button" variant="secondary" onClick={onClose}>
                 {t('cancel')}

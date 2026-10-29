@@ -1,6 +1,10 @@
 {
   "detail": {
     "loading": "Carregando a aprovação…",
+    "breadcrumb": "Aprovações",
+    "breadcrumbLabel": "Trilha",
+    "history": "Histórico da aprovação",
+    "decisionAside": "Decisão",
     "notFound": "Não encontramos a aprovação solicitada.",
     "backToApprovals": "Voltar para as aprovações",
     "loadFailed": "Não foi possível carregar a aprovação agora.",
@@ -126,6 +130,7 @@
   },
   "pendingActions": {
     "heading": "Ações sobre a aprovação pendente",
+    "more": "Mais ações",
     "withdraw": "Retirar aprovação",
     "reassign": "Redirecionar aprovação",
     "withdrawDialog": {

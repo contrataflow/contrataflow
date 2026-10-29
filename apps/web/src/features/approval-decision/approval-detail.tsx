@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Skeleton } from '@contrataflow/ui';
+import { Alert, Button, DetailPage, Skeleton } from '@contrataflow/ui';
 import type { ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -28,14 +28,17 @@ export interface ApprovalDetailProps {
 }
 
 /**
- * `ApprovalDetail` (US-052 · SCR-015): detalhe da aprovação — título, solicitante, prazo, situação,
- * aviso de substituto, comentário da solicitação, documentos cobertos (com a versão analisada) e
- * o painel de decisão e, na US-053, as ações "Retirar"/"Redirecionar" (`WITHDRAW`/`REASSIGN`).
- * Sem `DECIDE` em `meta.allowedActions` o painel não aparece: a tela mostra a
- * decisão registrada (já decidida) ou explica por que a pessoa não pode decidir. Skeleton no
- * carregamento; 404 e erro de carga com "Tentar novamente"; 409/412 recarregam os dados.
+ * `ApprovalDetail` (US-052 · SCR-015) no modelo `DetailPage` (prd-5): faixa com trilha, assunto,
+ * situação, processo e fatos-chave (solicitante, data, prazo, aprovador); no conteúdo, os documentos
+ * cobertos (versão analisada e PDF) e o histórico compacto da aprovação; à direita, o cartão de
+ * decisão (Aprovar / Devolver / Indeferir). "Retirar"/"Redirecionar" (US-053) ficam no menu "Mais".
+ * Sem `DECIDE` em `meta.allowedActions` o cartão não aparece: a tela explica por que a pessoa não
+ * pode decidir, e a decisão registrada entra no histórico. Skeleton na carga; 404 e erro de carga
+ * com "Tentar novamente"; 409/412 recarregam os dados.
  */
 export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
+  const t = useTranslations('approvals.detail');
+  const timeZone = useShellSession().activeTenant.timezone;
   const query = useApproval(approvalId);
   const [notice, setNotice] = useState<DecisionProblem | null>(null);
   const [actionNotice, setActionNotice] = useState<PendingActionNotice | null>(null);
@@ -55,38 +58,89 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
   }
 
   const { approval, meta } = query.data;
-  const decidable = canDecide(meta) && approval.status === 'PENDING';
+  const pending = approval.status === 'PENDING';
+  const decidable = canDecide(meta) && pending;
+  const refresh = () => {
+    void query.refetch();
+  };
+  const processLabel =
+    approval.process.code === null
+      ? t('processNoCode', { title: approval.process.title })
+      : t('process', { code: approval.process.code, title: approval.process.title });
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <ApprovalHeader approval={approval} meta={meta} />
-      <div aria-live="polite" className="flex flex-col gap-2">
-        {notice === null ? null : <NoticeAlert problem={notice} />}
-        {actionNotice === null ? null : <ActionNoticeAlert notice={actionNotice} />}
-      </div>
-      <RequestComment comment={approval.requestComment} />
-      {decidable ? null : <ClosedSection approval={approval} meta={meta} />}
-      <DocumentCoverageList processId={approval.process.id} documents={approval.documents} />
-      {decidable ? (
-        <ApprovalDecisionPanel
+    <DetailPage
+      breadcrumbs={[{ label: t('breadcrumb'), href: '/aprovacoes' }, { label: approval.title }]}
+      breadcrumbLabel={t('breadcrumbLabel')}
+      linkComponent={Link}
+      title={approval.title}
+      status={<ApprovalStatusBadge status={approval.status} />}
+      subtitle={
+        <Link
+          href={`/processos/${approval.process.id}`}
+          className="break-words text-primary-soft-foreground underline-offset-2 hover:underline"
+        >
+          {processLabel}
+        </Link>
+      }
+      actions={
+        <ApprovalPendingActions
           approval={approval}
           meta={meta}
           retry={retry}
-          onNotice={setNotice}
-          onRefresh={() => {
-            void query.refetch();
-          }}
+          onNotice={setActionNotice}
+          onRefresh={refresh}
         />
-      ) : null}
-      <ApprovalPendingActions
-        approval={approval}
-        meta={meta}
-        retry={retry}
-        onNotice={setActionNotice}
-        onRefresh={() => {
-          void query.refetch();
-        }}
-      />
-    </div>
+      }
+      facts={[
+        {
+          id: 'requestedBy',
+          label: t('facts.requestedBy'),
+          value: approval.requestedBy.name ?? t('unknownPerson'),
+        },
+        {
+          id: 'requestedAt',
+          label: t('facts.requestedAt'),
+          value: formatDateTime(approval.requestedAt, timeZone),
+        },
+        {
+          id: 'dueAt',
+          label: t('facts.dueAt'),
+          value:
+            approval.dueAt === null ? t('facts.noDueAt') : formatDateTime(approval.dueAt, timeZone),
+        },
+        { id: 'approver', label: t('facts.approver'), value: approval.approver.label },
+      ]}
+      notices={
+        <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
+          {notice === null ? null : <NoticeAlert problem={notice} />}
+          {actionNotice === null ? null : <ActionNoticeAlert notice={actionNotice} />}
+          {pending && approval.allowDeputy ? (
+            <Alert tone="info" live={false} title={t('allowDeputy')} />
+          ) : null}
+          {pending && meta.decidesAsDeputy ? (
+            <Alert tone="info" live={false} title={t('decidesAsDeputy')} />
+          ) : null}
+          {approval.status === 'CANCELED' ? <CanceledNotice /> : null}
+          {pending && !decidable ? <BlockedExplanation blocker={meta.decisionBlocker} /> : null}
+        </div>
+      }
+      aside={
+        decidable ? (
+          <ApprovalDecisionPanel
+            approval={approval}
+            meta={meta}
+            retry={retry}
+            onNotice={setNotice}
+            onRefresh={refresh}
+          />
+        ) : null
+      }
+      asideLabel={t('decisionAside')}
+    >
+      <DocumentCoverageList processId={approval.process.id} documents={approval.documents} />
+      <ApprovalHistory approval={approval} />
+    </DetailPage>
   );
 }
 
@@ -99,12 +153,15 @@ function ActionNoticeAlert({ notice }: { readonly notice: PendingActionNotice })
 function DetailSkeleton() {
   const t = useTranslations('approvals.detail');
   return (
-    <div role="status" className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+    <div role="status" className="flex w-full flex-col gap-5">
       <span className="sr-only">{t('loading')}</span>
+      <Skeleton className="h-4 w-48 max-w-full" />
       <Skeleton className="h-8 w-96 max-w-full" />
-      <Skeleton className="h-4 w-64 max-w-full" />
-      <Skeleton className="h-28 w-full" />
-      <Skeleton className="h-40 w-full" />
+      <Skeleton className="h-24 w-full" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <Skeleton className="h-56 w-full" />
+        <Skeleton className="h-56 w-full" />
+      </div>
     </div>
   );
 }
@@ -151,97 +208,51 @@ function Fact({ label, children }: { readonly label: string; readonly children: 
   );
 }
 
-function ApprovalHeader({
-  approval,
-  meta,
-}: {
-  readonly approval: ApprovalDto;
-  readonly meta: ApprovalMeta;
-}) {
-  const t = useTranslations('approvals.detail');
-  const timeZone = useShellSession().activeTenant.timezone;
-  const pending = approval.status === 'PENDING';
-  const processLabel =
-    approval.process.code === null
-      ? t('processNoCode', { title: approval.process.title })
-      : t('process', { code: approval.process.code, title: approval.process.title });
-  return (
-    <header className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold break-words">{approval.title}</h1>
-        <ApprovalStatusBadge status={approval.status} />
-      </div>
-      <Link
-        href={`/processos/${approval.process.id}`}
-        className="w-fit text-sm break-words text-primary underline"
-      >
-        {processLabel}
-      </Link>
-      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        <Fact label={t('facts.requestedBy')}>
-          {approval.requestedBy.name ?? t('unknownPerson')}
-        </Fact>
-        <Fact label={t('facts.requestedAt')}>{formatDateTime(approval.requestedAt, timeZone)}</Fact>
-        <Fact label={t('facts.dueAt')}>
-          {approval.dueAt === null ? t('facts.noDueAt') : formatDateTime(approval.dueAt, timeZone)}
-        </Fact>
-        <Fact label={t('facts.approver')}>{approval.approver.label}</Fact>
-      </dl>
-      {pending && approval.allowDeputy ? (
-        <Alert tone="info" live={false} title={t('allowDeputy')} />
-      ) : null}
-      {pending && meta.decidesAsDeputy ? (
-        <Alert tone="info" live={false} title={t('decidesAsDeputy')} />
-      ) : null}
-    </header>
-  );
-}
-
-function RequestComment({ comment }: { readonly comment: string | null }) {
+/**
+ * Histórico compacto da aprovação: o comentário da solicitação e, quando houver, a decisão
+ * registrada (decisor, data, substituto e comentário). Solicitante e data já estão nos fatos.
+ */
+function ApprovalHistory({ approval }: { readonly approval: ApprovalDto }) {
   const t = useTranslations('approvals.detail');
   const headingId = useId();
-  if (comment === null || comment.trim() === '') return null;
+  const comment = approval.requestComment?.trim() ?? '';
+  if (comment === '' && approval.decision === null) return null;
   return (
-    <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-1">
-      <h2 id={headingId} className="text-sm font-semibold">
-        {t('requestComment')}
+    <section
+      aria-labelledby={headingId}
+      className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-5 shadow-card"
+    >
+      <h2 id={headingId} className="text-base font-semibold">
+        {t('history')}
       </h2>
-      <p className="text-sm break-words whitespace-pre-line">{comment}</p>
+      <ol className="flex flex-col gap-4 border-l-2 border-border pl-4">
+        {comment === '' ? null : (
+          <li className="flex min-w-0 flex-col gap-1">
+            <h3 className="text-sm font-semibold">{t('requestComment')}</h3>
+            <p className="text-sm break-words whitespace-pre-line">{approval.requestComment}</p>
+          </li>
+        )}
+        {approval.decision === null ? null : (
+          <li className="flex min-w-0 flex-col gap-1">
+            <DecisionRecord approval={approval} />
+          </li>
+        )}
+      </ol>
     </section>
   );
-}
-
-/**
- * Aprovação que a pessoa não decide: já decidida (mostra a decisão registrada), cancelada ou
- * fora da designação/segregação/situação do processo (explica o motivo — "oculta ações").
- */
-function ClosedSection({
-  approval,
-  meta,
-}: {
-  readonly approval: ApprovalDto;
-  readonly meta: ApprovalMeta;
-}) {
-  if (approval.status !== 'PENDING') return <DecisionRecord approval={approval} />;
-  return <BlockedExplanation blocker={meta.decisionBlocker} />;
 }
 
 function DecisionRecord({ approval }: { readonly approval: ApprovalDto }) {
   const t = useTranslations('approvals.record');
   const timeZone = useShellSession().activeTenant.timezone;
   const headingId = useId();
-  if (approval.decision === null) {
-    return <Alert tone="info" title={t('canceled')} />;
-  }
+  if (approval.decision === null) return null;
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4 md:p-6"
-    >
-      <h2 id={headingId} className="text-base font-semibold">
+    <section aria-labelledby={headingId} className="flex min-w-0 flex-col gap-2">
+      <h3 id={headingId} className="text-sm font-semibold">
         {t('heading')}
-      </h2>
-      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+      </h3>
+      <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <Fact label={t('decision')}>{t(`decisions.${approval.decision}`)}</Fact>
         <Fact label={t('decidedBy')}>
           {t(approval.decidedAsDeputy ? 'byDeputy' : 'byName', {
@@ -262,6 +273,12 @@ function DecisionRecord({ approval }: { readonly approval: ApprovalDto }) {
   );
 }
 
+function CanceledNotice() {
+  const t = useTranslations('approvals.record');
+  return <Alert tone="info" title={t('canceled')} />;
+}
+
+/** Pendente, mas fora da designação/segregação/situação do processo: explica o motivo. */
 function BlockedExplanation({ blocker }: { readonly blocker: ApprovalMeta['decisionBlocker'] }) {
   const t = useTranslations('approvals.blocked');
   return (

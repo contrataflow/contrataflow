@@ -3,11 +3,23 @@
 import {
   Alert,
   Button,
+  ChevronDown,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Field,
+  Input,
+  Label,
+  RadioGroup,
+  RadioGroupItem,
+  Search,
+  Textarea,
   toast,
 } from '@contrataflow/ui';
 import type { ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
@@ -41,7 +53,6 @@ import type {
   ReassignFieldMessages,
   ReassignTargetType,
 } from './pending-actions-model';
-import { INPUT_CLASS, TEXTAREA_CLASS } from '../processes/form-field';
 
 /** Recusa que a tela inteira explica (o diálogo fecha e a aprovação é relida). */
 export type PendingActionNotice = Extract<
@@ -69,10 +80,11 @@ export interface ApprovalPendingActionsProps {
 }
 
 /**
- * Ações sobre a aprovação pendente (US-053 · SCR-015): "Retirar aprovação" (APV-04 — POL-17) e
- * "Redirecionar aprovação" (APV-05 — `APPROVAL_REASSIGN`), cada uma só com a ação em
- * `meta.allowedActions` (sem permissão, o botão nem aparece). Sucesso invalida as aprovações, o
- * processo e a caixa de tarefas.
+ * Ações sobre a aprovação pendente (US-053 · SCR-015) no menu "Mais" do cabeçalho (prd-5 · regra
+ * 1): "Retirar aprovação" (APV-04 — POL-17) e "Redirecionar aprovação" (APV-05 —
+ * `APPROVAL_REASSIGN`), cada uma só com a ação em `meta.allowedActions` (sem permissão, o item nem
+ * aparece). Cada uma confirma num `Dialog` do kit; sucesso invalida as aprovações, o processo e a
+ * caixa de tarefas.
  */
 export function ApprovalPendingActions({
   approval,
@@ -82,41 +94,39 @@ export function ApprovalPendingActions({
   onRefresh,
 }: ApprovalPendingActionsProps) {
   const t = useTranslations('approvals.pendingActions');
-  const headingId = useId();
   const [open, setOpen] = useState<'withdraw' | 'reassign' | null>(null);
   const withdrawable = canWithdraw(meta);
   const reassignable = canReassign(meta);
   if (approval.status !== 'PENDING' || (!withdrawable && !reassignable)) return null;
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4 md:p-6"
-    >
-      <h2 id={headingId} className="text-base font-semibold">
-        {t('heading')}
-      </h2>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {withdrawable ? (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setOpen('withdraw');
-            }}
-          >
-            {t('withdraw')}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="secondary" iconRight={<ChevronDown />}>
+            {t('more')}
           </Button>
-        ) : null}
-        {reassignable ? (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setOpen('reassign');
-            }}
-          >
-            {t('reassign')}
-          </Button>
-        ) : null}
-      </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {withdrawable ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                setOpen('withdraw');
+              }}
+            >
+              {t('withdraw')}
+            </DropdownMenuItem>
+          ) : null}
+          {reassignable ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                setOpen('reassign');
+              }}
+            >
+              {t('reassign')}
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {withdrawable ? (
         <WithdrawApprovalDialog
           approval={approval}
@@ -141,7 +151,7 @@ export function ApprovalPendingActions({
           onRefresh={onRefresh}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 
@@ -301,25 +311,20 @@ function WithdrawApprovalDialog({
               />
             )}
           </div>
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor={reasonId} className="text-sm font-medium">
-              {t('withdrawDialog.reason')}
-            </label>
-            <textarea
-              id={reasonId}
+          <Field
+            id={reasonId}
+            label={t('withdrawDialog.reason')}
+            description={t('withdrawDialog.reasonHint')}
+          >
+            <Textarea
               value={reason}
               maxLength={2000}
               rows={4}
-              aria-describedby={`${reasonId}-hint`}
-              className={TEXTAREA_CLASS}
               onChange={(event) => {
                 setReason(event.target.value);
               }}
             />
-            <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
-              {t('withdrawDialog.reasonHint')}
-            </p>
-          </div>
+          </Field>
           <DialogFooter>
             <Button
               type="button"
@@ -465,126 +470,101 @@ function ReassignApprovalDialog({
               />
             )}
           </div>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">{t('reassignDialog.typeLegend')}</legend>
-            <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+          <Field label={t('reassignDialog.typeLegend')} group>
+            <RadioGroup
+              value={approverType}
+              onValueChange={(value) => {
+                setApproverType(value as ReassignTargetType);
+                setTargetId(null);
+                setSearch('');
+                setTerm('');
+              }}
+              className="sm:flex-row sm:gap-5"
+            >
               {REASSIGN_TARGET_TYPES.map((type) => (
-                <label key={type} className="flex min-h-11 items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name={`${ids}-type`}
-                    value={type}
-                    checked={approverType === type}
-                    onChange={() => {
-                      setApproverType(type);
-                      setTargetId(null);
-                      setSearch('');
-                      setTerm('');
-                    }}
-                  />
-                  {t(`reassignDialog.types.${type}`)}
-                </label>
+                <span key={type} className="flex min-h-11 items-center gap-2">
+                  <RadioGroupItem id={`${ids}-type-${type}`} value={type} />
+                  <Label htmlFor={`${ids}-type-${type}`} className="cursor-pointer font-normal">
+                    {t(`reassignDialog.types.${type}`)}
+                  </Label>
+                </span>
               ))}
-            </div>
-          </fieldset>
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor={searchId} className="text-sm font-medium">
-              {t(`reassignDialog.search.${approverType}`)}
-            </label>
-            <input
-              id={searchId}
+            </RadioGroup>
+          </Field>
+          <Field
+            id={searchId}
+            label={t(`reassignDialog.search.${approverType}`)}
+            description={t('reassignDialog.searchHint')}
+            error={errors.target}
+            required
+            requiredMark=""
+          >
+            <Input
               type="search"
+              icon={<Search />}
               value={search}
-              aria-required
-              aria-invalid={errors.target ? true : undefined}
-              aria-describedby={[
-                `${searchId}-hint`,
-                errors.target ? `${searchId}-error` : undefined,
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              className={`${INPUT_CLASS} min-h-11`}
               onChange={(event) => {
                 setSearch(event.target.value);
               }}
             />
-            <p id={`${searchId}-hint`} className="text-xs text-muted-foreground">
-              {t('reassignDialog.searchHint')}
-            </p>
-            {errors.target ? (
-              <p id={`${searchId}-error`} className="text-xs text-destructive">
-                {errors.target}
-              </p>
-            ) : null}
-            <div aria-live="polite" className="text-xs text-muted-foreground">
-              {searching ? t('reassignDialog.searching') : null}
-              {candidates.isError ? t('reassignDialog.searchFailed') : null}
-              {!searching && candidates.isSuccess && options.length === 0
-                ? t('reassignDialog.noResults')
-                : null}
-            </div>
-            {options.length > 0 ? (
-              <fieldset className="flex flex-col gap-1">
-                <legend className="sr-only">{t('reassignDialog.resultsLegend')}</legend>
+          </Field>
+          <div aria-live="polite" className="text-xs text-muted-foreground">
+            {searching ? t('reassignDialog.searching') : null}
+            {candidates.isError ? t('reassignDialog.searchFailed') : null}
+            {!searching && candidates.isSuccess && options.length === 0
+              ? t('reassignDialog.noResults')
+              : null}
+          </div>
+          {options.length > 0 ? (
+            <fieldset className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0">
+              <legend className="sr-only">{t('reassignDialog.resultsLegend')}</legend>
+              <RadioGroup
+                value={targetId ?? ''}
+                onValueChange={(value) => {
+                  setTargetId(value);
+                  setErrors(({ reason: current }) =>
+                    current === undefined ? {} : { reason: current },
+                  );
+                }}
+                className="gap-1"
+              >
                 {options.map((option) => (
-                  <label
+                  <span
                     key={option.id}
                     className="flex min-h-11 min-w-0 items-center gap-2 text-sm break-words"
                   >
-                    <input
-                      type="radio"
-                      name={`${ids}-target`}
-                      value={option.id}
-                      checked={targetId === option.id}
-                      onChange={() => {
-                        setTargetId(option.id);
-                        setErrors(({ reason: current }) =>
-                          current === undefined ? {} : { reason: current },
-                        );
-                      }}
-                    />
-                    <span className="min-w-0">
+                    <RadioGroupItem id={`${ids}-target-${option.id}`} value={option.id} />
+                    <Label
+                      htmlFor={`${ids}-target-${option.id}`}
+                      className="min-w-0 cursor-pointer font-normal"
+                    >
                       {option.label}
                       {option.hint === null ? null : (
                         <span className="block text-xs text-muted-foreground">{option.hint}</span>
                       )}
-                    </span>
-                  </label>
+                    </Label>
+                  </span>
                 ))}
-              </fieldset>
-            ) : null}
-          </div>
-          <div className="flex min-w-0 flex-col gap-1">
-            <label htmlFor={reasonId} className="text-sm font-medium">
-              {t('reassignDialog.reason')}
-            </label>
-            <textarea
-              id={reasonId}
+              </RadioGroup>
+            </fieldset>
+          ) : null}
+          <Field
+            id={reasonId}
+            label={t('reassignDialog.reason')}
+            description={t('reassignDialog.reasonHint')}
+            error={errors.reason}
+            required
+            requiredMark=""
+          >
+            <Textarea
               value={reason}
               rows={4}
               maxLength={2000}
-              aria-required
-              aria-invalid={errors.reason ? true : undefined}
-              aria-describedby={[
-                `${reasonId}-hint`,
-                errors.reason ? `${reasonId}-error` : undefined,
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              className={TEXTAREA_CLASS}
               onChange={(event) => {
                 setReason(event.target.value);
               }}
             />
-            <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
-              {t('reassignDialog.reasonHint')}
-            </p>
-            {errors.reason ? (
-              <p id={`${reasonId}-error`} className="text-xs text-destructive">
-                {errors.reason}
-              </p>
-            ) : null}
-          </div>
+          </Field>
           <DialogFooter>
             <Button
               type="button"

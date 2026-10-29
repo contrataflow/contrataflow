@@ -162,7 +162,7 @@ async function openQueue(user: ReturnType<typeof userEvent.setup>) {
     </>,
   );
   await user.click(await screen.findByRole('tab', { name: /Na fila da minha unidade/ }));
-  await screen.findByRole('link', { name: '0001/2026' });
+  await screen.findByText('0001/2026');
 }
 
 afterEach(() => {
@@ -251,9 +251,10 @@ describe('SCR-013 — Ações em lote na fila da unidade (US-058)', () => {
     await user.click(screen.getByRole('button', { name: 'Cancelar seleção' }));
     expect(screen.queryByRole('region', { name: 'Ações em lote' })).toBeNull();
     expect(
-      screen.getByRole<HTMLInputElement>('checkbox', { name: 'Selecionar o processo 0001/2026' })
-        .checked,
-    ).toBe(false);
+      screen
+        .getByRole('checkbox', { name: 'Selecionar o processo 0001/2026' })
+        .getAttribute('aria-checked'),
+    ).toBe('false');
     expect(calls(fetchMock, '/api/v1/tasks/bulk-claim')).toEqual([]);
   });
 
@@ -273,9 +274,9 @@ describe('SCR-013 — Ações em lote na fila da unidade (US-058)', () => {
     );
     expect(calls(fetchMock, '/api/v1/tasks/bulk-assign')).toEqual([]);
 
-    await within(dialog).findByRole('option', { name: 'Fernanda Lima' });
-    await user.selectOptions(within(dialog).getByLabelText('Responsável'), FERNANDA);
-    await user.type(within(dialog).getByLabelText('Motivo'), 'Mutirão de triagem');
+    await user.click(within(dialog).getByRole('combobox', { name: /Responsável/ }));
+    await user.click(await screen.findByRole('option', { name: 'Fernanda Lima' }));
+    await user.type(within(dialog).getByRole('textbox', { name: /Motivo/ }), 'Mutirão de triagem');
     expect(await seriousA11yViolations()).toEqual([]);
     await user.click(within(dialog).getByRole('button', { name: 'Atribuir' }));
 

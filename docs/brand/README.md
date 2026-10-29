@@ -151,10 +151,14 @@ segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K ab
 | Painel | `painel.png` | `painel-escuro.png` | `painel-celular.png` |
 | Lista de processos | `lista-de-processos.png` | `lista-de-processos-escuro.png` | `lista-de-processos-celular.png` |
 | Página do processo | `pagina-do-processo.png` | `pagina-do-processo-escuro.png` | `pagina-do-processo-celular.png` |
+| Caixa de tarefas (card 3) | `caixa-de-tarefas.png` | `caixa-de-tarefas-escuro.png` | `caixa-de-tarefas-celular.png` |
+| Caixa de tarefas vazia | `caixa-de-tarefas-vazia.png` | `caixa-de-tarefas-vazia-escuro.png` | `caixa-de-tarefas-vazia-celular.png` |
+| Aprovações (card 3) | `aprovacoes.png` | `aprovacoes-escuro.png` | `aprovacoes-celular.png` |
+| Aprovações vazia | `aprovacoes-vazia.png` | `aprovacoes-vazia-escuro.png` | `aprovacoes-vazia-celular.png` |
+| Decisão da aprovação | `decisao-da-aprovacao.png` | `decisao-da-aprovacao-escuro.png` | `decisao-da-aprovacao-celular.png` |
 
 Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
-editores (DFD, ETP, TR, pesquisa de preços, riscos, documentos), aprovações, caixa de tarefas,
-fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram
+editores (DFD, ETP, TR, pesquisa de preços, riscos, documentos), fornecedores, auditoria, notificações, perfil e administração. Contraste e rolagem horizontal foram
 varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
 
 ## Tokens (`packages/ui/src/styles.css`)

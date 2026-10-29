@@ -1,7 +1,7 @@
-// E2E da caixa de tarefas (US-056 · SCR-013 `/tarefas`): a Ana abre a caixa em "Comigo", troca de
-// aba, ordena, assume o processo da fila da unidade (PRC-21) e vê o contador das duas abas mudar;
-// depois (US-058) assume em lote com sucesso parcial e atribui em lote com motivo obrigatório.
-// axe-core na tela e a lista em cartões a 360 px. A API é simulada (support/mock-api.mjs); visões,
+// E2E da caixa de tarefas (US-056 · SCR-013 `/tarefas`, modelo de lista do prd-5): a Ana abre a
+// caixa em "Comigo", troca de aba, ordena, assume pelo menu ⋯ o processo da fila da unidade
+// (PRC-21) e vê o contador das duas abas mudar; depois (US-058) assume em lote com sucesso parcial e
+// atribui em lote com motivo obrigatório. axe-core na tela e a lista em cartões a 360 px. A API é simulada (support/mock-api.mjs); visões,
 // contadores, RLS, concorrência e reenvio idempotente são cobertos nos testes da API.
 import { expect, test } from '@playwright/test';
 
@@ -18,17 +18,13 @@ test('trocar de aba, ordenar e assumir da fila atualizando os contadores', async
   await expect(page.getByRole('heading', { level: 1, name: 'Caixa de tarefas' })).toBeVisible();
   const mine = page.getByRole('tab', { name: 'Comigo: 2 itens' });
   await expect(mine).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('link', { name: '0002/2026' })).toBeVisible();
+  await expect(page.getByText('0002/2026', { exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'caixa de tarefas');
 
   // Ordenação: código, mais antigo primeiro.
-  await page.getByLabel('Ordenar por').selectOption('code');
-  await expect(
-    page
-      .getByRole('link')
-      .filter({ hasText: /\/2026$/ })
-      .first(),
-  ).toHaveText('0001/2026');
+  await page.getByRole('combobox', { name: 'Ordenar por' }).click();
+  await page.getByRole('option', { name: 'Código (mais antigo primeiro)' }).click();
+  await expect(page.getByRole('row').nth(1)).toContainText('0001/2026');
 
   // Aprovações pendentes: solicitante na linha.
   await page.getByRole('tab', { name: /Aprovações pendentes/ }).click();
@@ -36,13 +32,14 @@ test('trocar de aba, ordenar e assumir da fila atualizando os contadores', async
 
   // Fila da unidade: "Assumir" move o processo para "Comigo".
   await page.getByRole('tab', { name: 'Na fila da minha unidade: 4 itens' }).click();
-  await page.getByRole('button', { name: 'Assumir o processo 0012/2026' }).click();
+  await page.getByRole('button', { name: 'Ações de 0012/2026' }).click();
+  await page.getByRole('menuitem', { name: 'Assumir o processo 0012/2026' }).click();
   await expect(page.getByText('Você assumiu este processo.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: '0012/2026' })).toBeHidden();
+  await expect(page.getByText('0012/2026', { exact: true })).toBeHidden();
   await expect(page.getByRole('tab', { name: 'Comigo: 3 itens' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Na fila da minha unidade: 3 itens' })).toBeVisible();
   await page.getByRole('tab', { name: 'Comigo: 3 itens' }).click();
-  await expect(page.getByRole('link', { name: '0012/2026' })).toBeVisible();
+  await expect(page.getByText('0012/2026', { exact: true })).toBeVisible();
 });
 
 test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo', async ({
@@ -78,8 +75,9 @@ test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo'
   await expect(
     dialog.getByText('Selecione o responsável e informe o motivo.').first(),
   ).toBeVisible();
-  await dialog.getByLabel('Responsável').selectOption({ label: 'Juliana Prado' });
-  await dialog.getByLabel('Motivo').fill('Mutirão de triagem do exercício');
+  await dialog.getByRole('combobox', { name: /Responsável/ }).click();
+  await page.getByRole('option', { name: 'Juliana Prado' }).click();
+  await dialog.getByRole('textbox', { name: /Motivo/ }).fill('Mutirão de triagem do exercício');
   await expectNoSeriousA11yViolations(page, 'atribuir em lote');
   await dialog.getByRole('button', { name: 'Atribuir' }).click();
   await expect(page.getByText('2 processos atribuídos.', { exact: true })).toBeVisible();
@@ -92,7 +90,7 @@ test('US-058: assumir em lote com sucesso parcial e atribuir em lote com motivo'
 test('em 360 px: as linhas viram cartões, sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto(login());
-  await expect(page.getByRole('link', { name: '0001/2026' })).toBeVisible();
+  await expect(page.getByText('0001/2026', { exact: true })).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
   );

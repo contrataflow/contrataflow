@@ -296,7 +296,7 @@ describe('SCR-015 · Detalhe da aprovação (US-052)', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Estou ciente e desejo continuar' }));
     await user.click(await returnButton());
     const checkbox = screen.getByRole('checkbox', { name: 'Estou ciente e desejo continuar' });
-    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect(checkbox.getAttribute('aria-checked')).toBe('false');
     expect((confirm('Confirmar devolução') as HTMLButtonElement).disabled).toBe(true);
   });
 

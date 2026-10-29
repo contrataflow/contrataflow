@@ -6,7 +6,7 @@ import { ViewTabs } from './view-tabs.js';
 const tabs = [
   { id: 'todos', label: 'Todos', count: 24 },
   { id: 'comigo', label: 'Comigo', count: 7 },
-  { id: 'atrasados', label: 'Atrasados', count: 3 },
+  { id: 'atrasados', label: 'Atrasados', count: 3, tone: 'danger' as const },
   { id: 'concluidos', label: 'Concluídos' },
 ];
 

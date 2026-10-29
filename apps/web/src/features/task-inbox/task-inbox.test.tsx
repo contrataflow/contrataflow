@@ -10,8 +10,12 @@ import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import {
+  EMPTY_REFINE,
   describeLoadError,
   describeQuickClaimError,
+  inboxDeadlineOf,
+  refineItems,
+  refineOptionsOf,
   sortForView,
   sortOptions,
   visibleTabs,
@@ -22,8 +26,9 @@ configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 /*
- * US-056 — SCR-013 (`/tarefas`): abas com contadores (TSK-02), a lista da aba ativa (TSK-01) com
- * ordenação, o "Assumir" (PRC-21) da fila, estados vazio/erro/403 e acessibilidade (axe).
+ * US-056 — SCR-013 (`/tarefas`) no modelo de lista (prd-5): abas com contadores (TSK-02), a lista
+ * da aba ativa (TSK-01) com ordenação, busca e filtros no popover, um só chip de prazo, o "Assumir"
+ * (PRC-21) no menu ⋯ da fila, estados vazio/erro/403 e acessibilidade (axe).
  */
 
 const ANA = '0192a000-0000-7000-8000-0000000000a1';
@@ -142,16 +147,17 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     expect(mine.getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tab', { name: 'Na fila da minha unidade: 1 item' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'Atrasados: 1 item' })).toBeTruthy();
-    expect(await screen.findByRole('link', { name: '0001/2026' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Aquisição de materiais 1' })).toBeTruthy();
     expect(screen.getAllByRole('row')).toHaveLength(4);
     const [first] = calls(fetchMock, '/api/v1/tasks');
     expect(first?.url.searchParams.get('view')).toBe('MINE');
     expect(first?.url.searchParams.get('sort')).toBe('-dueAt');
     expect(first?.url.searchParams.get('pageSize')).toBe('20');
     // Clicar na linha abre o processo (SCR-006): só navegação, nenhuma ação.
-    expect(screen.getByRole('link', { name: '0001/2026' }).getAttribute('href')).toBe(
-      `/processos/${pid(1)}`,
-    );
+    expect(
+      screen.getByRole('link', { name: 'Aquisição de materiais 1' }).getAttribute('href'),
+    ).toBe(`/processos/${pid(1)}`);
+    expect(screen.getAllByText('0001/2026')).toHaveLength(1);
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
@@ -170,6 +176,9 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     expect(
       await screen.findByText('Nenhum processo pendente com você. Bom trabalho!'),
     ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ver todos os processos' }).getAttribute('href')).toBe(
+      '/processos',
+    );
   });
 
   it('troca de aba por clique e teclado, mantendo a ordenação; ordena pelo seletor', async () => {
@@ -193,8 +202,11 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
           : page([item(1)]),
     });
     renderPage();
-    await screen.findByRole('link', { name: '0001/2026' });
-    await user.selectOptions(screen.getByLabelText('Ordenar por'), 'enteredAt');
+    await screen.findByRole('link', { name: 'Aquisição de materiais 1' });
+    await user.click(screen.getByRole('combobox', { name: 'Ordenar por' }));
+    await user.click(
+      await screen.findByRole('option', { name: 'Entrada na etapa (mais antiga primeiro)' }),
+    );
     await waitFor(() => {
       expect(calls(fetchMock, '/api/v1/tasks').at(-1)?.url.searchParams.get('sort')).toBe(
         'enteredAt',
@@ -202,6 +214,7 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     });
     await user.click(screen.getByRole('tab', { name: /Aprovações pendentes/ }));
     expect(await screen.findByText('Lúcia Ramos')).toBeTruthy();
+    expect(screen.getByText('0004/2026 · Aprovação do DFD')).toBeTruthy();
     const last = calls(fetchMock, '/api/v1/tasks').at(-1)?.url.searchParams;
     expect(last?.get('view')).toBe('PENDING_APPROVALS');
     // "Entrada na etapa" vira "Solicitação" na visão de aprovações (RN-INBOX-10).
@@ -226,9 +239,13 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     });
     renderPage();
     await user.click(await screen.findByRole('tab', { name: /Na fila da minha unidade/ }));
-    const button = await screen.findByRole('button', { name: 'Assumir o processo 0012/2026' });
-    // Só a linha elegível (canClaim) mostra a ação.
-    expect(screen.getAllByRole('button', { name: /Assumir o processo/ })).toHaveLength(1);
+    // Só a linha elegível (canClaim) oferece "Assumir" no menu ⋯.
+    await user.click(await screen.findByRole('button', { name: 'Ações de 0013/2026' }));
+    expect(await screen.findByRole('menuitem', { name: 'Abrir processo' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /Assumir/ })).toBeNull();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Ações de 0012/2026' }));
+    const button = await screen.findByRole('menuitem', { name: 'Assumir o processo 0012/2026' });
     const countersBefore = calls(fetchMock, '/api/v1/tasks/counters').length;
     await user.click(button);
     expect(await screen.findByText('Você assumiu este processo.')).toBeTruthy();
@@ -256,9 +273,9 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
       calls(fetchMock, '/api/v1/tasks').filter(
         ({ url }) => url.searchParams.get('view') === 'UNIT_QUEUE',
       ).length;
-    await screen.findByRole('button', { name: 'Assumir o processo 0012/2026' });
+    await user.click(await screen.findByRole('button', { name: 'Ações de 0012/2026' }));
     const before = listCalls();
-    await user.click(screen.getByRole('button', { name: 'Assumir o processo 0012/2026' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Assumir o processo 0012/2026' }));
     expect(await screen.findByText('Este processo já foi assumido por outra pessoa.')).toBeTruthy();
     await waitFor(() => {
       expect(listCalls()).toBeGreaterThan(before);
@@ -278,7 +295,7 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     expect(alert).toBeTruthy();
     down = false;
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(await screen.findByRole('link', { name: '0001/2026' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Aquisição de materiais 1' })).toBeTruthy();
   });
 
   it('[Permissão] sem INBOX_VIEW: estado 403 e nenhuma consulta à caixa', async () => {
@@ -287,6 +304,82 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     expect(await screen.findByText('Você não tem acesso à caixa de tarefas.')).toBeTruthy();
     expect(calls(fetchMock, '/api/v1/tasks')).toHaveLength(0);
     expect(calls(fetchMock, '/api/v1/tasks/counters')).toHaveLength(0);
+  });
+
+  it('um só chip de prazo por linha, com o atraso em dias úteis', async () => {
+    mockApi({
+      list: () =>
+        page([
+          item(1, {
+            isOverdue: true,
+            overdueSince: '2026-10-16T03:00:00.000Z',
+            deadline: {
+              dueAt: '2026-10-20T02:59:59.000Z',
+              slaType: 'BUSINESS',
+              daysLeft: null,
+              overdueDays: 3,
+              isDueSoon: false,
+              isOverdue: true,
+              isPaused: false,
+            },
+          }),
+          item(2, {
+            deadline: {
+              dueAt: '2026-10-24T02:59:59.000Z',
+              slaType: 'CALENDAR',
+              daysLeft: 2,
+              overdueDays: null,
+              isDueSoon: true,
+              isOverdue: false,
+              isPaused: false,
+            },
+          }),
+        ]),
+    });
+    renderPage();
+    const late = (await screen.findByRole('link', { name: 'Aquisição de materiais 1' })).closest(
+      'tr',
+    );
+    expect(late).not.toBeNull();
+    if (late) {
+      expect(within(late).getByText('Atrasado · 3 dias úteis')).toBeTruthy();
+      expect(within(late).queryByText('Em atraso')).toBeNull();
+    }
+    expect(screen.getByText('Vence em 2 dias')).toBeTruthy();
+  });
+
+  it('busca inline e filtros no popover refinam a visão, com chips removíveis', async () => {
+    const user = userEvent.setup();
+    mockApi({
+      list: () =>
+        page([
+          item(1),
+          item(2, { currentStage: { key: 'TR', name: 'Termo de referência' } }),
+          item(3, { title: 'Reforma da escola', currentResponsible: null }),
+        ]),
+    });
+    renderPage();
+    await screen.findByRole('link', { name: 'Aquisição de materiais 1' });
+    // Filtros fechados por padrão (prd-5 · regra 2).
+    expect(screen.queryByRole('combobox', { name: 'Etapa' })).toBeNull();
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar nesta visão' }), 'reforma');
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    await user.clear(screen.getByRole('searchbox', { name: 'Buscar nesta visão' }));
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Etapa' }));
+    await user.click(await screen.findByRole('option', { name: 'Termo de referência' }));
+    expect(await screen.findByText('Etapa: Termo de referência')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Aquisição de materiais 2' })).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+
+    await user.keyboard('{Escape}');
+    await user.click(
+      screen.getByRole('button', { name: 'Remover o filtro Etapa: Termo de referência' }),
+    );
+    expect(screen.getAllByRole('row')).toHaveLength(4);
   });
 
   it('selo de atraso, orçamento sigiloso e linha de aprovação com solicitante', async () => {
@@ -301,7 +394,9 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
         ]),
     });
     renderPage();
-    const row = (await screen.findByRole('link', { name: '0001/2026' })).closest('tr');
+    const row = (await screen.findByRole('link', { name: 'Aquisição de materiais 1' })).closest(
+      'tr',
+    );
     expect(row).not.toBeNull();
     if (row) {
       expect(within(row).getByText('Em atraso')).toBeTruthy();
@@ -334,6 +429,46 @@ describe('regras de tela da caixa (task-inbox-model)', () => {
       'enteredAt',
       '-enteredAt',
     ]);
+  });
+
+  it('chip de prazo: atraso, pausa, vence hoje e vence em N dias', () => {
+    const base = item(1);
+    const deadline = (overrides: Partial<TaskInboxItemDto['deadline']>) => ({
+      ...base,
+      deadline: { ...base.deadline, ...overrides },
+    });
+    expect(inboxDeadlineOf(deadline({ isOverdue: true, overdueDays: 3 }))).toEqual({
+      key: 'overdue',
+      count: 3,
+      tone: 'danger',
+    });
+    expect(inboxDeadlineOf({ ...base, isOverdue: true }).key).toBe('overdueUnknown');
+    expect(
+      inboxDeadlineOf({ ...deadline({ isPaused: true }), overdueSince: '2026-10-01T00:00:00Z' })
+        .key,
+    ).toBe('overduePaused');
+    expect(inboxDeadlineOf(deadline({ isPaused: true })).key).toBe('paused');
+    expect(inboxDeadlineOf(deadline({ daysLeft: 0 })).key).toBe('dueToday');
+    expect(inboxDeadlineOf(deadline({ daysLeft: 2, isDueSoon: true }))).toEqual({
+      key: 'dueIn',
+      count: 2,
+      tone: 'warning',
+    });
+    expect(inboxDeadlineOf(deadline({ dueAt: null, daysLeft: null })).key).toBe('none');
+  });
+
+  it('refino local: busca sem acento, filtros e opções das linhas carregadas', () => {
+    const rows = [item(1), item(2, { title: 'Reforma da Escola', currentResponsible: null })];
+    expect(refineItems(rows, { ...EMPTY_REFINE, q: 'escola' }).map((row) => row.id)).toEqual([
+      pid(2),
+    ]);
+    expect(refineItems(rows, { ...EMPTY_REFINE, q: 'aquisicao' })).toHaveLength(1);
+    expect(refineItems(rows, { ...EMPTY_REFINE, responsibleId: 'none' })).toHaveLength(1);
+    expect(refineItems(rows, { ...EMPTY_REFINE, departmentId: UNIT })).toHaveLength(2);
+    const options = refineOptionsOf(rows);
+    expect(options.responsibles).toEqual([{ value: ANA, label: 'Ana Souza' }]);
+    expect(options.hasUnassigned).toBe(true);
+    expect(options.departments).toHaveLength(1);
   });
 
   it('falhas da consulta e do "Assumir"', () => {

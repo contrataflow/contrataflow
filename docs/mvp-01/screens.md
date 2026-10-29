@@ -291,7 +291,7 @@ flowchart TD
 ### SCR-013 — Caixa de tarefas
 - **Rota:** `/tarefas` · **Acesso:** `INBOX_VIEW`; ações em lote exigem `PROCESS_CLAIM`/`PROCESS_ASSIGN` por item · **Personas:** qualquer servidor lotado em unidade com fila; titular/substituto de unidade (atribuição em lote).
 - **Objetivo:** reunir, por abas, os processos sob responsabilidade, na fila da unidade e aprovações pendentes do usuário, com ações rápidas de assumir/atribuir.
-- **Layout e regiões:** `InboxTabs` com contadores; `InboxTable`/lista por aba; barra de ações em lote (visão "Na fila da minha unidade").
+- **Layout e regiões:** modelo `ListPage` (prd-5): visões em `ViewTabs` com contadores ("Atrasados" em tom de erro); `FilterToolbar` com busca inline e popover (unidade atual, etapa, responsável — refinam as linhas carregadas da aba, pois TSK-01 não filtra) e ordenação; tabela de até 6 colunas (Processo com título e número · tipo, Etapa, Unidade atual, Responsável com avatar, um só chip de prazo, menu ⋯ com Abrir, Assumir, Tramitação e Participantes); barra flutuante de ações em lote no rodapé (visão "Na fila da minha unidade").
 - **Componentes:** `InboxTabs`, `InboxTable`, `QuickClaimButton`, `OverdueBadge`, `DueDateBadge` (US-055), `EmptyState` por visão; `BulkActionBar` ("{N} selecionados"), `BulkResultSummary`, `AssigneeSelect` (US-058).
 - **Dados e endpoints:** TSK-01 `GET /tasks`, TSK-02 `GET /tasks/counters`; TSK-03 `POST /tasks/bulk-claim` (Idem., lote de 2 a 50), TSK-04 `POST /tasks/bulk-assign` (Idem., lote de 2 a 50).
 - **Ações:** Assumir (linha única) → PRC-21 ou TSK-03 → `PROCESS_CLAIM` + POL-04 → toast de sucesso; Atribuir em lote → SCR-115 (variante múltipla) → TSK-04 → `PROCESS_ASSIGN`/titular → resumo por item.
@@ -303,8 +303,8 @@ flowchart TD
 ### SCR-014 — Aprovações
 - **Rota:** `/aprovacoes` · **Acesso:** `APPROVAL_VIEW` (ou designado) · **Personas:** aprovador designado (usuário, perfil ou titular de unidade — POL-03).
 - **Objetivo:** listar as aprovações sob responsabilidade do usuário, com filtros e atalho para a decisão.
-- **Layout e regiões:** barra de filtros + tabela/lista.
-- **Componentes:** `ApprovalFilters` (status, tipo, unidade, período, busca), `ApprovalTable`, `OverdueBadge`, `EmptyState`.
+- **Layout e regiões:** modelo `ListPage` (prd-5): situação em `ViewTabs` com contadores (Pendentes, Aprovadas, Devolvidas, Indeferidas, Canceladas — um status por vez); `FilterToolbar` com busca inline e popover (tipo de assunto, unidade solicitante, período) com chips; tabela (Processo, Assunto, Solicitante, Solicitada em, Prazo, Situação, menu ⋯).
+- **Componentes:** `ViewTabs`, `FilterToolbar` (`Select`, `Combobox`, `DateRangePicker`), `ApprovalTable`, `ApprovalStatusBadge`, `EmptyState` ("Você está em dia" com atalho para as concluídas).
 - **Dados e endpoints:** APV-01 `GET /approvals`.
 - **Ações:** Abrir aprovação → navega para SCR-015.
 - **Estados:** *skeleton*; vazio (geral e "sem resultado para os filtros"); erro com "Tentar novamente".
@@ -315,7 +315,7 @@ flowchart TD
 ### SCR-015 — Detalhe da aprovação
 - **Rota:** `/aprovacoes/[id]` (também consumida em painel lateral a partir de SCR-006) · **Acesso:** `APPROVAL_VIEW`/designado para visualizar; decidir `APPROVAL_DECIDE` + POL-03; retirar `PROCESS_FORWARD` + POL-17; redirecionar `APPROVAL_REASSIGN` · **Personas:** aprovador designado; solicitante original (retirada); titular/substituto de unidade.
 - **Objetivo:** decidir (aprovar, devolver, indeferir), retirar ou redirecionar uma solicitação de aprovação, com evidência dos documentos cobertos.
-- **Layout e regiões:** painel de decisão com três ações principais; lista de documentos cobertos; trilha de auditoria da aprovação.
+- **Layout e regiões:** modelo `DetailPage` (prd-5): faixa com trilha, assunto, situação, processo e fatos-chave (solicitante, data, prazo, aprovador), "Retirar"/"Redirecionar" no menu "Mais ações"; conteúdo com os documentos cobertos (versão analisada e "Gerar PDF") e o histórico compacto (comentário da solicitação e decisão registrada); cartão de decisão com as três ações à direita (abaixo em telas estreitas).
 - **Componentes:** `ApprovalDecisionPanel`, `CommentField` (obrigatório condicional), `WarningsChecklist`, `DocumentCoverageList`, `ApprovalStatusBadge`; `WithdrawApprovalDialog`, `ReassignApprovalDialog`, `ApprovalAuditTrail` (US-053).
 - **Dados e endpoints:** APV-02 (detalhe) — chave `['t', tenantId, 'approvals', id]`; APV-03 `decide` (IM, Idem.); APV-04 `withdraw` (IM); APV-05 `reassign` (IM) — sucesso invalida `['t', tenantId, 'approvals']`, `['t', tenantId, 'processes', processId]`, `['t', tenantId, 'tasks']`.
 - **Ações:** Aprovar/Devolver/Indeferir → APV-03 (IM, Idem.) → POL-03 (designação + `preventSelfApproval`) → avança/retorna a etapa, atualiza documento; Retirar → APV-04 (IM) → POL-17; Redirecionar → APV-05 (IM) → `APPROVAL_REASSIGN` (busca assíncrona de elegíveis, com motivo obrigatório).

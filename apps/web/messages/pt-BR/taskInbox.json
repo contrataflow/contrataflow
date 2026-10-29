@@ -42,10 +42,8 @@
     "deadline": "Prazo",
     "requestedBy": "Solicitante",
     "requestedAt": "Solicitada em",
-    "approval": "Aprovação",
-    "actions": "Ações",
-    "overdue": "Em atraso",
-    "confidential": "Orçamento sigiloso"
+    "confidential": "Orçamento sigiloso",
+    "requestedOn": "{name} · {date}"
   },
   "claim": {
     "action": "Assumir",
@@ -61,7 +59,8 @@
       "notFound": "Processo não encontrado.",
       "unavailable": "Não foi possível assumir o processo agora. Tente novamente em instantes.",
       "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}."
-    }
+    },
+    "menu": "Assumir"
   },
   "bulk": {
     "label": "Ações em lote",
@@ -130,7 +129,9 @@
     "PENDING_APPROVALS": "Nenhuma aprovação pendente.",
     "RETURNED": "Nenhum processo devolvido.",
     "OVERDUE": "Nenhum processo em atraso.",
-    "FOLLOWING": "Você não está acompanhando nenhum processo."
+    "FOLLOWING": "Você não está acompanhando nenhum processo.",
+    "allProcesses": "Ver todos os processos",
+    "approvals": "Abrir Aprovações"
   },
   "errors": {
     "unavailable": "Não foi possível carregar sua caixa de tarefas agora.",
@@ -146,5 +147,47 @@
     "previous": "Anterior",
     "next": "Próxima",
     "status": "Página {page, number} de {total, number}"
+  },
+  "search": {
+    "label": "Buscar nesta visão",
+    "placeholder": "Código, título ou aprovação"
+  },
+  "filters": {
+    "open": "Filtros",
+    "active": "Filtros aplicados",
+    "clear": "Limpar filtros",
+    "department": "Unidade atual",
+    "stage": "Etapa",
+    "responsible": "Responsável",
+    "any": "Todas",
+    "anyResponsible": "Todos",
+    "noResponsible": "Sem responsável",
+    "search": "Busca",
+    "chip": "{label}: {value}",
+    "remove": "Remover o filtro {label}",
+    "pageOnly": "A busca e os filtros valem para os processos desta página.",
+    "noMatch": "Nenhum processo desta visão corresponde à busca ou aos filtros."
+  },
+  "deadline": {
+    "overdue": "{count, plural, one {Atrasado · # dia útil} other {Atrasado · # dias úteis}}",
+    "overdueCalendar": "{count, plural, one {Atrasado · # dia} other {Atrasado · # dias}}",
+    "overdueUnknown": "Em atraso",
+    "overduePaused": "Atrasado (suspenso)",
+    "paused": "Prazo pausado",
+    "dueToday": "Vence hoje",
+    "dueIn": "{count, plural, one {Vence em # dia útil} other {Vence em # dias úteis}}",
+    "dueInCalendar": "{count, plural, one {Vence em # dia} other {Vence em # dias}}",
+    "none": "Sem prazo"
+  },
+  "row": {
+    "actions": "Ações de {code}",
+    "actionsColumn": "Ações",
+    "open": "Abrir processo",
+    "movements": "Ver tramitação",
+    "follow": "Participantes e acompanhamento"
+  },
+  "footer": {
+    "count": "{count, plural, =0 {Nenhum processo} one {# processo} other {# processos}} nesta visão",
+    "allProcesses": "Ver todos os processos"
   }
 }

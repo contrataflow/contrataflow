@@ -193,7 +193,7 @@ export function ApprovalDecisionPanel({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-4 rounded-card border border-border bg-surface p-4 md:p-6"
+      className="flex min-w-0 flex-col gap-4 rounded-card bg-surface p-5 shadow-card"
     >
       <h2 id={headingId} className="text-base font-semibold">
         {t('heading')}
@@ -226,7 +226,7 @@ export function ApprovalDecisionPanel({
           aria-describedby={errors.decision ? `${fieldId('decision')}-error` : undefined}
         >
           <legend className="mb-1 text-sm font-medium">{t('decisionLegend')}</legend>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="flex flex-col gap-2.5">
             {groups.map((candidate) => (
               <DecisionButton
                 key={candidate.decision}
@@ -284,7 +284,7 @@ export function ApprovalDecisionPanel({
           }}
         />
 
-        <div className="flex flex-col gap-2 md:items-end">
+        <div className="flex flex-col gap-2">
           {confirmEnabled ? null : (
             <p id={`${ids}-confirm-hint`} className="text-xs text-muted-foreground">
               {t('warnings.pending')}
@@ -296,7 +296,7 @@ export function ApprovalDecisionPanel({
             disabled={!confirmEnabled}
             aria-disabled={submitting ? true : undefined}
             aria-describedby={confirmEnabled ? undefined : `${ids}-confirm-hint`}
-            className="max-md:min-h-12 max-md:w-full max-md:text-base"
+            className="min-h-12 w-full max-md:text-base"
           >
             {confirmLabel}
           </Button>
@@ -316,10 +316,9 @@ function focusTarget(field: DecisionField, ids: string): HTMLElement | null {
       );
     case 'transitionId':
       return (
-        Array.from(document.getElementsByName(`${ids}-transitionId`)).find(
-          (element): element is HTMLInputElement =>
-            element instanceof HTMLInputElement && !element.disabled,
-        ) ?? null
+        document
+          .getElementById(`${ids}-transitionId`)
+          ?.querySelector<HTMLElement>('[role="radio"]:not([disabled])') ?? null
       );
     case 'comment':
       return document.getElementById(`${ids}-comment`);
@@ -327,7 +326,7 @@ function focusTarget(field: DecisionField, ids: string): HTMLElement | null {
       return (
         document
           .getElementById(`${ids}-warnings`)
-          ?.querySelector<HTMLElement>('input[type="checkbox"]:not(:checked)') ?? null
+          ?.querySelector<HTMLElement>('[role="checkbox"][data-state="unchecked"]') ?? null
       );
   }
 }
@@ -365,7 +364,7 @@ function DecisionButton({
         aria-pressed={pressed}
         aria-describedby={hint === null ? undefined : hintId}
         disabled={!group.available}
-        className={cx('min-h-12 text-base max-md:min-h-14')}
+        className={cx('min-h-12 w-full text-base max-md:min-h-14')}
         onClick={() => {
           onChoose(group.decision);
         }}

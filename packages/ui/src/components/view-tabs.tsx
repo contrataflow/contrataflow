@@ -12,6 +12,12 @@ export interface ViewTab {
   readonly label: ReactNode;
   /** Contador da visão (ex.: processos que ela lista); omitido quando desconhecido. */
   readonly count?: number | undefined;
+  /** Contador em tom de erro quando maior que zero (ex.: "Atrasados"). */
+  readonly tone?: 'danger' | undefined;
+  /**
+   * Nome acessível da aba quando o rótulo visível + o número não bastam (ex.: "Comigo: 3 itens").
+   */
+  readonly accessibleLabel?: string | undefined;
   /** Visões salvas na URL: com `href`, a aba é um link (`aria-current="page"` na ativa). */
   readonly href?: string | undefined;
 }
@@ -36,14 +42,24 @@ const ACTIVE =
   'font-bold text-primary-soft-foreground shadow-[inset_0_-2px_0_var(--color-primary)]';
 const IDLE = 'font-medium text-muted-foreground hover:text-foreground';
 
-function Count({ value, active }: { readonly value: number; readonly active: boolean }) {
+function Count({
+  value,
+  active,
+  danger,
+}: {
+  readonly value: number;
+  readonly active: boolean;
+  readonly danger: boolean;
+}) {
   return (
     <span
       className={cx(
-        'rounded-full px-2 py-px text-xs font-bold',
-        active
-          ? 'bg-primary-soft text-primary-soft-foreground'
-          : 'bg-neutral-soft text-neutral-soft-foreground',
+        'rounded-full px-2 py-px text-xs font-bold tabular-nums',
+        danger && value > 0
+          ? 'bg-destructive-soft text-destructive-soft-foreground'
+          : active
+            ? 'bg-primary-soft text-primary-soft-foreground'
+            : 'bg-neutral-soft text-neutral-soft-foreground',
       )}
     >
       {value}
@@ -77,11 +93,14 @@ export function ViewTabs({
               key={tab.id}
               href={tab.href ?? ''}
               aria-current={active ? 'page' : undefined}
+              aria-label={tab.accessibleLabel}
               className={cx(TAB, active ? ACTIVE : IDLE)}
             >
               {tab.label}
               {tab.count === undefined ? null : ' '}
-              {tab.count === undefined ? null : <Count value={tab.count} active={active} />}
+              {tab.count === undefined ? null : (
+                <Count value={tab.count} active={active} danger={tab.tone === 'danger'} />
+              )}
             </Link>
           );
         })}
@@ -106,11 +125,14 @@ export function ViewTabs({
               value={tab.id}
               data-tab-id={tab.id}
               aria-controls={panelId}
+              aria-label={tab.accessibleLabel}
               className={cx(TAB, active ? ACTIVE : IDLE)}
             >
               {tab.label}
               {tab.count === undefined ? null : ' '}
-              {tab.count === undefined ? null : <Count value={tab.count} active={active} />}
+              {tab.count === undefined ? null : (
+                <Count value={tab.count} active={active} danger={tab.tone === 'danger'} />
+              )}
             </TabsPrimitive.Trigger>
           );
         })}

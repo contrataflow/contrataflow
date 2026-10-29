@@ -3,19 +3,36 @@
   "description": "As aprovações em que você precisa atuar ou já atuou como aprovador.",
   "loading": "Carregando as aprovações…",
   "refreshing": "Atualizando…",
+  "tabs": {
+    "label": "Situação das aprovações",
+    "countLabel": "{label}: {count, plural, =0 {nenhuma} one {# aprovação} other {# aprovações}}",
+    "PENDING": "Pendentes",
+    "APPROVED": "Aprovadas",
+    "RETURNED": "Devolvidas",
+    "REJECTED": "Indeferidas",
+    "CANCELED": "Canceladas"
+  },
   "filters": {
-    "label": "Filtrar aprovações",
-    "status": "Status",
+    "open": "Filtros",
+    "active": "Filtros aplicados",
+    "clear": "Limpar filtros",
+    "search": "Buscar aprovações",
+    "searchPlaceholder": "Código ou título do processo",
+    "searchTooShort": "Digite ao menos 2 caracteres.",
     "subjectType": "Tipo de assunto",
     "any": "Todos",
     "department": "Unidade solicitante",
     "anyDepartment": "Todas as unidades",
-    "requestedFrom": "Solicitada de",
-    "requestedTo": "Solicitada até",
-    "search": "Buscar por código ou título",
-    "searchPlaceholder": "Ex.: 0012/2026 ou reforma",
-    "apply": "Buscar",
-    "invalidPeriod": "O período informado é inválido."
+    "departmentSearch": "Buscar unidade",
+    "departmentEmpty": "Nenhuma unidade encontrada.",
+    "period": "Período da solicitação",
+    "periodPlaceholder": "Qualquer data",
+    "periodClear": "Limpar período",
+    "periodCalendar": "Escolher período",
+    "periodSeparator": "a",
+    "invalidPeriod": "O período informado é inválido.",
+    "chip": "{label}: {value}",
+    "remove": "Remover o filtro {label}"
   },
   "status": {
     "PENDING": "Pendente",
@@ -39,21 +56,37 @@
   },
   "table": {
     "caption": "Aprovações",
-    "approval": "Aprovação",
+    "process": "Processo",
+    "approval": "Assunto",
     "open": "Abrir {title} do processo {code}",
     "noCode": "Sem número",
-    "department": "Unidade solicitante",
     "requestedBy": "Solicitante",
     "requestedAt": "Solicitada em",
     "dueAt": "Prazo",
     "noDueAt": "Sem prazo",
-    "status": "Status",
-    "overdue": "Em atraso"
+    "status": "Situação",
+    "overdue": "Em atraso",
+    "actionsColumn": "Ações",
+    "actions": "Ações de {title}",
+    "openApproval": "Abrir aprovação",
+    "openProcess": "Abrir processo"
   },
   "empty": {
-    "pending": "Nenhuma aprovação pendente. Você está em dia!",
+    "pendingTitle": "Nenhuma aprovação pendente",
+    "pendingDescription": "Você está em dia. Quando um processo chegar para sua decisão, ele aparece aqui e na sua caixa de tarefas.",
+    "seeDone": "Ver aprovações concluídas",
+    "status": {
+      "PENDING": "Nenhuma aprovação pendente.",
+      "APPROVED": "Nenhuma aprovação aprovada.",
+      "RETURNED": "Nenhuma aprovação devolvida.",
+      "REJECTED": "Nenhuma aprovação indeferida.",
+      "CANCELED": "Nenhuma aprovação cancelada."
+    },
     "filtered": "Nenhuma aprovação encontrada para os filtros selecionados.",
     "clear": "Limpar filtros"
+  },
+  "footer": {
+    "count": "{count, plural, =0 {Nenhuma aprovação} one {# aprovação} other {# aprovações}}"
   },
   "pagination": {
     "label": "Paginação das aprovações",

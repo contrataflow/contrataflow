@@ -1,22 +1,22 @@
 'use client';
 
-import { cx } from '@contrataflow/ui';
+import { Checkbox, Field, Label, RadioGroup, RadioGroupItem, Textarea, cx } from '@contrataflow/ui';
 import { APPROVAL_DECISION_LIMITS } from '@contrataflow/validation';
 import type { ApprovalDecisionOption } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
 import { optionKey, blockingViolations } from './decision-model';
 import type { DecisionWarning } from './decision-model';
-import { TEXTAREA_CLASS } from '../processes/form-field';
 
 /*
- * Campos do painel "Decidir aprovação" (SCR-015): comentário, etapa de destino e avisos. Só
- * apresentação — o estado, a validação e o envio ficam em `ApprovalDecisionPanel`.
+ * Campos do painel "Decidir aprovação" (SCR-015), com os controles do kit (prd-5): comentário,
+ * etapa de destino e avisos. Só apresentação — o estado, a validação e o envio ficam em
+ * `ApprovalDecisionPanel`.
  */
 
 /**
  * `CommentField`: obrigatório para devolver e indeferir, opcional para aprovar (RN-TRAM-55), com
- * contador (máx. 5.000). O erro fica ligado ao campo por `aria-describedby`.
+ * contador (máx. 5.000). Ajuda e erro ligados ao campo pelo `Field`.
  */
 export function CommentField({
   id,
@@ -32,37 +32,35 @@ export function CommentField({
   readonly onChange: (value: string) => void;
 }) {
   const t = useTranslations('approvals.panel.comment');
-  const hintId = `${id}-hint`;
-  const errorId = `${id}-error`;
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {required ? t('labelRequired') : t('labelOptional')}
-      </label>
-      <textarea
-        id={id}
+    <Field
+      id={id}
+      label={required ? t('labelRequired') : t('labelOptional')}
+      required={required}
+      requiredMark=""
+      error={error}
+      description={
+        <span className="flex justify-between gap-2">
+          <span>{required ? t('hintRequired') : t('hintOptional')}</span>
+          <span className="flex-none whitespace-nowrap">
+            {t('counter', {
+              count: value.trim().length,
+              max: APPROVAL_DECISION_LIMITS.commentMax,
+            })}
+          </span>
+        </span>
+      }
+    >
+      <Textarea
         value={value}
+        rows={4}
         maxLength={APPROVAL_DECISION_LIMITS.commentMax}
-        aria-required={required ? true : undefined}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={[hintId, error ? errorId : undefined].filter(Boolean).join(' ')}
-        className={cx(TEXTAREA_CLASS, 'max-md:text-base')}
+        className="max-md:text-base"
         onChange={(event) => {
           onChange(event.target.value);
         }}
       />
-      <p id={hintId} className="flex justify-between gap-2 text-xs text-muted-foreground">
-        <span>{required ? t('hintRequired') : t('hintOptional')}</span>
-        <span>
-          {t('counter', { count: value.trim().length, max: APPROVAL_DECISION_LIMITS.commentMax })}
-        </span>
-      </p>
-      {error ? (
-        <p id={errorId} className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </Field>
   );
 }
 
@@ -84,60 +82,51 @@ export function TargetSelector({
   readonly onSelect: (key: string) => void;
 }) {
   const t = useTranslations('approvals.panel.target');
-  const errorId = `${name}-error`;
   return (
-    <fieldset
-      className="flex min-w-0 flex-col gap-2"
-      aria-describedby={error ? errorId : undefined}
-    >
-      <legend className="text-sm font-medium">{t('legend')}</legend>
-      <p className="text-xs text-muted-foreground">{t('hint')}</p>
-      {options.map((option) => {
-        const key = optionKey(option);
-        const optionId = `${name}-${key}`;
-        const blocking = blockingViolations(option);
-        const disabled = !option.enabled || blocking.length > 0;
-        return (
-          <label
-            key={key}
-            htmlFor={optionId}
-            className={cx(
-              'flex items-start gap-3 rounded-control border p-3 max-md:min-h-14',
-              disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
-              key === selected ? 'border-primary bg-muted' : 'border-border',
-            )}
-          >
-            <input
-              type="radio"
-              id={optionId}
-              name={name}
-              value={key}
-              checked={key === selected}
-              disabled={disabled}
-              className="mt-1 size-4 flex-none"
-              onChange={() => {
-                onSelect(key);
-              }}
-            />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm font-medium break-words">
-                {option.toStage?.name ?? option.label}
+    <Field id={name} label={t('legend')} description={t('hint')} error={error} group>
+      <RadioGroup
+        id={name}
+        name={name}
+        value={selected ?? ''}
+        onValueChange={onSelect}
+        className="gap-2"
+      >
+        {options.map((option) => {
+          const key = optionKey(option);
+          const optionId = `${name}-${key}`;
+          const blocking = blockingViolations(option);
+          const disabled = !option.enabled || blocking.length > 0;
+          return (
+            <div
+              key={key}
+              className={cx(
+                'flex items-start gap-3 rounded-control border p-3 max-md:min-h-14',
+                disabled ? 'opacity-70' : undefined,
+                key === selected ? 'border-primary bg-primary-soft/40' : 'border-border',
+              )}
+            >
+              <RadioGroupItem id={optionId} value={key} disabled={disabled} className="mt-0.5" />
+              <span className="flex min-w-0 flex-col">
+                <Label
+                  htmlFor={optionId}
+                  className={cx(
+                    'font-medium break-words',
+                    disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+                  )}
+                >
+                  {option.toStage?.name ?? option.label}
+                </Label>
+                {blocking.map((violation) => (
+                  <span key={violation.ruleId} className="text-xs break-words text-destructive">
+                    {t('optionBlocked', { message: violation.message })}
+                  </span>
+                ))}
               </span>
-              {blocking.map((violation) => (
-                <span key={violation.ruleId} className="text-xs break-words text-destructive">
-                  {t('optionBlocked', { message: violation.message })}
-                </span>
-              ))}
-            </span>
-          </label>
-        );
-      })}
-      {error ? (
-        <p id={errorId} className="text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
-    </fieldset>
+            </div>
+          );
+        })}
+      </RadioGroup>
+    </Field>
   );
 }
 
@@ -170,28 +159,30 @@ export function WarningsChecklist({
       <ul id={id} aria-describedby={error ? errorId : undefined} className="flex flex-col gap-2">
         {warnings.map((warning) => {
           const messageId = `${id}-${warning.ruleId}`;
+          const checkboxId = `${messageId}-ack`;
           return (
             <li
               key={warning.ruleId}
-              className="flex min-w-0 flex-col gap-2 rounded-control border border-warning/30 bg-warning-soft p-3 text-sm"
+              className="flex min-w-0 flex-col gap-2 rounded-control bg-warning-soft p-3 text-sm text-warning-soft-foreground"
             >
               <span className="text-xs font-semibold uppercase">{t('warning')}</span>
               <span id={messageId} className="break-words">
                 {warning.message}
               </span>
-              <label className="flex items-center gap-2 max-md:min-h-10">
-                <input
-                  type="checkbox"
+              <span className="flex items-center gap-2 max-md:min-h-10">
+                <Checkbox
+                  id={checkboxId}
                   data-warning-rule={warning.ruleId}
-                  className="size-4 flex-none"
                   checked={acknowledged.includes(warning.ruleId)}
                   aria-describedby={messageId}
-                  onChange={(event) => {
-                    onToggle(warning.ruleId, event.target.checked);
+                  onCheckedChange={(checked) => {
+                    onToggle(warning.ruleId, checked === true);
                   }}
                 />
-                {t('acknowledge')}
-              </label>
+                <Label htmlFor={checkboxId} className="cursor-pointer font-medium text-inherit">
+                  {t('acknowledge')}
+                </Label>
+              </span>
             </li>
           );
         })}

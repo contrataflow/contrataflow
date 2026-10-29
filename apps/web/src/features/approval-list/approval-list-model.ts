@@ -67,6 +67,34 @@ export function hasActiveFilters(filters: ApprovalFilters): boolean {
   );
 }
 
+/** Situação de cada aba (prd-5): a aba é o filtro de status de APV-01, um status por vez. */
+export function statusTabOf(filters: ApprovalFilters): ApprovalStatus {
+  return filters.statuses[0] ?? 'PENDING';
+}
+
+/** Filtros do popover e busca, além da aba (o vazio "você está em dia" só vale sem eles). */
+export function activeRefinements(
+  filters: ApprovalFilters,
+): ('subjectType' | 'requestingDepartmentId' | 'period' | 'q')[] {
+  return [
+    ...(filters.subjectType === '' ? [] : (['subjectType'] as const)),
+    ...(filters.requestingDepartmentId === '' ? [] : (['requestingDepartmentId'] as const)),
+    ...(filters.requestedFrom === '' && filters.requestedTo === '' ? [] : (['period'] as const)),
+    ...(effectiveSearch(filters.q) === undefined ? [] : (['q'] as const)),
+  ];
+}
+
+/** Contador da aba: o total de APV-01 com os demais filtros (`pageSize=1`; sem contrato novo). */
+export function tabCountQuery(
+  filters: ApprovalFilters,
+  status: ApprovalStatus,
+): Record<string, string | number | undefined> {
+  return {
+    ...approvalListQuery({ ...filters, statuses: [status] }, DEFAULT_SORT, 1),
+    pageSize: 1,
+  };
+}
+
 /** Query string de APV-01 (os vazios ficam de fora). */
 export function approvalListQuery(
   filters: ApprovalFilters,

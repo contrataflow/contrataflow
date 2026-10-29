@@ -1,12 +1,15 @@
+import { StatusChip } from '@contrataflow/ui';
 import type { ApprovalDocumentDto } from '@contrataflow/validation';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
 
+import { GeneratePdfButton } from '@/features/documents/generate-pdf-button';
+
 /**
  * `DocumentCoverageList` (US-052 · SCR-015): documentos cobertos pela aprovação, com a versão
  * exata analisada (RN-TRAM-46). Cada título leva à versão (`?versao=`) para a revisão antes de
- * decidir.
+ * decidir; "Gerar PDF" (US-067 · DOC-21) baixa o PDF oficial dessa versão.
  */
 export function DocumentCoverageList({
   processId,
@@ -20,7 +23,7 @@ export function DocumentCoverageList({
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4 md:p-6"
+      className="flex min-w-0 flex-col gap-3 rounded-card bg-surface p-5 shadow-card"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id={headingId} className="text-base font-semibold">
@@ -39,13 +42,13 @@ export function DocumentCoverageList({
             return (
               <li
                 key={document.documentVersionId}
-                className="flex min-w-0 flex-col gap-1 py-3 first:pt-0 last:pb-0 md:flex-row md:items-center md:justify-between md:gap-4"
+                className="flex min-w-0 flex-col gap-2 py-3 first:pt-0 last:pb-0 md:flex-row md:items-start md:justify-between md:gap-4"
               >
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <Link
                     href={href}
                     aria-label={t('open', { title: document.title })}
-                    className="text-sm font-medium break-words text-primary underline"
+                    className="text-sm font-semibold break-words text-primary-soft-foreground underline-offset-2 hover:underline"
                   >
                     {document.title}
                   </Link>
@@ -53,11 +56,22 @@ export function DocumentCoverageList({
                     {document.code ?? t('noCode')} · {document.typeName ?? document.typeCode}
                   </span>
                 </div>
-                <span className="inline-flex w-fit flex-none rounded-control bg-muted px-2 py-0.5 text-xs font-medium">
-                  {document.versionNumber === null
-                    ? t('noVersion')
-                    : t('version', { number: document.versionNumber })}
-                </span>
+                <div className="flex flex-none flex-wrap items-start gap-2 md:justify-end">
+                  <StatusChip tone="neutral">
+                    {document.versionNumber === null
+                      ? t('noVersion')
+                      : t('version', { number: document.versionNumber })}
+                  </StatusChip>
+                  {document.versionNumber === null ? null : (
+                    <GeneratePdfButton
+                      source={{
+                        kind: 'version',
+                        versionId: document.documentVersionId,
+                        versionNumber: document.versionNumber,
+                      }}
+                    />
+                  )}
+                </div>
               </li>
             );
           })}

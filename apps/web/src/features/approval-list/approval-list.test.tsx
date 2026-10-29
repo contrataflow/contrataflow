@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ApprovalListItemDto } from '@contrataflow/validation';
-import { configure, screen, waitFor } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +10,7 @@ import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/suppor
 
 import {
   DEFAULT_FILTERS,
+  activeRefinements,
   approvalListQuery,
   describeLoadError,
   effectiveSearch,
@@ -17,6 +18,8 @@ import {
   isPeriodValid,
   parseSortOption,
   sortOptions,
+  statusTabOf,
+  tabCountQuery,
 } from './approval-list-model';
 import { ApprovalListPage } from './approval-list-page';
 
@@ -24,9 +27,9 @@ configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
 /*
- * US-057 — SCR-014 (`/aprovacoes`): lista da cobertura (APV-01) com filtros, ordenação e paginação,
- * V-02 sem chamada à API, estados vazios (FA-01 × FA-05), erro com "Tentar novamente",
- * navegação para o SCR-015 e acessibilidade (axe).
+ * US-057 — SCR-014 (`/aprovacoes`) no modelo de lista (prd-5): situação em abas com contadores,
+ * busca inline, filtros no popover com chips, ordenação e paginação (APV-01), estados vazios (FA-01
+ * × FA-05), erro com "Tentar novamente", navegação para o SCR-015 e acessibilidade (axe).
  */
 
 const OBRAS = '0192e057-0000-7000-8000-0000000000a1';
@@ -70,19 +73,28 @@ function mockApi(list: (url: URL) => Response = () => page([item(1), item(2)])) 
   return fetchMock;
 }
 
-const calls = (fetchMock: ReturnType<typeof mockApi>) =>
+const allCalls = (fetchMock: ReturnType<typeof mockApi>) =>
   fetchMock.mock.calls
     .map(([input]) => new URL(requestUrl(input), 'http://localhost'))
     .filter((url) => url.pathname === '/api/v1/approvals');
+
+/** Consultas da lista (os contadores das abas usam `pageSize=1`). */
+const calls = (fetchMock: ReturnType<typeof mockApi>) =>
+  allCalls(fetchMock).filter((url) => url.searchParams.get('pageSize') === '20');
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('SCR-014 — Aprovações (US-057)', () => {
-  it('abre com o filtro padrão PENDING e -requestedAt; cada linha leva ao SCR-015 e ao processo', async () => {
-    const fetchMock = mockApi(() =>
-      page([item(1, { isOverdue: true, isBudgetConfidential: true }), item(2)]),
+  it('abre na aba Pendentes (PENDING, -requestedAt) com contadores; cada linha leva ao SCR-015 e ao processo', async () => {
+    const fetchMock = mockApi((url) =>
+      url.searchParams.get('pageSize') === '1'
+        ? jsonResponse({
+            data: [],
+            meta: { page: 1, pageSize: 1, totalItems: 4, totalPages: 4 },
+          })
+        : page([item(1, { isOverdue: true, isBudgetConfidential: true }), item(2)]),
     );
     renderWithShell(<ApprovalListPage />);
     const link = await screen.findByRole('link', {
@@ -93,80 +105,118 @@ describe('SCR-014 — Aprovações (US-057)', () => {
       `/processos/${aid(1001)}`,
     );
     expect(screen.getAllByRole('row')).toHaveLength(3);
-    expect(screen.getByText('Em atraso')).toBeTruthy();
+    expect(screen.getByText(/^Em atraso/)).toBeTruthy();
     expect(screen.getAllByText(/Beatriz Lima \(titular da Secretaria de Obras\)/)).toHaveLength(2);
+    const pending = await screen.findByRole('tab', { name: 'Pendentes: 2 aprovações' });
+    expect(pending.getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByRole('tab', { name: 'Aprovadas: 4 aprovações' })).toBeTruthy();
     const [first] = calls(fetchMock);
     expect(first?.searchParams.get('status')).toBe('PENDING');
     expect(first?.searchParams.get('sort')).toBe('-requestedAt');
     expect(first?.searchParams.get('page')).toBe('1');
     expect(first?.searchParams.get('pageSize')).toBe('20');
+    // Contador de cada aba: APV-01 com a situação da aba e `pageSize=1`.
+    expect(
+      allCalls(fetchMock)
+        .filter((url) => url.searchParams.get('pageSize') === '1')
+        .map((url) => url.searchParams.get('status'))
+        .sort(),
+    ).toEqual(['APPROVED', 'CANCELED', 'REJECTED', 'RETURNED']);
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
-  it('FA-01: sem pendências mostra "Nenhuma aprovação pendente. Você está em dia!"', async () => {
-    mockApi(() => page([]));
+  it('FA-01: sem pendências, "Você está em dia" leva às aprovações concluídas', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi(() => page([]));
     renderWithShell(<ApprovalListPage />);
-    expect(await screen.findByText('Nenhuma aprovação pendente. Você está em dia!')).toBeTruthy();
+    expect(await screen.findByText('Nenhuma aprovação pendente')).toBeTruthy();
+    expect(screen.getByText(/Você está em dia\./)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Ver aprovações concluídas' }));
+    await waitFor(() => {
+      expect(calls(fetchMock).at(-1)?.searchParams.get('status')).toBe('APPROVED');
+    });
+    expect(screen.getByRole('tab', { name: /Aprovadas/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
   });
 
-  it('filtros reconsultam a API; FA-05 sem resultado oferece "Limpar filtros"', async () => {
+  it('abas, busca e filtros do popover reconsultam a API; FA-05 sem resultado oferece "Limpar filtros"', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi((url) =>
       url.searchParams.get('subjectType') === 'DOCUMENT' ? page([]) : page([item(1)]),
     );
     renderWithShell(<ApprovalListPage />);
     await screen.findByRole('link', { name: /Abrir Aprovação do DFD 1/ });
-    await user.click(screen.getByRole('checkbox', { name: 'Aprovada' }));
+    await user.click(screen.getByRole('tab', { name: /Aprovadas/ }));
     await waitFor(() => {
-      expect(calls(fetchMock).at(-1)?.searchParams.get('status')).toBe('PENDING,APPROVED');
+      expect(calls(fetchMock).at(-1)?.searchParams.get('status')).toBe('APPROVED');
     });
-    await user.selectOptions(await screen.findByLabelText('Unidade solicitante'), OBRAS);
+    // Filtros fechados por padrão (prd-5 · regra 2).
+    expect(screen.queryByRole('combobox', { name: 'Tipo de assunto' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(await screen.findByRole('combobox', { name: 'Unidade solicitante' }));
+    await user.click(await screen.findByRole('option', { name: 'Secretaria de Obras' }));
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('requestingDepartmentId')).toBe(OBRAS);
     });
-    await user.type(screen.getByLabelText('Buscar por código ou título'), 'reforma');
-    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    expect(await screen.findByText('Unidade solicitante: Secretaria de Obras')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar aprovações' }), 'reforma');
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('q')).toBe('reforma');
     });
-    await user.selectOptions(screen.getByLabelText('Ordenar por'), 'dueAt');
+    await user.click(screen.getByRole('combobox', { name: 'Ordenar por' }));
+    await user.click(await screen.findByRole('option', { name: 'Prazo (mais próximo primeiro)' }));
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('sort')).toBe('dueAt');
     });
-    await user.selectOptions(screen.getByLabelText('Tipo de assunto'), 'DOCUMENT');
+
+    await user.click(screen.getByRole('button', { name: /^Filtros/ }));
+    await user.click(await screen.findByRole('combobox', { name: 'Tipo de assunto' }));
+    await user.click(await screen.findByRole('option', { name: 'Documento avulso' }));
+    await user.keyboard('{Escape}');
     expect(
       await screen.findByText('Nenhuma aprovação encontrada para os filtros selecionados.'),
     ).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(await seriousA11yViolations()).toEqual([]);
+    await user.click(
+      within(screen.getByRole('tabpanel')).getByRole('button', { name: 'Limpar filtros' }),
+    );
     await waitFor(() => {
       const last = calls(fetchMock).at(-1);
-      expect(last?.searchParams.get('status')).toBe('PENDING');
+      // A aba (situação) continua; os demais filtros e a busca saem.
+      expect(last?.searchParams.get('status')).toBe('APPROVED');
       expect(last?.searchParams.has('subjectType')).toBe(false);
+      expect(last?.searchParams.has('requestingDepartmentId')).toBe(false);
       expect(last?.searchParams.has('q')).toBe(false);
     });
-    expect(screen.getByLabelText<HTMLInputElement>('Buscar por código ou título').value).toBe('');
+    expect(
+      screen.getByRole<HTMLInputElement>('searchbox', { name: 'Buscar aprovações' }).value,
+    ).toBe('');
   });
 
-  it('[Validação] período invertido: mostra "O período informado é inválido." e não chama a API', async () => {
+  it('período da solicitação no DateRangePicker vira requestedFrom/requestedTo e um chip', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi();
     renderWithShell(<ApprovalListPage />);
     await screen.findByRole('link', { name: /Abrir Aprovação do DFD 1/ });
-    const before = calls(fetchMock).length;
-    await user.type(screen.getByLabelText('Solicitada de'), '2026-10-20');
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(await screen.findByRole('button', { name: /Período da solicitação/ }));
+    const calendar = await screen.findByRole('dialog', { name: 'Escolher período' });
+    const [fifth] = within(calendar).getAllByRole('button', { name: /, 5 de / });
+    const [ninth] = within(calendar).getAllByRole('button', { name: /, 9 de / });
+    if (!fifth || !ninth) throw new Error('dias do calendário não encontrados');
+    await user.click(fifth);
+    await user.click(ninth);
     await waitFor(() => {
-      expect(calls(fetchMock).length).toBeGreaterThan(before);
+      const last = calls(fetchMock).at(-1);
+      expect(last?.searchParams.get('requestedFrom')).toMatch(/^\d{4}-\d{2}-05$/);
+      expect(last?.searchParams.get('requestedTo')).toMatch(/^\d{4}-\d{2}-09$/);
     });
-    const afterFrom = calls(fetchMock).length;
-    await user.type(screen.getByLabelText('Solicitada até'), '2026-10-01');
-    expect((await screen.findByRole('alert')).textContent).toBe('O período informado é inválido.');
-    expect(calls(fetchMock).length).toBe(afterFrom);
-    expect(
-      calls(fetchMock).some((url) => url.searchParams.get('requestedTo') === '2026-10-01'),
-    ).toBe(false);
-    // A lista anterior continua na tela.
-    expect(screen.getByRole('link', { name: /Abrir Aprovação do DFD 1/ })).toBeTruthy();
+    expect(await screen.findByText(/^Período da solicitação: 05\//)).toBeTruthy();
   });
 
   it('banco indisponível: mensagem e "Tentar novamente" reconsulta', async () => {
@@ -197,6 +247,18 @@ describe('SCR-014 — Aprovações (US-057)', () => {
 });
 
 describe('approval-list-model', () => {
+  it('aba = um status; contador com os demais filtros e pageSize=1; refinamentos além da aba', () => {
+    expect(statusTabOf(DEFAULT_FILTERS)).toBe('PENDING');
+    expect(statusTabOf({ ...DEFAULT_FILTERS, statuses: ['REJECTED'] })).toBe('REJECTED');
+    expect(
+      tabCountQuery({ ...DEFAULT_FILTERS, subjectType: 'DOCUMENT', q: 'obras' }, 'APPROVED'),
+    ).toMatchObject({ status: 'APPROVED', subjectType: 'DOCUMENT', q: 'obras', pageSize: 1 });
+    expect(activeRefinements({ ...DEFAULT_FILTERS, statuses: ['APPROVED'] })).toEqual([]);
+    expect(activeRefinements({ ...DEFAULT_FILTERS, requestedTo: '2026-10-01', q: 'a' })).toEqual([
+      'period',
+    ]);
+  });
+
   it('query: vazios fora, busca curta ignorada (V-03), status por vírgula', () => {
     expect(
       approvalListQuery({ ...DEFAULT_FILTERS, q: ' a ' }, { field: 'code', direction: 'asc' }, 2),

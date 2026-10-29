@@ -86,19 +86,24 @@ const manager = () => ({
     ),
 });
 
+/** "Retirar"/"Redirecionar" ficam no menu "Mais ações" do cabeçalho (prd-5 · regra 1). */
+async function openAction(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await user.click(await screen.findByRole('button', { name: 'Mais ações' }));
+  await user.click(await screen.findByRole('menuitem', { name }));
+}
+
 describe('SCR-015 · Retirar aprovação (US-053)', () => {
   it('sem WITHDRAW/REASSIGN em allowedActions os botões não aparecem', async () => {
     renderDetail();
     await screen.findByRole('button', { name: 'Aprovar' });
-    expect(screen.queryByRole('button', { name: 'Retirar aprovação' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Redirecionar aprovação' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Mais ações' })).toBeNull();
   });
 
   it('[Sucesso] explica o efeito, envia o APV-04 com If-Match/Idempotency-Key e o motivo, avisa, invalida e volta ao processo', async () => {
     const user = userEvent.setup();
     const { api, invalidate } = renderDetail(requester());
 
-    await user.click(await screen.findByRole('button', { name: 'Retirar aprovação' }));
+    await openAction(user, 'Retirar aprovação');
     const dialog = await screen.findByRole('dialog', { name: 'Retirar aprovação' });
     expect(
       within(dialog).getByText(
@@ -134,7 +139,7 @@ describe('SCR-015 · Retirar aprovação (US-053)', () => {
       requester(approvalDto({ subjectType: 'DOCUMENT', processStageId: null })),
     );
 
-    await user.click(await screen.findByRole('button', { name: 'Retirar aprovação' }));
+    await openAction(user, 'Retirar aprovação');
     const dialog = await screen.findByRole('dialog', { name: 'Retirar aprovação' });
     expect(
       within(dialog).getByText(
@@ -156,7 +161,7 @@ describe('SCR-015 · Retirar aprovação (US-053)', () => {
       withdraw: () => problemResponse(409, 'APPROVAL_NOT_PENDING'),
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Retirar aprovação' }));
+    await openAction(user, 'Retirar aprovação');
     await user.click(await screen.findByRole('button', { name: 'Confirmar retirada' }));
 
     expect(await screen.findByText('Esta aprovação já foi decidida ou retirada.')).toBeTruthy();
@@ -173,7 +178,7 @@ describe('SCR-015 · Retirar aprovação (US-053)', () => {
       withdraw: () => problemResponse(503, 'DEPENDENCY_UNAVAILABLE'),
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Retirar aprovação' }));
+    await openAction(user, 'Retirar aprovação');
     await user.click(await screen.findByRole('button', { name: 'Confirmar retirada' }));
 
     expect(
@@ -189,7 +194,7 @@ describe('SCR-015 · Redirecionar aprovação (US-053 · FA-02)', () => {
     const user = userEvent.setup();
     const { api, invalidate } = renderDetail(manager());
 
-    await user.click(await screen.findByRole('button', { name: 'Redirecionar aprovação' }));
+    await openAction(user, 'Redirecionar aprovação');
     const dialog = await screen.findByRole('dialog', { name: 'Redirecionar aprovação' });
     const search = within(dialog).getByRole('searchbox', {
       name: 'Buscar pessoa por nome ou e-mail',
@@ -222,7 +227,7 @@ describe('SCR-015 · Redirecionar aprovação (US-053 · FA-02)', () => {
     const user = userEvent.setup();
     const { api } = renderDetail(manager());
 
-    await user.click(await screen.findByRole('button', { name: 'Redirecionar aprovação' }));
+    await openAction(user, 'Redirecionar aprovação');
     const dialog = await screen.findByRole('dialog', { name: 'Redirecionar aprovação' });
     await user.type(
       within(dialog).getByRole('textbox', { name: 'Motivo do redirecionamento' }),
@@ -245,7 +250,7 @@ describe('SCR-015 · Redirecionar aprovação (US-053 · FA-02)', () => {
       reassign: () => problemResponse(422, 'APPROVER_NOT_ELIGIBLE'),
     });
 
-    await user.click(await screen.findByRole('button', { name: 'Redirecionar aprovação' }));
+    await openAction(user, 'Redirecionar aprovação');
     const dialog = await screen.findByRole('dialog', { name: 'Redirecionar aprovação' });
     await user.click(within(dialog).getByRole('radio', { name: 'O titular de uma unidade' }));
     await user.type(
@@ -266,7 +271,9 @@ describe('SCR-015 · Redirecionar aprovação (US-053 · FA-02)', () => {
       approverType: 'DEPARTMENT_HEAD',
     });
     expect(
-      within(dialog).getByRole<HTMLInputElement>('radio', { name: 'Secretaria de Saúde' }).checked,
+      within(dialog)
+        .getByRole('radio', { name: 'Secretaria de Saúde' })
+        .getAttribute('aria-checked') === 'true',
     ).toBe(false);
   });
 });
