@@ -127,10 +127,10 @@ tabela) e não buscam dados.
 
 Regras verificadas por teste em `apps/web/src/components/templates/`: **só a página rola**
 (`no-nested-scroll.test.ts` — rolagem interna só em tabela larga, corpo de diálogo/gaveta, lista
-suspensa ou bloco de código; as violações restantes estão na lista `PENDING`, com o card que as
-remove) e **nenhum controle nativo** em `features` (`no-native-controls.test.ts` — a lista
-`NOT_MIGRATED` diz qual card migra cada arquivo e chega a zero no card 11). As duas listas só
-encolhem: o teste reprova entrada de arquivo que já foi corrigido.
+suspensa ou bloco de código, listados em `ALLOWED` com o motivo) e **nenhum controle nativo** em
+`features` (`no-native-controls.test.ts` — sem lista de exceções desde a varredura final da segunda
+leva: qualquer `<select>`, checkbox, radio ou date nativo reprova o teste). `ALLOWED` só guarda
+arquivos que ainda rolam por dentro; o teste reprova entrada de arquivo que já não rola.
 
 O shell segue as mesmas regras: "Novo processo" só na barra superior (o cabeçalho das páginas não o
 repete); Ctrl K abre a paleta de comandos (`CommandPalette`: busca de processos pela PRC-01, "Novo
@@ -138,7 +138,7 @@ processo" e "Ir para" as áreas do menu, com as permissões do menu); dicas (`To
 de ícone; o menu lateral não rola por dentro (fixo com 768 px de altura ou mais; abaixo disso rola
 com a página).
 
-### Capturas da primeira leva (2026-10)
+### Capturas das duas levas (2026-10)
 
 Build de produção com a API simulada (`apps/web/test/e2e/support/mock-api.mjs`), em
 `screenshots/repaginacao-2026-10/`. Servem de referência visual para a segunda leva; regenerar
@@ -197,9 +197,43 @@ Painéis do card 7 (1280 px, claro): `fornecedores-formulario.png` (painel later
 fornecedor"), `auditoria-filtros.png` (painel "Filtros da auditoria") e `notificacoes-sino.png`
 (popover do sininho com as 5 mais recentes).
 
-Telas ainda no layout anterior (legíveis nos dois temas, a redesenhar na segunda leva): formulários e
-editores (pesquisa de preços, riscos, documentos). Contraste e rolagem horizontal foram
-varridos em todas as rotas do web nos dois temas e em 390 px (axe WCAG 2.1 AA sem violações).
+### Capturas finais da segunda leva (2026-10-29)
+
+Varredura final (card 11): build de produção com a API simulada, uma captura por família de tela em
+claro (1280 px), escuro (`-escuro`, `data-theme="dark"`) e celular (`-celular`, 390 px), em
+`screenshots/repaginacao-2026-10/leva-2/`. Substituem, como referência da leva fechada, as das
+tabelas acima (que mostram cada card no seu momento).
+
+| Família | Arquivo-base |
+|---|---|
+| Painel | `painel` |
+| Processos · lista | `lista-de-processos` |
+| Processo · página | `pagina-do-processo` |
+| Novo processo | `novo-processo` |
+| Caixa de tarefas | `caixa-de-tarefas` |
+| Aprovações · decisão | `decisao-da-aprovacao`, `aprovacoes` |
+| ETP (documento) | `etp` |
+| TR | `tr` |
+| Pesquisa de preços | `pesquisa-de-precos`, `mapa-comparativo` |
+| Riscos | `riscos` |
+| Documentos · versões | `versoes-do-documento` |
+| Fornecedores | `fornecedores` |
+| Auditoria | `auditoria` |
+| Notificações | `notificacoes` |
+| Meu perfil | `perfil` |
+| Administração | `administracao`, `usuarios`, `templates` |
+| Erro | `erro-404` |
+
+Login, DFD, editores de template e workflow e o assistente de IA seguem nas capturas dos cards
+(tabelas acima). Regenerar quando uma tela mudar de aspecto: o roteiro é subir `next start` com a
+API simulada (`apps/web/test/e2e/support/mock-api.mjs`), entrar em
+`/api/auth/login?as=ana&returnTo=…` e fotografar; o tema escuro vem de `data-theme="dark"` no
+`<html>` (o padrão é o claro, o `prefers-color-scheme` só vale com `data-theme="system"`).
+
+Estado das telas: **todas** as rotas de `apps/web/src/app` usam o kit e os modelos de página, sem
+controle nativo de formulário e sem rolagem interna fora da lista permitida. Contraste, rolagem
+horizontal da página, rolagem interna e controles nativos foram medidos em todas as rotas
+alcançáveis nos dois temas e em 390 px (axe WCAG 2.1 AA, impacto sério ou crítico, sem violações).
 
 ## Tokens (`packages/ui/src/styles.css`)
 
