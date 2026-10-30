@@ -128,7 +128,7 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       expect(checks.strict_required_status_checks_policy).toBe(true);
     });
 
-    it('o PR entra por squash (avulso) ou rebase (lote, DEC-068), nunca por merge commit', () => {
+    it('o PR entra por squash ou rebase, nunca por merge commit (DEC-190)', () => {
       expect(rule('pull_request')).toMatchObject({
         allowed_merge_methods: ['squash', 'rebase'],
         dismiss_stale_reviews_on_push: true,
@@ -276,11 +276,23 @@ describe('Feature: Pipeline de CI com quality gates (US-079)', () => {
       expect(production?.prevent_self_review).toBe(false);
     });
 
-    it('nem administradores contornam a ruleset (sem bypass)', () => {
-      expect(ruleset.bypass_actors).toEqual([]);
+    it('o administrador publica direto na main pelo bypass (DEC-190)', () => {
+      expect(ruleset.bypass_actors).toEqual([
+        { actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' },
+      ]);
+      // As regras continuam ativas: valem para qualquer PR e para quem não é administrador.
       expect(ruleset.rules.map((item) => item.type)).toEqual(
         expect.arrayContaining(['deletion', 'non_fast_forward', 'required_linear_history']),
       );
+    });
+
+    it('esvaziar bypassActors religa os gates para todo mundo', () => {
+      const fechada = buildRuleset(
+        { ...settings, ruleset: { ...settings.ruleset, bypassActors: [] } },
+        codeowners,
+        teamIds,
+      ) as typeof ruleset;
+      expect(fechada.bypass_actors).toEqual([]);
     });
 
     it('as ferramentas do pipeline também têm donos sensíveis', () => {

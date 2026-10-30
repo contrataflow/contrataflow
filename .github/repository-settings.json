@@ -1,5 +1,5 @@
 {
-  "$comment": "Estado desejado do repositório no GitHub (US-079). Aplicar: GH_TOKEN=<admin> pnpm ci:github-settings --apply --repo <dono/nome>. Os required checks precisam ser os nomes exatos dos jobs de .github/workflows/ci.yml (teste em tools/test/ci-pipeline.test.ts). Os revisores obrigatórios por caminho vêm do .github/CODEOWNERS (teamReviewersFromCodeowners). Modo mantenedor único (DEC-067): 0 aprovações, sem CODEOWNERS obrigatório e autoaprovação em production; reverter conforme a DEC-067 quando entrar a segunda pessoa.",
+  "$comment": "Estado desejado do repositório no GitHub (US-079). Aplicar: GH_TOKEN=<admin> pnpm ci:github-settings --apply --repo <dono/nome>. Os required checks precisam ser os nomes exatos dos jobs de .github/workflows/ci.yml (teste em tools/test/ci-pipeline.test.ts). Os revisores obrigatórios por caminho vêm do .github/CODEOWNERS (teamReviewersFromCodeowners). Modo mantenedor único (DEC-067): 0 aprovações, sem CODEOWNERS obrigatório e autoaprovação em production; reverter conforme a DEC-067 quando entrar a segunda pessoa. Entrega direta na main (DEC-190): bypassActors deixa o papel de administrador publicar sem PR; esvaziar a lista religa os gates para todo mundo.",
   "organization": "contrataflow",
   "repository": {
     "allow_squash_merge": true,
@@ -30,6 +30,13 @@
     ],
     "strict": true,
     "teamReviewersFromCodeowners": false,
+    "bypassActors": [
+      {
+        "actor_id": 5,
+        "actor_type": "RepositoryRole",
+        "bypass_mode": "always"
+      }
+    ],
     "pullRequest": {
       "required_approving_review_count": 0,
       "require_code_owner_review": false,

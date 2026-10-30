@@ -39,6 +39,12 @@ export interface RepositorySettings {
      * projeto tem um único mantenedor (DEC-067): ninguém consegue aprovar o próprio PR.
      */
     readonly teamReviewersFromCodeowners: boolean;
+    /**
+     * `bypass_actors` da API: quem contorna a ruleset. Com a entrega direta na `main` (DEC-190), o
+     * papel de administrador do repositório empurra sem passar pelos gates. Lista ausente ou vazia
+     * fecha a branch para todo mundo, como no modo original da US-079.
+     */
+    readonly bypassActors?: readonly Readonly<Record<string, unknown>>[];
     readonly pullRequest: Readonly<Record<string, unknown>>;
     /** Achados do CodeQL acima do limiar bloqueiam o merge (regra `code_scanning`). */
     readonly codeScanning: {
@@ -111,8 +117,9 @@ export function buildRuleset(
     name: settings.ruleset.name,
     target: 'branch',
     enforcement: 'active',
-    // Sem bypass: nem administradores mesclam sem os gates (DoD: "impossível mesclar sem passar").
-    bypass_actors: [],
+    // Entrega direta na `main` (DEC-190): o papel de administrador contorna os gates para publicar
+    // sem PR. Lista vazia restaura o modo da US-079, em que nem administradores mesclam sem passar.
+    bypass_actors: [...(settings.ruleset.bypassActors ?? [])],
     conditions: { ref_name: { include: ['~DEFAULT_BRANCH'], exclude: [] } },
     rules: [
       { type: 'deletion' },

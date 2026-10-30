@@ -221,10 +221,15 @@ CI bloqueia o _merge_ (FA-04).
   a partir da `main`, sempre implantável.
 - _Squash merge_ nos PRs avulsos: o **título do PR** vira a mensagem do commit e segue o padrão de
   commits.
-- **Entrega por lote (DEC-068):** os cards do ddx rodam em sequência na `main` local e cada um
-  termina com **um commit** (regras para agentes em `AGENTS.md`). Com a fila vazia, o piloto envia o
-  lote para `lote/<nome>` e abre o PR; com o pipeline verde e o aval do mantenedor, o lote entra por
-  **rebase** — um commit por story na `main` — e a `main` local é realinhada com a do GitHub.
+- **Entrega direta na `main` (DEC-190):** os cards do ddx rodam em sequência na `main` local e cada
+  um termina com **um commit** (regras para agentes em `AGENTS.md`); o piloto publica com
+  `git push origin main`. O papel de administrador está na lista de _bypass_ da _ruleset_
+  (`bypassActors` em `.github/repository-settings.json`), então o push não espera os _required
+  checks_. As regras continuam ativas para qualquer PR e para quem não é administrador, e o
+  histórico linear e a proibição de _force push_ valem sempre.
+- **PR continua disponível** para quando você quiser a bateria completa de gates antes de publicar:
+  `git push origin main:refs/heads/<nome>` e `gh pr create --head <nome>`. Aí valem os oito
+  _required checks_ e a regra de _code scanning_.
 - Use o modelo `.github/pull_request_template.md` (card, checklist de DoD, impacto em fontes
   canônicas, justificativa de dependência nova).
 - O `.github/CODEOWNERS` pede os revisores obrigatórios. Áreas sensíveis — `apps/api/src/shared/`,
