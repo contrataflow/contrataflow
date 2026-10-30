@@ -1,0 +1,114 @@
+# Infraestrutura AWS (spec-469 · architecture.md §11.3). As checagens estáticas (fmt, validate,
+# tflint, trivy config) rodam no estágio "2. Estático" do ci.yml em todo PR e no job `check` daqui
+# — que também cobre o push direto na main (DEC-190) e é pré-requisito de todo plan/apply. O que
+# toca a AWS é ligado pela variável de repositório CF_TERRAFORM_ENABLED=true depois do bootstrap:
+# - PR que muda infra/terraform: `plan` de staging (papel somente leitura; produção não aceita PR).
+# - Merge na main: `plan` de produção para revisão → `apply` em staging → `apply` em produção,
+#   que espera a aprovação do Tech Lead no ambiente `production`.
+# - Segunda-feira 09:00 UTC: `plan` dos dois ambientes com -detailed-exitcode — drift reprova.
+# Roteiro e variáveis: CONTRIBUTING.md → "Infraestrutura AWS (Terraform)".
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      [
+        'infra/terraform/**',
+        '.github/workflows/terraform*.yml',
+        'tools/ci/terraform.ts',
+        'tools/ci/lib/terraform.ts',
+      ]
+  push:
+    branches: [main]
+    paths:
+      [
+        'infra/terraform/**',
+        '.github/workflows/terraform*.yml',
+        'tools/ci/terraform.ts',
+        'tools/ci/lib/terraform.ts',
+      ]
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+# Um apply por vez; um PR novo cancela só o plan anterior do mesmo PR.
+concurrency:
+  group: terraform-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: IaC estático
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar dependências
+        uses: ./.github/actions/setup
+
+      - name: terraform fmt/validate, tflint e trivy config
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm ci:terraform check
+
+  plan-staging:
+    name: Plan (staging)
+    needs: check
+    if: >-
+      vars.CF_TERRAFORM_ENABLED == 'true' && (github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
+    uses: ./.github/workflows/terraform-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: staging
+      apply: false
+      detailed-exitcode: ${{ github.event_name == 'schedule' }}
+
+  plan-production:
+    name: Plan (production)
+    needs: check
+    if: vars.CF_TERRAFORM_ENABLED == 'true' && github.event_name != 'pull_request'
+    uses: ./.github/workflows/terraform-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: production
+      apply: false
+      detailed-exitcode: ${{ github.event_name == 'schedule' }}
+
+  apply-staging:
+    name: Apply (staging)
+    needs: plan-staging
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/terraform-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: staging
+      apply: true
+
+  apply-production:
+    name: Apply (production)
+    needs: [apply-staging, plan-production]
+    uses: ./.github/workflows/terraform-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: production
+      apply: true

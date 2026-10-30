@@ -1,0 +1,11 @@
+# Copie para terraform.tfvars, troque os valores e versione num PR (nada aqui é segredo nem id de
+# conta). Contas AWS (ecr_registry) vão na variável TF_VARS_PRODUCTION do repositório.
+hosted_zone_name  = "contrataflow.example"
+app_hostname      = "app.contrataflow.example"
+email_domain      = "contrataflow.example"
+email_from        = "ContrataFlow <nao-responda@contrataflow.example>"
+oidc_issuer_url   = "https://auth.contrataflow.example/application/o/contrataflow/"
+authentik_api_url = "https://auth.contrataflow.example/api/v3/"
+otlp_endpoint     = "https://otlp.observabilidade.example:4318"
+traces_query_url  = "https://tempo.observabilidade.example/api/traces/{traceId}"
+alarm_emails      = ["plantao@contrataflow.example"]

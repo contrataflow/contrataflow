@@ -211,6 +211,14 @@ jobs:
           role-to-assume: ${{ vars.AWS_OIDC_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # As imagens continuam no ECR de staging (ECR_REGISTRY de production aponta para lá): a conta de
+      # produção lê por política do repositório (infra/terraform/modules/ecr).
+      - name: Login no ECR das imagens promovidas
+        env:
+          ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Verificar assinaturas

@@ -303,7 +303,7 @@ contrataflow/
 │   └── tsconfig/           # bases strict (node, next, library)
 ├── infra/
 │   ├── docker/             # Dockerfiles multi-stage (web, api, worker), compose de dev
-│   └── terraform/          # módulos e ambientes (dev, staging, production) — §11.4
+│   └── terraform/          # módulos, raízes envs/staging e envs/production e bootstrap — §11.3 (DEC-191)
 ├── tools/                  # scripts (seed, geração de OpenAPI, verificação de migrações)
 ├── docs/
 ├── docker-compose.yml      # postgres, redis, minio, authentik, gotenberg, clamav, mailpit, otel/grafana
@@ -1088,7 +1088,7 @@ flowchart TB
 
 ### 11.3 Infraestrutura como código
 
-Terraform em `infra/terraform/` com **módulos** reutilizáveis (`network`, `ecs-service`, `rds-postgres`, `elasticache`, `s3-bucket`, `kms`, `waf`, `ses`, `observability`) e **raízes por ambiente** (`envs/dev`, `envs/staging`, `envs/production`), estado remoto em S3 com *lock* (DynamoDB ou *lockfile* nativo do S3, conforme a versão), `terraform plan` no PR e `apply` somente pelo pipeline com aprovação manual em produção. Checagens no CI: `terraform fmt/validate`, `tflint`, `checkov`/`trivy config` (bloqueia S3 público, SG `0.0.0.0/0` em portas de dados, RDS sem criptografia). Nada é criado manualmente no console (drift detectado por `plan` agendado).
+Terraform em `infra/terraform/` com **módulos** reutilizáveis (`network`, `ecs-service`, `rds-postgres`, `elasticache`, `s3-bucket`, `kms`, `waf`, `ses`, `observability`) e **raízes por ambiente** (`envs/staging`, `envs/production`; `dev` segue no Compose), composição comum em `modules/stack`, raiz `bootstrap` aplicada à mão uma vez por conta (estado, OIDC do GitHub e papéis — DEC-191), estado remoto em S3 com *lockfile* nativo do S3, `terraform plan` no PR e `apply` somente pelo pipeline com aprovação manual em produção. Checagens no CI (`pnpm ci:terraform`): `terraform fmt/validate`, `tflint`, `trivy config` com a checagem própria `CF-0001` (bloqueia S3 público, SG `0.0.0.0/0` em portas de dados, RDS sem criptografia). Nada é criado manualmente no console (drift detectado por `plan` agendado).
 
 ### 11.4 Estratégia de deploy
 

@@ -1,0 +1,11 @@
+# Diretórios de trabalho do Terraform e artefatos locais (o estado vive no S3; o do bootstrap, local
+# até ser guardado no bucket — nunca no Git).
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+ci.auto.tfvars.json
+# Os lock files das raízes são versionados; os dos módulos não fazem sentido.
+modules/**/.terraform.lock.hcl

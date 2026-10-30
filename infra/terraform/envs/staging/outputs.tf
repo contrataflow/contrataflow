@@ -1,0 +1,27 @@
+# `terraform output -json github_environment_variables` → variáveis do ambiente `staging` do GitHub
+# (roteiro no CONTRIBUTING.md → "Infraestrutura AWS (Terraform)").
+output "github_environment_variables" {
+  description = "Variáveis do ambiente staging do GitHub, com os nomes exatos."
+  value = merge(module.stack.deploy_variables, {
+    STAGING_URL = module.stack.app_url
+    # A API não tem target group público (DEC-053): o smoke e os traces entram pelo web, cujo
+    # /health/ready consulta a API pelo Service Connect.
+    STAGING_API_URL  = module.stack.app_url
+    TRACES_QUERY_URL = module.stack.traces_query_url
+  })
+}
+
+output "app_secret_arn" {
+  description = "Segredo JSON da aplicação (preencher pelo roteiro)."
+  value       = module.stack.app_secret_arn
+}
+
+output "rds_master_user_secret_arn" {
+  description = "Segredo do usuário mestre do RDS (bootstrap dos papéis cf_*)."
+  value       = module.stack.rds_master_user_secret_arn
+}
+
+output "rds_address" {
+  description = "Host do PostgreSQL."
+  value       = module.stack.rds_address
+}

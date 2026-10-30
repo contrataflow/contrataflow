@@ -27,7 +27,8 @@
     "ci:coverage": "tsx ci/coverage-gate.ts",
     "ci:migrations": "tsx ci/migrations.ts",
     "ci:github-settings": "tsx ci/github-settings.ts",
-    "ci:sql-lint": "tsx ci/sql-lint.ts"
+    "ci:sql-lint": "tsx ci/sql-lint.ts",
+    "ci:terraform": "tsx ci/terraform.ts"
   },
   "devDependencies": {
     "@commitlint/lint": "catalog:",

@@ -31,6 +31,7 @@
     "ci:migrations": "pnpm --filter @contrataflow/tools run ci:migrations",
     "ci:sql-lint": "pnpm --filter @contrataflow/tools run ci:sql-lint",
     "ci:github-settings": "pnpm --filter @contrataflow/tools run ci:github-settings",
+    "ci:terraform": "pnpm --filter @contrataflow/tools run ci:terraform",
     "env:up": "pnpm --filter @contrataflow/tools run env:up",
     "env:up:full": "pnpm --filter @contrataflow/tools run env:up:full",
     "env:seed": "pnpm --filter @contrataflow/tools run env:seed",

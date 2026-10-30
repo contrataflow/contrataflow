@@ -109,6 +109,12 @@ jobs:
         if: success() || failure()
         run: docker run --rm -v "$PWD:/repo" -w /repo "$ACTIONLINT_IMAGE" -color
 
+      - name: IaC — Terraform (fmt, validate, tflint, trivy config)
+        if: success() || failure()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm ci:terraform check
+
       - name: SAST — testes das regras do Semgrep
         if: success() || failure()
         run: docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" semgrep --test --metrics off .semgrep/rules

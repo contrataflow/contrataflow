@@ -1,0 +1,81 @@
+# Plan ou apply de UMA raiz envs/<ambiente> (chamado por terraform.yml). Credenciais de curta
+# duração por OIDC, sem chave estática:
+# - plan: papel somente leitura TF_PLAN_ROLE_ARN_<ENV> (variável do repositório), sem ambiente do
+#   GitHub e sem lock do estado.
+# - apply: papel TF_APPLY_ROLE_ARN do ambiente do GitHub — só a partir da main, e em produção só
+#   depois da aprovação do Tech Lead.
+name: Terraform (ambiente)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: staging ou production.
+        type: string
+        required: true
+      apply:
+        description: true aplica (no ambiente do GitHub); false só planeja.
+        type: boolean
+        required: true
+      detailed-exitcode:
+        description: Plano com mudança reprova (drift agendado).
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  terraform:
+    name: ${{ inputs.apply && 'apply' || 'plan' }} — ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.apply && inputs.environment || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar dependências
+        uses: ./.github/actions/setup
+
+      # Variáveis do repositório com o sufixo do ambiente (TF_PLAN_ROLE_ARN_STAGING…), lidas do
+      # contexto `vars` inteiro porque a expressão não tem maiúsculas.
+      - name: Papel e estado do ambiente
+        id: target
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          APPLY: ${{ inputs.apply }}
+          APPLY_ROLE: ${{ vars.TF_APPLY_ROLE_ARN }}
+          VARS: ${{ toJSON(vars) }}
+        run: |
+          suffix=$(echo "$ENVIRONMENT" | tr '[:lower:]' '[:upper:]')
+          pick() { jq -r --arg key "$1" '.[$key] // ""' <<< "$VARS"; }
+          if [ "$APPLY" = "true" ]; then role="$APPLY_ROLE"; else role=$(pick "TF_PLAN_ROLE_ARN_$suffix"); fi
+          bucket=$(pick "TF_STATE_BUCKET_$suffix")
+          if [ -z "$role" ] || [ -z "$bucket" ]; then
+            echo "::error title=Terraform::Papel ou bucket do estado de $ENVIRONMENT ausente (roteiro no CONTRIBUTING.md)."
+            exit 1
+          fi
+          { echo "role=$role"; echo "bucket=$bucket"; echo "suffix=$suffix"; } >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ steps.target.outputs.role }}
+          aws-region: sa-east-1
+
+      - name: terraform ${{ inputs.apply && 'apply' || 'plan' }}
+        env:
+          COMMAND: ${{ inputs.apply && 'apply' || 'plan' }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          DETAILED: ${{ inputs.detailed-exitcode }}
+          SUFFIX: ${{ steps.target.outputs.suffix }}
+          TF_STATE_BUCKET: ${{ steps.target.outputs.bucket }}
+          VARS: ${{ toJSON(vars) }}
+        run: |
+          TF_VARS_JSON=$(jq -r --arg key "TF_VARS_$SUFFIX" '.[$key] // ""' <<< "$VARS")
+          export TF_VARS_JSON
+          args=("$COMMAND" --env "$ENVIRONMENT")
+          if [ "$DETAILED" = "true" ]; then args+=(--detailed-exitcode); fi
+          pnpm ci:terraform "${args[@]}"

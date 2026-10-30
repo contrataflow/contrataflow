@@ -17,17 +17,18 @@ Este guia vale para todo o monorepo. As regras citadas (`RN-FND-NN`) estão na
 5. [Scripts](#scripts)
 6. [Branches e PRs](#branches-e-prs)
 7. [Pipeline de CI](#pipeline-de-ci)
-8. [Commits](#commits)
-9. [Definition of Done](#definition-of-done)
-10. [Dependências](#dependências)
-11. [Segurança](#segurança)
-12. [Fronteiras de dependência](#fronteiras-de-dependência)
-13. [API: pipeline de requisição](#api-pipeline-de-requisição)
-14. [Observabilidade: logs, correlação e traces](#observabilidade-logs-correlação-e-traces)
-15. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
-16. [Testes](#testes)
-17. [Geradores](#geradores)
-18. [Decisões e ADRs](#decisões-e-adrs)
+8. [Infraestrutura AWS (Terraform)](#infraestrutura-aws-terraform)
+9. [Commits](#commits)
+10. [Definition of Done](#definition-of-done)
+11. [Dependências](#dependências)
+12. [Segurança](#segurança)
+13. [Fronteiras de dependência](#fronteiras-de-dependência)
+14. [API: pipeline de requisição](#api-pipeline-de-requisição)
+15. [Observabilidade: logs, correlação e traces](#observabilidade-logs-correlação-e-traces)
+16. [Web: shell, BFF e design system](#web-shell-bff-e-design-system)
+17. [Testes](#testes)
+18. [Geradores](#geradores)
+19. [Decisões e ADRs](#decisões-e-adrs)
 
 ## Ambiente
 
@@ -251,16 +252,16 @@ Enquanto o projeto tiver um único mantenedor (DEC-067), a _ruleset_ não exige 
 porque o GitHub não deixa ninguém aprovar o próprio PR. Quando entrar a segunda pessoa, religue a
 aprovação dos donos de cada caminho no CODEOWNERS como manda a DEC-067.
 
-| Check                  | O que roda                                                                                                                                                                                                                                           | Rodar localmente                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                                                                                                                       | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                            |
-| `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, lint de SQL (`set_config` de sessão), actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`)                                                            | `pnpm turbo run lint typecheck`, `pnpm depcruise`, `pnpm ci:sql-lint`                     |
-| `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                                                                                                                               | —                                                                                         |
-| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                                                                                                                     | `pnpm ci:contract --base origin/main`                                                     |
-| `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                                                                                                                               | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`              |
-| `5. Migrações`         | lint expand/contract e de contexto de sessão, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de catálogo (RLS, FK composta, unicidade, `tenant_id` nulo, tabela sem `tenant_id`, dono `cf_owner`) | `pnpm ci:migrations --base origin/main`                                                   |
-| `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                                                                                                                          | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .` |
-| `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                                                                                                                       | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                 |
+| Check                  | O que roda                                                                                                                                                                                                                                           | Rodar localmente                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `1. Higiene`           | `pnpm install --frozen-lockfile`, título do PR (commitlint), gitleaks nos commits do PR, licenças de runtime, `check:versions`                                                                                                                       | `pnpm secrets:scan`, `pnpm ci:licenses`, `pnpm check:versions`                             |
+| `2. Estático`          | `turbo run lint typecheck` (erros viram anotação no arquivo e na linha), `depcruise`, lint de SQL (`set_config` de sessão), actionlint, Semgrep (`.semgrep/rules/`, com `semgrep --test`), IaC (`terraform fmt/validate`, `tflint`, `trivy config`)  | `pnpm turbo run lint typecheck`, `pnpm depcruise`, `pnpm ci:sql-lint`, `pnpm ci:terraform` |
+| `2. Estático (CodeQL)` | CodeQL `security-extended`; achado alto ou crítico bloqueia pela regra `code_scanning`                                                                                                                                                               | —                                                                                          |
+| `3. Contrato`          | `turbo run openapi:generate` + diff com o `apps/api/openapi/api.v1.json` da base; incompatível na v1 → `OPENAPI_BREAKING_CHANGE`                                                                                                                     | `pnpm ci:contract --base origin/main`                                                      |
+| `4. Testes`            | unitários (com cobertura) → cobertura do código novo → integração (Testcontainers) → `test:tenant-leak` → `test:authz`                                                                                                                               | `pnpm turbo run test`, `pnpm ci:coverage`, `pnpm turbo run test:tenant-leak`               |
+| `5. Migrações`         | lint expand/contract e de contexto de sessão, migração publicada imutável, aplicação do zero e sobre o _snapshot_ da última tag `v*`, checagens de catálogo (RLS, FK composta, unicidade, `tenant_id` nulo, tabela sem `tenant_id`, dono `cf_owner`) | `pnpm ci:migrations --base origin/main`                                                    |
+| `6. Imagens`           | `infra/docker/prod.Dockerfile` por app, SBOM (Syft), Trivy + gate de CVE, assinatura cosign                                                                                                                                                          | `docker build -f infra/docker/prod.Dockerfile --build-arg APP=api --target runtime-api .`  |
+| `7. E2E`               | Compose da US-078 num projeto próprio, `env:seed`, Playwright + axe-core (`apps/web/test/e2e`)                                                                                                                                                       | `pnpm env:up && pnpm env:seed && pnpm turbo run test:e2e`                                  |
 
 - **Só `docs/**`:** os estágios 4–7 são pulados (aparecem como _skipped_, que conta como aprovado).
 - **Falhas:** o PR recebe um comentário com os estágios que falharam (PR do próprio repositório);
@@ -293,6 +294,94 @@ PowerShell: `$env:GH_TOKEN = gh auth token; pnpm ci:github-settings --apply --re
 | Ambientes `staging` e `production` | `ECS_CLUSTER`, `ECS_SERVICE_PREFIX`, `ECS_MIGRATOR_FAMILY`, `ECS_MIGRATOR_NETWORK`    | deploy no ECS (`tools/ci/deploy-ecs.ts`)      |
 | Ambiente `staging`                 | `STAGING_URL`, `STAGING_API_URL`, `TRACES_QUERY_URL` e o segredo `TRACES_QUERY_TOKEN` | ZAP, k6 e verificação de traces               |
 | Ambiente `staging`                 | segredo `SLACK_CI_WEBHOOK_URL`                                                        | alerta do pós-deploy em `#cf-ci`              |
+| Ambiente `production`              | `PRODUCTION_URL`                                                                      | URL do ambiente na promoção                   |
+
+As variáveis dos ambientes saem do Terraform com esses nomes exatos — veja
+[Infraestrutura AWS (Terraform)](#infraestrutura-aws-terraform).
+
+## Infraestrutura AWS (Terraform)
+
+Staging e produção na AWS, em `sa-east-1`, descritos em `infra/terraform/` (architecture.md §11.3 ·
+DEC-191); `dev` continua no Compose. Nada se cria pelo console: o `apply` é do pipeline.
+
+| Caminho                           | O que é                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `modules/`                        | `network`, `ecs-service`, `rds-postgres`, `elasticache`, `s3-bucket`, `kms`, `waf`, `ses`, `observability`, `ecr` e `stack` (a composição)       |
+| `envs/staging`, `envs/production` | raízes por ambiente: tamanho, redundância e identificadores; estado no S3 com _lock_ nativo                                                      |
+| `bootstrap/`                      | aplicada **uma vez, à mão**, em cada conta: bucket do estado, provedor OIDC do GitHub e os papéis `deploy`, `terraform-apply` e `terraform-plan` |
+| `policies/`                       | checagens próprias do `trivy config` (ex.: `CF-0001`, porta de dados aberta para a internet)                                                     |
+
+**Checagens (só precisam de Docker):** `pnpm ci:terraform` roda `terraform fmt -check`, `validate`
+de todas as raízes (lock file somente leitura), `tflint` (recomendadas + ruleset da AWS) e
+`trivy config` com as checagens de `policies/` — achado alto ou crítico reprova. As imagens ficam
+fixadas por digest em `tools/ci/lib/terraform.ts`. Roda no estágio `2. Estático` de todo PR e no
+job `IaC estático` do `terraform.yml` (que também cobre o push direto na `main`). Exceção do Trivy
+só com `trivy:ignore:<id>` e justificativa na linha de cima.
+
+**Pipeline (`.github/workflows/terraform.yml`, ligado por `CF_TERRAFORM_ENABLED=true`):** PR que
+toca `infra/terraform` gera o `plan` de staging (papel somente leitura; PR nunca planeja produção,
+porque o plan lê o estado). Na `main`: `plan` de produção para revisão → `apply` em staging →
+`apply` em produção depois da aprovação do Tech Lead no ambiente `production`. Toda segunda-feira o
+`plan` dos dois ambientes procura _drift_.
+
+### Roteiro do bootstrap
+
+Pré-requisitos: uma conta AWS por ambiente, a zona pública do domínio no Route 53 de cada conta e
+uma credencial administrativa temporária (SSO) na conta. Terraform 1.17 local, ou a imagem de
+`tools/ci/lib/terraform.ts`.
+
+1. **Bootstrap de cada conta** (staging primeiro):
+
+   ```bash
+   cd infra/terraform/bootstrap
+   terraform init
+   terraform apply -var environment=staging -var plan_on_pull_request=true   # produção: -var environment=production
+   terraform output -json
+   ```
+
+   O estado dessa raiz é local e não guarda segredo: copie-o para o bucket criado
+   (`aws s3 cp terraform.tfstate s3://<bucket>/bootstrap/<ambiente>.tfstate`) e apague a cópia.
+
+2. **Variáveis do repositório** (`gh variable set <NOME> --body <valor>`): `TF_STATE_BUCKET_<ENV>` e
+   `TF_PLAN_ROLE_ARN_<ENV>` (output `repository_variables`), `TF_VARS_STAGING` =
+   `{"ecr_pull_account_ids": ["<id da conta de produção>"]}` e `TF_VARS_PRODUCTION` =
+   `{"ecr_registry": "<id da conta de staging>.dkr.ecr.sa-east-1.amazonaws.com"}`. Ids de conta
+   ficam só aqui, nunca no código.
+3. **Variáveis de cada ambiente** (`gh variable set <NOME> --env <ambiente> --body <valor>`):
+   `AWS_OIDC_ROLE_ARN`, `AWS_REGION` e `TF_APPLY_ROLE_ARN` (output `environment_variables`).
+4. **Identificadores:** copie `envs/<ambiente>/terraform.tfvars.example` para `terraform.tfvars`,
+   preencha (domínio, issuer do Authentik, backend OTLP, consulta de traces, e-mails do plantão) e
+   versione num PR — nada ali é segredo.
+5. **Ligue o Terraform:** `CF_TERRAFORM_ENABLED=true`. O próximo push em `infra/terraform` aplica
+   staging e, aprovado, produção. Até os passos 6–8, os serviços ECS ficam tentando subir.
+6. **Espelhos no ECR de staging** (Gotenberg e ClamAV não saem para o Docker Hub): copie as imagens
+   do `infra/docker-compose.yml`, pelo digest, para `contrataflow-gotenberg:<versão>` e
+   `contrataflow-clamav:<versão>` (`docker pull`, `docker tag` e `docker push` ou `crane copy`).
+7. **Segredos** — o JSON `contrataflow/<ambiente>/app` no Secrets Manager, com as chaves de
+   `app_secret_keys` (`modules/stack/variables.tf`): `openssl rand -base64 32` para
+   `SESSION_ENCRYPTION_KEY`, `FIELD_ENCRYPTION_KEY` e `BLIND_INDEX_KEY`; 32+ caracteres aleatórios
+   para `INTERNAL_SERVICE_TOKEN`; `OIDC_CLIENT_SECRET` e `AUTHENTIK_API_TOKEN` do Authentik; as URLs
+   `DATABASE_*` com o host `rds_address`, `sslmode=require` e a senha de cada papel `cf_*`
+   (definida no banco com o usuário mestre, cuja senha fica no segredo gerido pelo próprio RDS).
+   Redis e SMTP o Terraform gera sozinho. Grave a partir de um arquivo fora do repositório e
+   apague-o em seguida:
+
+   ```bash
+   aws secretsmanager put-secret-value --secret-id contrataflow/<ambiente>/app \
+     --secret-string file://app.json
+   ```
+
+8. **Ambientes do GitHub para o deploy:** com uma credencial de leitura na conta, leia os outputs
+   da raiz do ambiente e grave-os no ambiente do GitHub; depois `CF_STAGING_ENABLED=true` liga o
+   `deploy-staging.yml`.
+
+   ```bash
+   cd infra/terraform/envs/staging
+   terraform init -backend-config="bucket=<TF_STATE_BUCKET_STAGING>"
+   terraform output -json github_environment_variables \
+     | jq -r 'to_entries[] | "\(.key)=\(.value)"' > vars.env
+   gh variable set --env staging -f vars.env && rm vars.env
+   ```
 
 ## Commits
 
