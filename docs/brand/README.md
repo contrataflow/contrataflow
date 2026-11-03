@@ -56,11 +56,11 @@ referência visual dos cards seguintes: [`mockups/repaginacao-2026-10/`](mockups
 | Neutro | `neutral` · `-soft` · `-soft-foreground` | `#94A3B8` · `#F1F5F9` · `#334155` | rascunho, desabilitado (`neutral` só como marca gráfica, nunca texto) |
 | Invertida | `inverse` · `-foreground` · `-muted` | `#141E2B` · `#FFFFFF` · `#B3BDCB` | toasts |
 
-Tipografia Inter: `text-page-title` 28/800, `text-section-title` 16/700, corpo `text-sm` 14/400,
-`text-label` 12/600 caixa alta, `text-kpi` 34/800. Grade de 8 px, raio `rounded-control` 10 px e
-`rounded-card` 14 px, sombra `shadow-card` (contorno de 1 px + elevação mínima: cartões sem borda
-desde a 2ª leva), foco visível de 3 px, alvos de 44 px
-(`Button` `md` e `icon`).
+Tipografia Inter (carregada pelo `next/font` desde a 3ª leva): `text-page-title` 26/700,
+`text-section-title` 16/700, corpo `text-sm` 14/400, `text-label` 12/600 caixa alta, `text-kpi`
+34/800. Grade de 8 px, raio `rounded-control` 8 px e `rounded-card` 12 px, sombra `shadow-card`
+(contorno de 1 px visível + elevação mínima), foco visível de 3 px, alvos de 44 px (`Button` `md` e
+`icon`). Valores anteriores à 3ª leva (28/800, 10 e 14 px) na seção "Terceira leva" abaixo.
 
 ### Componentes (`packages/ui`)
 
@@ -234,6 +234,61 @@ Estado das telas: **todas** as rotas de `apps/web/src/app` usam o kit e os model
 controle nativo de formulário e sem rolagem interna fora da lista permitida. Contraste, rolagem
 horizontal da página, rolagem interna e controles nativos foram medidos em todas as rotas
 alcançáveis nos dois temas e em 390 px (axe WCAG 2.1 AA, impacto sério ou crítico, sem violações).
+
+## Terceira leva (2026-11 · prd-6)
+
+Estrutura das telas alinhada ao **Microlegis** (produto irmão, Visual Sistemas Eletrônicos) com a
+marca e a paleta do ContrataFlow: o vinho do Microlegis vira o azul `primary` (ação, item ativo,
+links), o vinho escuro vira o navy (`brand-navy`/`inverse`: cabeçalhos escuros e painel do login) e o
+rosa-claro vira `primary-soft`. Prévia aprovada em 2026-11-03 e capturas de referência em
+`mockups/repaginacao-2026-11/`.
+
+**Fonte.** A Inter passou a ser carregada de verdade: antes o `--font-sans` pedia a Inter, mas nada
+a baixava e o app caía no Segoe UI. Agora `apps/web/src/app/fonts/inter.ts` usa o `next/font/local`
+com o arquivo versionado `inter-latin-wght.woff2` (eixo de peso 400–800, subconjunto latino, licença
+OFL em `OFL.txt`), servido do próprio domínio em `/_next/static/media` — a CSP continua com
+`font-src 'self'`, sem host externo, e o build não depende de rede. A classe da fonte no `<html>`
+define `--font-inter`, e o tema usa `--font-sans: var(--font-inter, 'Inter'), …`. O Storybook do kit
+carrega a mesma família pelo Google Fonts (`.storybook/preview-head.html`, só lá). No Vitest do web,
+`next/font/local` aponta para um stub (`test/support/next-font-local.ts`).
+
+**Tokens.**
+
+| Token | Antes (prd-4/5) | Agora |
+|---|---|---|
+| `--radius-control` | 10 px | 8 px |
+| `--radius-card` | 14 px | 12 px |
+| `--shadow-card` | contorno 1 px a 4 % + elevação | contorno 1 px a 9 % (escuro: branco a 9 %) + elevação — cartões e tabelas "com borda" |
+| `text-page-title` | 28/800 | 26/700, −0,02em |
+| Cabeçalho de tabela (`Th`) | `text-label` 12/600 sobre `muted/60` | 11/700, 0,06em, caixa alta sobre `muted/40` |
+
+O `KpiTile` (que já tinha `border`) troca a `shadow-card` por `shadow-xs`, para não desenhar dois
+contornos.
+
+**Componentes novos** (`@contrataflow/ui`, com histórias e axe):
+
+- `FilterPanel` — cartão de filtros **aberto** das listas: os 3 a 5 filtros principais em grade
+  rotulada (`Field` + controle do kit; a busca ocupa duas colunas com `className="sm:col-span-2"`) e
+  o rodapé com "Mais filtros" (`onMore`, contador `moreCount`, abre o painel com o restante) e
+  "Limpar filtros" (`onClear`, desabilitado sem filtro ativo). Abaixo de 768 px começa recolhido atrás
+  do botão "Filtros (N)" (só CSS, sem medir a tela; `collapsible={false}` desliga). Textos em
+  `FILTER_PANEL_LABELS`/`labels`.
+- `StatTile` — mostrador compacto: rótulo 11/700 em caixa alta, número 26/800 (`tone` +
+  `emphasizeValue` pintam o número), contexto em texto ou `StatusChip`, ícone opcional e `href`.
+  Borda de 1 px sem sombra: vive dentro de um cartão sem virar "cartão dentro de cartão".
+- `Card` com `header` — faixa invertida (`bg-inverse`: navy no claro, clara no escuro, como os
+  toasts) com selo (`badge`), título (vira o `h2` que rotula a seção) e `meta`; o corpo segue com
+  `p-5`. É o cartão-destaque do painel.
+- `ListPage.summary` — linha de contagem entre os filtros e a tabela (`{ text, actions }`: "N
+  processos encontrados" à esquerda; ordenação e colunas à direita). O `ListPageSkeleton` ganha a
+  linha quando a lista tem `summary`.
+
+**Regra revista dos filtros.** Nas listas, os filtros principais ficam **abertos** num `FilterPanel`
+(revoga a regra 2 do prd-5 só nesse ponto); o `FilterToolbar` continua existindo para "Mais
+filtros" e para listas pequenas, e os chips passam a valer só para os filtros de "Mais filtros". A
+ação primária da tela volta ao cabeçalho da página (continua uma por tela). As regras 3 a 8 do prd-5
+seguem valendo (até 6 colunas, sem cartão dentro de cartão, faixa de detalhe, etapas finas, "Ver
+mais", **só a página rola**, nenhum controle nativo).
 
 ## Tokens (`packages/ui/src/styles.css`)
 

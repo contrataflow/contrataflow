@@ -49,7 +49,7 @@ export function Table({ className, ...props }: TableProps) {
 }
 
 export function TableHead({ className, ...props }: ComponentPropsWithoutRef<'thead'>) {
-  return <thead className={cx('bg-muted/60', className)} {...props} />;
+  return <thead className={cx('bg-muted/40', className)} {...props} />;
 }
 
 export function TableBody(props: ComponentPropsWithoutRef<'tbody'>) {
@@ -103,7 +103,7 @@ export function Th({ sort, onSort, className, children, scope = 'col', ...props 
       scope={scope}
       aria-sort={sort}
       className={cx(
-        'px-3.5 py-3 text-left text-label whitespace-nowrap text-muted-foreground uppercase',
+        'px-3.5 py-3 text-left text-[0.6875rem] leading-tight font-bold tracking-[0.06em] whitespace-nowrap text-muted-foreground uppercase',
         className,
       )}
       {...props}

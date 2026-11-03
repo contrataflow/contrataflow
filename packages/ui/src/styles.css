@@ -12,13 +12,20 @@
  * azul (docs/brand/README.md): o navy vai para títulos, logo e toasts, o azul para a ação.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /*
+   * Inter auto-hospedada pelo `next/font` do app (`--font-inter`, prd-6 §2.1); fora do app
+   * (Storybook) o nome 'Inter' é carregado pelo `preview-head.html`.
+   */
+  --font-sans: var(--font-inter, 'Inter'), ui-sans-serif, system-ui, sans-serif;
 
-  /* Escala tipográfica (prd-4): página 28/800, seção 16/700, rótulo 12/600 caixa alta, KPI 34/800. */
-  --text-page-title: 1.75rem;
-  --text-page-title--line-height: 1.15;
+  /*
+   * Escala tipográfica (prd-4 · revista no prd-6): página 26/700, seção 16/700, rótulo 12/600
+   * caixa alta, KPI 34/800.
+   */
+  --text-page-title: 1.625rem;
+  --text-page-title--line-height: 1.2;
   --text-page-title--letter-spacing: -0.02em;
-  --text-page-title--font-weight: 800;
+  --text-page-title--font-weight: 700;
   --text-section-title: 1rem;
   --text-section-title--line-height: 1.4;
   --text-section-title--font-weight: 700;
@@ -107,13 +114,14 @@
   --color-neutral-soft-foreground: #334155;
 
   /*
-   * Grade de 8 px; raio de 10 a 14 px. Cartões sem borda (prd-5 · regra 4): a sombra desenha o
-   * contorno de 1 px e a elevação mínima sobre o fundo `#f7f8fa`.
+   * Grade de 8 px; raio de 8 (controles) e 12 px (cartões). Cartões "com borda" no padrão do
+   * Microlegis (prd-6 §2.1): a sombra desenha um contorno de 1 px visível e a elevação mínima sobre
+   * o fundo `#f7f8fa` (sem `border`, para não somar 1 px ao tamanho).
    */
-  --radius-control: 0.625rem;
-  --radius-card: 0.875rem;
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
 
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --shadow-card: 0 0 0 1px rgb(15 23 42 / 0.09), 0 1px 2px 0 rgb(15 23 42 / 0.04);
   --shadow-popover: 0 8px 24px -4px rgb(15 23 42 / 0.12), 0 0 0 1px rgb(15 23 42 / 0.06);
 }
 
@@ -211,7 +219,7 @@
   --color-neutral: #64748b;
   --color-neutral-soft: #1f2a38;
   --color-neutral-soft-foreground: #cbd5e1;
-  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.09), 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
@@ -259,7 +267,7 @@
     --color-neutral: #64748b;
     --color-neutral-soft: #1f2a38;
     --color-neutral-soft-foreground: #cbd5e1;
-    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.06);
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.09), 0 1px 2px 0 rgb(0 0 0 / 0.3);
     --shadow-popover: 0 8px 24px -4px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.08);
   }
 }

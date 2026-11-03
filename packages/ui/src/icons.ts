@@ -25,6 +25,7 @@ export {
   CircleAlert,
   CircleCheck,
   CircleDot,
+  CircleHelp,
   CircleX,
   ClipboardList,
   Clock,

@@ -12,7 +12,10 @@ import {
   Tr,
 } from './data-table.js';
 import { EmptyState } from './empty-state.js';
+import { Field } from './field.js';
+import { FilterPanel } from './filter-panel.js';
 import { FilterToolbar } from './filter-toolbar.js';
+import { Input } from './input.js';
 import { ListPage } from './list-page.js';
 import { PageHeader } from './page-header.js';
 import { ViewTabs } from './view-tabs.js';
@@ -90,5 +93,40 @@ export const Empty: Story = {
         action={<Button variant="secondary">Limpar filtros</Button>}
       />
     ),
+  },
+};
+
+const filterPanel = (
+  <FilterPanel onMore={() => undefined} onClear={() => undefined}>
+    <Field label="Buscar" className="sm:col-span-2">
+      <Input type="search" placeholder="Número ou objeto" />
+    </Field>
+    <Field label="Unidade">
+      <Input placeholder="Todas" />
+    </Field>
+  </FilterPanel>
+);
+
+export const WithSummary: Story = {
+  args: {
+    toolbar: filterPanel,
+    summary: {
+      text: '2 processos encontrados',
+      actions: (
+        <Button variant="secondary" size="sm">
+          Colunas
+        </Button>
+      ),
+    },
+    children: Default.args?.children,
+  },
+};
+
+export const LoadingWithSummary: Story = {
+  args: {
+    toolbar: filterPanel,
+    summary: { text: '' },
+    loading: true,
+    loadingLabel: 'Carregando processos…',
   },
 };

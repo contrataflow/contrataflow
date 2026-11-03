@@ -9,6 +9,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@test': fileURLToPath(new URL('./test', import.meta.url)),
       'server-only': fileURLToPath(new URL('./test/support/server-only.ts', import.meta.url)),
+      'next/font/local': fileURLToPath(
+        new URL('./test/support/next-font-local.ts', import.meta.url),
+      ),
     },
   },
   test: {

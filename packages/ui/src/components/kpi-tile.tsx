@@ -36,7 +36,7 @@ export function KpiTile({
   className,
 }: KpiTileProps) {
   const classes = cx(
-    'flex flex-col gap-3.5 rounded-card border border-border bg-surface p-5 text-foreground shadow-card',
+    'flex flex-col gap-3.5 rounded-card border border-border bg-surface p-5 text-foreground shadow-xs',
     href ? 'transition-colors hover:border-primary' : undefined,
     className,
   );
