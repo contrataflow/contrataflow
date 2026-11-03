@@ -97,7 +97,7 @@ export function ComparativeMapView({
     <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-1">
         {back}
-        <h1 className="text-2xl font-semibold">{t('title', { code: data.code ?? data.title })}</h1>
+        <h1 className="text-page-title">{t('title', { code: data.code ?? data.title })}</h1>
         <p className="text-sm text-muted-foreground">
           {t('referenceDate', { date: formatCivilDate(data.referenceDate) })}
           {' · '}

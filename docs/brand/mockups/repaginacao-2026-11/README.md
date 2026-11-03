@@ -16,8 +16,11 @@ usuário enviou como referência.
 | 3 · Lista de processos | `03-protocolo.png`, `04-materias.png`, `05-agenda-das-sessoes.png` | Leva 3 · 4/6 — listas |
 | 4 · Administração (hub) | `06-administracao.png` | Leva 3 · 5/6 — administração |
 | — (sem tela na prévia: Calendário no padrão do Microlegis) | `07-calendario-da-casa.png` | Leva 3 · 5/6 — administração |
+| — (telas que a prévia não cobre: página do processo, formulários e wizards, DFD/ETP/TR, pesquisa de preços, riscos, versões, perfil, notificações, templates e workflows, erros) | — | Leva 3 · 6/6 — varredura final (herdam a base do card 1; só ajustes de título) |
 
 Mapeamento de cores: vinho do Microlegis → azul `primary` (ação, item ativo, links); vinho escuro →
 navy (`brand-navy`/`inverse`: cabeçalhos escuros, painel do login); rosa-claro → `primary-soft`.
 Dados mostrados que a API não devolve ficam fora das telas implementadas até existir contrato para
 eles. O que mudou no kit está em `docs/brand/README.md`, seção "Terceira leva".
+
+Capturas finais da leva (todas as famílias, claro, escuro e 390 px): `docs/brand/screenshots/repaginacao-2026-11/`, índice em `docs/brand/README.md` ("Capturas finais da terceira leva").

@@ -60,7 +60,7 @@ export function ErrorView({
       <Heading
         ref={headingRef}
         tabIndex={-1}
-        className="text-2xl font-bold tracking-tight text-brand-ink outline-none"
+        className="text-page-title text-brand-ink outline-none"
       >
         {title}
       </Heading>
