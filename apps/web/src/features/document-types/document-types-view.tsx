@@ -143,6 +143,11 @@ export function DocumentTypesView() {
           }
         />
       }
+      summary={
+        types.data && types.data.length > 0
+          ? { text: t('summary', { count: types.data.length }) }
+          : undefined
+      }
       loading={types.isPending}
       loadingLabel={t('loading')}
       error={

@@ -25,6 +25,7 @@
     "noActiveHint": "Ative um item existente ou crie um novo; os formulários que dependem deste catálogo ficam sem opções até lá.",
     "saving": "Salvando…",
     "saved": "Alterações salvas.",
+    "summary": "{count, plural, =0 {Nenhum item encontrado} one {# item encontrado} other {# itens encontrados}}",
     "count": "{count, plural, one {# item} other {# itens}}",
     "dragHint": "Arraste as linhas ou use \"Mover para cima\" e \"Mover para baixo\" para reordenar."
   },

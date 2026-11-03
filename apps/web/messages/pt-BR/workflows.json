@@ -9,6 +9,7 @@
   "emptyFiltered": "Nenhum workflow encontrado.",
   "emptyFilteredHint": "Nenhum workflow corresponde à busca e aos filtros. Ajuste-os ou limpe para ver todos.",
   "count": "{count, plural, =0 {Nenhum workflow} one {# workflow} other {# workflows}}",
+  "summary": "{count, plural, =0 {Nenhum workflow encontrado} one {# workflow encontrado} other {# workflows encontrados}}",
   "caption": "Workflows do órgão, na ordem em que a aplicabilidade é avaliada",
   "rowMenu": {
     "label": "Ações de {name}",

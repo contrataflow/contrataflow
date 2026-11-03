@@ -193,7 +193,7 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
-  it('busca e filtros (no navegador): busca por sigla, situação e tipo com chips removíveis', async () => {
+  it('busca e filtros (no navegador): cartão aberto com busca por sigla, situação e tipo', async () => {
     mockApi();
     renderWithShell(<OrganizationsView />);
     const table = await screen.findByRole('table', { name: 'Órgãos e entidades da instituição' });
@@ -202,12 +202,10 @@ describe('[Sucesso] SCR-032 · aba Órgãos', () => {
     expect(within(table).getByText('Fundo Municipal de Saúde')).toBeTruthy();
     await userEvent.clear(screen.getByRole('searchbox', { name: 'Buscar' }));
 
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
-    await choose(await screen.findByRole('combobox', { name: 'Situação' }), 'Inativos');
-    await userEvent.keyboard('{Escape}');
-    expect(
-      screen.getByRole('button', { name: 'Remover o filtro Situação: Inativos' }),
-    ).toBeTruthy();
+    // Filtros no cartão aberto (prd-6 §2.4): aplicam na hora, sem chips (não há "Mais filtros").
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    await choose(within(region).getByRole('combobox', { name: 'Situação' }), 'Inativos');
+    expect(screen.queryByRole('list', { name: 'Outros filtros aplicados' })).toBeNull();
     const filtered = screen.getByRole('table', { name: 'Órgãos e entidades da instituição' });
     expect(within(filtered).getAllByRole('row')).toHaveLength(2);
     expect(within(filtered).getByText('Autarquia de Trânsito')).toBeTruthy();

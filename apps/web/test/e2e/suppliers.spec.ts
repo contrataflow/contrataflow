@@ -137,14 +137,12 @@ test('edita o telefone com o documento bloqueado e inativa o fornecedor', async 
 
 test('filtra por situação e busca por razão social', async ({ page }) => {
   await openScreen(page);
-  // Logo após o login o HTML do SSR ainda pode estar no DOM, oculto (<div hidden id="S:0">).
-  await page.getByRole('button', { name: 'Filtros' }).filter({ visible: true }).click();
+  // Cartão de filtros aberto (prd-6 · §2.4): a situação é escolhida direto nele.
   await page.getByRole('combobox', { name: 'Situação' }).click();
   await page.getByRole('option', { name: 'Inativos' }).click();
-  await page.keyboard.press('Escape');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Remover o filtro Situação: Inativos' }).click();
+  await page.getByRole('button', { name: 'Limpar filtros' }).click();
   await page.getByLabel('Buscar', { exact: true }).fill('acme');
   await expect(page.getByRole('row', { name: /Acme GmbH/ })).toBeVisible();
   await expect(page.getByRole('row', { name: /João da Silva/ })).toHaveCount(0);

@@ -174,6 +174,8 @@ describe('[Sucesso] SCR-109 · lista', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Modalidades' }));
 
     const table = await screen.findByRole('table', { name: 'Itens do catálogo Modalidades' });
+    expect(screen.getByText('4 itens encontrados', { selector: 'p' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Novo item' })).toBeTruthy();
     expect(
       api.mock.calls.some(([url]) =>
         requestUrl(url).startsWith('/api/v1/catalogs/MODALITY/items?'),

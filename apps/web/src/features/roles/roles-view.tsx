@@ -5,7 +5,7 @@ import {
   Button,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Plus,
   Select,
@@ -24,6 +24,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
@@ -55,11 +57,12 @@ function matchesSearch(role: RoleDto, search: string): boolean {
  * SCR-030 (`/admin/perfis` · US-095): os 15 perfis padrão e os personalizados (ROL-02) com a
  * contagem de vínculos ativos; "Novo perfil" (ROL-03) no cabeçalho abre o painel lateral e leva ao
  * detalhe (SCR-031); "Duplicar" (ROL-07) e "Desativar" (ROL-08) no menu ⋯ da linha, só com
- * `ROLE_MANAGE`. Modelo `ListPage` (prd-5): busca inline sobre os perfis já carregados e, no
- * popover "Filtros", situação e tipo, com chips.
+ * `ROLE_MANAGE`. Modelo `ListPage` (prd-5): cartão `FilterPanel` com busca sobre os perfis
+ * já carregados, situação e tipo.
  */
 export function RolesView() {
   const t = useTranslations('roles');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -129,42 +132,11 @@ export function RolesView() {
   const custom = roles.data?.filter((role) => !role.isSystem) ?? [];
   const activeCount = (status === ALL ? 0 : 1) + (kind === ALL ? 0 : 1);
   const filtered = search.trim() !== '' || activeCount > 0;
-  const statusLabel = (value: StatusFilter) =>
-    value === 'active' ? t('filters.active') : t('filters.inactive');
-  const kindLabel = (value: KindFilter) =>
-    value === 'system' ? t('filters.system') : t('filters.custom');
-  const chips = [
-    ...(status === ALL
-      ? []
-      : [
-          {
-            id: 'status',
-            label: t('filters.chip', { label: t('filters.status'), value: statusLabel(status) }),
-            removeLabel: t('filters.removeChip', {
-              label: t('filters.status'),
-              value: statusLabel(status),
-            }),
-            onRemove: () => {
-              setStatus(ALL);
-            },
-          },
-        ]),
-    ...(kind === ALL
-      ? []
-      : [
-          {
-            id: 'kind',
-            label: t('filters.chip', { label: t('filters.kind'), value: kindLabel(kind) }),
-            removeLabel: t('filters.removeChip', {
-              label: t('filters.kind'),
-              value: kindLabel(kind),
-            }),
-            onRemove: () => {
-              setKind(ALL);
-            },
-          },
-        ]),
-  ];
+  const clearAll = () => {
+    setSearch('');
+    setStatus(ALL);
+    setKind(ALL);
+  };
   const newRole = (
     <Can permission="ROLE_MANAGE">
       <Button
@@ -189,60 +161,55 @@ export function RolesView() {
         />
       }
       toolbar={
-        <FilterToolbar
-          search={{
-            value: search,
-            onChange: setSearch,
-            label: t('filters.search'),
-            placeholder: t('filters.searchPlaceholder'),
-            description: t('filters.searchHint'),
-          }}
-          activeCount={activeCount}
-          filters={
-            <div className="flex flex-col gap-4">
-              <Field label={t('filters.status')}>
-                <Select
-                  value={status}
-                  onValueChange={(value) => {
-                    setStatus(value === 'active' || value === 'inactive' ? value : ALL);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                    <SelectItem value="active">{t('filters.active')}</SelectItem>
-                    <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t('filters.kind')}>
-                <Select
-                  value={kind}
-                  onValueChange={(value) => {
-                    setKind(value === 'system' || value === 'custom' ? value : ALL);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                    <SelectItem value="system">{t('filters.system')}</SelectItem>
-                    <SelectItem value="custom">{t('filters.custom')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          }
-          chips={chips}
-          onClearAll={() => {
-            setStatus(ALL);
-            setKind(ALL);
-          }}
-        />
+        <FilterPanel
+          labels={filterPanelLabels}
+          activeCount={activeCount + (search.trim() === '' ? 0 : 1)}
+          onClear={clearAll}
+        >
+          <ListSearchField
+            value={search}
+            onChange={setSearch}
+            ariaLabel={t('filters.search')}
+            placeholder={t('filters.searchPlaceholder')}
+            description={t('filters.searchHint')}
+          />
+          <Field label={t('filters.status')}>
+            <Select
+              value={status}
+              onValueChange={(value) => {
+                setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                <SelectItem value="active">{t('filters.active')}</SelectItem>
+                <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('filters.kind')}>
+            <Select
+              value={kind}
+              onValueChange={(value) => {
+                setKind(value === 'system' || value === 'custom' ? value : ALL);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                <SelectItem value="system">{t('filters.system')}</SelectItem>
+                <SelectItem value="custom">{t('filters.custom')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </FilterPanel>
       }
+      summary={roles.data ? { text: t('list.summary', { count: items.length }) } : undefined}
       notices={
         <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">
           {actionError ? <Alert tone="error" title={actionError} /> : null}
@@ -278,14 +245,7 @@ export function RolesView() {
             description={filtered ? t('list.noResultsHint') : t('list.emptyCustomHint')}
             action={
               filtered ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setStatus(ALL);
-                    setKind(ALL);
-                  }}
-                >
+                <Button variant="secondary" onClick={clearAll}>
                   {t('filters.clear')}
                 </Button>
               ) : (

@@ -14,7 +14,7 @@ import {
   Ellipsis,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   Hourglass,
   ListPage,
   Select,
@@ -37,7 +37,6 @@ import {
   buttonClassName,
   toast,
 } from '@contrataflow/ui';
-import type { FilterToolbarChip } from '@contrataflow/ui';
 import type { TaskInboxItemDto, TaskInboxSort, TaskInboxView } from '@contrataflow/validation';
 import { formatTaskInboxSort } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +45,9 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { ListSortSelect } from '@/components/lists/list-sort-select';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { claimProcess } from '@/features/process-claim/process-claim.api';
 import { ConfidentialBadge } from '@/features/process-list/process-list-badges';
@@ -84,7 +86,7 @@ import {
   sortOptions,
   visibleTabs,
 } from './task-inbox-model';
-import type { InboxRefine, InboxRefineFilter, RefineOption } from './task-inbox-model';
+import type { InboxRefine, RefineOption } from './task-inbox-model';
 import { useTaskInbox, useTaskInboxCounters } from './task-inbox.api';
 
 /** Seleção múltipla da fila da unidade (US-058): só existe com alguma ação em lote disponível. */
@@ -109,6 +111,7 @@ const PANEL_ID = 'caixa-de-tarefas-visao';
  */
 export function TaskInboxPage() {
   const t = useTranslations('taskInbox');
+  const tSort = useTranslations('taskInbox.sort');
   const { allowed, status } = usePermission('INBOX_VIEW');
   const [view, setView] = useState<TaskInboxView>('MINE');
   const [sort, setSort] = useState<TaskInboxSort>(DEFAULT_SORT);
@@ -196,18 +199,30 @@ export function TaskInboxPage() {
           })}
         />
       }
-      toolbar={
-        <InboxToolbar
-          view={view}
-          sort={sort}
-          refine={refine}
-          items={items}
-          onRefine={setRefine}
-          onSort={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
+      toolbar={<InboxFilters refine={refine} items={items} onRefine={setRefine} />}
+      summary={
+        data === undefined
+          ? undefined
+          : {
+              text: t('summary', {
+                count: refined ? shown.length : data.meta.totalItems,
+                view: t(`tabs.${view}`),
+              }),
+              actions: (
+                <ListSortSelect
+                  label={tSort('label')}
+                  value={formatTaskInboxSort(sort)}
+                  onValueChange={(value) => {
+                    setSort(parseSortOption(value, view));
+                    setPage(1);
+                  }}
+                  options={sortOptions(view).map((option) => ({
+                    value: option,
+                    label: tSort(option as Parameters<typeof tSort>[0]),
+                  }))}
+                />
+              ),
+            }
       }
       notices={
         <>
@@ -317,120 +332,69 @@ export function TaskInboxPage() {
   );
 }
 
-/** Busca inline, popover com unidade, etapa e responsável, chips do que está ativo e ordenação. */
-function InboxToolbar({
-  view,
-  sort,
+/** Cartão de filtros (prd-6 §2.4): busca, unidade, etapa e responsável, todos à vista. */
+function InboxFilters({
   refine,
   items,
   onRefine,
-  onSort,
 }: {
-  readonly view: TaskInboxView;
-  readonly sort: TaskInboxSort;
   readonly refine: InboxRefine;
   readonly items: readonly TaskInboxItemDto[];
   readonly onRefine: (refine: InboxRefine) => void;
-  readonly onSort: (sort: TaskInboxSort) => void;
 }) {
   const t = useTranslations('taskInbox');
-  const tSort = useTranslations('taskInbox.sort');
+  const labels = useFilterPanelLabels();
   const options = refineOptionsOf(items);
   const responsibles: RefineOption[] = options.hasUnassigned
     ? [...options.responsibles, { value: NO_RESPONSIBLE, label: t('filters.noResponsible') }]
     : options.responsibles;
-  const labelOf = (key: InboxRefineFilter) =>
-    key === 'departmentId'
-      ? t('filters.department')
-      : key === 'stageKey'
-        ? t('filters.stage')
-        : t('filters.responsible');
-  const valueOf = (key: InboxRefineFilter, value: string) => {
-    const pool =
-      key === 'departmentId'
-        ? options.departments
-        : key === 'stageKey'
-          ? options.stages
-          : responsibles;
-    return pool.find((option) => option.value === value)?.label ?? value;
-  };
-  const active = activeRefineFilters(refine);
-  const chips: FilterToolbarChip[] = active.map((key) => {
-    const label = labelOf(key);
-    const value = valueOf(key, refine[key] ?? '');
-    return {
-      id: key,
-      label: t('filters.chip', { label, value }),
-      removeLabel: t('filters.remove', { label: `${label}: ${value}` }),
-      onRemove: () => {
-        onRefine({ ...refine, [key]: null });
-      },
-    };
-  });
+  const activeCount = activeRefineFilters(refine).length + (refine.q.trim() === '' ? 0 : 1);
 
   return (
-    <FilterToolbar
-      search={{
-        value: refine.q,
-        onChange: (q) => {
+    <FilterPanel
+      labels={labels}
+      activeCount={activeCount}
+      onClear={() => {
+        onRefine(EMPTY_REFINE);
+      }}
+    >
+      <ListSearchField
+        value={refine.q}
+        onChange={(q) => {
           onRefine({ ...refine, q });
-        },
-        label: t('search.label'),
-        placeholder: t('search.placeholder'),
-      }}
-      filters={
-        <>
-          <RefineSelect
-            label={t('filters.department')}
-            anyLabel={t('filters.any')}
-            options={options.departments}
-            value={refine.departmentId}
-            onChange={(departmentId) => {
-              onRefine({ ...refine, departmentId });
-            }}
-          />
-          <RefineSelect
-            label={t('filters.stage')}
-            anyLabel={t('filters.any')}
-            options={options.stages}
-            value={refine.stageKey}
-            onChange={(stageKey) => {
-              onRefine({ ...refine, stageKey });
-            }}
-          />
-          <RefineSelect
-            label={t('filters.responsible')}
-            anyLabel={t('filters.anyResponsible')}
-            options={responsibles}
-            value={refine.responsibleId}
-            onChange={(responsibleId) => {
-              onRefine({ ...refine, responsibleId });
-            }}
-          />
-        </>
-      }
-      activeCount={active.length}
-      chips={chips}
-      onClearAll={() => {
-        onRefine({ ...refine, departmentId: null, stageKey: null, responsibleId: null });
-      }}
-      sort={{
-        value: formatTaskInboxSort(sort),
-        onValueChange: (value) => {
-          onSort(parseSortOption(value, view));
-        },
-        options: sortOptions(view).map((option) => ({
-          value: option,
-          label: tSort(option as Parameters<typeof tSort>[0]),
-        })),
-      }}
-      labels={{
-        filters: t('filters.open'),
-        clearAll: t('filters.clear'),
-        sort: tSort('label'),
-        activeFilters: t('filters.active'),
-      }}
-    />
+        }}
+        ariaLabel={t('search.label')}
+        placeholder={t('search.placeholder')}
+        description={t('search.hint')}
+      />
+      <RefineSelect
+        label={t('filters.department')}
+        anyLabel={t('filters.any')}
+        options={options.departments}
+        value={refine.departmentId}
+        onChange={(departmentId) => {
+          onRefine({ ...refine, departmentId });
+        }}
+      />
+      <RefineSelect
+        label={t('filters.stage')}
+        anyLabel={t('filters.any')}
+        options={options.stages}
+        value={refine.stageKey}
+        onChange={(stageKey) => {
+          onRefine({ ...refine, stageKey });
+        }}
+      />
+      <RefineSelect
+        label={t('filters.responsible')}
+        anyLabel={t('filters.anyResponsible')}
+        options={responsibles}
+        value={refine.responsibleId}
+        onChange={(responsibleId) => {
+          onRefine({ ...refine, responsibleId });
+        }}
+      />
+    </FilterPanel>
   );
 }
 

@@ -120,6 +120,7 @@
     "pager": "Paginação dos usuários",
     "total": "{count, plural, =1 {1 usuário} other {# usuários}}",
     "searchPlaceholder": "Buscar por nome ou e-mail",
+    "summary": "{count, plural, =0 {0 usuários encontrados} one {# usuário encontrado} other {# usuários encontrados}}",
     "chip": "{field}: {value}",
     "removeChip": "Remover filtro {field}: {value}",
     "clear": "Limpar busca e filtros",

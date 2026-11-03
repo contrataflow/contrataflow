@@ -13,11 +13,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
-  FilterToolbar,
+  Field,
+  FilterPanel,
   ListPage,
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Table,
   TableBody,
   TableContainer,
@@ -30,7 +36,12 @@ import {
   buttonClassName,
 } from '@contrataflow/ui';
 import type { LinkComponent } from '@contrataflow/ui';
-import { PROCESS_LIST_DEFAULT_PAGE_SIZE, PROCESS_LIST_MESSAGES } from '@contrataflow/validation';
+import {
+  IN_PROGRESS_STATUSES,
+  PROCESS_LIST_DEFAULT_PAGE_SIZE,
+  PROCESS_LIST_MESSAGES,
+  PROCESS_STATUSES,
+} from '@contrataflow/validation';
 import type {
   ProcessListItemDto,
   ProcessListParamKey,
@@ -47,6 +58,9 @@ import type { ComponentProps, MouseEvent } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { ErrorView } from '@/components/errors/error-view';
+import { FilterPanelChips } from '@/components/lists/filter-panel-chips';
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { Icon } from '@/components/shell/icons';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { NEW_PROCESS_PATH, NewProcessButton } from '@/features/processes/new-process-button';
@@ -195,6 +209,18 @@ const ROW_LINKS = [
   { key: 'comments', tab: 'comentarios' },
 ] as const;
 
+/**
+ * Filtros principais, no cartão aberto (prd-6 §2.4): busca, situação, etapa, responsável e
+ * secretaria. Os demais ficam em "Mais filtros" (`ProcessFiltersPanel`) e só eles viram chip.
+ */
+export const PRIMARY_FILTER_KEYS: readonly ProcessListParamKey[] = [
+  'q',
+  'status',
+  'stageKey',
+  'currentResponsibleId',
+  'requestingSecretariatId',
+];
+
 /** Rótulo do chip de cada filtro (namespace `processList.filters`). */
 const CHIP_LABELS: Partial<Record<ProcessListParamKey, keyof Messages['processList']['filters']>> =
   {
@@ -228,6 +254,8 @@ export function ProcessListPage() {
   const tErrors = useTranslations('errors');
   const tStatus = useTranslations('processes.statuses');
   const tPriority = useTranslations('processes.priorities');
+  const tFilters = useTranslations('shell.listFilters');
+  const filterPanelLabels = useFilterPanelLabels();
   const format = useFormatter();
   const router = useRouter();
   const pathname = usePathname();
@@ -317,7 +345,6 @@ export function ProcessListPage() {
   const multiOrganization = (organizations.data?.length ?? 0) > 1;
   const filterOptions: FilterOptions = {
     tags: tags.data ?? [],
-    stages: stageOptions ?? [],
     units: units.data ?? [],
     organizations: (organizations.data ?? []).map((org) => ({ id: org.id, name: org.shortName })),
     contractingTypes: contractingTypes.data ?? [],
@@ -451,6 +478,12 @@ export function ProcessListPage() {
   const totalPages = page?.meta.totalPages ?? 0;
   const currentPage = Number(params.page ?? '1');
   const activeKeys = activeFilterKeys(params);
+  const extraKeys = activeKeys.filter((key) => !PRIMARY_FILTER_KEYS.includes(key));
+  // "Em andamento" (o padrão da tela) é um grupo de situações; as demais entram uma a uma.
+  const statusOptions = [
+    { value: IN_PROGRESS_STATUSES.join(','), label: t('filters.inProgress') },
+    ...PROCESS_STATUSES.map((status) => ({ value: status, label: tStatus(status) })),
+  ];
   const sort = primarySort(params);
   const membershipType = session.memberships.find(
     (membership) => membership.tenant.id === session.activeTenant.id,
@@ -576,51 +609,111 @@ export function ProcessListPage() {
           </>
         }
         toolbar={
-          <FilterToolbar
-            search={{
-              value: searchText,
-              onChange: setSearchText,
-              label: t('search.label'),
-              placeholder: t('search.placeholder'),
-              description: searchTooShort ? t('search.tooShort') : undefined,
+          <FilterPanel
+            labels={filterPanelLabels}
+            activeCount={activeKeys.length}
+            onClear={() => {
+              setSearchText('');
+              navigate(clearFilters(params));
             }}
-            onOpenFilters={() => {
+            onMore={() => {
               setFiltersKey((key) => key + 1);
               setFiltersOpen(true);
             }}
-            activeCount={activeKeys.length}
-            chips={activeKeys.map((key) => {
-              const label = chipLabel(key);
-              const value = chipValue(key, params[key] ?? '');
-              return {
-                id: key,
-                label: t('filters.chip', { label, value }),
-                removeLabel: t('filters.remove', { label: `${label}: ${value}` }),
-                onRemove: () => {
-                  navigate(withParam(params, key, undefined));
-                },
-              };
-            })}
-            onClearAll={() => {
-              navigate(clearFilters(params));
-            }}
-            labels={{
-              filters: t('filters.open'),
-              clearAll: t('filters.clear'),
-              activeFilters: t('filters.active'),
-            }}
-            actions={
-              <>
-                <SortMenu
-                  sort={sort}
-                  onSelect={(value) => {
-                    navigate(withParam(params, 'sort', value));
-                  }}
-                />
-                <ColumnChooser offered={offered} columns={columns} onToggle={toggleColumn} />
-              </>
+            moreCount={extraKeys.length}
+            footer={
+              <FilterPanelChips
+                label={t('filters.active')}
+                chips={extraKeys.map((key) => {
+                  const label = chipLabel(key);
+                  const value = chipValue(key, params[key] ?? '');
+                  return {
+                    id: key,
+                    label: t('filters.chip', { label, value }),
+                    removeLabel: t('filters.remove', { label: `${label}: ${value}` }),
+                    onRemove: () => {
+                      navigate(withParam(params, key, undefined));
+                    },
+                  };
+                })}
+              />
             }
-          />
+          >
+            <ListSearchField
+              value={searchText}
+              onChange={setSearchText}
+              ariaLabel={t('search.label')}
+              placeholder={t('search.placeholder')}
+              description={searchTooShort ? t('search.tooShort') : t('search.hint')}
+            />
+            <PrimaryFilter
+              label={t('filters.status')}
+              allLabel={tFilters('all')}
+              value={params.status}
+              options={statusOptions}
+              manyLabel={(count) => tFilters('selectedMany', { count })}
+              onChange={(value) => {
+                navigate(withParam(params, 'status', value));
+              }}
+            />
+            <PrimaryFilter
+              label={t('filters.stage')}
+              allLabel={tFilters('all')}
+              value={params.stageKey}
+              options={(stageOptions ?? []).map((stage) => ({
+                value: stage.key,
+                label: stage.name,
+              }))}
+              manyLabel={(count) => tFilters('selectedMany', { count })}
+              onChange={(value) => {
+                navigate(withParam(params, 'stageKey', value));
+              }}
+            />
+            <PrimaryFilter
+              label={t('filters.responsible')}
+              allLabel={tFilters('allMasculine')}
+              value={params.currentResponsibleId}
+              options={[
+                { value: 'me', label: t('filters.responsibleMe') },
+                { value: 'none', label: t('filters.responsibleNone') },
+              ]}
+              manyLabel={(count) => tFilters('selectedMany', { count })}
+              onChange={(value) => {
+                navigate(withParam(params, 'currentResponsibleId', value));
+              }}
+            />
+            <PrimaryFilter
+              label={t('filters.secretariat')}
+              allLabel={tFilters('all')}
+              value={params.requestingSecretariatId}
+              options={(units.data ?? []).map((unit) => ({ value: unit.id, label: unit.name }))}
+              manyLabel={(count) => tFilters('selectedMany', { count })}
+              onChange={(value) => {
+                navigate(withParam(params, 'requestingSecretariatId', value));
+              }}
+            />
+          </FilterPanel>
+        }
+        summary={
+          page
+            ? {
+                text:
+                  activeKeys.length > 0
+                    ? t('summary.filtered', { count: total })
+                    : t('summary.all', { count: total }),
+                actions: (
+                  <>
+                    <SortMenu
+                      sort={sort}
+                      onSelect={(value) => {
+                        navigate(withParam(params, 'sort', value));
+                      }}
+                    />
+                    <ColumnChooser offered={offered} columns={columns} onToggle={toggleColumn} />
+                  </>
+                ),
+              }
+            : undefined
         }
         notices={
           <>
@@ -739,6 +832,15 @@ export function ProcessListPage() {
                   total,
                 })}
               >
+                <span>
+                  {sort
+                    ? t('pagination.sortedBy', {
+                        label: t(
+                          `columns.${SORTABLE_COLUMNS.find((column) => column.sort === sort.field)?.id ?? 'updatedAt'}`,
+                        ),
+                      })
+                    : t('pagination.sortedByRelevance')}
+                </span>
                 {totalPages > 1 ? (
                   <Pagination
                     page={currentPage}
@@ -838,6 +940,57 @@ export function ProcessListPage() {
     </>
   );
 }
+
+/**
+ * Filtro principal do cartão (select do kit, aplicado na hora). "Todas/Todos" remove o filtro; um
+ * valor múltiplo vindo do link ou de uma visão salva aparece como "N selecionadas".
+ */
+function PrimaryFilter({
+  label,
+  allLabel,
+  value,
+  options,
+  manyLabel,
+  onChange,
+}: {
+  readonly label: string;
+  readonly allLabel: string;
+  readonly value: string | undefined;
+  readonly options: readonly { readonly value: string; readonly label: string }[];
+  readonly manyLabel: (count: number) => string;
+  readonly onChange: (value: string | undefined) => void;
+}) {
+  const current = value ?? ALL_VALUE;
+  const known = current === ALL_VALUE || options.some((option) => option.value === current);
+  return (
+    <Field label={label}>
+      <Select
+        value={current}
+        onValueChange={(next) => {
+          onChange(next === ALL_VALUE ? undefined : next);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_VALUE}>{allLabel}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+          {known ? null : (
+            <SelectItem value={current}>{manyLabel(valuesOf(current).length)}</SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
+/** "Todas/Todos" nos selects do cartão (o Radix não aceita valor vazio). */
+const ALL_VALUE = '__all__';
 
 /** Link das abas: navega pelo roteador sem rolar; o `href` real mantém "abrir em nova aba". */
 function RouterLink({ href, className, children, ...rest }: ComponentProps<LinkComponent>) {

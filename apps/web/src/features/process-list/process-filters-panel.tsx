@@ -19,13 +19,8 @@ import {
   fromIsoDate,
   toIsoDate,
 } from '@contrataflow/ui';
-import { PRIORITIES, PROCESS_STATUSES } from '@contrataflow/validation';
-import type {
-  CatalogItemDto,
-  ProcessListParamKey,
-  ProcessStageOptionDto,
-  TagDto,
-} from '@contrataflow/validation';
+import { PRIORITIES } from '@contrataflow/validation';
+import type { CatalogItemDto, ProcessListParamKey, TagDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 import { useId, useState } from 'react';
 
@@ -36,14 +31,14 @@ import type { ListParams } from './process-list-state';
 import type { UnitOption } from './process-list.api';
 
 /*
- * `ProcessFiltersPanel` (SCR-004 · US-002): formulário rotulado com os filtros da tabela "Campos".
+ * `ProcessFiltersPanel` (SCR-004 · US-002): "Mais filtros" — formulário rotulado com os filtros da
+ * tabela "Campos" que não estão no cartão aberto da lista (prd-6 §2.4).
  * Diálogo do kit (folha inferior no mobile, FA-09) com os controles do kit (`Select`, `Checkbox`,
  * `DatePicker`); "Aplicar" grava na URL e volta à página 1; o foco volta ao gatilho ao fechar (Radix). Intervalos invertidos e valores inválidos são
  * recusados aqui (V-06/V-07) antes de irem para a URL.
  */
 
 export interface FilterOptions {
-  readonly stages: readonly ProcessStageOptionDto[];
   readonly units: readonly UnitOption[];
   readonly organizations: readonly { readonly id: string; readonly name: string }[];
   readonly contractingTypes: readonly CatalogItemDto[];
@@ -56,15 +51,15 @@ export interface FilterOptions {
 export type FilterDraft = Partial<Record<ProcessListParamKey, string | undefined>>;
 type Draft = FilterDraft;
 
+/**
+ * Só os filtros de "Mais filtros": situação, etapa, responsável e secretaria ficam no cartão aberto
+ * da lista (prd-6 §2.4 · `PRIMARY_FILTER_KEYS`) e não passam por aqui.
+ */
 const FILTER_KEYS: readonly ProcessListParamKey[] = [
-  'status',
   'priority',
-  'stageKey',
   'currentDepartmentId',
-  'requestingSecretariatId',
   'requestingDepartmentId',
   'organizationId',
-  'currentResponsibleId',
   'contractingTypeId',
   'modalityId',
   'originId',
@@ -136,7 +131,6 @@ export function ProcessFiltersPanel({
   readonly onApply: (changes: Draft) => void;
 }) {
   const t = useTranslations('processList.filters');
-  const tStatus = useTranslations('processes.statuses');
   const tPriority = useTranslations('processes.priorities');
   const tTags = useTranslations('tags.filter');
   const [draft, setDraft] = useState<Draft>(() => pick(params));
@@ -227,14 +221,6 @@ export function ProcessFiltersPanel({
           }}
         >
           <Checkboxes
-            legend={t('status')}
-            options={PROCESS_STATUSES.map((status) => ({ value: status, label: tStatus(status) }))}
-            selected={valuesOf(draft.status)}
-            onChange={(values) => {
-              set('status', values.join(','));
-            }}
-          />
-          <Checkboxes
             legend={t('priority')}
             options={PRIORITIES.map((priority) => ({
               value: priority,
@@ -245,16 +231,6 @@ export function ProcessFiltersPanel({
               set('priority', values.join(','));
             }}
           />
-          {options.stages.length > 0 ? (
-            <Checkboxes
-              legend={t('stage')}
-              options={options.stages.map((stage) => ({ value: stage.key, label: stage.name }))}
-              selected={valuesOf(draft.stageKey)}
-              onChange={(values) => {
-                set('stageKey', values.join(','));
-              }}
-            />
-          ) : null}
           {activeTags.length > 0 ? (
             <Checkboxes
               legend={tTags('legend')}
@@ -284,11 +260,6 @@ export function ProcessFiltersPanel({
               { value: 'mine', label: t('mine') },
               ...units,
             ])}
-            {select('currentResponsibleId', t('responsible'), [
-              { value: 'me', label: t('responsibleMe') },
-              { value: 'none', label: t('responsibleNone') },
-            ])}
-            {select('requestingSecretariatId', t('requestingSecretariat'), units)}
             {select('requestingDepartmentId', t('requestingDepartment'), units)}
             {options.organizations.length > 1
               ? select(

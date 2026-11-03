@@ -129,10 +129,13 @@ const urlsTo = (fetchMock: ReturnType<typeof mockApi>, pathname: string) =>
     .map(([input]) => new URL(requestUrl(input), 'http://localhost'))
     .filter((url) => url.pathname === pathname);
 
-/** Abre o painel lateral "Filtros" da barra (prd-5 · regra 2). */
-async function openFilters() {
-  fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
-  return screen.findByRole('dialog', { name: 'Filtros da auditoria' });
+/** Cartão de filtros aberto da lista (prd-6 §2.4): período, ação, categoria e resultado. */
+const filterCard = () => screen.getByRole('region', { name: 'Filtros da auditoria' });
+
+/** Abre "Mais filtros" (painel lateral com ator, entidade e processo). */
+async function openMoreFilters() {
+  fireEvent.click(within(filterCard()).getByRole('button', { name: /^Mais filtros/ }));
+  return screen.findByRole('dialog', { name: 'Mais filtros da auditoria' });
 }
 
 async function renderRecords(options: { queryClient?: QueryClient } = {}) {
@@ -178,11 +181,13 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     expect(rows[0]?.textContent).toContain('Sucesso');
     expect(rows[1]?.textContent).toContain('Acesso negado');
     expect(rows[1]?.textContent).toContain('Negado');
-    // No painel "Filtros", o mesmo período no seletor de datas.
-    const panel = await openFilters();
-    expect(within(panel).getByRole('button', { name: 'Período' }).textContent).toContain(
+    // No cartão de filtros, o mesmo período no seletor de datas; a contagem traz o período.
+    expect(within(filterCard()).getByRole('button', { name: 'Período' }).textContent).toContain(
       '10/10/2026 a 17/10/2026',
     );
+    expect(
+      screen.getByText('2 registros carregados no período de 10/10/2026 a 17/10/2026'),
+    ).toBeTruthy();
   });
 
   it('filtrar por ação envia a ação e o período; a lista mostra só o que a API devolveu', async () => {
@@ -192,10 +197,9 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     });
     await renderRecords();
     const user = userEvent.setup();
-    const panel = await openFilters();
-    await user.click(within(panel).getByRole('combobox', { name: 'Ação' }));
+    // O filtro do cartão pesquisa na hora, sem painel nem "Pesquisar".
+    await user.click(within(filterCard()).getByRole('combobox', { name: 'Ação' }));
     await user.click(await screen.findByRole('option', { name: 'Processo criado' }));
-    await user.click(within(panel).getByRole('button', { name: 'Pesquisar' }));
     await waitFor(() => {
       expect(urlsTo(fetchMock, '/api/v1/audit').at(-1)?.searchParams.get('action')).toBe(
         'process.create',
@@ -205,14 +209,12 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     await waitFor(() => {
       expect(within(table).queryByText('Acesso negado')).toBeNull();
     });
-    // O painel fecha e o filtro aplicado vira chip removível.
-    expect(screen.queryByRole('dialog', { name: 'Filtros da auditoria' })).toBeNull();
-    await user.click(
-      screen.getByRole('button', { name: 'Remover o filtro Ação: Processo criado' }),
-    );
+    // Filtro do cartão não vira chip (só os de "Mais filtros"); "Limpar filtros" volta ao padrão.
+    expect(screen.queryByText('Ação: Processo criado')).toBeNull();
+    await user.click(within(filterCard()).getByRole('button', { name: 'Limpar filtros' }));
     // Sem a ação, volta a consulta anterior (em cache): os dois registros reaparecem.
     expect(await within(table).findByText('Acesso negado')).toBeTruthy();
-    expect(screen.queryByText('Ação: Processo criado')).toBeNull();
+    expect(within(filterCard()).getByRole('combobox', { name: 'Ação' }).textContent).toBe('Todas');
   });
 
   it('abrir um registro mostra o diff mascarado com "Antes"/"Depois" e permite filtrar pelo ator', async () => {
@@ -234,8 +236,15 @@ describe('[Sucesso] pesquisar e ver o detalhe (SCR-037 · AUD-01/AUD-02)', () =>
     await waitFor(() => {
       expect(urlsTo(fetchMock, '/api/v1/audit').at(-1)?.searchParams.get('actorUserId')).toBe(ANA);
     });
+    // O ator é filtro de "Mais filtros": vira chip no rodapé do cartão e conta no botão.
     expect(screen.getByText('Ator: Ana Souza')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
+    expect(
+      within(filterCard()).getByRole('button', { name: 'Mais filtros, 1 ativo' }),
+    ).toBeTruthy();
+    const panel = await openMoreFilters();
+    expect(within(panel).getByRole('combobox', { name: 'Ator' }).textContent).toContain(
+      'Ana Souza',
+    );
   });
 
   it('FA-05: registro coalescido com o intervalo de salvamentos no metadata mostra o aviso', async () => {
@@ -280,7 +289,7 @@ describe('[Validação] período (V-01/V-02)', () => {
     await renderRecords();
     const before = urlsTo(fetchMock, '/api/v1/audit').length;
     const user = userEvent.setup();
-    const panel = await openFilters();
+    const panel = filterCard();
     await user.click(within(panel).getByRole('button', { name: 'Período' }));
     const calendar = await screen.findByRole('dialog', { name: 'Escolher período' });
     for (let month = 0; month < 4; month += 1) {
@@ -289,8 +298,8 @@ describe('[Validação] período (V-01/V-02)', () => {
     await user.click(within(calendar).getByRole('button', { name: /, 1 de junho/ }));
     await user.keyboard('{Escape}');
     const period = within(panel).getByRole('button', { name: 'Período' });
+    // O período completo é validado na hora (sem "Pesquisar"): recusado, nada é pesquisado.
     expect(period.textContent).toContain('01/06/2026 a 17/10/2026');
-    await user.click(within(panel).getByRole('button', { name: 'Pesquisar' }));
     expect(await within(panel).findByText('Selecione um período de até 90 dias.')).toBeTruthy();
     expect(period.getAttribute('aria-invalid')).toBe('true');
     expect(urlsTo(fetchMock, '/api/v1/audit')).toHaveLength(before);

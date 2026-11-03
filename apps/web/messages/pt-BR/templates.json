@@ -379,6 +379,7 @@
   },
   "list": {
     "count": "{count, plural, =0 {Nenhum template} one {# template} other {# templates}}",
+    "summary": "{count, plural, =0 {Nenhum template encontrado} one {# template encontrado} other {# templates encontrados}}",
     "emptyTitle": "Nenhum template cadastrado",
     "emptyHint": "Crie o primeiro template para começar.",
     "noResults": "Nenhum template encontrado",

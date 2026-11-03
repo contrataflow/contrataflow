@@ -196,6 +196,10 @@ describe('[Sucesso] SCR-108 lista os tipos agrupados por natureza', () => {
       ),
     ).toBe(true);
 
+    // Linha de contagem sob o cabeçalho (sem filtros nesta tela); "Novo tipo" fica no cabeçalho.
+    expect(screen.getByText(/tipos? de documento encontrados?/, { selector: 'p' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Novo tipo' })).toBeTruthy();
+
     const structured = screen.getByRole('table', { name: 'Tipos de documento — Estruturado' });
     expect(within(structured).getByText('Do sistema')).toBeTruthy();
     expect(within(structured).getByText('Próximo: DFD 0001/2026')).toBeTruthy();

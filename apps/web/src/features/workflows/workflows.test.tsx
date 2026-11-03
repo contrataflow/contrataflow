@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { WorkflowsView } from './workflows-view';
@@ -176,6 +177,37 @@ describe('SCR-034 · lista de workflows com o padrão (US-042)', () => {
     await user.keyboard('{Escape}');
     await openRowMenu(user, 'Contratação direta — Lei 14.133/2021, art. 72');
     expect(await screen.findByRole('menuitem', { name: 'Tornar padrão' })).toBeTruthy();
+  });
+
+  it('[Filtros] cartão aberto: contagem, busca, situação e "Limpar filtros"', async () => {
+    const inactive = workflow({
+      id: '0192a000-0000-7000-8000-000000000004',
+      key: 'ANTIGO',
+      name: 'Fluxo antigo',
+      isActive: false,
+    });
+    mockApi({ list: () => jsonResponse({ data: [DIRECT, STANDARD, inactive] }) });
+    const user = userEvent.setup();
+    renderWithShell(<WorkflowsView />);
+
+    await screen.findByText('Fluxo antigo');
+    expect(screen.getByText('3 workflows encontrados', { selector: 'p' })).toBeTruthy();
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    const clear = within(region).getByRole('button', { name: 'Limpar filtros' });
+    expect((clear as HTMLButtonElement).disabled).toBe(true);
+
+    await chooseOption(user, 'Situação', 'Inativos', region);
+    expect(screen.getByText('1 workflow encontrado', { selector: 'p' })).toBeTruthy();
+    expect(screen.queryByText('Contratação direta — Lei 14.133/2021, art. 72')).toBeNull();
+    // Sem "Mais filtros", não há chips.
+    expect(screen.queryByRole('list', { name: 'Outros filtros aplicados' })).toBeNull();
+
+    await user.click(within(region).getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByText('3 workflows encontrados', { selector: 'p' })).toBeTruthy();
+    await user.type(within(region).getByRole('searchbox', { name: 'Buscar' }), 'zzz');
+    // Sem resultado: o estado vazio substitui a contagem.
+    expect(await screen.findByText('Nenhum workflow encontrado.')).toBeTruthy();
+    expect(screen.queryByText(/workflows? encontrados?$/, { selector: 'p' })).toBeNull();
   });
 
   it('[Validação] FA-02: workflow sem versão publicada tem "Tornar padrão" desabilitado com o motivo', async () => {

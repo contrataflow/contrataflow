@@ -137,9 +137,7 @@ test('a lista de usuários mostra o vínculo, busca por nome e tem estado vazio'
   await expect(page.getByText('Nenhum usuário encontrado')).toBeVisible();
   await page.getByRole('searchbox', { name: 'Buscar por nome ou e-mail' }).fill('dieg');
   await expect(table.getByRole('row', { name: /Diego Ramos/ })).toBeVisible();
-  await page.getByRole('button', { name: /^Filtros/ }).click();
   await chooseOption(page, 'Status', 'Suspenso');
-  await page.keyboard.press('Escape');
   await expect(page.getByText('Nenhum usuário encontrado')).toBeVisible();
 });
 

@@ -2,6 +2,7 @@
   "title": "Fornecedores",
   "description": "Mantenha um cadastro único dos fornecedores da instituição. Os mesmos fornecedores são reutilizados nas pesquisas de preços, sem redigitar nem duplicar dados a cada contratação.",
   "list": {
+    "summary": "{count, plural, =0 {Nenhum fornecedor encontrado} one {# fornecedor encontrado} other {# fornecedores encontrados}}",
     "new": "Novo fornecedor",
     "loading": "Carregando os fornecedores…",
     "loadFailed": "Não foi possível carregar os fornecedores.",

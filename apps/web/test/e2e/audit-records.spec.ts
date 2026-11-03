@@ -23,15 +23,12 @@ test('filtrar → ver detalhe → exportar CSV com fórmulas neutralizadas', asy
   await expect(table.getByRole('row')).toHaveCount(4); // cabeçalho + 3 registros
   await expectNoSeriousA11yViolations(page, 'aba Registros');
 
-  // Filtrar por ação, no painel "Filtros".
-  await page.getByRole('button', { name: 'Filtros' }).click();
-  const filters = page.getByRole('dialog', { name: 'Filtros da auditoria' });
+  // Filtrar por ação no cartão de filtros aberto (prd-6 §2.4): aplica na hora.
+  const filters = page.getByRole('region', { name: 'Filtros da auditoria' });
   await filters.getByLabel('Ação', { exact: true }).click();
   await page.getByRole('option', { name: 'Processo criado' }).click();
-  await expectNoSeriousA11yViolations(page, 'painel de filtros');
-  await filters.getByRole('button', { name: 'Pesquisar' }).click();
   await expect(table.getByRole('row')).toHaveCount(2);
-  await expect(page.getByText('Ação: Processo criado')).toBeVisible();
+  await expectNoSeriousA11yViolations(page, 'cartão de filtros');
 
   // Detalhe com o diff mascarado.
   await table.getByRole('button', { name: /Ver detalhe: Processo criado/ }).click();
@@ -44,7 +41,7 @@ test('filtrar → ver detalhe → exportar CSV com fórmulas neutralizadas', asy
   await expect(dialog).toBeHidden();
 
   // Exportar todos os registros do período em CSV.
-  await page.getByRole('button', { name: 'Remover o filtro Ação: Processo criado' }).click();
+  await filters.getByRole('button', { name: 'Limpar filtros' }).click();
   await expect(table.getByRole('row')).toHaveCount(4);
   await page.getByRole('button', { name: 'Exportar' }).click();
   const exportDialog = page.getByRole('dialog', { name: 'Exportar registros' });

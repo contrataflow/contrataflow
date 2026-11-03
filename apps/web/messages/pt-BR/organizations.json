@@ -15,7 +15,8 @@
     "emptyHint": "Cadastre o primeiro órgão para poder abrir processos.",
     "noResults": "Nenhum órgão encontrado",
     "noResultsHint": "Revise a busca ou os filtros.",
-    "count": "{count, plural, =0 {Nenhum órgão} one {# órgão} other {# órgãos}}"
+    "count": "{count, plural, =0 {Nenhum órgão} one {# órgão} other {# órgãos}}",
+    "summary": "{count, plural, =0 {0 órgãos encontrados} one {# órgão encontrado} other {# órgãos encontrados}}"
   },
   "filters": {
     "search": "Buscar",

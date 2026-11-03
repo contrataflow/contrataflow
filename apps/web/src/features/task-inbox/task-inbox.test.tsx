@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import {
@@ -348,7 +349,7 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     expect(screen.getByText('Vence em 2 dias')).toBeTruthy();
   });
 
-  it('busca inline e filtros no popover refinam a visão, com chips removíveis', async () => {
+  it('busca e filtros do cartão refinam a visão; a contagem e "Limpar filtros" acompanham', async () => {
     const user = userEvent.setup();
     mockApi({
       list: () =>
@@ -360,26 +361,25 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     });
     renderPage();
     await screen.findByRole('link', { name: 'Aquisição de materiais 1' });
-    // Filtros fechados por padrão (prd-5 · regra 2).
-    expect(screen.queryByRole('combobox', { name: 'Etapa' })).toBeNull();
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    expect(screen.getByText('3 tarefas · Comigo', { selector: 'p' })).toBeTruthy();
+    const clear = () =>
+      within(region).getByRole<HTMLButtonElement>('button', { name: 'Limpar filtros' });
+    expect(clear().disabled).toBe(true);
     await user.type(screen.getByRole('searchbox', { name: 'Buscar nesta visão' }), 'reforma');
     expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(screen.getByText('1 tarefa · Comigo', { selector: 'p' })).toBeTruthy();
     await user.clear(screen.getByRole('searchbox', { name: 'Buscar nesta visão' }));
 
-    await user.click(screen.getByRole('button', { name: 'Filtros' }));
-    await user.click(await screen.findByRole('combobox', { name: 'Etapa' }));
-    await user.click(await screen.findByRole('option', { name: 'Termo de referência' }));
-    expect(await screen.findByText('Etapa: Termo de referência')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
+    await chooseOption(user, 'Etapa', 'Termo de referência', region);
     expect(screen.getAllByRole('row')).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'Aquisição de materiais 2' })).toBeTruthy();
+    expect(screen.queryByText('Etapa: Termo de referência')).toBeNull();
     expect(await seriousA11yViolations()).toEqual([]);
 
-    await user.keyboard('{Escape}');
-    await user.click(
-      screen.getByRole('button', { name: 'Remover o filtro Etapa: Termo de referência' }),
-    );
+    await user.click(clear());
     expect(screen.getAllByRole('row')).toHaveLength(4);
+    expect(clear().disabled).toBe(true);
   });
 
   it('selo de atraso, orçamento sigiloso e linha de aprovação com solicitante', async () => {

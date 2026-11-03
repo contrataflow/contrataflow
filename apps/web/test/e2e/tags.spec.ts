@@ -72,8 +72,8 @@ test('filtrar a lista de processos pela etiqueta', async ({ page }) => {
   const table = page.getByRole('table', { name: TABLE });
   await expect(table).toBeVisible();
   await expect(table.getByRole('row')).toHaveCount(4); // cabeçalho + 3 processos
-  // A lista abre com o filtro padrão de situação: o botão traz o contador ("Filtros, 1 filtro ativo").
-  await page.getByRole('button', { name: /^Filtros/ }).click();
+  // Etiquetas ficam em "Mais filtros"; a situação padrão está no cartão aberto (prd-6 §2.4).
+  await page.getByRole('button', { name: /^Mais filtros/ }).click();
   const filters = page.getByRole('dialog');
   await filters
     .getByRole('group', { name: 'Etiquetas', exact: true })

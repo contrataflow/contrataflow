@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, problem, renderWithShell, requestUrl } from '@test/support/render';
 
 import {
@@ -131,7 +132,10 @@ describe('SCR-014 — Aprovações (US-057)', () => {
     renderWithShell(<ApprovalListPage />);
     expect(await screen.findByText('Nenhuma aprovação pendente')).toBeTruthy();
     expect(screen.getByText(/Você está em dia\./)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
+    // Sem filtro ativo, "Limpar filtros" do cartão fica desabilitado e o vazio não o oferece.
+    const clear = screen.getAllByRole('button', { name: 'Limpar filtros' });
+    expect(clear).toHaveLength(1);
+    expect((clear[0] as HTMLButtonElement).disabled).toBe(true);
     await user.click(screen.getByRole('button', { name: 'Ver aprovações concluídas' }));
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('status')).toBe('APPROVED');
@@ -141,7 +145,7 @@ describe('SCR-014 — Aprovações (US-057)', () => {
     );
   });
 
-  it('abas, busca e filtros do popover reconsultam a API; FA-05 sem resultado oferece "Limpar filtros"', async () => {
+  it('abas, busca e filtros do cartão reconsultam a API; FA-05 sem resultado oferece "Limpar filtros"', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi((url) =>
       url.searchParams.get('subjectType') === 'DOCUMENT' ? page([]) : page([item(1)]),
@@ -152,17 +156,21 @@ describe('SCR-014 — Aprovações (US-057)', () => {
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('status')).toBe('APPROVED');
     });
-    // Filtros fechados por padrão (prd-5 · regra 2).
-    expect(screen.queryByRole('combobox', { name: 'Tipo de assunto' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Filtros' }));
-    await user.click(await screen.findByRole('combobox', { name: 'Unidade solicitante' }));
+    // Filtros principais à vista no cartão (prd-6 §2.4), sem chips.
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    expect(within(region).getByRole('combobox', { name: 'Tipo de assunto' })).toBeTruthy();
+    expect(
+      within(region).getByRole<HTMLButtonElement>('button', { name: 'Limpar filtros' }).disabled,
+    ).toBe(true);
+    await user.click(within(region).getByRole('combobox', { name: 'Unidade solicitante' }));
     await user.click(await screen.findByRole('option', { name: 'Secretaria de Obras' }));
     await waitFor(() => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('requestingDepartmentId')).toBe(OBRAS);
     });
-    expect(await screen.findByText('Unidade solicitante: Secretaria de Obras')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
-    await user.keyboard('{Escape}');
+    expect(screen.queryByText('Unidade solicitante: Secretaria de Obras')).toBeNull();
+    expect(
+      within(region).getByRole<HTMLButtonElement>('button', { name: 'Limpar filtros' }).disabled,
+    ).toBe(false);
 
     await user.type(screen.getByRole('searchbox', { name: 'Buscar aprovações' }), 'reforma');
     await waitFor(() => {
@@ -174,16 +182,16 @@ describe('SCR-014 — Aprovações (US-057)', () => {
       expect(calls(fetchMock).at(-1)?.searchParams.get('sort')).toBe('dueAt');
     });
 
-    await user.click(screen.getByRole('button', { name: /^Filtros/ }));
-    await user.click(await screen.findByRole('combobox', { name: 'Tipo de assunto' }));
-    await user.click(await screen.findByRole('option', { name: 'Documento avulso' }));
-    await user.keyboard('{Escape}');
+    await chooseOption(user, 'Tipo de assunto', 'Documento avulso', region);
     expect(
       await screen.findByText('Nenhuma aprovação encontrada para os filtros selecionados.'),
     ).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
     await user.click(
       within(screen.getByRole('tabpanel')).getByRole('button', { name: 'Limpar filtros' }),
+    );
+    expect(screen.getByRole('combobox', { name: 'Tipo de assunto' }).textContent).toContain(
+      'Todos',
     );
     await waitFor(() => {
       const last = calls(fetchMock).at(-1);
@@ -203,7 +211,6 @@ describe('SCR-014 — Aprovações (US-057)', () => {
     const fetchMock = mockApi();
     renderWithShell(<ApprovalListPage />);
     await screen.findByRole('link', { name: /Abrir Aprovação do DFD 1/ });
-    await user.click(screen.getByRole('button', { name: 'Filtros' }));
     await user.click(await screen.findByRole('button', { name: /Período da solicitação/ }));
     const calendar = await screen.findByRole('dialog', { name: 'Escolher período' });
     const [fifth] = within(calendar).getAllByRole('button', { name: /, 5 de / });
@@ -216,7 +223,13 @@ describe('SCR-014 — Aprovações (US-057)', () => {
       expect(last?.searchParams.get('requestedFrom')).toMatch(/^\d{4}-\d{2}-05$/);
       expect(last?.searchParams.get('requestedTo')).toMatch(/^\d{4}-\d{2}-09$/);
     });
-    expect(await screen.findByText(/^Período da solicitação: 05\//)).toBeTruthy();
+  });
+
+  it('a linha de contagem mostra o total de aprovações encontradas', async () => {
+    mockApi(() => page([item(1), item(2)]));
+    renderWithShell(<ApprovalListPage />);
+    await screen.findByRole('link', { name: /Abrir Aprovação do DFD 1/ });
+    expect(screen.getByText('2 aprovações encontradas', { selector: 'p' })).toBeTruthy();
   });
 
   it('banco indisponível: mensagem e "Tentar novamente" reconsulta', async () => {

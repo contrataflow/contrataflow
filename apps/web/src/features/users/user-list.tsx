@@ -11,7 +11,7 @@ import {
   Ellipsis,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Select,
   SelectContent,
@@ -35,6 +35,8 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { isApiError } from '@/lib/api/api-error';
 import { useTenantId } from '@/lib/session/session-context';
 
@@ -65,13 +67,14 @@ export interface UserListProps {
 }
 
 /**
- * `UserList` (SCR-029 · US-092 · USR-01) no modelo `ListPage` (prd-5): busca inline (≥ 2
- * caracteres, com debounce), situação, vínculo e lotação no popover "Filtros" com chips,
+ * `UserList` (SCR-029 · US-092 · USR-01) no modelo `ListPage` (prd-5): cartão `FilterPanel` com busca (≥ 2
+ * caracteres, com debounce), situação, vínculo e lotação,
  * paginação no rodapé da tabela e menu ⋯ por linha ("Ver detalhes"). O nome leva ao detalhe.
  * A API não devolve perfis nem último acesso na lista: essas colunas ficam de fora.
  */
 export function UserList({ header, children }: UserListProps) {
   const t = useTranslations('users');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const [search, setSearch] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
@@ -146,64 +149,15 @@ export function UserList({ header, children }: UserListProps) {
   const filtered =
     filters.q !== '' || filters.status !== '' || filters.type !== '' || filters.departmentId !== '';
 
-  const typeLabel = (value: 'INTERNAL' | 'EXTERNAL') => t(`types.${value}`);
-  const statusLabel = (value: string) =>
-    (USER_STATUS_FILTERS as readonly string[]).includes(value)
-      ? t(`statuses.${value as (typeof USER_STATUS_FILTERS)[number]}`)
-      : value;
-  const departmentLabel = (id: string) => departmentName.get(id) ?? id;
-  const chips = [
-    filters.status === ''
-      ? null
-      : {
-          id: 'status',
-          label: t('directory.chip', {
-            field: t('directory.status'),
-            value: statusLabel(filters.status),
-          }),
-          removeLabel: t('directory.removeChip', {
-            field: t('directory.status'),
-            value: statusLabel(filters.status),
-          }),
-          onRemove: () => {
-            setFilter('status', '');
-          },
-        },
-    filters.type === ''
-      ? null
-      : {
-          id: 'type',
-          label: t('directory.chip', {
-            field: t('directory.type'),
-            value: typeLabel(filters.type),
-          }),
-          removeLabel: t('directory.removeChip', {
-            field: t('directory.type'),
-            value: typeLabel(filters.type),
-          }),
-          onRemove: () => {
-            setFilter('type', '');
-          },
-        },
-    filters.departmentId === ''
-      ? null
-      : {
-          id: 'department',
-          label: t('directory.chip', {
-            field: t('directory.department'),
-            value: departmentLabel(filters.departmentId),
-          }),
-          removeLabel: t('directory.removeChip', {
-            field: t('directory.department'),
-            value: departmentLabel(filters.departmentId),
-          }),
-          onRemove: () => {
-            setFilter('departmentId', '');
-          },
-        },
-  ].filter((chip) => chip !== null);
+  const activeCount =
+    (filters.q === '' ? 0 : 1) +
+    (filters.status === '' ? 0 : 1) +
+    (filters.type === '' ? 0 : 1) +
+    (filters.departmentId === '' ? 0 : 1);
 
   const clearAll = () => {
+    setSearch('');
+    setDebouncedQ('');
     setSelects({ status: '', type: '', departmentId: '' });
   };
 
@@ -211,79 +165,75 @@ export function UserList({ header, children }: UserListProps) {
     <ListPage
       header={header}
       toolbar={
-        <FilterToolbar
-          search={{
-            value: search,
-            onChange: setSearch,
-            label: t('directory.search'),
-            placeholder: t('directory.searchPlaceholder'),
-            description: t('directory.searchHint'),
-          }}
-          activeCount={chips.length}
-          onClearAll={clearAll}
-          chips={chips}
-          filters={
-            <div className="flex flex-col gap-4">
-              <Field label={t('directory.status')}>
-                <Select
-                  value={filters.status === '' ? ALL : filters.status}
-                  onValueChange={(value) => {
-                    setFilter('status', value === ALL ? '' : value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('directory.allStatuses')}</SelectItem>
-                    {USER_STATUS_FILTERS.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {t(`statuses.${status}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t('directory.type')}>
-                <Select
-                  value={filters.type === '' ? ALL : filters.type}
-                  onValueChange={(value) => {
-                    setFilter('type', value === 'INTERNAL' || value === 'EXTERNAL' ? value : '');
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('directory.allTypes')}</SelectItem>
-                    <SelectItem value="INTERNAL">{t('types.INTERNAL')}</SelectItem>
-                    <SelectItem value="EXTERNAL">{t('types.EXTERNAL')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t('directory.department')}>
-                <Select
-                  value={filters.departmentId === '' ? ALL : filters.departmentId}
-                  onValueChange={(value) => {
-                    setFilter('departmentId', value === ALL ? '' : value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('directory.allDepartments')}</SelectItem>
-                    {(departments.data ?? []).map((unit) => (
-                      <SelectItem key={unit.id} value={unit.id}>
-                        {unit.path === unit.name ? unit.name : unit.path}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          }
-        />
+        <FilterPanel labels={filterPanelLabels} activeCount={activeCount} onClear={clearAll}>
+          <ListSearchField
+            value={search}
+            onChange={setSearch}
+            ariaLabel={t('directory.search')}
+            placeholder={t('directory.searchPlaceholder')}
+            description={t('directory.searchHint')}
+          />
+          <Field label={t('directory.status')}>
+            <Select
+              value={filters.status === '' ? ALL : filters.status}
+              onValueChange={(value) => {
+                setFilter('status', value === ALL ? '' : value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('directory.allStatuses')}</SelectItem>
+                {USER_STATUS_FILTERS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {t(`statuses.${status}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('directory.type')}>
+            <Select
+              value={filters.type === '' ? ALL : filters.type}
+              onValueChange={(value) => {
+                setFilter('type', value === 'INTERNAL' || value === 'EXTERNAL' ? value : '');
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('directory.allTypes')}</SelectItem>
+                <SelectItem value="INTERNAL">{t('types.INTERNAL')}</SelectItem>
+                <SelectItem value="EXTERNAL">{t('types.EXTERNAL')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('directory.department')}>
+            <Select
+              value={filters.departmentId === '' ? ALL : filters.departmentId}
+              onValueChange={(value) => {
+                setFilter('departmentId', value === ALL ? '' : value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('directory.allDepartments')}</SelectItem>
+                {(departments.data ?? []).map((unit) => (
+                  <SelectItem key={unit.id} value={unit.id}>
+                    {unit.path === unit.name ? unit.name : unit.path}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </FilterPanel>
+      }
+      summary={
+        users.data ? { text: t('directory.summary', { count: users.data.totalItems }) } : undefined
       }
       loading={users.isPending}
       loadingLabel={t('directory.loading')}
@@ -310,14 +260,7 @@ export function UserList({ header, children }: UserListProps) {
             description={filtered ? t('directory.emptyHint') : t('directory.emptyFirst')}
             action={
               filtered ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setDebouncedQ('');
-                    clearAll();
-                  }}
-                >
+                <Button variant="secondary" onClick={clearAll}>
                   {t('directory.clear')}
                 </Button>
               ) : undefined

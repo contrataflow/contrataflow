@@ -8,7 +8,8 @@
   "search": {
     "label": "Buscar processos",
     "placeholder": "Número, título ou objeto",
-    "tooShort": "Digite ao menos 2 caracteres para buscar."
+    "tooShort": "Digite ao menos 2 caracteres para buscar.",
+    "hint": "Número, título ou objeto. Acentos não importam."
   },
   "quick": {
     "label": "Atalhos",
@@ -20,7 +21,7 @@
   },
   "filters": {
     "open": "Filtros",
-    "title": "Filtros",
+    "title": "Mais filtros",
     "apply": "Aplicar filtros",
     "close": "Fechar",
     "clear": "Limpar filtros",
@@ -62,7 +63,9 @@
     "yes": "Sim",
     "no": "Não",
     "invalidValue": "Informe valores válidos, com até 2 casas decimais.",
-    "invalidRange": "A data inicial deve ser anterior ou igual à final."
+    "invalidRange": "A data inicial deve ser anterior ou igual à final.",
+    "inProgress": "Em andamento",
+    "secretariat": "Secretaria"
   },
   "notes": {
     "invalidLink": "Alguns filtros do link eram inválidos e foram ignorados.",
@@ -123,7 +126,9 @@
     "next": "Próxima",
     "page": "Página {page} de {total}",
     "showing": "Mostrando {from}–{to} de {total, plural, one {# processo} other {# processos}}",
-    "goTo": "Página {page}"
+    "goTo": "Página {page}",
+    "sortedBy": "Ordenados por {label}",
+    "sortedByRelevance": "Ordenados por relevância"
   },
   "empty": {
     "filtered": "Nenhum processo encontrado com estes filtros.",
@@ -270,5 +275,9 @@
     "movements": "Tramitação",
     "comments": "Comentários",
     "typeLine": "{modality} · {type}"
+  },
+  "summary": {
+    "all": "{count, plural, =0 {Nenhum processo encontrado} one {# processo encontrado} other {# processos encontrados}}",
+    "filtered": "{count, plural, =0 {Nenhum processo encontrado com os filtros aplicados} one {# processo encontrado com os filtros aplicados} other {# processos encontrados com os filtros aplicados}}"
   }
 }

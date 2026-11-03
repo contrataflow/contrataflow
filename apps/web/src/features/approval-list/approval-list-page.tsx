@@ -12,7 +12,7 @@ import {
   Ellipsis,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Select,
   SelectContent,
@@ -33,7 +33,7 @@ import {
   fromIsoDate,
   toIsoDate,
 } from '@contrataflow/ui';
-import type { DateRange, FilterToolbarChip } from '@contrataflow/ui';
+import type { DateRange } from '@contrataflow/ui';
 import {
   APPROVAL_LIST_QUERY_LIMITS,
   APPROVAL_STATUSES,
@@ -52,6 +52,9 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { ListSortSelect } from '@/components/lists/list-sort-select';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { ApprovalStatusBadge } from '@/features/approval-decision/approval-status-badge';
 import { ConfidentialBadge } from '@/features/process-list/process-list-badges';
@@ -91,6 +94,7 @@ const PANEL_ID = 'aprovacoes-situacao';
  */
 export function ApprovalListPage() {
   const t = useTranslations('approvalList');
+  const tSort = useTranslations('approvalList.sort');
   const tenantId = useTenantId();
   const [filters, setFilters] = useState<ApprovalFilters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<ApprovalListSort>(DEFAULT_SORT);
@@ -190,14 +194,30 @@ export function ApprovalListPage() {
           searchText={searchText}
           onSearch={setSearchText}
           units={units.data ?? []}
-          sort={sort}
           onChange={change}
           onClear={clear}
-          onSort={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
         />
+      }
+      summary={
+        data === undefined
+          ? undefined
+          : {
+              text: t('summary', { count: data.meta.totalItems }),
+              actions: (
+                <ListSortSelect
+                  label={tSort('label')}
+                  value={formatApprovalListSort(sort)}
+                  onValueChange={(value) => {
+                    setSort(parseSortOption(value));
+                    setPage(1);
+                  }}
+                  options={sortOptions().map((option) => ({
+                    value: option,
+                    label: tSort(option as Parameters<typeof tSort>[0]),
+                  }))}
+                />
+              ),
+            }
       }
       notices={
         periodValid ? null : (
@@ -289,177 +309,100 @@ export function ApprovalListPage() {
   );
 }
 
-/** Busca inline, popover (tipo de assunto, unidade solicitante, período), chips e ordenação. */
+/** Cartão de filtros (prd-6 §2.4): busca, tipo de assunto, unidade solicitante e período. */
 function ApprovalToolbar({
   filters,
   searchText,
   onSearch,
   units,
-  sort,
   onChange,
   onClear,
-  onSort,
 }: {
   readonly filters: ApprovalFilters;
   readonly searchText: string;
   readonly onSearch: (text: string) => void;
   readonly units: readonly { readonly id: string; readonly name: string }[];
-  readonly sort: ApprovalListSort;
   readonly onChange: (filters: ApprovalFilters) => void;
   readonly onClear: () => void;
-  readonly onSort: (sort: ApprovalListSort) => void;
 }) {
   const t = useTranslations('approvalList');
-  const tSort = useTranslations('approvalList.sort');
-  const format = useFormatter();
-  const date = (iso: string) =>
-    format.dateTime(new Date(`${iso}T12:00:00Z`), { dateStyle: 'short', timeZone: 'UTC' });
+  const labels = useFilterPanelLabels();
   const period: DateRange | undefined =
     filters.requestedFrom === '' && filters.requestedTo === ''
       ? undefined
       : { from: fromIsoDate(filters.requestedFrom), to: fromIsoDate(filters.requestedTo) };
   const searchTooShort = searchText.trim() !== '' && effectiveSearch(searchText) === undefined;
 
-  const chipOf = (
-    key: ReturnType<typeof activeRefinements>[number],
-  ): { label: string; value: string; next: ApprovalFilters } | null => {
-    switch (key) {
-      case 'subjectType':
-        return filters.subjectType === ''
-          ? null
-          : {
-              label: t('filters.subjectType'),
-              value: t(`subjectType.${filters.subjectType}`),
-              next: { ...filters, subjectType: '' },
-            };
-      case 'requestingDepartmentId':
-        return {
-          label: t('filters.department'),
-          value: units.find((unit) => unit.id === filters.requestingDepartmentId)?.name ?? '…',
-          next: { ...filters, requestingDepartmentId: '' },
-        };
-      case 'period':
-        return {
-          label: t('filters.period'),
-          value: [filters.requestedFrom, filters.requestedTo]
-            .filter((value) => value !== '')
-            .map(date)
-            .join(` ${t('filters.periodSeparator')} `),
-          next: { ...filters, requestedFrom: '', requestedTo: '' },
-        };
-      case 'q':
-        return null;
-    }
-  };
-  const popoverKeys = activeRefinements(filters).filter((key) => key !== 'q');
-  const chips: FilterToolbarChip[] = popoverKeys.flatMap((key) => {
-    const chip = chipOf(key);
-    if (chip === null) return [];
-    return [
-      {
-        id: key,
-        label: t('filters.chip', { label: chip.label, value: chip.value }),
-        removeLabel: t('filters.remove', { label: `${chip.label}: ${chip.value}` }),
-        onRemove: () => {
-          onChange(chip.next);
-        },
-      },
-    ];
-  });
-
   return (
-    <FilterToolbar
-      search={{
-        value: searchText,
-        onChange: (text) => {
+    <FilterPanel labels={labels} activeCount={activeRefinements(filters).length} onClear={onClear}>
+      <ListSearchField
+        value={searchText}
+        onChange={(text) => {
           onSearch(text.slice(0, APPROVAL_LIST_QUERY_LIMITS.qMax));
-        },
-        label: t('filters.search'),
-        placeholder: t('filters.searchPlaceholder'),
-        description: searchTooShort ? t('filters.searchTooShort') : undefined,
-      }}
-      filters={
-        <>
-          <Field label={t('filters.subjectType')}>
-            <Select
-              value={filters.subjectType === '' ? ANY : filters.subjectType}
-              onValueChange={(value) => {
-                onChange({
-                  ...filters,
-                  subjectType: value === ANY ? '' : (value as ApprovalSubjectType),
-                });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ANY}>{t('filters.any')}</SelectItem>
-                {APPROVAL_SUBJECT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {t(`subjectType.${type}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label={t('filters.department')}>
-            <Combobox
-              clearable
-              options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
-              value={filters.requestingDepartmentId}
-              onValueChange={(value) => {
-                onChange({ ...filters, requestingDepartmentId: value ?? '' });
-              }}
-              labels={{
-                placeholder: t('filters.anyDepartment'),
-                search: t('filters.departmentSearch'),
-                empty: t('filters.departmentEmpty'),
-              }}
-            />
-          </Field>
-          <Field label={t('filters.period')}>
-            <DateRangePicker
-              clearable
-              numberOfMonths={1}
-              value={period}
-              onValueChange={(range) => {
-                onChange({
-                  ...filters,
-                  requestedFrom: range?.from ? toIsoDate(range.from) : '',
-                  requestedTo: range?.to ? toIsoDate(range.to) : '',
-                });
-              }}
-              labels={{
-                placeholder: t('filters.periodPlaceholder'),
-                clear: t('filters.periodClear'),
-                calendar: t('filters.periodCalendar'),
-                separator: t('filters.periodSeparator'),
-              }}
-            />
-          </Field>
-        </>
-      }
-      activeCount={popoverKeys.length}
-      chips={chips}
-      onClearAll={onClear}
-      sort={{
-        value: formatApprovalListSort(sort),
-        onValueChange: (value) => {
-          onSort(parseSortOption(value));
-        },
-        options: sortOptions().map((option) => ({
-          value: option,
-          label: tSort(option as Parameters<typeof tSort>[0]),
-        })),
-      }}
-      labels={{
-        filters: t('filters.open'),
-        clearAll: t('filters.clear'),
-        sort: tSort('label'),
-        activeFilters: t('filters.active'),
-      }}
-    />
+        }}
+        ariaLabel={t('filters.search')}
+        placeholder={t('filters.searchPlaceholder')}
+        description={searchTooShort ? t('filters.searchTooShort') : t('filters.searchHint')}
+      />
+      <Field label={t('filters.subjectType')}>
+        <Select
+          value={filters.subjectType === '' ? ANY : filters.subjectType}
+          onValueChange={(value) => {
+            onChange({
+              ...filters,
+              subjectType: value === ANY ? '' : (value as ApprovalSubjectType),
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>{t('filters.any')}</SelectItem>
+            {APPROVAL_SUBJECT_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                {t(`subjectType.${type}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label={t('filters.department')}>
+        <Combobox
+          clearable
+          options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+          value={filters.requestingDepartmentId}
+          onValueChange={(value) => {
+            onChange({ ...filters, requestingDepartmentId: value ?? '' });
+          }}
+          labels={{
+            placeholder: t('filters.anyDepartment'),
+            search: t('filters.departmentSearch'),
+            empty: t('filters.departmentEmpty'),
+          }}
+        />
+      </Field>
+      <Field label={t('filters.period')}>
+        <DateRangePicker
+          clearable
+          numberOfMonths={1}
+          value={period}
+          onValueChange={(range) => {
+            onChange({
+              ...filters,
+              requestedFrom: range?.from ? toIsoDate(range.from) : '',
+              requestedTo: range?.to ? toIsoDate(range.to) : '',
+            });
+          }}
+          labels={{
+            placeholder: t('filters.periodPlaceholder'),
+            clear: t('filters.periodClear'),
+            calendar: t('filters.periodCalendar'),
+            separator: t('filters.periodSeparator'),
+          }}
+        />
+      </Field>
+    </FilterPanel>
   );
 }
 

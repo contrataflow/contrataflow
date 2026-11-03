@@ -130,5 +130,18 @@
     },
     "logoutFailed": "Não foi possível sair agora. Tente novamente.",
     "recovered": "Recuperamos alterações não salvas."
+  },
+  "listFilters": {
+    "region": "Filtros",
+    "toggle": "{count, plural, =0 {Filtros} other {Filtros (#)}}",
+    "more": "Mais filtros",
+    "moreCount": "{count, plural, one {Mais filtros, # ativo} other {Mais filtros, # ativos}}",
+    "clear": "Limpar filtros",
+    "chips": "Outros filtros aplicados",
+    "removeChip": "Remover filtro {label}",
+    "searchLabel": "Buscar",
+    "all": "Todas",
+    "allMasculine": "Todos",
+    "selectedMany": "{count, plural, one {# selecionada} other {# selecionadas}}"
   }
 }

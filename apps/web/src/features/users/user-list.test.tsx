@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { StatusBadge } from './status-badge';
@@ -122,17 +123,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Escolhe uma opção de filtro no popover "Filtros" (abre o painel se estiver fechado). */
+/** Escolhe uma opção de filtro direto no cartão "Filtros". */
 async function chooseFilter(
   user: ReturnType<typeof userEvent.setup>,
   field: string,
   option: string,
 ) {
-  if (screen.queryByLabelText(field) === null) {
-    await user.click(await screen.findByRole('button', { name: /^Filtros/ }));
-  }
-  await user.click(await screen.findByLabelText(field));
-  await user.click(await screen.findByRole('option', { name: option }));
+  await chooseOption(user, field, option, screen.getByRole('region', { name: 'Filtros' }));
 }
 
 describe('StatusBadge (RN-IAM-64)', () => {
@@ -208,20 +205,25 @@ describe('SCR-029 · lista de usuários (US-092)', () => {
     });
   });
 
-  it('filtro aplicado vira chip removível e o contador aparece no botão "Filtros"', async () => {
+  it('filtro aplicado fica no cartão, a contagem aparece e "Limpar filtros" restaura tudo', async () => {
     const api = mockApi();
     const user = userEvent.setup();
     renderWithShell(<UserList />);
     await screen.findByRole('table');
+    expect(await screen.findByText('2 usuários encontrados', { selector: 'p' })).toBeTruthy();
+    const clear = screen.getByRole('button', { name: 'Limpar filtros' });
+    expect(clear.hasAttribute('disabled')).toBe(true);
+
     await chooseFilter(user, 'Status', 'Suspenso');
-    await user.keyboard('{Escape}');
-    expect(screen.getByRole('button', { name: /^Filtros, 1 filtro ativo/ })).toBeTruthy();
-    const remove = await screen.findByRole('button', { name: 'Remover filtro Status: Suspenso' });
-    await user.click(remove);
+    expect(clear.hasAttribute('disabled')).toBe(false);
+    expect(screen.queryByRole('list', { name: 'Outros filtros aplicados' })).toBeNull();
+    await user.click(clear);
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Remover filtro Status: Suspenso' })).toBeNull();
+      expect(clear.hasAttribute('disabled')).toBe(true);
     });
-    expect(screen.getByRole('button', { name: 'Filtros' })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Status' }).textContent).toContain(
+      'Todos os status',
+    );
     expect(usersCalls(api).some((params) => params.get('status') === 'SUSPENDED')).toBe(true);
   });
 

@@ -15,7 +15,7 @@ import {
   Ellipsis,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Plus,
   Select,
@@ -42,6 +42,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useId, useMemo, useState } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
@@ -87,6 +89,7 @@ function matchesSearch(workflow: WorkflowDto, search: string): boolean {
  */
 export function WorkflowsView() {
   const t = useTranslations('workflows');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const canPublish = usePermission('WORKFLOW_PUBLISH').allowed;
   const canManage = usePermission('WORKFLOW_MANAGE').allowed;
@@ -125,26 +128,12 @@ export function WorkflowsView() {
   }
 
   const current = workflows.data?.find((workflow) => workflow.isDefault) ?? null;
-  const activeCount = status === ALL ? 0 : 1;
-  const filtered = search.trim() !== '' || activeCount > 0;
-  const statusLabel = (value: StatusFilter) =>
-    value === 'active' ? t('filters.active') : t('filters.inactive');
-  const chips =
-    status === ALL
-      ? []
-      : [
-          {
-            id: 'status',
-            label: t('filters.chip', { label: t('filters.status'), value: statusLabel(status) }),
-            removeLabel: t('filters.removeChip', {
-              label: t('filters.status'),
-              value: statusLabel(status),
-            }),
-            onRemove: () => {
-              setStatus(ALL);
-            },
-          },
-        ];
+  const activeCount = (status === ALL ? 0 : 1) + (search.trim() === '' ? 0 : 1);
+  const filtered = activeCount > 0;
+  const clearAll = () => {
+    setSearch('');
+    setStatus(ALL);
+  };
   const newWorkflow = canManage ? (
     <Button
       iconLeft={<Plus />}
@@ -168,40 +157,38 @@ export function WorkflowsView() {
       }
       toolbar={
         workflows.data && workflows.data.length > 0 ? (
-          <FilterToolbar
-            search={{
-              value: search,
-              onChange: setSearch,
-              label: t('filters.search'),
-              placeholder: t('filters.searchPlaceholder'),
-              description: t('filters.searchHint'),
-            }}
-            activeCount={activeCount}
-            filters={
-              <Field label={t('filters.status')}>
-                <Select
-                  value={status}
-                  onValueChange={(value) => {
-                    setStatus(value === 'active' || value === 'inactive' ? value : ALL);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                    <SelectItem value="active">{t('filters.active')}</SelectItem>
-                    <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            }
-            chips={chips}
-            onClearAll={() => {
-              setStatus(ALL);
-            }}
-          />
+          <FilterPanel labels={filterPanelLabels} activeCount={activeCount} onClear={clearAll}>
+            <ListSearchField
+              value={search}
+              onChange={setSearch}
+              ariaLabel={t('filters.search')}
+              placeholder={t('filters.searchPlaceholder')}
+              description={t('filters.searchHint')}
+            />
+            <Field label={t('filters.status')}>
+              <Select
+                value={status}
+                onValueChange={(value) => {
+                  setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                  <SelectItem value="active">{t('filters.active')}</SelectItem>
+                  <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FilterPanel>
         ) : null
+      }
+      summary={
+        workflows.data && items.length > 0
+          ? { text: t('summary', { count: items.length }) }
+          : undefined
       }
       loading={workflows.isPending}
       loadingLabel={t('loading')}
@@ -228,13 +215,7 @@ export function WorkflowsView() {
             description={filtered ? t('emptyFilteredHint') : t('emptyHint')}
             action={
               filtered ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setStatus(ALL);
-                  }}
-                >
+                <Button variant="secondary" onClick={clearAll}>
                   {t('filters.clear')}
                 </Button>
               ) : undefined

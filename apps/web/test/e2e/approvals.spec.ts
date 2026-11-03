@@ -28,15 +28,14 @@ test('filtrar, ordenar e abrir a aprovação para decidir', async ({ page }) => 
     'Abrir Aprovação do DFD do processo 0003/2026',
   );
 
-  // Tipo sem resultado (filtros no popover) → "Limpar filtros".
-  await page.getByRole('button', { name: 'Filtros' }).click();
-  await page.getByRole('combobox', { name: 'Tipo de assunto' }).click();
+  // Tipo sem resultado (cartão de filtros aberto, prd-6 §2.4) → "Limpar filtros".
+  const filters = page.getByRole('region', { name: 'Filtros' });
+  await filters.getByRole('combobox', { name: 'Tipo de assunto' }).click();
   await page.getByRole('option', { name: 'Documento avulso' }).click();
-  await page.keyboard.press('Escape');
   await expect(
     page.getByText('Nenhuma aprovação encontrada para os filtros selecionados.'),
   ).toBeVisible();
-  await page.getByRole('tabpanel').getByRole('button', { name: 'Limpar filtros' }).click();
+  await filters.getByRole('button', { name: 'Limpar filtros' }).click();
   await expect(openLinks(page)).toHaveCount(2);
 
   // Situação nas abas: as aprovadas.

@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
+import { chooseOption } from '@test/support/kit';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { SuppliersView } from './suppliers-view';
@@ -244,10 +245,8 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
     await screen.findByRole('table', { name: 'Fornecedores da instituição' });
 
     await userEvent.type(screen.getByLabelText('Buscar'), 'a');
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
-    await choose(await screen.findByRole('combobox', { name: 'Situação' }), 'Inativos');
-    await userEvent.keyboard('{Escape}');
-    expect(await screen.findByText('Situação: Inativos')).toBeTruthy();
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    await chooseOption(userEvent.setup(), 'Situação', 'Inativos', region);
     await waitFor(() => {
       expect(api.mock.calls.some(([url]) => requestUrl(url).includes('isActive=false'))).toBe(true);
     });
@@ -262,6 +261,28 @@ describe('[Sucesso] SCR-107 · lista de fornecedores', () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it('linha de contagem e "Limpar filtros" do cartão', async () => {
+    mockApi();
+    renderWithShell(<SuppliersView />);
+    await screen.findByRole('table', { name: 'Fornecedores da instituição' });
+    expect(screen.getByText('3 fornecedores encontrados', { selector: 'p' })).toBeTruthy();
+
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    const clear = within(region).getByRole('button', { name: 'Limpar filtros' });
+    expect((clear as HTMLButtonElement).disabled).toBe(true);
+    await chooseOption(userEvent.setup(), 'Situação', 'Inativos', region);
+    expect(within(region).getByRole('combobox', { name: 'Situação' }).textContent).toContain(
+      'Inativos',
+    );
+    expect((clear as HTMLButtonElement).disabled).toBe(false);
+    await userEvent.type(screen.getByLabelText('Buscar'), 'zz');
+    await userEvent.click(clear);
+    expect(within(region).getByRole('combobox', { name: 'Situação' }).textContent).toContain(
+      'Todos',
+    );
+    expect(screen.getByLabelText<HTMLInputElement>('Buscar').value).toBe('');
   });
 
   it('criar fornecedor com CNPJ: máscara, Idempotency-Key e corpo de SUP-02; lista relida', async () => {

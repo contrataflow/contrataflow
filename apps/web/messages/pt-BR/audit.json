@@ -102,8 +102,8 @@
       "invalidId": "Informe um identificador válido.",
       "search": "Pesquisar",
       "clear": "Limpar filtros",
-      "title": "Filtros da auditoria",
-      "description": "Escolha o período e refine por ação, ator, entidade ou processo.",
+      "title": "Mais filtros da auditoria",
+      "description": "Refine os registros por ator, entidade ou processo. Período, ação, categoria e resultado ficam no cartão de filtros da lista.",
       "close": "Fechar",
       "periodPlaceholder": "Selecione o período",
       "periodCalendar": "Escolher período",
@@ -128,9 +128,9 @@
       "empty": "Nenhum registro de auditoria encontrado para os filtros selecionados.",
       "emptyHint": "Amplie o período ou remova filtros.",
       "process": "Processo",
-      "period": "{from} a {to}",
-      "adjust": "Ajustar filtros"
+      "period": "{from} a {to}"
     },
+    "summary": "{count, plural, one {# registro carregado} other {# registros carregados}} no período de {period}",
     "detail": {
       "title": "Registro de auditoria",
       "loading": "Carregando o registro…",

@@ -319,15 +319,18 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(badge.querySelector('svg')).not.toBeNull();
   });
 
-  it('[Sucesso] "Comigo" mostra o link das aprovações pendentes (FA-11); chip removível', async () => {
+  it('[Sucesso] "Comigo" mostra o link das aprovações pendentes (FA-11); "Todos" no cartão remove o filtro', async () => {
     nav.set('/processos?currentResponsibleId=me');
     mockApi(() => page([P31]));
     renderWithShell(<ProcessListPage />);
     expect(
       await screen.findByRole('link', { name: 'Ver minhas aprovações pendentes' }),
     ).toBeTruthy();
-    const chip = screen.getByRole('button', { name: 'Remover filtro Responsável: Eu' });
-    await userEvent.click(chip);
+    const filters = screen.getByRole('region', { name: 'Filtros' });
+    expect(within(filters).getByRole('combobox', { name: 'Responsável' }).textContent).toBe('Eu');
+    // Filtro do cartão não vira chip (prd-6 §2.4).
+    expect(screen.queryByRole('button', { name: 'Remover filtro Responsável: Eu' })).toBeNull();
+    await chooseOption(userEvent.setup(), 'Responsável', 'Todos', filters);
     expect(nav.get()).toBe('page=1');
   });
 
@@ -448,7 +451,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText('Código: corr-503')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Situação: Em andamento/ })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: 'Situação' }).textContent).toBe('Em andamento');
     await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     expect(await screen.findByText('0012/2026')).toBeTruthy();
   });
@@ -475,8 +478,11 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     mockApi(() => page([item()]));
     renderWithShell(<ProcessListPage />);
     await screen.findByText('0012/2026');
-    await userEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
-    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(screen.getByRole('button', { name: 'Mais filtros' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Mais filtros' });
+    // Os filtros do cartão aberto não se repetem no painel (prd-6 §2.4).
+    expect(within(dialog).queryByRole('combobox', { name: 'Responsável' })).toBeNull();
+    expect(within(dialog).queryByRole('group', { name: 'Situação' })).toBeNull();
     fireEvent.change(within(dialog).getByLabelText('Valor estimado mínimo'), {
       target: { value: '10,999' },
     });
@@ -488,7 +494,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
       target: { value: '15.000,00' },
     });
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Somente atrasados' }));
-    await chooseOption(userEvent.setup(), 'Responsável', 'Sem responsável', dialog);
+    await chooseOption(userEvent.setup(), 'Unidade atual', 'Minhas unidades', dialog);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Aplicar filtros' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
@@ -496,7 +502,42 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     const search = new URLSearchParams(nav.get());
     expect(search.get('estimatedValueMin')).toBe('15000.00');
     expect(search.get('overdue')).toBe('true');
-    expect(search.get('currentResponsibleId')).toBe('none');
+    expect(search.get('currentDepartmentId')).toBe('mine');
+    // O padrão "Em andamento" (filtro do cartão) segue na URL.
+    expect(search.get('status')).toBe('DRAFT,IN_PROGRESS,AWAITING_APPROVAL,RETURNED,SUSPENDED');
+    // Contador de "Mais filtros" com os três aplicados por ele.
+    expect(await screen.findByRole('button', { name: 'Mais filtros, 3 ativos' })).toBeTruthy();
+  });
+
+  it('[Sucesso] cartão de filtros aberto: situação na URL, "Todas", múltiplas, contagem e rodapé', async () => {
+    const fetchMock = mockApi(() => page([item(), P31], { totalItems: 2 }));
+    renderWithShell(<ProcessListPage />);
+    await screen.findByText('0031/2026');
+    const filters = screen.getByRole('region', { name: 'Filtros' });
+    // Linha de contagem com o padrão da tela (filtro "Em andamento" ativo) e nota de ordenação.
+    expect(screen.getByText('2 processos encontrados com os filtros aplicados')).toBeTruthy();
+    expect(screen.getByText('Ordenados por Atualizado em')).toBeTruthy();
+    expect(within(filters).getByRole('combobox', { name: 'Situação' }).textContent).toBe(
+      'Em andamento',
+    );
+    const user = userEvent.setup();
+    await chooseOption(user, 'Situação', 'Devolvido', filters);
+    expect(new URLSearchParams(nav.get()).get('status')).toBe('RETURNED');
+    await chooseOption(user, 'Situação', 'Todas', filters);
+    expect(nav.get()).toBe('page=1');
+    await waitFor(() => {
+      expect(screen.getByText('2 processos encontrados', { selector: 'p' })).toBeTruthy();
+    });
+    expect(listCalls(fetchMock).some((url) => !url.searchParams.has('status'))).toBe(true);
+    // Situações múltiplas vindas de um link aparecem como "N selecionadas".
+    nav.set('/processos?status=COMPLETED,CANCELED');
+    await waitFor(() => {
+      expect(within(filters).getByRole('combobox', { name: 'Situação' }).textContent).toBe(
+        '2 selecionadas',
+      );
+    });
+    await userEvent.click(within(filters).getByRole('button', { name: 'Limpar filtros' }));
+    expect(nav.get()).toBe('page=1');
   });
   it('[Sucesso] US-007: coluna "Etiquetas" com chips (inativa esmaecida) e filtro por etiqueta na URL', async () => {
     const tags: TagDto[] = [
@@ -527,7 +568,7 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(within(table).getByText('(inativa)')).toBeTruthy();
     await userEvent.keyboard('{Escape}');
 
-    await userEvent.click(screen.getByRole('button', { name: /^Filtros/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Mais filtros/ }));
     const dialog = await screen.findByRole('dialog');
     const active = await within(dialog).findByRole('group', { name: 'Etiquetas' });
     expect(within(active).getByRole('checkbox', { name: 'Recurso federal' })).toBeTruthy();
@@ -600,7 +641,9 @@ describe('Feature: repaginação da lista (prd-4 · SCR-004)', () => {
     const tabs = screen.getByRole('navigation', { name: 'Visões da lista' });
     expect(within(tabs).queryByRole('link', { current: 'page' })).toBeNull();
     const chips = screen.getByRole('list', { name: 'Filtros ativos' });
-    expect(within(chips).getByText('Situação: Devolvido')).toBeTruthy();
+    // Só os filtros de "Mais filtros" viram chip; a situação aparece no select do cartão.
+    expect(within(chips).queryByText('Situação: Devolvido')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Situação' }).textContent).toBe('Devolvido');
     await userEvent.click(
       within(chips).getByRole('button', { name: 'Remover filtro Somente atrasados: Sim' }),
     );
@@ -617,13 +660,9 @@ describe('Feature: repaginação da lista (prd-4 · SCR-004)', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Decrescente' }));
     expect(new URLSearchParams(nav.get()).get('sort')).toBe('-currentStageDueAt');
 
-    // Com um chip só, ele mesmo limpa ("Limpar filtros" aparece a partir de dois — FilterToolbar).
-    expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull();
-    await userEvent.click(
-      within(screen.getByRole('list', { name: 'Filtros ativos' })).getByRole('button', {
-        name: 'Remover filtro Situação: Devolvido',
-      }),
-    );
+    // Sem filtros de "Mais filtros" os chips somem; "Limpar filtros" do cartão mantém a ordenação.
+    expect(screen.queryByRole('list', { name: 'Filtros ativos' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }));
     expect(nav.get()).toBe('sort=-currentStageDueAt');
   });
 

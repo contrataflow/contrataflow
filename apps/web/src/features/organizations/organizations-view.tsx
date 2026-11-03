@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Plus,
   Select,
@@ -29,6 +29,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
 import { useTenantId } from '@/lib/session/session-context';
@@ -60,12 +62,13 @@ export interface OrganizationsViewProps {
  * Aba "Órgãos" do SCR-032 (`/admin/estrutura` — US-101): lista os órgãos do tenant (ORG-01),
  * cria (ORG-02) e edita/inativa/reativa (ORG-04, com `If-Match`). Leitura é capacidade implícita;
  * as ações de escrita só aparecem com `ORGANIZATION_MANAGE`. Modelo `ListPage` (prd-5): "Novo
- * órgão" no cabeçalho, busca inline (no navegador — a API devolve todos os órgãos), situação e
- * tipo no popover "Filtros" com chips, ações da linha no menu ⋯ e formulário no painel lateral.
+ * órgão" no cabeçalho, cartão `FilterPanel` com busca (no navegador — a API devolve todos os órgãos), situação e
+ * tipo, ações da linha no menu ⋯ e formulário no painel lateral.
  * Estados: esqueleto, vazio, erro com "Tentar novamente" e conflito de versão.
  */
 export function OrganizationsView({ actionsSlot }: OrganizationsViewProps = {}) {
   const t = useTranslations('organizations');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -141,34 +144,8 @@ export function OrganizationsView({ actionsSlot }: OrganizationsViewProps = {}) 
 
   const total = organizations.data?.length ?? 0;
   const hasFilters = search.trim() !== '' || status !== ALL || type !== ALL;
-  const statusLabel = (value: StatusFilter) =>
-    value === 'active' ? t('filters.active') : t('filters.inactive');
-  const chips = [
-    ...(status === ALL
-      ? []
-      : [
-          {
-            id: 'status',
-            label: t('filters.statusChip', { value: statusLabel(status) }),
-            removeLabel: t('filters.removeStatusChip', { value: statusLabel(status) }),
-            onRemove: () => {
-              setStatus(ALL);
-            },
-          },
-        ]),
-    ...(type === ALL
-      ? []
-      : [
-          {
-            id: 'type',
-            label: t('filters.typeChip', { value: t(`types.${type}`) }),
-            removeLabel: t('filters.removeTypeChip', { value: t(`types.${type}`) }),
-            onRemove: () => {
-              setType(ALL);
-            },
-          },
-        ]),
-  ];
+  const activeCount =
+    (search.trim() === '' ? 0 : 1) + (status === ALL ? 0 : 1) + (type === ALL ? 0 : 1);
   const clear = () => {
     setSearch('');
     setStatus(ALL);
@@ -195,60 +172,58 @@ export function OrganizationsView({ actionsSlot }: OrganizationsViewProps = {}) 
       }
       toolbar={
         total > 0 ? (
-          <FilterToolbar
-            search={{
-              value: search,
-              onChange: setSearch,
-              label: t('filters.search'),
-              placeholder: t('filters.searchPlaceholder'),
-              description: t('filters.searchHint'),
-            }}
-            activeCount={chips.length}
-            filters={
-              <>
-                <Field label={t('filters.status')}>
-                  <Select
-                    value={status}
-                    onValueChange={(value) => {
-                      setStatus(value === 'active' || value === 'inactive' ? value : ALL);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                      <SelectItem value="active">{t('filters.active')}</SelectItem>
-                      <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label={t('filters.type')}>
-                  <Select
-                    value={type}
-                    onValueChange={(value) => {
-                      setType(ORGANIZATION_TYPES.find((item) => item === value) ?? ALL);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL}>{t('filters.allTypes')}</SelectItem>
-                      {ORGANIZATION_TYPES.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {t(`types.${item}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </>
-            }
-            chips={chips}
-            onClearAll={clear}
-          />
+          <FilterPanel labels={filterPanelLabels} activeCount={activeCount} onClear={clear}>
+            <ListSearchField
+              value={search}
+              onChange={setSearch}
+              ariaLabel={t('filters.search')}
+              placeholder={t('filters.searchPlaceholder')}
+              description={t('filters.searchHint')}
+            />
+            <Field label={t('filters.status')}>
+              <Select
+                value={status}
+                onValueChange={(value) => {
+                  setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                  <SelectItem value="active">{t('filters.active')}</SelectItem>
+                  <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label={t('filters.type')}>
+              <Select
+                value={type}
+                onValueChange={(value) => {
+                  setType(ORGANIZATION_TYPES.find((item) => item === value) ?? ALL);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.allTypes')}</SelectItem>
+                  {ORGANIZATION_TYPES.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {t(`types.${item}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </FilterPanel>
         ) : null
+      }
+      summary={
+        organizations.data
+          ? { text: t('organizations.summary', { count: filtered.length }) }
+          : undefined
       }
       loading={organizations.isPending}
       loadingLabel={t('organizations.loading')}

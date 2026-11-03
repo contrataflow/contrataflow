@@ -10,7 +10,7 @@ import {
   Ellipsis,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   LayoutTemplate,
   ListPage,
   Plus,
@@ -35,6 +35,8 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
@@ -63,12 +65,13 @@ function fold(text: string): string {
 /**
  * SCR-033 (`/admin/templates` — US-107): templates do tenant com tipo, versões e situação.
  * Modelo `ListPage` (prd-5): "Novo template" (`TEMPLATE_MANAGE`) é a ação primária do cabeçalho;
- * busca inline por nome e, no popover "Filtros", tipo de documento e situação, com chips.
+ * `FilterPanel` aberto com busca por nome, tipo de documento e situação (sem chips).
  * "Editar dados" e o acesso ao editor (SCR-114 — em modo leitura para quem só tem `TEMPLATE_VIEW`)
  * ficam no menu ⋯ da linha. A API decide (RN-FND-92).
  */
 export function TemplatesView() {
   const t = useTranslations('templates');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const canManage = usePermission('TEMPLATE_MANAGE').allowed;
   const [creating, setCreating] = useState(false);
@@ -119,39 +122,14 @@ export function TemplatesView() {
     );
   }
 
-  const typeName = types.find(([id]) => id === typeFilter)?.[1] ?? '';
-  const statusLabel = status === 'active' ? t('filters.active') : t('filters.inactive');
-  const activeCount = (typeFilter === ALL ? 0 : 1) + (status === ALL ? 0 : 1);
-  const filtered = search.trim() !== '' || activeCount > 0;
-  const chips = [
-    ...(typeFilter === ALL
-      ? []
-      : [
-          {
-            id: 'type',
-            label: t('filters.chip', { label: t('filters.type'), value: typeName }),
-            removeLabel: t('filters.removeChip', { label: t('filters.type'), value: typeName }),
-            onRemove: () => {
-              setTypeFilter(ALL);
-            },
-          },
-        ]),
-    ...(status === ALL
-      ? []
-      : [
-          {
-            id: 'status',
-            label: t('filters.chip', { label: t('filters.status'), value: statusLabel }),
-            removeLabel: t('filters.removeChip', {
-              label: t('filters.status'),
-              value: statusLabel,
-            }),
-            onRemove: () => {
-              setStatus(ALL);
-            },
-          },
-        ]),
-  ];
+  const activeCount =
+    (typeFilter === ALL ? 0 : 1) + (status === ALL ? 0 : 1) + (search.trim() === '' ? 0 : 1);
+  const filtered = activeCount > 0;
+  const clearAll = () => {
+    setSearch('');
+    setTypeFilter(ALL);
+    setStatus(ALL);
+  };
   const newTemplate = canManage ? (
     <Button
       iconLeft={<Plus />}
@@ -175,58 +153,53 @@ export function TemplatesView() {
       }
       toolbar={
         templates.data && templates.data.length > 0 ? (
-          <FilterToolbar
-            search={{
-              value: search,
-              onChange: setSearch,
-              label: t('filters.search'),
-              placeholder: t('filters.searchPlaceholder'),
-              description: t('filters.searchHint'),
-            }}
-            activeCount={activeCount}
-            filters={
-              <div className="flex flex-col gap-4">
-                <Field label={t('filters.type')}>
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL}>{t('filters.allTypes')}</SelectItem>
-                      {types.map(([id, name]) => (
-                        <SelectItem key={id} value={id}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label={t('filters.status')}>
-                  <Select
-                    value={status}
-                    onValueChange={(value) => {
-                      setStatus(value === 'active' || value === 'inactive' ? value : ALL);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                      <SelectItem value="active">{t('filters.active')}</SelectItem>
-                      <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </div>
-            }
-            chips={chips}
-            onClearAll={() => {
-              setTypeFilter(ALL);
-              setStatus(ALL);
-            }}
-          />
+          <FilterPanel labels={filterPanelLabels} activeCount={activeCount} onClear={clearAll}>
+            <ListSearchField
+              value={search}
+              onChange={setSearch}
+              ariaLabel={t('filters.search')}
+              placeholder={t('filters.searchPlaceholder')}
+              description={t('filters.searchHint')}
+            />
+            <Field label={t('filters.type')}>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.allTypes')}</SelectItem>
+                  {types.map(([id, name]) => (
+                    <SelectItem key={id} value={id}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label={t('filters.status')}>
+              <Select
+                value={status}
+                onValueChange={(value) => {
+                  setStatus(value === 'active' || value === 'inactive' ? value : ALL);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                  <SelectItem value="active">{t('filters.active')}</SelectItem>
+                  <SelectItem value="inactive">{t('filters.inactive')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FilterPanel>
         ) : null
+      }
+      summary={
+        templates.data && visible.length > 0
+          ? { text: t('list.summary', { count: visible.length }) }
+          : undefined
       }
       loading={templates.isPending}
       loadingLabel={t('loading')}
@@ -253,14 +226,7 @@ export function TemplatesView() {
             description={filtered ? t('list.noResultsHint') : t('list.emptyHint')}
             action={
               filtered ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setTypeFilter(ALL);
-                    setStatus(ALL);
-                  }}
-                >
+                <Button variant="secondary" onClick={clearAll}>
                   {t('filters.clear')}
                 </Button>
               ) : (

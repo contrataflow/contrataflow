@@ -6,7 +6,7 @@ import {
   Button,
   Download,
   EmptyState,
-  FilterToolbar,
+  FilterPanel,
   History,
   ListPage,
   toast,
@@ -18,6 +18,8 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { FilterPanelChips } from '@/components/lists/filter-panel-chips';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { isApiError } from '@/lib/api/api-error';
 import { formatDate } from '@/lib/i18n/format';
 import { usePermission } from '@/lib/permissions/use-permission';
@@ -26,7 +28,11 @@ import { useShellSession } from '@/lib/session/session-context';
 import { AuditDetailPanel } from './audit-detail-panel';
 import type { AuditQuickFilter } from './audit-detail-panel';
 import { AuditExportDialog } from './audit-export-dialog';
-import { AUDIT_PERIOD_FIELD_ID, AuditFiltersPanel } from './audit-filters-panel';
+import {
+  AUDIT_PERIOD_FIELD_ID,
+  AuditFiltersPanel,
+  AuditPrimaryFilters,
+} from './audit-filters-panel';
 import {
   actorOptions,
   classifyAuditError,
@@ -91,8 +97,10 @@ function inputOfQuery(base: AuditFilterInput, query: AuditQuery): AuditFilterInp
 }
 
 /**
- * Aba "Registros" de SCR-037 (US-075) no `ListPage` (prd-5): barra com "Filtros" (painel lateral
- * `AuditFiltersPanel`) e os chips do que está aplicado, `AuditResultsTable` (AUD-01 por cursor),
+ * Aba "Registros" de SCR-037 (US-075) no `ListPage`: cartão de filtros aberto (prd-6 §2.4) com
+ * período, ação, categoria e resultado aplicados na hora; "Mais filtros" abre o painel lateral
+ * `AuditFiltersPanel` (ator, entidade, processo), cujos filtros viram chips no rodapé do cartão;
+ * linha de contagem com o período; `AuditResultsTable` (AUD-01 por cursor),
  * `AuditDetailPanel` (AUD-02) e `ExportDialog` (AUD-03, só com `AUDIT_EXPORT`, no cabeçalho).
  * Período padrão: últimos 7 dias. Estados: skeleton, vazio (FA-01), erro com "Tentar novamente" e
  * o `correlationId`, carregando mais. "Exportar" usa os filtros da última pesquisa.
@@ -104,6 +112,7 @@ export function AuditRecordsTab({
   readonly actionsSlot: HTMLElement | null;
 }) {
   const t = useTranslations('audit.records');
+  const filterPanelLabels = useFilterPanelLabels();
   const tCategories = useTranslations('audit.categories');
   const tResults = useTranslations('audit.results');
   const actionLabel = useActionLabel();
@@ -136,10 +145,8 @@ export function AuditRecordsTab({
   const [inputDirty, setInputDirty] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  /** Período recusado (V-01/V-02): abre o painel e foca o seletor de datas. */
+  /** Período recusado (V-01/V-02): foca o seletor de datas do cartão de filtros. */
   const focusPeriod = useCallback(() => {
-    setFiltersOpen(true);
-    // O painel monta o conteúdo ao abrir: o foco vai depois da renderização.
     setTimeout(() => document.getElementById(AUDIT_PERIOD_FIELD_ID)?.focus(), 0);
   }, []);
 
@@ -271,6 +278,19 @@ export function AuditRecordsTab({
     setNotice(t('detail.notFound'));
   }, [t]);
 
+  /** Filtro do cartão: pesquisa na hora, sem passar pelo painel lateral. */
+  const applyPrimary = (next: AuditFilterInput) => {
+    setNotice(null);
+    setInput(next);
+    apply(next);
+  };
+
+  const resetAll = () => {
+    setNotice(null);
+    setInput(initial);
+    apply(initial);
+  };
+
   const chips = appliedChips(applied, {
     initial: validateAuditFilters(initial, timeZone, messages),
     timeZone,
@@ -284,6 +304,8 @@ export function AuditRecordsTab({
       removeFilter(CHIP_RESET[key](initial));
     },
   });
+
+  const extraChips = chips.filter((chip) => EXTRA_CHIP_KEYS.has(chip.id));
 
   const period =
     applied?.occurredFrom === undefined || applied.occurredTo === undefined
@@ -344,18 +366,37 @@ export function AuditRecordsTab({
           : null
       }
       toolbar={
-        <FilterToolbar
-          onOpenFilters={() => {
+        <FilterPanel
+          labels={{ ...filterPanelLabels, region: t('filters.label') }}
+          activeCount={chips.length}
+          onClear={resetAll}
+          onMore={() => {
             setFiltersOpen(true);
           }}
-          activeCount={chips.length}
-          chips={chips}
-          onClearAll={() => {
-            setInput(initial);
-            apply(initial);
-          }}
-          labels={{ clearAll: t('filters.clear') }}
-        />
+          moreCount={extraChips.length}
+          footer={<FilterPanelChips chips={extraChips} />}
+        >
+          <AuditPrimaryFilters
+            value={input}
+            onApply={applyPrimary}
+            onDraft={(next) => {
+              setInput(next);
+              setInputDirty(true);
+            }}
+            timeZone={timeZone}
+            errors={fieldErrors}
+          />
+        </FilterPanel>
+      }
+      summary={
+        feed.data && records.length > 0
+          ? {
+              text:
+                period === null
+                  ? t('table.count', { count: records.length })
+                  : t('summary', { count: records.length, period }),
+            }
+          : undefined
       }
       notices={notice ? <Alert tone="info" title={notice} /> : null}
       loading={applied !== null && feed.isPending}
@@ -368,14 +409,11 @@ export function AuditRecordsTab({
             title={t('table.empty')}
             description={t('table.emptyHint')}
             action={
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setFiltersOpen(true);
-                }}
-              >
-                {t('table.adjust')}
-              </Button>
+              chips.length > 0 ? (
+                <Button variant="secondary" onClick={resetAll}>
+                  {t('filters.clear')}
+                </Button>
+              ) : null
             }
           />
         ) : null
@@ -406,10 +444,9 @@ export function AuditRecordsTab({
         }}
         onSearch={search}
         onClear={() => {
-          setInput(initial);
+          setInput({ ...input, ...EXTRA_RESET });
           setErrors({});
         }}
-        timeZone={timeZone}
         errors={fieldErrors}
         actors={actors}
         pending={feed.isFetching && !feed.isFetchingNextPage}
@@ -438,6 +475,20 @@ export function AuditRecordsTab({
   );
 }
 
+/** Filtros de "Mais filtros" (painel lateral): só eles viram chips no rodapé do cartão. */
+const EXTRA_CHIP_KEYS: ReadonlySet<string> = new Set([
+  'actor',
+  'entityType',
+  'entityId',
+  'process',
+]);
+const EXTRA_RESET: Partial<AuditFilterInput> = {
+  actorUserId: '',
+  entityType: '',
+  entityId: '',
+  processId: '',
+};
+
 type ChipKey =
   'period' | 'action' | 'category' | 'result' | 'actor' | 'entityType' | 'entityId' | 'process';
 
@@ -455,7 +506,10 @@ const CHIP_RESET: Readonly<
   process: () => ({ processId: '' }),
 };
 
-/** Chips dos filtros aplicados (prd-5 · regra 2); o período só aparece quando sai do padrão. */
+/**
+ * Filtros aplicados (contam no "Limpar filtros"); só os de "Mais filtros" viram chips no rodapé do
+ * cartão (`EXTRA_CHIP_KEYS`). O período só conta quando sai do padrão.
+ */
 function appliedChips(
   applied: AuditQuery | null,
   options: {

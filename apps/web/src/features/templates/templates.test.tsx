@@ -263,17 +263,46 @@ describe('SCR-033 · lista de templates', () => {
     await userEvent.type(screen.getByLabelText('Buscar por nome'), 'servicos');
     expect(screen.queryByRole('rowheader', { name: /Despacho padrão/ })).toBeNull();
     await userEvent.clear(screen.getByLabelText('Buscar por nome'));
-    await userEvent.click(screen.getByRole('button', { name: 'Filtros' }));
     await choose(
-      within(await screen.findByRole('dialog', { name: 'Filtros' })),
+      within(screen.getByRole('region', { name: 'Filtros' })),
       'Tipo de documento',
       'Despacho',
     );
     expect(screen.queryByRole('rowheader', { name: /TR de serviços/ })).toBeNull();
     expect(screen.getByRole('rowheader', { name: /Despacho padrão/ })).toBeTruthy();
-    expect(
-      screen.getByRole('button', { name: 'Remover o filtro Tipo de documento: Despacho' }),
-    ).toBeTruthy();
+    // Sem "Mais filtros", não há chips: o filtro já aparece preenchido no cartão.
+    expect(screen.queryByRole('button', { name: /Remover o filtro/ })).toBeNull();
+  });
+
+  it('mostra a contagem e "Limpar filtros" restaura a lista', async () => {
+    mockApi({
+      list: () =>
+        jsonResponse({
+          data: [
+            template(),
+            template({
+              id: '0192a000-0000-7000-8000-0000000e0002',
+              name: 'TR de serviços',
+              documentTypeId: TR_TYPE.id,
+              documentType: TR_TYPE,
+              isActive: false,
+            }),
+          ],
+          meta: { page: 1, totalItems: 2 },
+        }),
+    });
+    renderWithShell(<TemplatesView />);
+    await screen.findByRole('rowheader', { name: /TR de serviços/ });
+    expect(screen.getByText('2 templates encontrados', { selector: 'p' })).toBeTruthy();
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    const clear = within(region).getByRole('button', { name: 'Limpar filtros' });
+    expect((clear as HTMLButtonElement).disabled).toBe(true);
+    await choose(within(region), 'Situação', 'Inativos');
+    expect(screen.getByText('1 template encontrado', { selector: 'p' })).toBeTruthy();
+    expect(screen.queryByRole('rowheader', { name: /Despacho padrão/ })).toBeNull();
+    await userEvent.click(within(region).getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByRole('rowheader', { name: /Despacho padrão/ })).toBeTruthy();
+    expect(screen.getByText('2 templates encontrados', { selector: 'p' })).toBeTruthy();
   });
 
   it('[Sucesso] criar template: POST com Idempotency-Key e vai para o editor da versão 1', async () => {

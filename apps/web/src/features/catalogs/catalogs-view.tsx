@@ -192,6 +192,11 @@ export function CatalogsView() {
           actions={!tagsActive && items.data ? newItem : null}
         />
       }
+      summary={
+        !tagsActive && !forbidden && items.data && items.data.length > 0
+          ? { text: t('list.summary', { count: items.data.length }) }
+          : undefined
+      }
       tabs={
         <ViewTabs
           label={t('tabs.label')}

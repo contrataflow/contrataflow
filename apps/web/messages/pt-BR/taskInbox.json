@@ -148,7 +148,9 @@
     "next": "Próxima",
     "status": "Página {page, number} de {total, number}"
   },
+  "summary": "{count, plural, =0 {Nenhuma tarefa} one {# tarefa} other {# tarefas}} · {view}",
   "search": {
+    "hint": "Código, título ou aprovação. Vale para as linhas desta página.",
     "label": "Buscar nesta visão",
     "placeholder": "Código, título ou aprovação"
   },

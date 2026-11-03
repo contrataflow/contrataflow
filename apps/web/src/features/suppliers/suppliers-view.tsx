@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   Field,
-  FilterToolbar,
+  FilterPanel,
   ListPage,
   Plus,
   Select,
@@ -28,6 +28,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
+import { ListSearchField } from '@/components/lists/list-search-field';
+import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { Can } from '@/lib/permissions/can';
@@ -55,11 +57,12 @@ const ALL = 'all';
  * edição, inativação/reativação (SUP-04, com `If-Match`) e exclusão (SUP-05) só com
  * `SUPPLIER_MANAGE`. Sem `SUPPLIER_VIEW` a API responde 403 e a tela mostra o aviso de acesso
  * (RN-FND-92). Excluir fornecedor em uso (409 `SUPPLIER_IN_USE`) oferece "Inativar" no lugar.
- * Modelo `ListPage` (prd-5): "Novo fornecedor" no cabeçalho, busca inline e situação no popover
- * "Filtros" com chip, ações da linha no menu ⋯ e formulário no painel lateral.
+ * Modelo `ListPage` (prd-5): "Novo fornecedor" no cabeçalho, busca inline e situação no cartão
+ * de filtros aberto (prd-6 · §2.4) com linha de contagem, ações da linha no menu ⋯ e formulário no painel lateral.
  */
 export function SuppliersView() {
   const t = useTranslations('suppliers');
+  const filterPanelLabels = useFilterPanelLabels();
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -175,9 +178,12 @@ export function SuppliersView() {
 
   const items = suppliers.data?.items ?? [];
   const totalPages = suppliers.data?.totalPages ?? 1;
+  const clearFilters = () => {
+    setSearch('');
+    setDebouncedQ('');
+    setIsActive('');
+  };
   const filtered = filters.q !== '' || filters.isActive !== '';
-  const statusLabel = (value: SupplierListFilters['isActive']) =>
-    value === 'true' ? t('filters.active') : t('filters.inactive');
 
   return (
     <ListPage
@@ -202,49 +208,41 @@ export function SuppliersView() {
         />
       }
       toolbar={
-        <FilterToolbar
-          search={{
-            value: search,
-            onChange: setSearch,
-            label: t('filters.search'),
-            placeholder: t('filters.searchPlaceholder'),
-            description: t('filters.searchHint'),
-          }}
-          activeCount={isActive === '' ? 0 : 1}
-          filters={
-            <Field label={t('filters.status')}>
-              <Select
-                value={isActive === '' ? ALL : isActive}
-                onValueChange={(value) => {
-                  setIsActive(value === 'true' || value === 'false' ? value : '');
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
-                  <SelectItem value="true">{t('filters.active')}</SelectItem>
-                  <SelectItem value="false">{t('filters.inactive')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          }
-          chips={
-            isActive === ''
-              ? []
-              : [
-                  {
-                    id: 'status',
-                    label: t('filters.chip', { value: statusLabel(isActive) }),
-                    removeLabel: t('filters.removeChip', { value: statusLabel(isActive) }),
-                    onRemove: () => {
-                      setIsActive('');
-                    },
-                  },
-                ]
-          }
-        />
+        <FilterPanel
+          labels={filterPanelLabels}
+          activeCount={(debouncedQ === '' ? 0 : 1) + (isActive === '' ? 0 : 1)}
+          onClear={clearFilters}
+        >
+          <ListSearchField
+            value={search}
+            onChange={setSearch}
+            ariaLabel={t('filters.search')}
+            placeholder={t('filters.searchPlaceholder')}
+            description={t('filters.searchHint')}
+          />
+          <Field label={t('filters.status')}>
+            <Select
+              value={isActive === '' ? ALL : isActive}
+              onValueChange={(value) => {
+                setIsActive(value === 'true' || value === 'false' ? value : '');
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>{t('filters.all')}</SelectItem>
+                <SelectItem value="true">{t('filters.active')}</SelectItem>
+                <SelectItem value="false">{t('filters.inactive')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </FilterPanel>
+      }
+      summary={
+        suppliers.data
+          ? { text: t('list.summary', { count: suppliers.data.totalItems }) }
+          : undefined
       }
       notices={
         <div aria-live="polite" className="empty:hidden">
@@ -278,14 +276,7 @@ export function SuppliersView() {
             description={filtered ? t('list.noResultsHint') : t('list.emptyHint')}
             action={
               filtered ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setSearch('');
-                    setDebouncedQ('');
-                    setIsActive('');
-                  }}
-                >
+                <Button variant="secondary" onClick={clearFilters}>
                   {t('filters.clear')}
                 </Button>
               ) : (
