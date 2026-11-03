@@ -2,7 +2,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 import { cx } from '../lib/cx.js';
 
-/** Faixa de cabeçalho invertida (navy no tema claro) do cartão-destaque (prd-6 §2.5). */
+/** Faixa de cabeçalho navy do cartão-destaque (prd-6 §2.5), escura nos dois temas. */
 export interface CardHeaderBand {
   /** Selo pequeno antes do título (ex.: "Hoje"). */
   readonly badge?: ReactNode;
@@ -10,8 +10,8 @@ export interface CardHeaderBand {
   readonly title: ReactNode;
   /** Linha de metadados sob o título (ex.: prazos, contagens). */
   readonly meta?: ReactNode;
-  /** Só `inverse` por enquanto (`bg-inverse`: navy no claro, claro no escuro — como os toasts). */
-  readonly tone?: 'inverse' | undefined;
+  /** Só `navy` por enquanto (`bg-band`: navy no claro, o fundo do menu no escuro). */
+  readonly tone?: 'navy' | undefined;
 }
 
 export interface CardProps extends Omit<ComponentPropsWithoutRef<'section'>, 'title'> {
@@ -24,7 +24,7 @@ export interface CardProps extends Omit<ComponentPropsWithoutRef<'section'>, 'ti
   /** Ação do cabeçalho, à direita (ex.: link "Ver todas"). */
   readonly action?: ReactNode;
   /**
-   * Cabeçalho invertido: faixa `bg-inverse` antes do corpo, com selo, título e metadados. Com ele,
+   * Cabeçalho invertido: faixa `bg-band` (navy) antes do corpo, com selo, título e metadados. Com ele,
    * `title`/`description`/`action` são ignorados e o título da faixa rotula a seção.
    */
   readonly header?: CardHeaderBand | undefined;
@@ -60,9 +60,9 @@ export function Card({
         )}
         {...props}
       >
-        <div className="flex flex-col gap-2.5 bg-inverse px-6 py-5 text-inverse-foreground">
+        <div className="flex flex-col gap-2.5 bg-band px-6 py-5 text-band-foreground">
           {header.badge ? (
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-inverse-foreground/12 px-2.5 py-0.5 text-xs font-semibold">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-band-foreground/12 px-2.5 py-0.5 text-xs font-semibold">
               {header.badge}
             </span>
           ) : null}
@@ -70,7 +70,7 @@ export function Card({
             {header.title}
           </Heading>
           {header.meta ? (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-inverse-muted [&_svg]:size-[0.9375rem]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.8125rem] text-band-muted [&_svg]:size-[0.9375rem]">
               {header.meta}
             </div>
           ) : null}

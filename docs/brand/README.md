@@ -55,6 +55,7 @@ referência visual dos cards seguintes: [`mockups/repaginacao-2026-10/`](mockups
 | Aprovação        | `approval` · `-soft` · `-soft-foreground`    | `#7C3AED` · `#EDE9FE` · `#5B21B6` | aguardando aprovação                                                                |
 | Neutro           | `neutral` · `-soft` · `-soft-foreground`     | `#94A3B8` · `#F1F5F9` · `#334155` | rascunho, desabilitado (`neutral` só como marca gráfica, nunca texto)               |
 | Invertida        | `inverse` · `-foreground` · `-muted`         | `#141E2B` · `#FFFFFF` · `#B3BDCB` | toasts                                                                              |
+| Faixa            | `band` · `-foreground` · `-muted` · `-accent`| `#141E2B` · `#FFFFFF` · `#B3BDCB` | cabeçalho do cartão-destaque (escuro: `#0F2A5E` · `#E6ECF4` · `#A9B4C3`)            |
 
 Tipografia Inter (carregada pelo `next/font` desde a 3ª leva): `text-page-title` 26/700,
 `text-section-title` 16/700, corpo `text-sm` 14/400, `text-label` 12/600 caixa alta, `text-kpi`
@@ -241,7 +242,7 @@ alcançáveis nos dois temas e em 390 px (axe WCAG 2.1 AA, impacto sério ou cr�
 
 Estrutura das telas alinhada ao **Microlegis** (produto irmão, Visual Sistemas Eletrônicos) com a
 marca e a paleta do ContrataFlow: o vinho do Microlegis vira o azul `primary` (ação, item ativo,
-links), o vinho escuro vira o navy (`brand-navy`/`inverse`: cabeçalhos escuros e painel do login) e o
+links), o vinho escuro vira o navy (`brand-navy`/`band`: cabeçalhos escuros e painel do login) e o
 rosa-claro vira `primary-soft`. Prévia aprovada em 2026-11-03 e capturas de referência em
 `mockups/repaginacao-2026-11/`.
 
@@ -278,8 +279,8 @@ contornos.
 - `StatTile` — mostrador compacto: rótulo 11/700 em caixa alta, número 26/800 (`tone` +
   `emphasizeValue` pintam o número), contexto em texto ou `StatusChip`, ícone opcional e `href`.
   Borda de 1 px sem sombra: vive dentro de um cartão sem virar "cartão dentro de cartão".
-- `Card` com `header` — faixa invertida (`bg-inverse`: navy no claro, clara no escuro, como os
-  toasts) com selo (`badge`), título (vira o `h2` que rotula a seção) e `meta`; o corpo segue com
+- `Card` com `header` — faixa navy (`bg-band`: navy no claro e azul-marinho `#0F2A5E` no escuro,
+  que se destaca do fundo e da superfície; tokens `band*` desde o card 3) com selo (`badge`), título (vira o `h2` que rotula a seção) e `meta`; o corpo segue com
   `p-5`. É o cartão-destaque do painel.
 - `ListPage.summary` — linha de contagem entre os filtros e a tabela (`{ text, actions }`: "N
   processos encontrados" à esquerda; ordenação e colunas à direita). O `ListPageSkeleton` ganha a
@@ -305,6 +306,17 @@ ativa · trocar", que abre o seletor). Login: painel navy em 58 % da largura, em
 "Contratações públicas, do planejamento à contratação." no rodapé; formulário "Acesse sua conta"
 com ajuda sob o usuário, "Precisa de ajuda para entrar?" recolhível e o rodapé "ContrataFlow ·
 Visual Sistemas Eletrônicos"; na etapa do código, o indicador "Etapa 2 de 2".
+
+**Painel (card 3).** Cabeçalho com a saudação, a data por extenso ("Terça-feira, 3 de novembro de
+2026") e "Filtros" nas ações (chips do recorte logo abaixo). Cartão-destaque com a faixa `band`
+(navy; no escuro, o azul-marinho `#0F2A5E`): selo "Hoje", "N pendências esperam por
+você" e "Atualizado às HH:MM"; no corpo, "Próxima: …" (primeiro item de "Comigo"), quatro
+`StatTile` (Pendências, Atrasados, Próximos do prazo, Aprovações — cada um leva à lista filtrada) e
+"Abrir a caixa de tarefas". Ao lado, o cartão "Aprovações" (até três itens ou "Nada esperando a sua
+decisão."). Os dois ficam lado a lado por *container query* quando a área de conteúdo passa de
+56 rem (≈ 1200 px de janela com o menu) e empilham abaixo disso; os mostradores ficam em 2×2 abaixo
+de 36 rem. "Abertos" saiu do resumo (o donut "Processos por situação" mostra o total) e o chip
+"Aprovações pendentes" saiu de "Minhas pendências": nenhum número aparece duas vezes na 1ª dobra.
 
 ## Tokens (`packages/ui/src/styles.css`)
 

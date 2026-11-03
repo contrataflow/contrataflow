@@ -10,19 +10,20 @@ import {
   Donut,
   EmptyState,
   Field,
+  FilterChip,
   FilterToolbar,
-  KpiTile,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Skeleton,
+  StatTile,
   StatusChip,
   buttonClassName,
   cx,
 } from '@contrataflow/ui';
-import type { StatusTone } from '@contrataflow/ui';
+import type { FilterToolbarChip, StatusTone } from '@contrataflow/ui';
 import type {
   DashboardFilters,
   DashboardWidgetDto,
@@ -38,8 +39,8 @@ import type { ReactNode } from 'react';
 
 import { CorrelationCode } from '@/components/errors/correlation-code';
 import { Icon } from '@/components/shell/icons';
-import type { IconName } from '@/components/shell/icons';
 import { AppPageHeader } from '@/components/shell/page-header';
+import { useTaskInboxCounters } from '@/features/task-inbox/task-inbox.api';
 import { formatMoney } from '@/lib/i18n/format';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useShellSession } from '@/lib/session/session-context';
@@ -51,18 +52,22 @@ import {
   describeDashboardError,
   firstName,
   formatDuration,
+  fullDate,
   greetingPeriod,
   isWidgetEmpty,
   monthLabel,
   parseDashboardFilters,
   pendingDeadline,
   pendingDeadlineTone,
+  pendingViewChips,
   secretariatOptions,
   seriesItemHref,
   summaryHrefs,
   toDashboardSearch,
 } from './dashboard-model';
+import type { PendingDeadline } from './dashboard-model';
 import {
+  useApprovalsPreview,
   usePendingPreview,
   useDashboardSummary,
   useDashboardUnits,
@@ -70,16 +75,18 @@ import {
 } from './dashboard.api';
 
 /**
- * SCR-003 — Painel (US-076): saudação com filtros e "Novo processo", o resumo (DSH-01) em KPIs e
- * um cartão por indicador (DSH-02), cada um com carregamento, vazio e erro próprios; filtros de
+ * SCR-003 — Painel (US-076), no padrão "Início" do Microlegis (prd-6 §2.5): saudação com a data
+ * por extenso e "Filtros" no cabeçalho; cartão-destaque com faixa navy (pendências, a próxima
+ * pendência, quatro mostradores e "Abrir a caixa de tarefas") e o cartão "Aprovações" ao lado; os
+ * indicadores (DSH-02) seguem abaixo, cada um com carregamento, vazio e erro próprios. Filtros de
  * secretaria/unidade na URL e polling de 60 s. Acesso por `DASHBOARD_VIEW`; a API decide cada
- * requisição. Repaginado no prd-4 (mockup `Painel.dc.html`) sem alterar o contrato.
+ * requisição. Sem alterar o contrato.
  */
 export function DashboardPage() {
   const t = useTranslations('dashboard');
-  const format = useFormatter();
   const { allowed, status } = usePermission('DASHBOARD_VIEW');
   const canCreate = usePermission('PROCESS_CREATE').allowed;
+  const inbox = usePermission('INBOX_VIEW').allowed;
   const { user, activeTenant } = useShellSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -101,25 +108,25 @@ export function DashboardPage() {
   const resetFilters = useCallback(() => {
     navigate({});
   }, [navigate]);
+  const filterControls = useDepartmentFilters(filters, navigate, allowed);
 
   const title = t('greeting', {
     period: greetingPeriod(now, activeTenant.timezone),
     name: firstName(user.displayName),
   });
-  const description = t('subtitle', {
-    date: format.dateTime(now, {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      timeZone: activeTenant.timezone,
-    }),
-  });
+  const description = t('subtitle', { date: fullDate(now, activeTenant.timezone) });
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
       {/* "Novo processo": cabeçalho da lista de processos e paleta Ctrl K (prd-6 · §2.3). */}
-      <AppPageHeader title={title} description={description} />
-      {allowed ? <DepartmentFilterBar filters={filters} onChange={navigate} /> : null}
+      <div className="flex flex-col gap-3">
+        <AppPageHeader
+          title={title}
+          description={description}
+          actions={allowed ? <DepartmentFilterButton controls={filterControls} /> : undefined}
+        />
+        {allowed ? <DepartmentFilterChips controls={filterControls} /> : null}
+      </div>
 
       {status === 'pending' ? (
         <div role="status" className="flex flex-col gap-3">
@@ -137,7 +144,18 @@ export function DashboardPage() {
 
       {allowed ? (
         <>
-          <DashboardSummaryCards filters={filters} onInvalidFilter={resetFilters} />
+          {/* Lado a lado quando a área de conteúdo passa de 56rem; abaixo disso, empilha. */}
+          <div className="@container">
+            <div
+              className={cx(
+                'grid grid-cols-1 items-start gap-5',
+                inbox ? '@4xl:grid-cols-[minmax(0,1fr)_340px]' : undefined,
+              )}
+            >
+              <DashboardHero filters={filters} inbox={inbox} onInvalidFilter={resetFilters} />
+              {inbox ? <ApprovalsCard /> : null}
+            </div>
+          </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <PendingItemsCard filters={filters} />
             <StatusCard filters={filters} canCreate={canCreate} />
@@ -164,24 +182,28 @@ export function DashboardPage() {
 /** Valor da opção "Todas" (o `Select` do kit não aceita valor vazio). */
 const ALL = 'todas';
 
+interface DepartmentFilterControls {
+  readonly fields: ReactNode;
+  readonly chips: readonly FilterToolbarChip[];
+  readonly clear: () => void;
+}
+
 /**
- * `DepartmentFilterBar` (prd-5 · regra 2): botão "Filtros" com contador que abre secretaria e
- * unidade (subárvore) num popover, e os chips do recorte ativo; tudo refletido na URL.
+ * Filtros do painel (secretaria e unidade, subárvore) e os chips do recorte ativo, tudo refletido
+ * na URL. O botão "Filtros" vai para o cabeçalho e os chips logo abaixo dele (prd-6 §2.5).
  */
-function DepartmentFilterBar({
-  filters,
-  onChange,
-}: {
-  readonly filters: DashboardFilters;
-  readonly onChange: (next: DashboardFilters) => void;
-}) {
+function useDepartmentFilters(
+  filters: DashboardFilters,
+  onChange: (next: DashboardFilters) => void,
+  enabled: boolean,
+): DepartmentFilterControls {
   const t = useTranslations('dashboard.filters');
-  const units = useDashboardUnits(true);
+  const units = useDashboardUnits(enabled);
   const secretariats = secretariatOptions(units.data ?? []);
   const departments = departmentOptions(units.data ?? [], filters.secretariatId);
   const nameOf = (id: string) => units.data?.find((unit) => unit.id === id)?.name ?? '…';
   const keepSecretariat = filters.secretariatId ? { secretariatId: filters.secretariatId } : {};
-  const chips = [
+  const chips: FilterToolbarChip[] = [
     ...(filters.secretariatId
       ? [
           {
@@ -208,60 +230,93 @@ function DepartmentFilterBar({
         ]
       : []),
   ];
+  const fields = (
+    <>
+      <Field label={t('secretariat')}>
+        <Select
+          value={filters.secretariatId ?? ALL}
+          onValueChange={(value) => {
+            // A unidade só vale dentro da secretaria escolhida (V-03).
+            onChange(value === ALL ? {} : { secretariatId: value });
+          }}
+        >
+          <SelectTrigger aria-busy={units.isPending}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('all')}</SelectItem>
+            {secretariats.map((unit) => (
+              <SelectItem key={unit.id} value={unit.id}>
+                {unit.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label={t('department')}>
+        <Select
+          value={filters.departmentId ?? ALL}
+          onValueChange={(value) => {
+            onChange({ ...keepSecretariat, ...(value === ALL ? {} : { departmentId: value }) });
+          }}
+        >
+          <SelectTrigger aria-busy={units.isPending}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>{t('all')}</SelectItem>
+            {departments.map((unit) => (
+              <SelectItem key={unit.id} value={unit.id}>
+                {unit.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+    </>
+  );
+  return {
+    fields,
+    chips,
+    clear: () => {
+      onChange({});
+    },
+  };
+}
+
+/** Botão "Filtros" (com contador) do cabeçalho: abre secretaria e unidade num popover. */
+function DepartmentFilterButton({ controls }: { readonly controls: DepartmentFilterControls }) {
+  const t = useTranslations('dashboard.filters');
   return (
     <FilterToolbar
       labels={{ filters: t('open'), clearAll: t('clear'), activeFilters: t('active') }}
-      activeCount={chips.length}
-      chips={chips}
-      onClearAll={() => {
-        onChange({});
-      }}
-      filters={
-        <>
-          <Field label={t('secretariat')}>
-            <Select
-              value={filters.secretariatId ?? ALL}
-              onValueChange={(value) => {
-                // A unidade só vale dentro da secretaria escolhida (V-03).
-                onChange(value === ALL ? {} : { secretariatId: value });
-              }}
-            >
-              <SelectTrigger aria-busy={units.isPending}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>{t('all')}</SelectItem>
-                {secretariats.map((unit) => (
-                  <SelectItem key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label={t('department')}>
-            <Select
-              value={filters.departmentId ?? ALL}
-              onValueChange={(value) => {
-                onChange({ ...keepSecretariat, ...(value === ALL ? {} : { departmentId: value }) });
-              }}
-            >
-              <SelectTrigger aria-busy={units.isPending}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>{t('all')}</SelectItem>
-                {departments.map((unit) => (
-                  <SelectItem key={unit.id} value={unit.id}>
-                    {unit.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </>
-      }
+      activeCount={controls.chips.length}
+      filters={controls.fields}
     />
+  );
+}
+
+/** Chips do recorte ativo, sob o cabeçalho; "Limpar filtros" com dois ou mais. */
+function DepartmentFilterChips({ controls }: { readonly controls: DepartmentFilterControls }) {
+  const t = useTranslations('dashboard.filters');
+  if (controls.chips.length === 0) return null;
+  return (
+    <ul aria-label={t('active')} className="flex flex-wrap items-center gap-2">
+      {controls.chips.map((chip) => (
+        <li key={chip.id}>
+          <FilterChip onRemove={chip.onRemove} removeLabel={chip.removeLabel}>
+            {chip.label}
+          </FilterChip>
+        </li>
+      ))}
+      {controls.chips.length > 1 ? (
+        <li>
+          <Button variant="link" onClick={controls.clear}>
+            {t('clear')}
+          </Button>
+        </li>
+      ) : null}
+    </ul>
   );
 }
 
@@ -301,32 +356,33 @@ function CardProblem({
   );
 }
 
-const SUMMARY_TILES: readonly {
-  readonly key: 'pending' | 'overdue' | 'dueSoon' | 'open';
-  readonly tone: StatusTone;
-  readonly icon: IconName;
-}[] = [
-  { key: 'pending', tone: 'info', icon: 'inbox' },
-  { key: 'overdue', tone: 'danger', icon: 'alert' },
-  { key: 'dueSoon', tone: 'warning', icon: 'clock' },
-  { key: 'open', tone: 'success', icon: 'folder' },
-];
-
-/** `DashboardSummaryCards`: os quatro números de DSH-01, cada um atalho para a lista filtrada. */
-function DashboardSummaryCards({
+/**
+ * Cartão-destaque (DSH-01 · prd-6 §2.5): faixa navy com "Hoje", quantas pendências esperam por
+ * você e a hora da atualização; a próxima pendência de "Comigo"; os quatro mostradores, cada um
+ * atalho para a lista filtrada (`summaryHrefs`); e "Abrir a caixa de tarefas".
+ */
+function DashboardHero({
   filters,
+  inbox,
   onInvalidFilter,
 }: {
   readonly filters: DashboardFilters;
+  readonly inbox: boolean;
   readonly onInvalidFilter: () => void;
 }) {
   const t = useTranslations('dashboard');
   const format = useFormatter();
   const { activeTenant } = useShellSession();
+  const id = useId();
   const summary = useDashboardSummary(filters, true);
   // A janela de "próximos do prazo" vem do próprio indicador (mesma consulta do cartão).
   const dueSoon = useDashboardWidget('DUE_SOON', filters, true).data?.data as
     DashboardWidgetOf<'DUE_SOON'> | undefined;
+  // Sem `INBOX_VIEW`, o número de aprovações sai da série de "Minhas pendências" (mesmos contadores).
+  const pendingItems = useDashboardWidget('PENDING_ITEMS', filters, true).data?.data as
+    DashboardWidgetOf<'PENDING_ITEMS'> | undefined;
+  const counters = useTaskInboxCounters(inbox);
+  const preview = usePendingPreview(inbox);
   const problem = summary.error ? describeDashboardError(summary.error) : null;
   // Referência inválida: o filtro volta para "Todas" (Casos de erro).
   useEffect(() => {
@@ -335,19 +391,49 @@ function DashboardSummaryCards({
 
   const hrefs = summaryHrefs(filters);
   const data = summary.data?.data;
-  const values = {
-    pending: data?.pendingCount,
-    overdue: data?.overdueCount,
-    dueSoon: data?.dueSoonCount,
-    open: data?.openCount,
-  };
-  const hint = (key: (typeof SUMMARY_TILES)[number]['key']) =>
-    key === 'dueSoon' && dueSoon
-      ? t('summary.dueSoonHintDays', { days: dueSoon.warnBeforeBusinessDays })
-      : t(`summary.${key}Hint`);
+  const approvals = inbox
+    ? counters.data?.pendingApprovals
+    : pendingItems?.series.find((item) => item.key === 'PENDING_APPROVALS')?.value;
+  const updatedAt = data
+    ? format.dateTime(new Date(data.generatedAt), {
+        timeStyle: 'short',
+        timeZone: activeTenant.timezone,
+      })
+    : null;
+  // Sem pendências no recorte, nada de "Próxima" (a prévia da caixa não segue o filtro do painel).
+  const next = (data?.pendingCount ?? 0) > 0 ? preview.data?.[0] : undefined;
+  const loading = data === undefined && summary.isPending;
+  const value = (count: number | undefined) => (count === undefined ? '—' : format.number(count));
 
   return (
-    <section aria-label={t('summary.label')} className="flex flex-col gap-2">
+    <Card
+      id={id}
+      aria-busy={summary.isFetching}
+      className="min-w-0"
+      header={{
+        badge: (
+          <>
+            <span aria-hidden="true" className="size-1.5 rounded-full bg-band-accent" />
+            {t('hero.today')}
+          </>
+        ),
+        title: data ? t('hero.title', { count: data.pendingCount }) : t('hero.loadingTitle'),
+        meta: (
+          <>
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="inbox" />
+              {t('hero.inbox')}
+            </span>
+            {updatedAt ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="clock" />
+                {t('hero.updatedAt', { time: updatedAt })}
+              </span>
+            ) : null}
+          </>
+        ),
+      }}
+    >
       {problem?.kind === 'invalidReference' ? (
         <Alert tone="warning" title={t('filters.invalidReference')} />
       ) : null}
@@ -359,44 +445,220 @@ function DashboardSummaryCards({
       problem?.kind !== 'notInSecretariat' ? (
         <CardProblem error={summary.error} onRetry={() => void summary.refetch()} />
       ) : null}
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {SUMMARY_TILES.map((tile) => {
-          const value = values[tile.key];
-          return (
-            <li key={tile.key} className="min-w-0">
-              {value === undefined && summary.isPending ? (
-                <div className="rounded-card border border-border bg-surface p-5">
-                  <Skeleton className="h-[6.5rem] w-full" />
-                </div>
-              ) : (
-                <KpiTile
+      {next ? <NextPending item={next} /> : null}
+      <div className="@container">
+        <ul aria-label={t('hero.stats')} className="grid grid-cols-2 gap-3 @xl:grid-cols-4">
+          {loading ? (
+            [0, 1, 2, 3].map((n) => (
+              <li key={n} className="min-w-0">
+                <Skeleton className="h-[6.25rem] w-full" />
+              </li>
+            ))
+          ) : (
+            <>
+              <li className="min-w-0">
+                <StatTile
                   className="h-full"
-                  label={t(`summary.${tile.key}`)}
-                  value={value === undefined ? '—' : format.number(value)}
-                  context={hint(tile.key)}
-                  icon={<Icon name={tile.icon} />}
-                  tone={tile.tone}
-                  emphasizeValue={tile.key === 'overdue' && (value ?? 0) > 0}
-                  href={value === undefined ? undefined : hrefs[tile.key]}
+                  label={t('summary.pending')}
+                  value={value(data?.pendingCount)}
+                  context={
+                    <StatusChip tone="info" icon={<Icon name="check" />}>
+                      {t('hero.pendingContext')}
+                    </StatusChip>
+                  }
+                  href={data ? hrefs.pending : undefined}
                   linkComponent={Link}
                 />
-              )}
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+              <li className="min-w-0">
+                <StatTile
+                  className="h-full"
+                  label={t('summary.overdue')}
+                  value={value(data?.overdueCount)}
+                  context={t('summary.overdueHint')}
+                  tone="danger"
+                  emphasizeValue={(data?.overdueCount ?? 0) > 0}
+                  href={data ? hrefs.overdue : undefined}
+                  linkComponent={Link}
+                />
+              </li>
+              <li className="min-w-0">
+                <StatTile
+                  className="h-full"
+                  label={t('summary.dueSoon')}
+                  value={value(data?.dueSoonCount)}
+                  context={
+                    dueSoon
+                      ? t('hero.dueSoonContext', { days: dueSoon.warnBeforeBusinessDays })
+                      : t('summary.dueSoonHint')
+                  }
+                  href={data ? hrefs.dueSoon : undefined}
+                  linkComponent={Link}
+                />
+              </li>
+              <li className="min-w-0">
+                <StatTile
+                  className="h-full"
+                  label={t('hero.approvals')}
+                  value={value(approvals)}
+                  context={
+                    approvals === undefined
+                      ? undefined
+                      : approvals > 0
+                        ? t('hero.approvalsWaiting')
+                        : t('hero.approvalsNone')
+                  }
+                  tone="approval"
+                  href="/aprovacoes"
+                  linkComponent={Link}
+                />
+              </li>
+            </>
+          )}
+        </ul>
+      </div>
+      {inbox ? (
+        <div className="flex justify-end">
+          <Link href="/tarefas" className={buttonClassName({})}>
+            <Icon name="inbox" />
+            {t('hero.openInbox')}
+          </Link>
+        </div>
+      ) : null}
       {/* Atualização por polling anunciada sem roubar o foco. */}
       <p aria-live="polite" className="sr-only">
-        {data
-          ? t('summary.updated', {
-              time: format.dateTime(new Date(data.generatedAt), {
-                timeStyle: 'short',
-                timeZone: activeTenant.timezone,
-              }),
-            })
-          : ''}
+        {updatedAt ? t('summary.updated', { time: updatedAt }) : ''}
       </p>
-    </section>
+    </Card>
+  );
+}
+
+/** Texto do prazo de uma pendência ("Atrasado há 2 dias úteis", "Vence em 4 dias úteis"…). */
+function useDeadlineLabel() {
+  const tDeadline = useTranslations('processList.deadline');
+  return (deadline: PendingDeadline) =>
+    deadline.kind === 'overdue'
+      ? tDeadline(deadline.calendar ? 'overdueCalendar' : 'overdue', { count: deadline.count })
+      : deadline.kind === 'dueIn'
+        ? tDeadline(deadline.calendar ? 'dueInCalendar' : 'dueIn', { count: deadline.count })
+        : tDeadline(deadline.kind);
+}
+
+/** "Próxima: **título** · código · etapa · prazo" — a primeira pendência de "Comigo". */
+function NextPending({ item }: { readonly item: TaskInboxItemDto }) {
+  const t = useTranslations('dashboard');
+  const deadlineLabel = useDeadlineLabel();
+  const deadline = pendingDeadline(item.deadline, item.overdueSince);
+  const context = [item.code ?? t('pending.noCode'), item.currentStage?.name]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
+  return (
+    <p className="text-sm break-words text-muted-foreground">
+      {t('hero.next')}{' '}
+      <Link
+        href={`/processos/${item.processId}`}
+        className="font-semibold text-brand-ink hover:text-primary-hover hover:underline"
+      >
+        {item.title}
+      </Link>
+      {` · ${context} · `}
+      <span className={cx('font-semibold', TEXT_TONE[pendingDeadlineTone(deadline)])}>
+        {deadlineLabel(deadline).toLocaleLowerCase('pt-BR')}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Cartão "Aprovações" ao lado do destaque: até três itens da visão "Aprovações pendentes" (TSK-01)
+ * ou o estado "Nada esperando a sua decisão.", e o atalho para a lista completa.
+ */
+function ApprovalsCard() {
+  const t = useTranslations('dashboard');
+  const id = useId();
+  const query = useApprovalsPreview(true);
+  return (
+    <Card
+      id={id}
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Icon name="stamp" className="size-[1.125rem] text-muted-foreground" />
+          {t('approvals.title')}
+        </span>
+      }
+      aria-busy={query.isFetching}
+      className="min-w-0"
+    >
+      {query.isPending ? (
+        <div role="status">
+          <span className="sr-only">{t('card.loading')}</span>
+          <Skeleton className="h-20 w-full" />
+        </div>
+      ) : null}
+      {query.error ? (
+        <CardProblem error={query.error} onRetry={() => void query.refetch()} />
+      ) : null}
+      {query.data && query.data.length > 0 ? (
+        <ul aria-label={t('approvals.list')} className="flex flex-col">
+          {query.data.map((item) => (
+            <ApprovalRow key={item.id} item={item} />
+          ))}
+        </ul>
+      ) : null}
+      {query.data?.length === 0 ? (
+        <p className="flex items-start gap-2.5 text-sm text-muted-foreground">
+          <Icon name="check" className="mt-0.5 size-4 flex-none text-success" />
+          <span>
+            <strong className="font-semibold text-brand-ink">{t('approvals.emptyTitle')}</strong>{' '}
+            {t('approvals.emptyDescription')}
+          </span>
+        </p>
+      ) : null}
+      <Link
+        href="/aprovacoes"
+        className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-control text-sm font-semibold text-primary-soft-foreground hover:text-primary-hover hover:underline"
+      >
+        {t('approvals.open')}
+        <Icon name="chevronRight" className="size-4" />
+      </Link>
+    </Card>
+  );
+}
+
+/** Uma aprovação pendente: documento (ou processo), código, solicitante e prazo. */
+function ApprovalRow({ item }: { readonly item: TaskInboxItemDto }) {
+  const t = useTranslations('dashboard');
+  const deadlineLabel = useDeadlineLabel();
+  const deadline = pendingDeadline(item.deadline, item.overdueSince);
+  const context = [
+    item.code ?? t('pending.noCode'),
+    item.approval ? t('approvals.requestedBy', { name: item.approval.requestedBy.name }) : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
+  return (
+    <li className="flex flex-col gap-1 border-t border-border py-3 first:border-t-0 first:pt-0">
+      <Link
+        href={item.approval ? `/aprovacoes/${item.approval.id}` : `/processos/${item.processId}`}
+        className="text-sm font-semibold break-words text-brand-ink hover:text-primary-hover hover:underline"
+      >
+        {item.approval?.title ?? item.title}
+      </Link>
+      {item.approval ? (
+        <span className="text-[0.8125rem] break-words text-muted-foreground">{item.title}</span>
+      ) : null}
+      <span className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-[0.8125rem] text-muted-foreground">
+        <span className="min-w-0 break-words">{context}</span>
+        <span
+          className={cx(
+            'font-semibold whitespace-nowrap',
+            TEXT_TONE[pendingDeadlineTone(deadline)],
+          )}
+        >
+          {deadlineLabel(deadline)}
+        </span>
+      </span>
+    </li>
   );
 }
 
@@ -651,7 +913,7 @@ function PendingItemsCard({ filters }: { readonly filters: DashboardFilters }) {
       {(widget) => (
         <div className="flex flex-col gap-3">
           <ul aria-label={t('pending.byView')} className="flex flex-wrap gap-2">
-            {widget.series.map((item) => (
+            {pendingViewChips(widget.series).map((item) => (
               <li key={item.key}>
                 <Link href="/tarefas" className="rounded-full hover:underline">
                   <StatusChip tone={VIEW_CHIP_TONE[item.key]}>
@@ -689,14 +951,9 @@ const TEXT_TONE: Readonly<Record<StatusTone, string>> = {
 /** Uma pendência: processo, código e etapa, e o prazo em texto colorido. */
 function PendingRow({ item }: { readonly item: TaskInboxItemDto }) {
   const t = useTranslations('dashboard.pending');
-  const tDeadline = useTranslations('processList.deadline');
+  const deadlineLabel = useDeadlineLabel();
   const deadline = pendingDeadline(item.deadline, item.overdueSince);
-  const label =
-    deadline.kind === 'overdue'
-      ? tDeadline(deadline.calendar ? 'overdueCalendar' : 'overdue', { count: deadline.count })
-      : deadline.kind === 'dueIn'
-        ? tDeadline(deadline.calendar ? 'dueInCalendar' : 'dueIn', { count: deadline.count })
-        : tDeadline(deadline.kind);
+  const label = deadlineLabel(deadline);
   const context = [item.code ?? t('noCode'), item.currentStage?.name]
     .filter((part): part is string => Boolean(part))
     .join(' · ');

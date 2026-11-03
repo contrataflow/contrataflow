@@ -86,6 +86,15 @@
   --color-inverse-destructive: #f87171;
 
   /*
+   * Faixa do cartão-destaque (prd-6 §2.5 · `Card` com `header`): navy no claro; no escuro, um azul
+   * marinho (`#0f2a5e`, o `primary-soft` escuro) que se destaca da superfície e do fundo.
+   */
+  --color-band: #141e2b;
+  --color-band-foreground: #ffffff;
+  --color-band-muted: #b3bdcb;
+  --color-band-accent: #6b9eff;
+
+  /*
    * Semânticas vivas: `<estado>` (texto, ícone e marca de gráfico sobre a superfície),
    * `<estado>-soft` (fundo de chip, alerta e ícone de KPI) e `<estado>-soft-foreground` (texto
    * sobre o fundo suave). `neutral` (rascunho, desabilitado) é só marca gráfica: texto neutro usa
@@ -202,6 +211,10 @@
   --color-inverse-accent: #005bf9;
   --color-inverse-success: #15803d;
   --color-inverse-destructive: #b91c1c;
+  --color-band: #0f2a5e;
+  --color-band-foreground: #e6ecf4;
+  --color-band-muted: #a9b4c3;
+  --color-band-accent: #6b9eff;
   --color-destructive: #f87171;
   --color-destructive-foreground: #0b1220;
   --color-destructive-soft: #4c1010;
@@ -250,6 +263,10 @@
     --color-inverse-accent: #005bf9;
     --color-inverse-success: #15803d;
     --color-inverse-destructive: #b91c1c;
+    --color-band: #0f2a5e;
+    --color-band-foreground: #e6ecf4;
+    --color-band-muted: #a9b4c3;
+    --color-band-accent: #6b9eff;
     --color-destructive: #f87171;
     --color-destructive-foreground: #0b1220;
     --color-destructive-soft: #4c1010;

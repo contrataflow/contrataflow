@@ -6,6 +6,7 @@ import type {
   DashboardWidgetKey,
   DepartmentDto,
   TaskInboxItemDto,
+  TaskInboxView,
 } from '@contrataflow/validation';
 import { DASHBOARD_POLL_INTERVAL_MS } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
@@ -14,7 +15,7 @@ import { apiRequest } from '@/lib/api/client';
 import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
-import { PENDING_PREVIEW_SIZE } from './dashboard-model';
+import { APPROVALS_PREVIEW_SIZE, PENDING_PREVIEW_SIZE } from './dashboard-model';
 
 /*
  * Leituras do painel (US-076 · SCR-003): DSH-01 (resumo) e DSH-02 (um indicador por cartão), com
@@ -33,6 +34,8 @@ export const dashboardKeys = {
   /** Sob a raiz `tasks`: as ações de tramitação que invalidam a caixa também a renovam. */
   pendingPreview: (tenantId: string) =>
     tenantKey(tenantId, 'tasks', 'preview', { view: 'MINE', sort: 'dueAt' }),
+  approvalsPreview: (tenantId: string) =>
+    tenantKey(tenantId, 'tasks', 'preview', { view: 'PENDING_APPROVALS', sort: 'dueAt' }),
 };
 
 export interface DashboardRead<T> {
@@ -97,11 +100,24 @@ export async function fetchDashboardUnits(signal?: AbortSignal): Promise<Departm
  * "Minhas pendências" sem endpoint novo (prd-4 · sem alteração de contrato).
  */
 export async function fetchPendingPreview(signal?: AbortSignal): Promise<TaskInboxItemDto[]> {
+  return fetchTaskPreview('MINE', PENDING_PREVIEW_SIZE, signal);
+}
+
+/** TSK-01 na visão "Aprovações pendentes": os itens do cartão "Aprovações" (prd-6 §2.5). */
+export async function fetchApprovalsPreview(signal?: AbortSignal): Promise<TaskInboxItemDto[]> {
+  return fetchTaskPreview('PENDING_APPROVALS', APPROVALS_PREVIEW_SIZE, signal);
+}
+
+async function fetchTaskPreview(
+  view: TaskInboxView,
+  size: number,
+  signal?: AbortSignal,
+): Promise<TaskInboxItemDto[]> {
   const result = await apiRequest<TaskInboxItemDto[]>('/tasks', {
-    query: { view: 'MINE', sort: 'dueAt', page: 1, pageSize: PENDING_PREVIEW_SIZE },
+    query: { view, sort: 'dueAt', page: 1, pageSize: size },
     signal,
   });
-  return Array.isArray(result.data) ? result.data.slice(0, PENDING_PREVIEW_SIZE) : [];
+  return Array.isArray(result.data) ? result.data.slice(0, size) : [];
 }
 
 const pollingOptions = {
@@ -154,6 +170,17 @@ export function usePendingPreview(enabled: boolean) {
   return useQuery({
     queryKey: dashboardKeys.pendingPreview(tenantId),
     queryFn: ({ signal }) => fetchPendingPreview(signal),
+    enabled,
+    ...pollingOptions,
+  });
+}
+
+/** Itens do cartão "Aprovações"; só com `INBOX_VIEW` (a mesma leitura da caixa de tarefas). */
+export function useApprovalsPreview(enabled: boolean) {
+  const tenantId = useTenantId();
+  return useQuery({
+    queryKey: dashboardKeys.approvalsPreview(tenantId),
+    queryFn: ({ signal }) => fetchApprovalsPreview(signal),
     enabled,
     ...pollingOptions,
   });

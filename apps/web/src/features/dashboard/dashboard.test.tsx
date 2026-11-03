@@ -245,9 +245,25 @@ const TASKS = [
   task(2, { title: 'Manutenção de vias' }),
 ];
 
+const APPROVALS = [
+  task(5, {
+    id: ID(405),
+    title: 'Reforma da escola',
+    approval: {
+      id: ID(405),
+      title: 'Aprovação do DFD',
+      subjectType: 'PROCESS_STAGE',
+      requestedBy: { id: ID(81), name: 'Bruno Lima' },
+      requestedAt: AT,
+      dueAt: null,
+    },
+  }),
+];
+
 interface MockOptions {
   readonly permissions?: readonly string[];
   readonly tasks?: readonly TaskInboxItemDto[];
+  readonly approvals?: readonly TaskInboxItemDto[];
   readonly summary?: (url: URL) => Response;
   readonly widget?: (key: string, url: URL) => Response | undefined;
 }
@@ -277,8 +293,26 @@ function mockApi(options: MockOptions = {}) {
         }),
       );
     }
+    if (url.pathname === '/api/v1/tasks/counters') {
+      const approvals = options.approvals ?? APPROVALS;
+      return Promise.resolve(
+        jsonResponse({
+          data: {
+            mine: (options.tasks ?? TASKS).length,
+            unitQueue: 0,
+            pendingApprovals: approvals.length,
+            returned: 0,
+            overdue: 0,
+            following: 0,
+          },
+        }),
+      );
+    }
     if (url.pathname === '/api/v1/tasks') {
-      const tasks = options.tasks ?? TASKS;
+      const tasks =
+        url.searchParams.get('view') === 'PENDING_APPROVALS'
+          ? (options.approvals ?? APPROVALS)
+          : (options.tasks ?? TASKS);
       return Promise.resolve(
         jsonResponse({
           data: tasks,
@@ -335,26 +369,50 @@ afterEach(() => {
 });
 
 describe('SCR-003 — Painel (US-076)', () => {
-  it('[Sucesso] saudação, KPIs com atalhos, os 9 indicadores em cartões e a atividade recente — sem violação de a11y', async () => {
+  it('[Sucesso] saudação com a data, destaque com mostradores e atalhos, os 9 indicadores em cartões e a atividade recente — sem violação de a11y', async () => {
     const fetchMock = mockApi({ permissions: ['DASHBOARD_VIEW', 'INBOX_VIEW', 'PROCESS_CREATE'] });
     renderWithShell(<DashboardPage />);
     expect(
       screen.getByRole('heading', { level: 1, name: /^(Bom dia|Boa tarde|Boa noite), Ana$/ }),
     ).toBeTruthy();
-    const overdue = await screen.findByRole('link', { name: /^Atrasados 3 Prazo da etapa/ });
+    // Descrição: só a data por extenso, com o dia da semana em maiúscula inicial.
+    expect(
+      screen.getByText(/^[A-ZÁÉ][a-zçá]+(-feira)?, \d{1,2} de [a-zç]+ de \d{4}$/),
+    ).toBeTruthy();
+    const hero = await card('14 pendências esperam por você');
+    expect(within(hero).getByText('Hoje')).toBeTruthy();
+    expect(within(hero).getByText(/^Atualizado às \d{2}:\d{2}$/)).toBeTruthy();
+    const overdue = await within(hero).findByRole('link', {
+      name: 'Atrasados 3 Prazo da etapa vencido',
+    });
     expect(overdue.getAttribute('href')).toContain('overdue=true');
-    expect(screen.getByRole('link', { name: /^Pendências 14/ }).getAttribute('href')).toBe(
-      '/tarefas',
-    );
-    expect(screen.getByRole('link', { name: /^Abertos 42/ }).getAttribute('href')).toContain(
-      'status=IN_PROGRESS',
-    );
+    expect(within(overdue).getByText('3').className).toContain('text-destructive');
+    expect(
+      within(hero).getByRole('link', { name: 'Pendências 14 Com você' }).getAttribute('href'),
+    ).toBe('/tarefas');
     // A janela de "próximos do prazo" vem do indicador DUE_SOON.
     expect(
-      await screen.findByRole('link', {
-        name: /^Próximos do prazo 5 Vencem nos próximos 2 dias úteis$/,
-      }),
-    ).toBeTruthy();
+      (
+        await within(hero).findByRole('link', {
+          name: 'Próximos do prazo 5 Vencem em 2 dias úteis',
+        })
+      ).getAttribute('href'),
+    ).toContain('sort=currentStageDueAt');
+    expect(
+      (
+        await within(hero).findByRole('link', { name: 'Aprovações 1 Aguardando você' })
+      ).getAttribute('href'),
+    ).toBe('/aprovacoes');
+    // "Abertos" saiu do resumo: os números ficam no destaque, sem repetição na primeira dobra.
+    expect(screen.queryByRole('link', { name: /^Abertos 42/ })).toBeNull();
+    // A próxima pendência de "Comigo" e a ação primária.
+    const next = await within(hero).findByText('Próxima:', { exact: false });
+    expect(next.textContent).toBe(
+      'Próxima: Insumos de saúde · 0011/2026 · Estudo técnico preliminar · atrasado há 2 dias úteis',
+    );
+    expect(
+      within(hero).getByRole('link', { name: 'Abrir a caixa de tarefas' }).getAttribute('href'),
+    ).toBe('/tarefas');
     // Cada indicador é uma requisição própria (DSH-02).
     await waitFor(() => {
       for (const key of DASHBOARD_WIDGET_KEYS) {
@@ -398,6 +456,80 @@ describe('SCR-003 — Painel (US-076)', () => {
     expect(within(value).getAllByText('Valores sigilosos não somados')).toHaveLength(1);
   });
 
+  it('destaque: singular, nada pendente e a próxima só com itens', async () => {
+    mockApi({
+      tasks: [],
+      summary: () =>
+        jsonResponse({
+          data: { ...SUMMARY, pendingCount: 1 },
+          meta: { cache: { hit: false, expiresAt: AT } },
+        }),
+    });
+    const { unmount } = renderWithShell(<DashboardPage />);
+    const hero = await card('1 pendência espera por você');
+    expect(await within(hero).findByRole('link', { name: 'Pendências 1 Com você' })).toBeTruthy();
+    expect(within(hero).queryByText('Próxima:', { exact: false })).toBeNull();
+    unmount();
+    // Nada pendente no recorte, mas com itens na caixa (a prévia não segue o filtro do painel).
+    mockApi({
+      summary: () =>
+        jsonResponse({
+          data: { ...SUMMARY, pendingCount: 0 },
+          meta: { cache: { hit: false, expiresAt: AT } },
+        }),
+    });
+    renderWithShell(<DashboardPage />);
+    const empty = await card('Nada pendente para você hoje');
+    expect(await within(empty).findByRole('link', { name: 'Pendências 0 Com você' })).toBeTruthy();
+    // A prévia de "Comigo" já carregou (os itens aparecem em "Minhas pendências")…
+    await within(await card('Minhas pendências')).findByRole('list', {
+      name: 'Próximas pendências com você',
+    });
+    expect(within(empty).queryByText('Próxima:', { exact: false })).toBeNull();
+  });
+
+  it('cartão "Aprovações": itens com documento, processo, código, solicitante e prazo', async () => {
+    const fetchMock = mockApi();
+    renderWithShell(<DashboardPage />);
+    const approvals = await card('Aprovações');
+    const list = await within(approvals).findByRole('list', {
+      name: 'Aprovações aguardando você',
+    });
+    expect(within(list).getByRole('link', { name: 'Aprovação do DFD' }).getAttribute('href')).toBe(
+      `/aprovacoes/${ID(405)}`,
+    );
+    expect(within(list).getByText('Reforma da escola')).toBeTruthy();
+    expect(within(list).getByText('0015/2026 · Solicitada por Bruno Lima')).toBeTruthy();
+    expect(within(list).getByText('Vence em 4 dias úteis')).toBeTruthy();
+    expect(
+      within(approvals).getByRole('link', { name: 'Abrir as aprovações' }).getAttribute('href'),
+    ).toBe('/aprovacoes');
+    const request = calls(fetchMock, '/api/v1/tasks').find(
+      (url) => url.searchParams.get('view') === 'PENDING_APPROVALS',
+    );
+    expect(request?.searchParams.get('sort')).toBe('dueAt');
+    expect(request?.searchParams.get('pageSize')).toBe('3');
+  });
+
+  it('cartão "Aprovações" sem pendências: "Nada esperando a sua decisão." e o atalho', async () => {
+    mockApi({ approvals: [] });
+    renderWithShell(<DashboardPage />);
+    const approvals = await card('Aprovações');
+    expect(await within(approvals).findByText('Nada esperando a sua decisão.')).toBeTruthy();
+    expect(
+      within(approvals).getByText('Quando um documento precisar de você, ele aparece aqui.', {
+        exact: false,
+      }),
+    ).toBeTruthy();
+    expect(
+      within(approvals).getByRole('link', { name: 'Abrir as aprovações' }).getAttribute('href'),
+    ).toBe('/aprovacoes');
+    const hero = await card('14 pendências esperam por você');
+    expect(
+      await within(hero).findByRole('link', { name: 'Aprovações 0 Nenhuma aguardando você' }),
+    ).toBeTruthy();
+  });
+
   it('dados do gráfico também em tabela (alternância acessível)', async () => {
     mockApi();
     renderWithShell(<DashboardPage />);
@@ -428,7 +560,8 @@ describe('SCR-003 — Painel (US-076)', () => {
     const pending = await card('Minhas pendências');
     const views = await within(pending).findByRole('list', { name: 'Pendências por visão' });
     expect(within(views).getByText('Comigo · 12')).toBeTruthy();
-    expect(within(views).getByText('Aprovações pendentes · 2')).toBeTruthy();
+    // Aprovações ficam no mostrador e no cartão "Aprovações" (sem número repetido).
+    expect(within(views).queryByText(/^Aprovações pendentes/)).toBeNull();
     const items = await within(pending).findByRole('list', {
       name: 'Próximas pendências com você',
     });
@@ -443,7 +576,9 @@ describe('SCR-003 — Painel (US-076)', () => {
       '/tarefas',
     );
     // Uma página curta da visão "Comigo", pelo prazo mais próximo.
-    const request = calls(fetchMock, '/api/v1/tasks')[0];
+    const request = calls(fetchMock, '/api/v1/tasks').find(
+      (url) => url.searchParams.get('view') === 'MINE',
+    );
     expect(request?.searchParams.get('view')).toBe('MINE');
     expect(request?.searchParams.get('sort')).toBe('dueAt');
     expect(request?.searchParams.get('pageSize')).toBe('5');
@@ -458,6 +593,16 @@ describe('SCR-003 — Painel (US-076)', () => {
       within(pending).queryByRole('list', { name: 'Próximas pendências com você' }),
     ).toBeNull();
     expect(calls(fetchMock, '/api/v1/tasks')).toHaveLength(0);
+    expect(calls(fetchMock, '/api/v1/tasks/counters')).toHaveLength(0);
+    // O destaque fica sem o atalho da caixa e sem o cartão "Aprovações"; o número de aprovações
+    // vem da série de "Minhas pendências".
+    const hero = await card('14 pendências esperam por você');
+    expect(
+      await within(hero).findByRole('link', { name: 'Aprovações 2 Aguardando você' }),
+    ).toBeTruthy();
+    expect(within(hero).queryByRole('link', { name: 'Abrir a caixa de tarefas' })).toBeNull();
+    expect(within(hero).queryByText('Próxima:', { exact: false })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Aprovações' })).toBeNull();
     // Sem PROCESS_CREATE, sem o botão "Novo processo".
     expect(screen.queryByRole('link', { name: 'Novo processo' })).toBeNull();
   });
@@ -506,9 +651,11 @@ describe('SCR-003 — Painel (US-076)', () => {
   it('filtro de secretaria/unidade: URL atualizada e cartões reconsultados com o recorte', async () => {
     const fetchMock = mockApi();
     renderWithShell(<DashboardPage />);
-    // Filtros fechados por padrão (prd-5 · regra 2): o botão "Filtros" abre secretaria e unidade.
+    // "Filtros" no cabeçalho da página (prd-6 §2.5): o botão abre secretaria e unidade.
     expect(screen.queryByRole('combobox', { name: 'Secretaria' })).toBeNull();
-    await userEvent.click(await screen.findByRole('button', { name: 'Filtros' }));
+    const header = screen.getByRole('heading', { level: 1 }).parentElement?.parentElement;
+    if (!header) throw new Error('Cabeçalho não encontrado.');
+    await userEvent.click(await within(header).findByRole('button', { name: 'Filtros' }));
     const secretariat = await screen.findByRole('combobox', { name: 'Secretaria' });
     await waitFor(() => {
       expect(fetchMock.mock.calls.length).toBeGreaterThan(0);
@@ -518,8 +665,9 @@ describe('SCR-003 — Painel (US-076)', () => {
     expect(nav.replace).toHaveBeenLastCalledWith(`/painel?secretariatId=${OBRAS}`, {
       scroll: false,
     });
-    // O recorte ativo vira chip removível e conta no botão.
-    expect(await screen.findByText('Secretaria: Secretaria de Obras')).toBeTruthy();
+    // O recorte ativo vira chip removível (sob o cabeçalho) e conta no botão.
+    const active = await screen.findByRole('list', { name: 'Filtros aplicados' });
+    expect(within(active).getByText('Secretaria: Secretaria de Obras')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Filtros, 1 filtro ativo' })).toBeTruthy();
     const department = screen.getByRole('combobox', { name: 'Unidade/Setor' });
     await userEvent.click(department);

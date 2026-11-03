@@ -195,6 +195,21 @@ export function greetingPeriod(now: Date, timeZone: string): 'morning' | 'aftern
   return 'evening';
 }
 
+/**
+ * Data por extenso do cabeçalho, no fuso do órgão e com o dia da semana em maiúscula inicial
+ * ("Terça-feira, 3 de novembro de 2026" — prd-6 §2.5).
+ */
+export function fullDate(now: Date, timeZone: string): string {
+  const text = new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone,
+  }).format(now);
+  return text.charAt(0).toLocaleUpperCase('pt-BR') + text.slice(1);
+}
+
 /** Primeiro nome para a saudação ("Ana Souza" → "Ana"). */
 export function firstName(displayName: string): string {
   return displayName.trim().split(/\s+/)[0] ?? '';
@@ -224,6 +239,19 @@ export const VIEW_CHIP_TONE: Readonly<Record<TaskInboxView, StatusTone>> = {
 
 /** Itens de "Minhas pendências" lidos da visão "Comigo" (TSK-01, uma página curta). */
 export const PENDING_PREVIEW_SIZE = 5;
+
+/** Itens do cartão "Aprovações" do painel (visão "Aprovações pendentes"). */
+export const APPROVALS_PREVIEW_SIZE = 3;
+
+/**
+ * Visões que ficam como chips em "Minhas pendências": "Aprovações pendentes" sai porque o número
+ * já está no mostrador e no cartão "Aprovações" do destaque (sem número repetido na 1ª dobra).
+ */
+export function pendingViewChips<T extends { readonly key: TaskInboxView }>(
+  series: readonly T[],
+): T[] {
+  return series.filter((item) => item.key !== 'PENDING_APPROVALS');
+}
 
 export type PendingDeadline =
   | { readonly kind: 'overdue'; readonly count: number; readonly calendar: boolean }

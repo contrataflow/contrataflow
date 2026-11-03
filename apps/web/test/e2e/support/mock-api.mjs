@@ -282,7 +282,7 @@ function dashboardWidgetOf(key, gabinete) {
   const widgets = {
     PENDING_ITEMS: [
       { key: 'MINE', label: null, value: 2 },
-      { key: 'PENDING_APPROVALS', label: null, value: 0 },
+      { key: 'PENDING_APPROVALS', label: null, value: 1 },
     ],
     BY_STATUS: [
       { key: 'DRAFT', label: null, value: 1 },
@@ -296,7 +296,7 @@ function dashboardWidgetOf(key, gabinete) {
     const series = widgets[key];
     return {
       widgetKey: key,
-      total: key === 'PENDING_ITEMS' ? 2 : count(series),
+      total: count(series),
       series,
       ...(key === 'DUE_SOON' ? { warnBeforeBusinessDays: 2 } : {}),
       generatedAt,
@@ -5486,7 +5486,8 @@ createServer(async (request, response) => {
     const factor = !filtered || gabinete ? 1 : 0;
     return send(response, 200, {
       data: {
-        pendingCount: 2 * factor,
+        // "Comigo" (2) + a aprovação pendente da caixa (1), como os contadores de TSK-02.
+        pendingCount: 3 * factor,
         overdueCount: 3 * factor,
         dueSoonCount: 5 * factor,
         openCount: 42 * factor,

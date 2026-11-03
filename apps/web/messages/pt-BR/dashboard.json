@@ -1,7 +1,7 @@
 {
   "title": "Painel",
   "greeting": "{period, select, morning {Bom dia} afternoon {Boa tarde} other {Boa noite}}, {name}",
-  "subtitle": "Como está a operação dos processos que você pode ver · {date}",
+  "subtitle": "{date}",
   "loadingPermission": "Verificando seu acesso…",
   "forbidden": {
     "title": "Você não tem permissão para acessar o painel.",
@@ -21,17 +21,35 @@
     "invalidReference": "Selecione uma secretaria/unidade válida. Os filtros voltaram para “Todas”.",
     "notInSecretariat": "A unidade deve pertencer à secretaria selecionada."
   },
+  "hero": {
+    "today": "Hoje",
+    "title": "{count, plural, =0 {Nada pendente para você hoje} one {# pendência espera por você} other {# pendências esperam por você}}",
+    "loadingTitle": "Suas pendências de hoje",
+    "inbox": "Caixa de tarefas",
+    "updatedAt": "Atualizado às {time}",
+    "next": "Próxima:",
+    "stats": "Resumo das pendências",
+    "pendingContext": "Com você",
+    "dueSoonContext": "Vencem em {days, plural, one {# dia útil} other {# dias úteis}}",
+    "approvals": "Aprovações",
+    "approvalsWaiting": "Aguardando você",
+    "approvalsNone": "Nenhuma aguardando você",
+    "openInbox": "Abrir a caixa de tarefas"
+  },
+  "approvals": {
+    "title": "Aprovações",
+    "list": "Aprovações aguardando você",
+    "requestedBy": "Solicitada por {name}",
+    "emptyTitle": "Nada esperando a sua decisão.",
+    "emptyDescription": "Quando um documento precisar de você, ele aparece aqui.",
+    "open": "Abrir as aprovações"
+  },
   "summary": {
-    "label": "Resumo",
     "pending": "Pendências",
-    "pendingHint": "Com você e aprovações pendentes",
     "overdue": "Atrasados",
     "overdueHint": "Prazo da etapa vencido",
     "dueSoon": "Próximos do prazo",
     "dueSoonHint": "Vencem nos próximos dias úteis",
-    "dueSoonHintDays": "Vencem nos próximos {days, plural, one {# dia útil} other {# dias úteis}}",
-    "open": "Abertos",
-    "openHint": "Em andamento, aguardando aprovação, devolvidos ou suspensos",
     "updated": "Indicadores atualizados às {time}."
   },
   "widgets": {

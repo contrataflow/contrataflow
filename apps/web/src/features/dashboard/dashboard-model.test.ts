@@ -8,12 +8,14 @@ import {
   describeDashboardError,
   firstName,
   formatDuration,
+  fullDate,
   greetingPeriod,
   isWidgetEmpty,
   monthLabel,
   parseDashboardFilters,
   pendingDeadline,
   pendingDeadlineTone,
+  pendingViewChips,
   processListHref,
   secretariatOptions,
   seriesItemHref,
@@ -188,6 +190,32 @@ describe('saudação do cabeçalho', () => {
     // 03:00 em São Paulo ainda é "Boa noite".
     expect(greetingPeriod(new Date('2026-10-28T06:00:00Z'), 'America/Sao_Paulo')).toBe('evening');
     expect(firstName('  Ana   Souza ')).toBe('Ana');
+  });
+});
+
+describe('data por extenso do cabeçalho (prd-6 §2.5)', () => {
+  it('dia da semana em maiúscula inicial, no fuso do órgão', () => {
+    expect(fullDate(new Date('2026-11-03T12:00:00Z'), 'America/Sao_Paulo')).toBe(
+      'Terça-feira, 3 de novembro de 2026',
+    );
+    // 01:00 UTC de quarta ainda é terça em São Paulo.
+    expect(fullDate(new Date('2026-11-04T01:00:00Z'), 'America/Sao_Paulo')).toBe(
+      'Terça-feira, 3 de novembro de 2026',
+    );
+    expect(fullDate(new Date('2026-11-08T12:00:00Z'), 'America/Sao_Paulo')).toBe(
+      'Domingo, 8 de novembro de 2026',
+    );
+  });
+});
+
+describe('chips de "Minhas pendências"', () => {
+  it('"Aprovações pendentes" sai (o número já está no destaque)', () => {
+    const series = [
+      { key: 'MINE' as const, value: 2 },
+      { key: 'UNIT_QUEUE' as const, value: 4 },
+      { key: 'PENDING_APPROVALS' as const, value: 1 },
+    ];
+    expect(pendingViewChips(series).map((item) => item.key)).toEqual(['MINE', 'UNIT_QUEUE']);
   });
 });
 

@@ -78,6 +78,8 @@ const PAIRS = [
   ['on-navy-accent', 'brand-navy'],
   ['inverse-foreground', 'inverse'],
   ['inverse-muted', 'inverse'],
+  ['band-foreground', 'band'],
+  ['band-muted', 'band'],
 ] as const;
 
 /** Pares [ícone, fundo]: ícones de estado dos toasts sobre a superfície invertida. */
@@ -85,6 +87,7 @@ const GRAPHIC_PAIRS = [
   ['inverse-accent', 'inverse'],
   ['inverse-success', 'inverse'],
   ['inverse-destructive', 'inverse'],
+  ['band-accent', 'band'],
 ] as const;
 
 /** Tokens do design system v1 mantidos como aliases até a segunda leva da repaginação (prd-4). */
