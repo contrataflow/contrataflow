@@ -6958,12 +6958,19 @@ createServer(async (request, response) => {
       );
     }
   }
-  // CAL-05/CAL-06 (prévia da retomada — US-008): dias úteis sem feriados, fuso de Brasília.
+  // CAL-05/CAL-06 (prévia da retomada — US-008): fuso de Brasília. O CAL-05 tira os feriados
+  // ativos do calendário simulado (ponto facultativo conta como útil: padrão de
+  // `calendar.optionalHolidaysAreNonBusiness`), como os mostradores do SCR-110 esperam.
   if (request.method === 'GET' && url.pathname === '/api/v1/calendar/business-days') {
+    const nonBusiness = new Set(
+      holidays
+        .filter((holiday) => holiday.isActive && holiday.scope !== 'OPTIONAL')
+        .map((holiday) => holiday.date),
+    );
     const dates = businessDaysBetween(
       String(url.searchParams.get('from')),
       String(url.searchParams.get('to')),
-    );
+    ).filter((date) => !nonBusiness.has(date));
     return send(response, 200, { data: { businessDays: dates.length, dates } });
   }
   if (request.method === 'POST' && url.pathname === '/api/v1/calendar/add-business-days') {

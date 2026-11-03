@@ -1,5 +1,5 @@
 import type { HolidayScope } from '@contrataflow/types';
-import type { HolidayDto } from '@contrataflow/validation';
+import type { BusinessDaysResult, HolidayDto } from '@contrataflow/validation';
 
 import { apiRequest } from '@/lib/api/client';
 import type { ApiResult } from '@/lib/api/client';
@@ -15,6 +15,8 @@ export const calendarKeys = {
   all: (tenantId: string) => tenantKey(tenantId, 'calendar'),
   holidays: (tenantId: string, year: number) =>
     tenantKey(tenantId, 'calendar', 'holidays', String(year)),
+  businessDays: (tenantId: string, year: number) =>
+    tenantKey(tenantId, 'calendar', 'business-days-of-year', String(year)),
 };
 
 /** Staleness do calendário (architecture.md §8.5: catálogos e configurações). */
@@ -30,6 +32,21 @@ export function fetchHolidays(
 ): Promise<ApiResult<HolidayDto[]>> {
   return apiRequest<HolidayDto[]>('/holidays', {
     query: { year, page: 1, pageSize: PAGE_SIZE },
+    signal,
+  });
+}
+
+/**
+ * CAL-05: datas úteis do ano inteiro (`from`/`to` inclusivos, 365–366 dias, abaixo do limite de
+ * 1.100). É a fonte dos mostradores porque já aplica `calendar.optionalHolidaysAreNonBusiness`.
+ */
+export function fetchBusinessDaysOfYear(
+  year: number,
+  signal?: AbortSignal,
+): Promise<ApiResult<BusinessDaysResult>> {
+  const y = String(year).padStart(4, '0');
+  return apiRequest<BusinessDaysResult>('/calendar/business-days', {
+    query: { from: `${y}-01-01`, to: `${y}-12-31` },
     signal,
   });
 }

@@ -2,7 +2,7 @@
 import type { HolidayDto } from '@contrataflow/validation';
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
@@ -13,7 +13,9 @@ import { CalendarView } from './calendar-view';
 configure({ asyncUtilTimeout: 5000 });
 vi.setConfig({ testTimeout: 30_000 });
 
-const YEAR = new Date().getFullYear();
+// Só o relógio (`Date`) é fixo: 10/06/2026 — os mostradores dependem do ano exibido.
+vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-06-10T15:00:00Z') });
+const YEAR = 2026;
 
 let sequence = 0;
 function holiday(overrides: Partial<HolidayDto>): HolidayDto {
@@ -76,8 +78,26 @@ function problemResponse(
 
 type Handler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
+/** Datas úteis do CAL-05: segunda a sexta fora de `nonBusiness`. */
+function businessDatesOf(year: number, nonBusiness: readonly string[]): string[] {
+  const dates: string[] = [];
+  for (let day = new Date(Date.UTC(year, 0, 1)); day.getUTCFullYear() === year;) {
+    const iso = day.toISOString().slice(0, 10);
+    const weekday = day.getUTCDay();
+    if (weekday !== 0 && weekday !== 6 && !nonBusiness.includes(iso)) dates.push(iso);
+    day = new Date(day.getTime() + 86_400_000);
+  }
+  return dates;
+}
+
 function mockApi(
-  routes: { list?: Handler; post?: Handler; patch?: Handler; remove?: Handler } = {},
+  routes: {
+    list?: Handler;
+    businessDays?: Handler;
+    post?: Handler;
+    patch?: Handler;
+    remove?: Handler;
+  } = {},
   permissions: readonly string[] = ['CALENDAR_MANAGE'],
 ) {
   const fetchMock = vi.fn<typeof fetch>((input, init) => {
@@ -100,6 +120,11 @@ function mockApi(
             meta: { page: 1, pageSize: 200, totalItems: HOLIDAYS.length, totalPages: 1 },
           }));
       return Promise.resolve(handler(url, init));
+    }
+    if (method === 'GET' && url.startsWith('/api/v1/calendar/business-days')) {
+      return Promise.resolve(
+        (routes.businessDays ?? (() => problemResponse(404, 'NOT_FOUND', 'x')))(url, init),
+      );
     }
     if (method === 'POST' && url === '/api/v1/holidays') {
       return Promise.resolve((routes.post ?? fail)(url, init));
@@ -134,6 +159,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+afterAll(() => {
+  vi.useRealTimers();
+});
+
+/** Espera a lista lateral "Feriados de {ano}" (a tela carregada). */
+const loaded = () => screen.findByRole('region', { name: `Feriados de ${String(YEAR)}` });
+
+/** Item da lista lateral pelo nome do feriado. */
+function itemOf(list: HTMLElement, name: string): HTMLElement {
+  const item = within(list)
+    .getAllByRole('listitem')
+    .find((candidate) => within(candidate).queryByText(name) !== null);
+  if (!item) throw new Error(`feriado ${name} não está na lista`);
+  return item;
+}
+
 /** Escolhe uma opção no `Select` do kit (Radix): abre o gatilho e clica na opção. */
 async function choose(trigger: HTMLElement, option: string) {
   await userEvent.click(trigger);
@@ -158,59 +199,236 @@ async function pickFifteenth(dialog: HTMLElement): Promise<string> {
 }
 
 describe('[Sucesso] SCR-110 · lista', () => {
-  it('feriados do ano por data, com escopo, selos "Padrão do sistema"/"Recorrente" e situação; sem violações de a11y', async () => {
+  it('lista lateral do ano agrupada por mês, com tipo, efeito no prazo, selos e situação; sem violações de a11y', async () => {
     const api = mockApi();
     renderWithShell(<CalendarView />);
 
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Calendário de dias úteis' }),
     ).toBeTruthy();
-    const table = await screen.findByRole('table', { name: `Feriados de ${String(YEAR)}` });
+    const list = await loaded();
     expect(
       api.mock.calls.some(([url]) =>
         requestUrl(url).startsWith(`/api/v1/holidays?year=${String(YEAR)}&`),
       ),
     ).toBe(true);
 
-    const rows = within(table).getAllByRole('row').slice(1);
     expect(
-      rows.map(
-        (row) =>
-          within(row).getByText(/^(Carnaval \(terça-feira\)|Aniversário da cidade|Finados|Natal)$/)
-            .textContent,
-      ),
-    ).toEqual(['Carnaval (terça-feira)', 'Aniversário da cidade', 'Finados', 'Natal']);
-    const natal = within(table).getByRole('row', { name: /Natal/ });
-    expect(within(natal).getByText('25/12/' + String(YEAR))).toBeTruthy();
-    expect(within(natal).getByText('Nacional')).toBeTruthy();
+      within(list)
+        .getAllByRole('heading', { level: 3 })
+        .map((heading) => heading.textContent),
+    ).toEqual(['fevereiro', 'outubro', 'novembro', 'dezembro']);
+    const natal = itemOf(list, 'Natal');
+    expect(within(natal).getByText('25/12 · sexta-feira')).toBeTruthy();
+    expect(within(natal).getByText('Feriado nacional · não conta como dia útil')).toBeTruthy();
     expect(within(natal).getByText('Padrão do sistema')).toBeTruthy();
     expect(within(natal).getByText('Recorrente')).toBeTruthy();
-    expect(within(natal).getByText('Ativo')).toBeTruthy();
-    const carnaval = within(table).getByRole('row', { name: /Carnaval/ });
-    expect(within(carnaval).getByText('Ponto facultativo')).toBeTruthy();
-    const proprio = within(table).getByRole('row', { name: /Aniversário da cidade/ });
-    expect(within(proprio).getByText('Municipal')).toBeTruthy();
+    const carnaval = itemOf(list, 'Carnaval (terça-feira)');
+    expect(within(carnaval).getByText('Ponto facultativo · conta como dia útil')).toBeTruthy();
+    const proprio = itemOf(list, 'Aniversário da cidade');
+    expect(within(proprio).getByText('Feriado municipal · não conta como dia útil')).toBeTruthy();
     expect(within(proprio).queryByText('Padrão do sistema')).toBeNull();
     expect(within(proprio).queryByText('Recorrente')).toBeNull();
-    expect(
-      within(within(table).getByRole('row', { name: /Finados/ })).getByText('Inativo'),
-    ).toBeTruthy();
+    const finados = itemOf(list, 'Finados');
+    expect(within(finados).getByText('Inativo')).toBeTruthy();
+    expect(within(finados).getByText('Feriado nacional · conta como dia útil')).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
-  it('mostra o calendário do ano e a lista lado a lado, com a legenda dos dias em destaque', async () => {
+  it('mostradores do ano (sem o CAL-05, o padrão: facultativo conta como dia útil), legenda e doze meses', async () => {
     mockApi();
     renderWithShell(<CalendarView />);
-    await screen.findByRole('table');
-    expect(screen.getByRole('heading', { name: `Calendário de ${String(YEAR)}` })).toBeTruthy();
-    expect(screen.getByText(/Os dias em destaque são feriados/)).toBeTruthy();
-    expect(screen.getByRole('grid')).toBeTruthy();
+    await loaded();
+
+    const stats = screen.getByRole('region', { name: `Resumo de ${String(YEAR)}` });
+    // 2026: 261 dias de segunda a sexta; 12/10 (seg.) e 25/12 (sex.) sem expediente.
+    expect(stats.textContent).toContain('Dias úteis 259');
+    expect(stats.textContent).toContain('Sem expediente 2');
+    expect(stats.textContent).toContain('Feriados da instituição 1');
+    expect(stats.textContent).toContain('Pontos facultativos 1');
+    expect(within(stats).getByText('contam como dia útil nos prazos')).toBeTruthy();
+
+    const legend = screen.getByRole('region', { name: 'Legenda' });
+    expect(
+      within(legend)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'Feriado nacional1',
+      'Feriado estadual0',
+      'Feriado municipal1',
+      'Ponto facultativo1',
+      'Sem expediente',
+      'Facultativo que conta como dia útil',
+      'Sábado e domingo',
+      'Hoje',
+    ]);
+
+    const months = screen.getByRole('region', { name: `${String(YEAR)}, mês a mês` });
+    expect(within(months).getAllByRole('table')).toHaveLength(12);
+    const december = within(months).getByRole('table', { name: 'dezembro' });
+    expect(
+      within(december)
+        .getAllByRole('columnheader')
+        .map((th) => th.textContent),
+    ).toEqual([
+      'Ssegunda-feira',
+      'Tterça-feira',
+      'Qquarta-feira',
+      'Qquinta-feira',
+      'Ssexta-feira',
+      'Ssábado',
+      'Ddomingo',
+    ]);
+    expect(within(months).getByText('dezembro').parentElement?.textContent).toContain('1 data');
+    expect(
+      await within(december).findByRole('button', {
+        name: `sexta-feira, 25 de dezembro de ${String(YEAR)} · Natal · feriado nacional`,
+      }),
+    ).toBeTruthy();
+    expect(
+      within(months).getByRole('button', {
+        name: `quarta-feira, 10 de junho de ${String(YEAR)} · hoje`,
+      }),
+    ).toBeTruthy();
+  });
+
+  it('com as datas úteis do CAL-05, o ponto facultativo adotado entra em "Sem expediente"', async () => {
+    const api = mockApi({
+      businessDays: () => {
+        const dates = businessDatesOf(YEAR, [
+          `${String(YEAR)}-02-17`,
+          `${String(YEAR)}-10-12`,
+          `${String(YEAR)}-12-25`,
+        ]);
+        return jsonResponse({ data: { businessDays: dates.length, dates } });
+      },
+    });
+    renderWithShell(<CalendarView />);
+    const list = await loaded();
+    const stats = screen.getByRole('region', { name: `Resumo de ${String(YEAR)}` });
+    await waitFor(() => {
+      expect(stats.textContent).toContain('Sem expediente 3');
+    });
+    expect(stats.textContent).toContain('Dias úteis 258');
+    expect(within(stats).getByText('não contam como dia útil nos prazos')).toBeTruthy();
+    expect(
+      within(itemOf(list, 'Carnaval (terça-feira)')).getByText(
+        'Ponto facultativo · não conta como dia útil',
+      ),
+    ).toBeTruthy();
+    expect(
+      api.mock.calls.some(
+        ([url]) =>
+          requestUrl(url) ===
+          `/api/v1/calendar/business-days?from=${String(YEAR)}-01-01&to=${String(YEAR)}-12-31`,
+      ),
+    ).toBe(true);
+  });
+
+  it('filtro por tipo na lista: Públicos, Da instituição e Facultativos, com a contagem', async () => {
+    mockApi();
+    renderWithShell(<CalendarView />);
+    const list = await loaded();
+    const filters = within(list).getByRole('group', { name: 'Filtrar feriados por tipo' });
+    expect(
+      within(filters)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Todos4', 'Públicos3', 'Da instituição1', 'Facultativos1']);
+    expect(
+      within(filters).getByRole('button', { name: /Todos/ }).getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    await userEvent.click(within(filters).getByRole('button', { name: /Facultativos/ }));
+    expect(within(list).getByText('Carnaval (terça-feira)')).toBeTruthy();
+    expect(within(list).queryByText('Natal')).toBeNull();
+    await userEvent.click(within(filters).getByRole('button', { name: /Da instituição/ }));
+    expect(within(list).getByText('Aniversário da cidade')).toBeTruthy();
+    expect(within(list).queryByText('Carnaval (terça-feira)')).toBeNull();
+    await userEvent.click(within(filters).getByRole('button', { name: /Públicos/ }));
+    expect(within(list).queryByText('Carnaval (terça-feira)')).toBeNull();
+    expect(within(list).getByText('Natal')).toBeTruthy();
+  });
+
+  it('dia da grade: abre a edição do feriado do dia ou o cadastro com a data preenchida; setas navegam no mês', async () => {
+    const api = mockApi({
+      post: () =>
+        jsonResponse(
+          { data: holiday({ date: `${String(YEAR)}-03-10`, name: 'Padroeira', isSystem: false }) },
+          { status: 201 },
+        ),
+    });
+    renderWithShell(<CalendarView />);
+    await loaded();
+
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: new RegExp(`25 de dezembro de ${String(YEAR)} · Natal`),
+      }),
+    );
+    expect(await screen.findByRole('dialog', { name: 'Editar Natal' })).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: `terça-feira, 10 de março de ${String(YEAR)}` }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Novo feriado' });
+    expect(within(dialog).getByRole('button', { name: 'Data *' }).textContent).toContain(
+      `10/03/${String(YEAR)}`,
+    );
+    await userEvent.type(within(dialog).getByLabelText('Nome *'), 'Padroeira');
+    await choose(within(dialog).getByRole('combobox', { name: 'Escopo *' }), 'Municipal');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(callsTo(api, 'POST')).toHaveLength(1);
+    });
+    expect(bodyOf(callOf(api, 'POST').init)).toMatchObject({ date: `${String(YEAR)}-03-10` });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    // Um dia por mês na tabulação (hoje, em junho); as setas andam dentro do mês.
+    const june = screen.getByRole('table', { name: 'junho' });
+    const today = within(june).getByRole('button', { name: /10 de junho .* · hoje$/ });
+    expect(today.tabIndex).toBe(0);
+    expect(
+      within(june)
+        .getAllByRole('button')
+        .filter((button) => button.tabIndex === 0),
+    ).toHaveLength(1);
+    today.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      `quinta-feira, 11 de junho de ${String(YEAR)}`,
+    );
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      `quinta-feira, 18 de junho de ${String(YEAR)}`,
+    );
+  });
+
+  it('a data na lista abre a edição do feriado', async () => {
+    mockApi();
+    renderWithShell(<CalendarView />);
+    const list = await loaded();
+    await userEvent.click(
+      await within(list).findByRole('button', {
+        name: 'Abrir Aniversário da cidade, 12/10 · segunda-feira',
+      }),
+    );
+    expect(
+      await screen.findByRole('dialog', { name: 'Editar Aniversário da cidade' }),
+    ).toBeTruthy();
   });
 
   it('FA-01: "Excluir" só aparece em feriado que não é de sistema', async () => {
     mockApi();
     renderWithShell(<CalendarView />);
-    await screen.findByRole('table');
+    await loaded();
     await userEvent.click(
       await screen.findByRole('button', { name: 'Ações de Aniversário da cidade' }),
     );
@@ -221,18 +439,28 @@ describe('[Sucesso] SCR-110 · lista', () => {
     expect(screen.queryByRole('menuitem', { name: 'Excluir' })).toBeNull();
   });
 
-  it('trocar o ano relê a lista desse ano', async () => {
+  it('trocar o ano (seletor ou anterior/próximo) relê a lista desse ano', async () => {
     const api = mockApi();
     renderWithShell(<CalendarView />);
-    await screen.findByRole('table');
+    await loaded();
+    const readYear = (year: number) =>
+      api.mock.calls.some(([url]) =>
+        requestUrl(url).startsWith(`/api/v1/holidays?year=${String(year)}&`),
+      );
     await choose(screen.getByRole('combobox', { name: 'Ano' }), String(YEAR + 1));
     await waitFor(() => {
-      expect(
-        api.mock.calls.some(([url]) =>
-          requestUrl(url).startsWith(`/api/v1/holidays?year=${String(YEAR + 1)}&`),
-        ),
-      ).toBe(true);
+      expect(readYear(YEAR + 1)).toBe(true);
     });
+    await userEvent.click(screen.getByRole('button', { name: 'Ano anterior' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Ano anterior' }));
+    await waitFor(() => {
+      expect(readYear(YEAR - 1)).toBe(true);
+    });
+    expect(
+      await screen.findByRole('region', { name: `Feriados de ${String(YEAR - 1)}` }),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Próximo ano' }));
+    expect(await loaded()).toBeTruthy();
   });
 
   it('carregando, vazio e erro com "Tentar novamente"', async () => {
@@ -258,7 +486,7 @@ describe('[Sucesso] SCR-110 · lista', () => {
     renderWithShell(<CalendarView />);
     expect(await screen.findByText('Não foi possível carregar o calendário.')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
-    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(await loaded()).toBeTruthy();
   });
 });
 
@@ -271,15 +499,26 @@ describe('[Permissão] ações de edição', () => {
     ).toBeTruthy();
   });
 
-  it('sem CALENDAR_MANAGE a lista fica visível e as ações de edição, ocultas', async () => {
-    mockApi({}, []);
+  it('sem CALENDAR_MANAGE a grade e a lista ficam visíveis e as ações de edição, ocultas', async () => {
+    const api = mockApi({}, []);
     renderWithShell(<CalendarView />);
-    expect(await screen.findByRole('table')).toBeTruthy();
+    const list = await loaded();
+    await waitFor(() => {
+      expect(
+        api.mock.calls.some(([url]) => requestUrl(url).startsWith('/api/v1/me/permissions')),
+      ).toBe(true);
+    });
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Novo feriado' })).toBeNull();
     });
     expect(screen.queryByRole('button', { name: /^Ações de / })).toBeNull();
-    expect(screen.queryByRole('columnheader', { name: 'Ações' })).toBeNull();
+    expect(within(list).queryByRole('button', { name: /^Abrir / })).toBeNull();
+    const december = screen.getByRole('table', { name: 'dezembro' });
+    expect(within(december).queryAllByRole('button')).toHaveLength(0);
+    expect(
+      within(december).getByText(/25 de dezembro de 2026 · Natal · feriado nacional/),
+    ).toBeTruthy();
+    expect(screen.getByText('Os dias marcados são feriados e pontos facultativos.')).toBeTruthy();
   });
 });
 

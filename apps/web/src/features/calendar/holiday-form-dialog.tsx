@@ -46,6 +46,8 @@ export interface HolidayFormDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   /** Feriado em edição; ausente = criação (CAL-02). */
   readonly holiday?: HolidayDto | undefined;
+  /** Data já escolhida no cadastro (dia clicado na grade do ano); ignorada na edição. */
+  readonly defaultDate?: string | undefined;
   /** 412: a lista é relida pela tela (o diálogo só avisa e fecha). */
   readonly onConflict: () => void;
 }
@@ -61,14 +63,16 @@ export function HolidayFormDialog({
   open,
   onOpenChange,
   holiday,
+  defaultDate,
   onConflict,
 }: HolidayFormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <HolidayFormBody
-          key={holiday?.id ?? 'novo'}
+          key={holiday?.id ?? `novo-${defaultDate ?? ''}`}
           holiday={holiday}
+          defaultDate={defaultDate}
           onConflict={onConflict}
           onClose={() => {
             onOpenChange(false);
@@ -81,10 +85,12 @@ export function HolidayFormDialog({
 
 function HolidayFormBody({
   holiday,
+  defaultDate,
   onConflict,
   onClose,
 }: {
   readonly holiday: HolidayDto | undefined;
+  readonly defaultDate: string | undefined;
   readonly onConflict: () => void;
   readonly onClose: () => void;
 }) {
@@ -92,7 +98,9 @@ function HolidayFormBody({
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const ids = useId();
-  const [values, setValues] = useState<FormValues>(() => initialValues(holiday));
+  const [values, setValues] = useState<FormValues>(() =>
+    holiday || !defaultDate ? initialValues(holiday) : { ...initialValues(), date: defaultDate },
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const isEdit = holiday !== undefined;

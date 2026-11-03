@@ -318,6 +318,20 @@ decisão."). Os dois ficam lado a lado por *container query* quando a área de c
 de 36 rem. "Abertos" saiu do resumo (o donut "Processos por situação" mostra o total) e o chip
 "Aprovações pendentes" saiu de "Minhas pendências": nenhum número aparece duas vezes na 1ª dobra.
 
+**Administração (card 5).** Hub `/admin` com largura máxima de ~1010 px, rótulos de grupo 11/700 em
+caixa alta (`muted`) e cartões com borda (`shadow-card`) em 1/2/3 colunas: ícone num quadrado de
+36 px `primary-soft`, título 15/700 e frase 13 px; o cartão inteiro é o link, sem chevron; o hover
+eleva a sombra. Calendário (`/admin/calendario`): ano com anterior/próximo e seletor, "Novo
+feriado" no cabeçalho; quatro `StatTile` (Dias úteis, Sem expediente, Feriados da instituição,
+Pontos facultativos) calculados no cliente a partir do CAL-01 e das datas úteis do CAL-05 (que
+aplica `calendar.optionalHolidaysAreNonBusiness`); legenda em chips com marcador de **cor e forma**
+por tipo (nacional ●, estadual ◆, municipal ▲, facultativo ○) e as marcas do dia (sem expediente em
+`primary-soft`, facultativo que conta como útil tracejado, fim de semana em `muted`, hoje com
+contorno); doze meses em grade (segunda a domingo; cada dia é um botão com o rótulo por extenso que
+abre a edição ou o cadastro; setas, Home e End dentro do mês, um dia por mês na tabulação) e, ao
+lado a partir de 1280 px, a lista "Feriados de {ano}" com filtro por tipo (Todos · Públicos · Da
+instituição · Facultativos), agrupada por mês, com o efeito no prazo e o menu ⋯.
+
 ## Tokens (`packages/ui/src/styles.css`)
 
 - Fixos: `--color-brand-navy`, `--color-brand-blue`, `--color-brand-blue-deep` e `--color-on-navy` /

@@ -2,7 +2,9 @@
   "title": "Calendário de dias úteis",
   "description": "Mantenha os feriados e pontos facultativos da instituição. Eles definem os dias úteis usados no cálculo dos prazos de tramitação. Alterar o calendário não recalcula prazos já gravados.",
   "year": {
-    "label": "Ano"
+    "label": "Ano",
+    "previous": "Ano anterior",
+    "next": "Próximo ano"
   },
   "scopes": {
     "NATIONAL": "Nacional",
@@ -17,15 +19,18 @@
     "retry": "Tentar novamente",
     "empty": "Nenhum feriado cadastrado para este ano",
     "emptyHint": "Cadastre os feriados locais para que os prazos considerem esses dias.",
-    "saving": "Salvando…"
-  },
-  "table": {
-    "caption": "Feriados de {year}",
-    "date": "Data",
-    "name": "Feriado",
-    "scope": "Escopo",
-    "status": "Situação",
-    "actions": "Ações"
+    "saving": "Salvando…",
+    "title": "Feriados de {year}",
+    "hint": "Em ordem de data. Toque na data para abrir o feriado.",
+    "filterLabel": "Filtrar feriados por tipo",
+    "filters": {
+      "all": "Todos",
+      "public": "Públicos",
+      "institution": "Da instituição",
+      "optional": "Facultativos"
+    },
+    "filterEmpty": "Nenhum feriado deste tipo em {year}.",
+    "openDate": "Abrir {name}, {date}"
   },
   "badges": {
     "system": "Padrão do sistema",
@@ -103,8 +108,45 @@
     "duplicate": "Já existe um feriado com esta data e nome.",
     "system": "Feriados padrão do sistema não podem ser excluídos."
   },
-  "view": {
-    "calendarLabel": "Calendário de {year}",
-    "legend": "Os dias em destaque são feriados e pontos facultativos ativos de {year}; a lista ao lado traz todos."
+  "scopeLong": {
+    "NATIONAL": "Feriado nacional",
+    "STATE": "Feriado estadual",
+    "MUNICIPAL": "Feriado municipal",
+    "OPTIONAL": "Ponto facultativo"
+  },
+  "stats": {
+    "label": "Resumo de {year}",
+    "businessDays": "Dias úteis",
+    "businessDaysHint": "contam nos prazos em dias úteis",
+    "noWork": "Sem expediente",
+    "noWorkHint": "de segunda a sexta, por feriado ou ponto facultativo adotado",
+    "institution": "Feriados da instituição",
+    "institutionHint": "cadastrados pela instituição, além do padrão do sistema",
+    "optional": "Pontos facultativos",
+    "optionalBusiness": "contam como dia útil nos prazos",
+    "optionalNonBusiness": "não contam como dia útil nos prazos",
+    "optionalNone": "nenhum em dia de semana neste ano"
+  },
+  "legend": {
+    "title": "Legenda",
+    "nonBusiness": "Sem expediente",
+    "business": "Facultativo que conta como dia útil",
+    "weekend": "Sábado e domingo",
+    "today": "Hoje"
+  },
+  "months": {
+    "title": "{year}, mês a mês",
+    "hint": "Toque num dia para cadastrar ou editar o feriado.",
+    "hintReadOnly": "Os dias marcados são feriados e pontos facultativos.",
+    "dates": "{count, plural, =0 {nenhuma data} one {# data} other {# datas}}"
+  },
+  "day": {
+    "today": "hoje",
+    "inactive": "inativo"
+  },
+  "effect": {
+    "weekend": "cai no fim de semana",
+    "nonBusiness": "não conta como dia útil",
+    "business": "conta como dia útil"
   }
 }

@@ -66,6 +66,17 @@ describe('hub da administração (prd-5 · card 8)', () => {
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
+  it('padrão da terceira leva: rótulos de grupo em caixa alta e cartões sem chevron (só o ícone da área)', async () => {
+    mockPermissions(['ROLE_VIEW']);
+    renderWithShell(<AdminHub />);
+    expect(screen.getByText(/Configurações da instituição, organizadas por área/)).toBeTruthy();
+    const heading = screen.getByRole('heading', { level: 2, name: 'Pessoas e acesso' });
+    expect(heading.className).toContain('uppercase');
+    const users = await screen.findByRole('link', { name: /Usuários/ });
+    expect(users.querySelectorAll('svg')).toHaveLength(1);
+    expect(users.className).toContain('shadow-card');
+  });
+
   it('[Permissão] some o cartão da área quando a API confirma que falta a permissão', async () => {
     mockPermissions(['PROCESS_VIEW']);
     renderWithShell(<AdminHub />);

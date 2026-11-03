@@ -30,7 +30,7 @@
   },
   "admin": {
     "title": "Administração",
-    "description": "Configurações da instituição. Cada área exige a permissão administrativa correspondente.",
+    "description": "Configurações da instituição, organizadas por área. Cada área exige a permissão correspondente.",
     "users": "Usuários",
     "roles": "Perfis e permissões",
     "structure": "Estrutura organizacional",
