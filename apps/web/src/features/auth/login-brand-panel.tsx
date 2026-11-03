@@ -1,62 +1,53 @@
 import { BrandLogo } from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 
-import { AuthIcon } from './auth-icons';
-import type { AuthIconName } from './auth-icons';
-import { PRIVACY_POLICY_HREF } from './privacy-notice';
+/*
+ * Colunas translúcidas da ilustração (abstrata, decorativa): posição, largura e altura de cada uma.
+ * Desenhadas em CSS, sem imagem nem texto, para não pesar no carregamento da entrada.
+ */
+const COLUMNS = [
+  'left-[48%] h-[16.875rem]',
+  'left-[58%] h-[25rem]',
+  'left-[68%] h-[20rem]',
+  'left-[78%] h-[13.125rem]',
+] as const;
 
-const HIGHLIGHTS = [
-  { key: 'standardized', icon: 'fileText' },
-  { key: 'workflow', icon: 'zap' },
-  { key: 'transparency', icon: 'shieldCheck' },
-] as const satisfies readonly { readonly key: string; readonly icon: AuthIconName }[];
+/** Degradê navy (165°) com brilho azul da marca no canto inferior direito (prd-6 · §2.7). */
+const PANEL_BACKGROUND =
+  'bg-[radial-gradient(760px_460px_at_88%_112%,rgb(0_91_249/0.45),transparent_62%),linear-gradient(165deg,#1e2d40_0%,#141e2b_55%,#0b1118_100%)]';
 
 /**
- * Painel institucional da moldura de entrada (SCR-001 · mockup da repaginação): marca, proposta
- * de valor, três destaques e o rodapé com a lei e a política de privacidade, em navy sólido (o
- * navy da marca sai do fundo das telas e fica aqui e nos títulos — DEC-186). Só a partir de
- * 1024 px (`lg`). Sem dados de nenhuma instituição (DEC-141).
+ * Painel institucional da moldura de entrada (SCR-001 · prd-6 §2.7, padrão do Microlegis): marca
+ * no topo, ilustração abstrata e o slogan no rodapé, em degradê navy fixo (não muda com o tema).
+ * Ocupa 58 % da largura a partir de 1024 px (`lg`); abaixo disso fica só o acesso. Sem dados de
+ * nenhuma instituição (DEC-141); a LGPD fica no aviso de privacidade do painel de acesso.
  */
 export function LoginBrandPanel() {
   const t = useTranslations('auth.login.brand');
   return (
     <section
       aria-label={t('panelLabel')}
-      className="hidden w-[460px] flex-none flex-col justify-between gap-12 bg-brand-navy px-14 py-11 text-on-navy lg:flex xl:w-[520px]"
+      className={`relative hidden min-w-0 flex-col overflow-hidden px-12 pt-10 pb-11 text-on-navy lg:flex ${PANEL_BACKGROUND}`}
     >
-      <BrandLogo tone="onDark" size="lg" name={t('name')} tagline={t('slogan')} />
-
-      <div className="flex max-w-[520px] flex-col gap-7">
-        <p className="text-[2.5rem] leading-[1.15] font-extrabold tracking-[-0.02em]">
-          {t('headline')}
-        </p>
-        <p className="text-[1.0625rem] leading-relaxed text-on-navy-muted">{t('tagline')}</p>
-        <ul className="flex flex-col gap-[1.125rem]">
-          {HIGHLIGHTS.map(({ key, icon }) => (
-            <li key={key} className="flex items-start gap-3.5">
-              <span className="grid size-10 flex-none place-items-center rounded-control bg-white/10 text-on-navy-accent">
-                <AuthIcon name={icon} />
-              </span>
-              <span>
-                <span className="block text-[0.9375rem] font-bold">
-                  {t(`highlights.${key}.title`)}
-                </span>
-                <span className="block text-sm text-on-navy-muted">
-                  {t(`highlights.${key}.description`)}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+      <BrandLogo tone="onDark" size="lg" name={t('name')} />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[26.25rem]"
+      >
+        <span className="absolute -bottom-30 left-[38%] h-40 w-[38.75rem] rounded-[2.5rem] bg-white/6 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]" />
+        {COLUMNS.map((column) => (
+          <span
+            key={column}
+            className={`absolute -bottom-2.5 w-[5.375rem] rounded-t-[2.5rem] bg-white/6 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)] ${column}`}
+          />
+        ))}
       </div>
-
-      <p className="flex flex-wrap items-center gap-3 text-xs text-on-navy-muted">
-        <span>{t('footer.law')}</span>
-        <span aria-hidden="true">·</span>
-        <a href={PRIVACY_POLICY_HREF} className="hover:text-on-navy hover:underline">
-          {t('footer.privacy')}
-        </a>
-      </p>
+      <div className="relative mt-auto max-w-[28.75rem]">
+        <span aria-hidden="true" className="mb-5 block h-0.5 w-10 bg-on-navy" />
+        <p className="text-[2.5rem] leading-[1.12] font-bold tracking-[-0.02em] text-balance">
+          {t('statement')}
+        </p>
+      </div>
     </section>
   );
 }

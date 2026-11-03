@@ -50,7 +50,6 @@ test('jornada completa: Identificação → Origem e planejamento → Revisão �
   page,
 }) => {
   await openWizard(page);
-  await expect(page.getByRole('link', { name: 'Novo processo' })).toBeVisible();
   await expectNoSeriousA11yViolations(page, 'wizard · passo 1');
 
   // Passo 1 sem título não avança.
@@ -225,8 +224,6 @@ test('em 360 px: indicador "Passo N de 3", coluna única e sem rolagem horizonta
     page.getByRole('listitem').filter({ hasText: 'Identificação (etapa atual)' }),
   ).toBeVisible();
   expect(await overflow()).toBeLessThanOrEqual(0);
-  // O botão global continua acessível (só o ícone, com nome acessível).
-  await expect(page.getByRole('link', { name: 'Novo processo' })).toBeVisible();
 
   await toOrigin(page);
   await expect(page.getByText('Passo 2 de 3')).toBeVisible();
@@ -248,11 +245,14 @@ test('em 360 px: indicador "Passo N de 3", coluna única e sem rolagem horizonta
 test('sem PROCESS_CREATE (Prefeitura B): sem botão "Novo processo" e a rota mostra o 403', async ({
   page,
 }) => {
-  await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/exemplo')}`);
-  await expect(page.getByRole('link', { name: 'Novo processo' })).toBeVisible();
+  // "Novo processo" fica no cabeçalho da lista de processos (prd-6 · §2.3).
+  await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/processos')}`);
+  await expect(page.getByRole('main').getByRole('link', { name: 'Novo processo' })).toBeVisible();
   await page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }).click();
   await page.getByRole('menuitem', { name: 'Prefeitura B' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
+  await page.goto('/processos');
+  await expect(page.getByRole('heading', { level: 1, name: 'Processos' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Novo processo' })).toHaveCount(0);
 
   await page.goto('/processos/novo');

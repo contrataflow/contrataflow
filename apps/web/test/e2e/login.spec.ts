@@ -41,18 +41,18 @@ test('[Sucesso] usuário e senha entram pela tela do app e caem no destino; logo
   const foreign = trackForeignNavigations(page);
   await page.goto('/api/auth/login?returnTo=%2Fexemplo');
   await expect(page).toHaveURL(/\/entrar\?returnTo=%2Fexemplo$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeVisible();
   await expect(page.getByLabel('Usuário ou e-mail')).toBeFocused();
   await expect(page.getByText(/gov\.br/i)).toHaveCount(0);
   await expectNoSeriousA11yViolations(page, 'SCR-001');
 
   await fill(page, 'ana', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page).toHaveURL(/\/exemplo$/);
   await expect(page.getByRole('banner')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Menu do usuário Ana Souza' }).click();
-  await page.getByRole('menuitem', { name: 'Sair' }).click();
+  // "Sair" no cartão do usuário, no rodapé do menu lateral (prd-6 · §2.2).
+  await page.getByRole('button', { name: 'Sair', exact: true }).click();
   await expect(page).toHaveURL(/\/entrar\?motivo=saiu$/);
   await expect(page.getByRole('status')).toHaveText('Você saiu com segurança.');
   expect(foreign).toEqual([]);
@@ -62,12 +62,12 @@ test('[Validação] campos vazios e senha errada: mensagens genéricas, foco e n
   page,
 }) => {
   await page.goto('/entrar');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByText('Informe o usuário ou e-mail.')).toBeVisible();
   await expect(page.getByLabel('Usuário ou e-mail')).toBeFocused();
 
   await fill(page, 'ana', 'errada');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(formAlert(page)).toHaveText(INVALID);
   await expect(page.getByLabel('Senha', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Senha', { exact: true })).toBeFocused();
@@ -75,7 +75,7 @@ test('[Validação] campos vazios e senha errada: mensagens genéricas, foco e n
 
   // Usuário inexistente: exatamente a mesma mensagem (RN-IAM-18).
   await fill(page, 'ninguem', 'errada');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(formAlert(page)).toHaveText(INVALID);
   await page.goto('/exemplo');
   await expect(page).toHaveURL(/\/entrar\?returnTo=%2Fexemplo$/);
@@ -84,7 +84,7 @@ test('[Validação] campos vazios e senha errada: mensagens genéricas, foco e n
 test('[Sucesso] MFA: etapa de código, código errado e depois o certo', async ({ page }) => {
   await page.goto('/entrar');
   await fill(page, 'lucia', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Confirme sua identidade' }),
   ).toBeVisible();
@@ -106,13 +106,13 @@ test('[Sucesso] MFA: etapa de código, código errado e depois o certo', async (
 test('[Permissão] bloqueio pelo IdP e usuário bloqueado na plataforma', async ({ page }) => {
   await page.goto('/entrar');
   await fill(page, 'bloqueada', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(formAlert(page)).toHaveText(
     'Acesso bloqueado temporariamente após tentativas inválidas. Tente mais tarde ou use “Esqueci minha senha”.',
   );
 
   await fill(page, 'eva', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page).toHaveURL(/\/erro\/acesso-bloqueado$/);
 });
 
@@ -121,7 +121,7 @@ test('[Tenant incorreto] sem vínculo utilizável: "sem vínculo", sem shell de 
 }) => {
   await page.goto('/entrar?returnTo=%2Fprocessos');
   await fill(page, 'gil', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page).toHaveURL(/\/erro\/sem-vinculo$/);
   await expect(page.getByRole('navigation', { name: /principal/i })).toHaveCount(0);
 });
@@ -135,7 +135,7 @@ test('[Duplicidade] duplo clique em "Entrar" envia uma vez só', async ({ page }
       posts.push(request.url());
     }
   });
-  await page.getByRole('button', { name: 'Entrar' }).dblclick();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).dblclick();
   await expect(page).toHaveURL(/\/painel$/);
   expect(posts).toHaveLength(1);
 });
@@ -148,7 +148,9 @@ test('[Concorrência] duas pessoas entram ao mesmo tempo em navegadores separado
   await Promise.all(pages.map((page) => page.goto('/entrar')));
   await fill(pages[0], 'ana', PASSWORD);
   await fill(pages[1], 'lucia', PASSWORD);
-  await Promise.all(pages.map((page) => page.getByRole('button', { name: 'Entrar' }).click()));
+  await Promise.all(
+    pages.map((page) => page.getByRole('button', { name: 'Entrar', exact: true }).click()),
+  );
   await expect(pages[0]).toHaveURL(/\/painel$/);
   await expect(pages[1].getByLabel('Código de verificação')).toBeVisible();
   await Promise.all([first.close(), second.close()]);
@@ -159,17 +161,17 @@ test('[Falha de integração] IdP fora do ar: "indisponível" sem quebrar a pág
 }) => {
   await page.goto('/entrar');
   await fill(page, 'indisponivel', PASSWORD);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(formAlert(page)).toHaveText(
     'O serviço de autenticação está indisponível. Tente novamente em instantes.',
   );
-  await expect(page.getByRole('button', { name: 'Entrar' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Entrar', exact: true })).toBeEnabled();
 });
 
 test('390 px: só o acesso, com a marca no topo e sem rolagem horizontal', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/entrar?motivo=sessao-expirada');
-  await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Sobre o ContrataFlow' })).toBeHidden();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

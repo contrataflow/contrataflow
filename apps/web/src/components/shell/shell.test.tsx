@@ -5,6 +5,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { LogoutGuard } from '@/components/session/logout-guard';
+import { LocalDrafts, MemoryDraftBackend } from '@/lib/drafts/local-drafts';
 import { Can, resolveCanState } from '@/lib/permissions/can';
 import { tenantKey } from '@/lib/query/keys';
 import { SessionSync } from '@/lib/session/session-sync';
@@ -22,8 +24,9 @@ import { postFromOtherTab } from '@test/support/session-tabs';
 
 import { AppProviders } from './app-providers';
 import { AppShell } from './app-shell';
-import { AdminNav } from './main-nav';
+import { MainNav } from './main-nav';
 import { isActivePath } from './navigation';
+import { UserCard } from './user-card';
 
 const router = { refresh: vi.fn(), push: vi.fn() };
 let pathname = '/exemplo';
@@ -73,7 +76,7 @@ describe('[Sucesso] AppShell', () => {
     }
   });
 
-  it('renderiza menu, busca, notificações, seletor de instituição e usuário — sem violação de a11y', async () => {
+  it('renderiza menu, busca, ajuda, notificações, instituição e cartão do usuário — sem violação de a11y', async () => {
     stubFetch(() => jsonResponse({ data: { permissions: [] } }));
     const session = shellSession();
     render(
@@ -94,23 +97,35 @@ describe('[Sucesso] AppShell', () => {
     expect(search.getAttribute('aria-haspopup')).toBe('dialog');
     expect(search.getAttribute('aria-keyshortcuts')).toBe('Control+K');
     expect(screen.getByRole('link', { name: 'Notificações' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Menu do usuário Ana Souza' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ajuda' }).getAttribute('href')).toBe(
+      'mailto:suporte@contrataflow.com.br',
+    );
+    // Instituição como texto (nome + "Instituição ativa · trocar") que abre o seletor.
+    const tenant = screen.getByRole('button', { name: 'Instituição ativa: Prefeitura A' });
+    expect(tenant.textContent).toBe('Prefeitura AInstituição ativa · trocar');
+    // Barra superior limpa (prd-6 · §2.2): sem "Novo processo" e sem menu do usuário.
+    const header = screen.getByRole('banner');
+    expect(within(header).queryByRole('link', { name: 'Novo processo' })).toBeNull();
+    expect(within(header).queryByRole('button', { name: /Menu do usuário/ })).toBeNull();
+    // Cartão do usuário no rodapé da barra lateral.
+    expect(screen.getByText('Ana Souza')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Minha conta' }).getAttribute('href')).toBe('/perfil');
+    expect(screen.getByRole('button', { name: 'Sair' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy();
     expect(screen.getByRole('main').id).toBe('conteudo');
     expect(await seriousA11yViolations()).toEqual([]);
   });
 
-  it('agrupa o menu em Operação e Governança, com ajuda no rodapé', () => {
+  it('itens principais sem rótulo de grupo; "Sistema" com Auditoria e Administração aberta em /admin', () => {
     pathname = '/admin/usuarios';
     renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
     const nav = screen.getByRole('navigation', { name: 'Menu principal' });
-    const operation = within(nav).getByRole('list', { name: 'Operação' });
-    const governance = within(nav).getByRole('list', { name: 'Governança' });
+    expect(within(nav).queryByText('Operação')).toBeNull();
+    expect(within(nav).queryByText('Governança')).toBeNull();
+    const [main] = within(nav).getAllByRole('list');
+    const system = within(nav).getByRole('list', { name: 'Sistema' });
     expect(
-      within(operation)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
+      Array.from(main?.querySelectorAll(':scope > li > a') ?? []).map((link) => link.textContent),
     ).toEqual([
       'Painel',
       'Caixa de tarefas',
@@ -120,16 +135,59 @@ describe('[Sucesso] AppShell', () => {
       'Exemplo do shell',
     ]);
     expect(
-      within(governance)
+      within(system)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Auditoria', 'Administração']);
-    expect(
-      within(governance).getByRole('link', { name: 'Administração' }).getAttribute('aria-current'),
-    ).toBe('page');
-    expect(screen.getByRole('link', { name: 'Falar com o suporte →' }).getAttribute('href')).toBe(
-      'mailto:suporte@contrataflow.com.br',
+    ).toEqual([
+      'Auditoria',
+      'Administração',
+      'Usuários',
+      'Perfis e permissões',
+      'Estrutura organizacional',
+      'Templates',
+      'Workflows',
+      'Tipos de documento',
+      'Catálogos',
+      'Calendário',
+      'Configurações',
+    ]);
+    // A área atual leva o `aria-current`; o item do grupo só o leva no hub.
+    const areas = within(system).getByRole('list', { name: 'Áreas de administração' });
+    expect(within(areas).getByRole('link', { name: 'Usuários' }).getAttribute('aria-current')).toBe(
+      'page',
     );
+    expect(nav.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+    expect(
+      within(system).getByRole('link', { name: 'Administração' }).getAttribute('aria-current'),
+    ).toBeNull();
+    // O antigo "Precisa de ajuda?" do rodapé vira o ícone de ajuda da barra superior.
+    expect(screen.queryByText('Precisa de ajuda?')).toBeNull();
+  });
+
+  it('Administração recolhível: fechada fora de /admin, abre e fecha pelo chevron', async () => {
+    pathname = '/processos';
+    renderWithShell(<MainNav />);
+    const toggle = screen.getByRole('button', { name: 'Áreas de administração' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('link', { name: 'Usuários' })).toBeNull();
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Usuários' }).getAttribute('href')).toBe(
+      '/admin/usuarios',
+    );
+    await userEvent.click(toggle);
+    expect(screen.queryByRole('link', { name: 'Usuários' })).toBeNull();
+  });
+
+  it('no hub (/admin) o item Administração é a página atual e o grupo começa aberto', () => {
+    pathname = '/admin';
+    renderWithShell(<MainNav />);
+    expect(screen.getByRole('link', { name: 'Administração' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Áreas de administração' }).getAttribute('aria-expanded'),
+    ).toBe('true');
   });
 
   it('Ctrl K (e ⌘ K) abre a paleta de comandos de qualquer ponto; outras teclas não', async () => {
@@ -211,7 +269,12 @@ describe('[Sucesso] AppShell', () => {
       await within(nav).findByRole('link', { name: 'Caixa de tarefas (7 pendentes)' }),
     ).toBeTruthy();
     const approvals = within(nav).getByRole('link', { name: 'Aprovações (120 pendentes)' });
-    expect(within(approvals).getByText('99+').getAttribute('aria-hidden')).toBe('true');
+    // Contador no texto do item (prd-6 · §2.2), escondido do leitor (que ouve o plural).
+    const visible = within(approvals).getByText('· 99+', { normalizer: (text) => text.trim() });
+    expect(visible.getAttribute('aria-hidden')).toBe('true');
+    expect(within(nav).getByRole('link', { name: /^Caixa de tarefas/ }).textContent).toContain(
+      'Caixa de tarefas · 7',
+    );
     expect(
       fetchMock.mock.calls.some(([input]) => requestUrl(input).endsWith('/tasks/counters')),
     ).toBe(true);
@@ -248,20 +311,51 @@ describe('[Sucesso] AppShell', () => {
     renderWithShell(<AppShell session={shellSession()}>x</AppShell>);
     await userEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
     const dialog = await screen.findByRole('dialog', { name: 'ContrataFlow' });
-    expect(within(dialog).getByRole('list', { name: 'Governança' })).toBeTruthy();
-    expect(within(dialog).getByText('Precisa de ajuda?')).toBeTruthy();
+    expect(within(dialog).getByRole('list', { name: 'Sistema' })).toBeTruthy();
+    expect(within(dialog).getByRole('link', { name: 'Minha conta' })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Sair' })).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('link', { name: 'Processos' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
 
-  it('navegação de administração marca a área atual', () => {
+  it('subitens da administração marcam a área atual (subrota incluída)', () => {
     pathname = '/admin/usuarios/123';
-    renderWithShell(<AdminNav />);
-    const nav = screen.getByRole('navigation', { name: 'Navegação de administração' });
+    renderWithShell(<MainNav />);
+    const nav = screen.getByRole('navigation', { name: 'Menu principal' });
     expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Usuários');
     expect(isActivePath('/processosx', '/processos')).toBe(false);
+  });
+
+  it('cartão do usuário: "Sair" passa pelo LogoutGuard e confirma com rascunho não salvo', async () => {
+    const fetchMock = stubFetch(() =>
+      jsonResponse({ data: { logoutUrl: 'https://idp.example/end-session' } }),
+    );
+    const navigate = vi.fn();
+    const session = shellSession();
+    const drafts = new LocalDrafts(new MemoryDraftBackend());
+    await drafts.save({
+      userId: session.user.id,
+      tenantId: session.activeTenant.id,
+      target: 'dfd:1:JUSTIFICATION',
+      content: 'trecho',
+      baseRevision: 1,
+    });
+    renderWithShell(
+      <LogoutGuard drafts={drafts} onNavigate={navigate}>
+        <UserCard />
+      </LogoutGuard>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(
+      await screen.findByRole('dialog', { name: 'Sair com alterações não salvas?' }),
+    ).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Sair mesmo assim' }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('https://idp.example/end-session');
+    });
   });
 });
 

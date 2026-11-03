@@ -11,9 +11,10 @@ import { Can } from '@/lib/permissions/can';
 export const NEW_PROCESS_PATH = '/processos/novo';
 
 /**
- * Botão global "Novo processo" do cabeçalho do shell (US-001 · passo 1): só aparece para quem tem
- * `PROCESS_CREATE` (a API decide o escopo — FA-08). Abaixo de `sm` mostra só o ícone, mantendo o
- * nome acessível e uma dica. É o CTA global: o cabeçalho das páginas não o repete (prd-5 · regra 1).
+ * "Novo processo" (US-001 · passo 1), ação primária do cabeçalho da lista de processos (prd-6 ·
+ * §2.3 — saiu da barra superior; de qualquer tela, a paleta Ctrl K também o oferece): só aparece
+ * para quem tem `PROCESS_CREATE` (a API decide o escopo — FA-08). Abaixo de `sm` mostra só o
+ * ícone, mantendo o nome acessível e uma dica.
  */
 export function NewProcessButton() {
   const t = useTranslations('processes.newButton');

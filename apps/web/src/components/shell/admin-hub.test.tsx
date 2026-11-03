@@ -6,7 +6,6 @@ import { seriousA11yViolations } from '@test/support/axe';
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
 import { AdminHub } from './admin-hub';
-import { AdminNav } from './main-nav';
 
 // A suíte completa roda em paralelo com as demais; o padrão de 1 s é curto para a primeira renderização.
 configure({ asyncUtilTimeout: 5000 });
@@ -76,11 +75,5 @@ describe('hub da administração (prd-5 · card 8)', () => {
     expect(screen.queryByRole('link', { name: /Tipos de documento/ })).toBeNull();
     expect(screen.getByRole('link', { name: /Usuários/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Calendário/ })).toBeTruthy();
-  });
-
-  it('a barra de navegação de administração não se repete no hub', () => {
-    mockPermissions([]);
-    renderWithShell(<AdminNav />);
-    expect(screen.queryByRole('navigation', { name: 'Navegação de administração' })).toBeNull();
   });
 });

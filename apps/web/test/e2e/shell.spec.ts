@@ -61,8 +61,8 @@ test('jornada do shell: dados pré-carregados, CSP com nonce, permissões e logo
   await page.getByRole('button', { name: 'Criar registro' }).click();
   await expect(page.getByText('Registro “Registro E2E” criado.', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Menu do usuário Ana Souza' }).click();
-  await page.getByRole('menuitem', { name: 'Sair' }).click();
+  // "Sair" no cartão do usuário, no rodapé do menu lateral (prd-6 · §2.2).
+  await page.getByRole('button', { name: 'Sair', exact: true }).click();
   await expect(page).toHaveURL(/\/entrar\?motivo=saiu$/);
   await expect(page.getByRole('status')).toContainText('Você saiu com segurança.');
   expect(consoleErrors.filter((text) => text.includes('Content Security Policy'))).toEqual([]);
@@ -164,7 +164,7 @@ test('401 da API após renovar: modal "Sua sessão expirou" e nova entrada com r
   await expect(page.getByRole('main').getByRole('status')).toContainText('Sua sessão expirou');
   await page.getByLabel('Usuário ou e-mail').fill('ana');
   await page.getByLabel('Senha', { exact: true }).fill('senha-fake');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Exemplo do shell' })).toBeVisible();
 });
 

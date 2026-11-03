@@ -6,10 +6,10 @@ vetorial e palavra-marca em texto real.
 
 ## Ativos
 
-| Arquivo | Uso | Dimensões |
-|---|---|---|
-| `contrataflow-logo-horizontal.png` | Logo horizontal: ícone + "ContrataFlow" + slogan "DO PLANEJAMENTO À CONTRATAÇÃO" | 1672×941, fundo transparente, arte em (41,202)–(1640,821) |
-| `contrataflow-icone.png` | Ícone isolado (favicon, app, avatar da marca) | 1254×1254, fundo transparente, arte em (214,203)–(1069,1109) |
+| Arquivo                            | Uso                                                                              | Dimensões                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `contrataflow-logo-horizontal.png` | Logo horizontal: ícone + "ContrataFlow" + slogan "DO PLANEJAMENTO À CONTRATAÇÃO" | 1672×941, fundo transparente, arte em (41,202)–(1640,821)    |
+| `contrataflow-icone.png`           | Ícone isolado (favicon, app, avatar da marca)                                    | 1254×1254, fundo transparente, arte em (214,203)–(1069,1109) |
 
 Derivados no código (regenerar a partir daqui quando a marca mudar):
 
@@ -20,12 +20,12 @@ Derivados no código (regenerar a partir daqui quando a marca mudar):
 
 ## Paleta
 
-| Cor | Hex | Uso |
-|---|---|---|
-| Navy | `#141E2B` | "Contrata", faixa superior do ícone, títulos, toasts, cabeçalho de e-mail |
-| Azul | `#005BF9` | "Flow", faixas inferiores do ícone, cor primária padrão |
-| Azul profundo | `#004BE3` | hover/pressed, botões e links de e-mail |
-| Azul claro (sobre navy) | `#6B9EFF` | "Flow" e foco sobre fundo navy; primária do tema escuro |
+| Cor                     | Hex       | Uso                                                                       |
+| ----------------------- | --------- | ------------------------------------------------------------------------- |
+| Navy                    | `#141E2B` | "Contrata", faixa superior do ícone, títulos, toasts, cabeçalho de e-mail |
+| Azul                    | `#005BF9` | "Flow", faixas inferiores do ícone, cor primária padrão                   |
+| Azul profundo           | `#004BE3` | hover/pressed, botões e links de e-mail                                   |
+| Azul claro (sobre navy) | `#6B9EFF` | "Flow" e foco sobre fundo navy; primária do tema escuro                   |
 
 Os PNGs medem navy `#04121E` e azul `#004BE3` no logo horizontal; os valores canônicos acima são os
 do ícone.
@@ -39,22 +39,22 @@ referência visual dos cards seguintes: [`mockups/repaginacao-2026-10/`](mockups
 
 ### Paleta de uso (tema claro)
 
-| Papel | Token | Hex | Uso |
-|---|---|---|---|
-| Fundo da página | `background` | `#F7F8FA` | ground das telas (era `#F4F6FA` até a 2ª leva) |
-| Superfície | `surface` | `#FFFFFF` | cartões, tabelas, menus |
-| Borda | `border` / `border-strong` | `#E2E8F0` / `#CBD5E1` | divisores e cartões / campos e botões secundários |
-| Texto | `foreground` | `#0F172A` | corpo |
-| Texto secundário | `muted-foreground` | `#5B6B80` | apoio, rótulos (o `#64748B` da prévia fica 4,4:1 sobre o fundo; escurecido para AA) |
-| Títulos | `brand-ink` | `#141E2B` | títulos de página e seção, números de KPI |
-| Primária | `primary` / `primary-hover` | `#005BF9` / `#004BE3` | ação primária, item ativo, links no hover |
-| Destaque | `primary-soft` / `-foreground` | `#E8F0FF` / `#004BE3` | item ativo, chip "em andamento", filtros |
-| Sucesso | `success` · `-soft` · `-soft-foreground` | `#15803D` · `#DCFCE7` · `#166534` | concluído |
-| Atenção | `warning` · `-soft` · `-soft-foreground` | `#B45309` · `#FEF3C7` · `#92400E` | prazo próximo, devolvido |
-| Erro | `destructive` · `-soft` · `-soft-foreground` | `#B91C1C` · `#FEE2E2` · `#991B1B` | atrasado, suspenso, ação perigosa |
-| Aprovação | `approval` · `-soft` · `-soft-foreground` | `#7C3AED` · `#EDE9FE` · `#5B21B6` | aguardando aprovação |
-| Neutro | `neutral` · `-soft` · `-soft-foreground` | `#94A3B8` · `#F1F5F9` · `#334155` | rascunho, desabilitado (`neutral` só como marca gráfica, nunca texto) |
-| Invertida | `inverse` · `-foreground` · `-muted` | `#141E2B` · `#FFFFFF` · `#B3BDCB` | toasts |
+| Papel            | Token                                        | Hex                               | Uso                                                                                 |
+| ---------------- | -------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------- |
+| Fundo da página  | `background`                                 | `#F7F8FA`                         | ground das telas (era `#F4F6FA` até a 2ª leva)                                      |
+| Superfície       | `surface`                                    | `#FFFFFF`                         | cartões, tabelas, menus                                                             |
+| Borda            | `border` / `border-strong`                   | `#E2E8F0` / `#CBD5E1`             | divisores e cartões / campos e botões secundários                                   |
+| Texto            | `foreground`                                 | `#0F172A`                         | corpo                                                                               |
+| Texto secundário | `muted-foreground`                           | `#5B6B80`                         | apoio, rótulos (o `#64748B` da prévia fica 4,4:1 sobre o fundo; escurecido para AA) |
+| Títulos          | `brand-ink`                                  | `#141E2B`                         | títulos de página e seção, números de KPI                                           |
+| Primária         | `primary` / `primary-hover`                  | `#005BF9` / `#004BE3`             | ação primária, item ativo, links no hover                                           |
+| Destaque         | `primary-soft` / `-foreground`               | `#E8F0FF` / `#004BE3`             | item ativo, chip "em andamento", filtros                                            |
+| Sucesso          | `success` · `-soft` · `-soft-foreground`     | `#15803D` · `#DCFCE7` · `#166534` | concluído                                                                           |
+| Atenção          | `warning` · `-soft` · `-soft-foreground`     | `#B45309` · `#FEF3C7` · `#92400E` | prazo próximo, devolvido                                                            |
+| Erro             | `destructive` · `-soft` · `-soft-foreground` | `#B91C1C` · `#FEE2E2` · `#991B1B` | atrasado, suspenso, ação perigosa                                                   |
+| Aprovação        | `approval` · `-soft` · `-soft-foreground`    | `#7C3AED` · `#EDE9FE` · `#5B21B6` | aguardando aprovação                                                                |
+| Neutro           | `neutral` · `-soft` · `-soft-foreground`     | `#94A3B8` · `#F1F5F9` · `#334155` | rascunho, desabilitado (`neutral` só como marca gráfica, nunca texto)               |
+| Invertida        | `inverse` · `-foreground` · `-muted`         | `#141E2B` · `#FFFFFF` · `#B3BDCB` | toasts                                                                              |
 
 Tipografia Inter (carregada pelo `next/font` desde a 3ª leva): `text-page-title` 26/700,
 `text-section-title` 16/700, corpo `text-sm` 14/400, `text-label` 12/600 caixa alta, `text-kpi`
@@ -118,12 +118,12 @@ Cada tela adota o modelo da sua família (`packages/ui/src/components/*-page.tsx
 axe). Os modelos só arrumam o layout: recebem os blocos prontos (cabeçalho, abas, barra de filtros,
 tabela) e não buscam dados.
 
-| Modelo | Quando usar | Estrutura |
-|---|---|---|
-| `ListPage` | Listas e caixas (processos, tarefas, aprovações, fornecedores, auditoria, cadastros) | `PageHeader` → `ViewTabs` → `FilterToolbar` → avisos → `TableContainer` com rodapé de contagem/paginação; props `loading` (esqueleto `ListPageSkeleton`), `error` e `empty` |
-| `DetailPage` | Uma entidade com etapas e abas (processo, aprovação, documento) | Faixa de cabeçalho (trilha, título, chips, linha de identificação, "Mais" + ação primária) → cartão com `StageProgress` e fatos-chave em linha → avisos → abas → `DetailGrid` 2/3 + 1/3 (a coluna lateral desce abaixo de 1024 px) |
-| `FormPage` / `WizardShell` | Criar ou editar (novo processo, DFD, ETP, TR, formulários de cadastro) | Coluna de 720 px com `FormSection` e `FormActionBar` fixa no rodapé (Salvar rascunho · Continuar, `AutosaveIndicator` à esquerda, `RecoveredDraftBanner` em `notices`); no assistente, passos à esquerda a partir de 1024 px e `StageProgress` abaixo disso |
-| `SettingsPage` | Configurações em seções (órgão, perfil, notificações) | Seções à esquerda (linha que quebra em tela estreita), formulário da seção à direita, `aria-current` na atual |
+| Modelo                     | Quando usar                                                                          | Estrutura                                                                                                                                                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ListPage`                 | Listas e caixas (processos, tarefas, aprovações, fornecedores, auditoria, cadastros) | `PageHeader` → `ViewTabs` → `FilterToolbar` → avisos → `TableContainer` com rodapé de contagem/paginação; props `loading` (esqueleto `ListPageSkeleton`), `error` e `empty`                                                                                 |
+| `DetailPage`               | Uma entidade com etapas e abas (processo, aprovação, documento)                      | Faixa de cabeçalho (trilha, título, chips, linha de identificação, "Mais" + ação primária) → cartão com `StageProgress` e fatos-chave em linha → avisos → abas → `DetailGrid` 2/3 + 1/3 (a coluna lateral desce abaixo de 1024 px)                          |
+| `FormPage` / `WizardShell` | Criar ou editar (novo processo, DFD, ETP, TR, formulários de cadastro)               | Coluna de 720 px com `FormSection` e `FormActionBar` fixa no rodapé (Salvar rascunho · Continuar, `AutosaveIndicator` à esquerda, `RecoveredDraftBanner` em `notices`); no assistente, passos à esquerda a partir de 1024 px e `StageProgress` abaixo disso |
+| `SettingsPage`             | Configurações em seções (órgão, perfil, notificações)                                | Seções à esquerda (linha que quebra em tela estreita), formulário da seção à direita, `aria-current` na atual                                                                                                                                               |
 
 Regras verificadas por teste em `apps/web/src/components/templates/`: **só a página rola**
 (`no-nested-scroll.test.ts` — rolagem interna só em tabela larga, corpo de diálogo/gaveta, lista
@@ -132,11 +132,13 @@ suspensa ou bloco de código, listados em `ALLOWED` com o motivo) e **nenhum con
 leva: qualquer `<select>`, checkbox, radio ou date nativo reprova o teste). `ALLOWED` só guarda
 arquivos que ainda rolam por dentro; o teste reprova entrada de arquivo que já não rola.
 
-O shell segue as mesmas regras: "Novo processo" só na barra superior (o cabeçalho das páginas não o
-repete); Ctrl K abre a paleta de comandos (`CommandPalette`: busca de processos pela PRC-01, "Novo
-processo" e "Ir para" as áreas do menu, com as permissões do menu); dicas (`Tooltip`) nos botões só
-de ícone; o menu lateral não rola por dentro (fixo com 768 px de altura ou mais; abaixo disso rola
-com a página).
+O shell segue as mesmas regras: "Novo processo" no cabeçalho da lista de processos e na paleta
+(desde a terceira leva; antes ficava só na barra superior); Ctrl K abre a paleta de comandos
+(`CommandPalette`: busca de processos pela PRC-01, "Novo processo" e "Ir para" as áreas do menu,
+com as permissões do menu); dicas (`Tooltip`) nos botões só de ícone; o menu lateral não rola por
+dentro: fica preso pelo rodapé (`sticky bottom-0` + `self-end`) — fixo quando cabe na janela e,
+quando não cabe, rola com a página até o cartão do usuário (desde a terceira leva; antes era fixo só
+com 768 px de altura ou mais).
 
 ### Capturas das duas levas (2026-10)
 
@@ -145,53 +147,53 @@ Build de produção com a API simulada (`apps/web/test/e2e/support/mock-api.mjs`
 quando uma tela mudar de aspecto. Painel, lista e página do processo foram regeneradas no card 2 da
 segunda leva (modelos de página), junto com `paleta-de-comandos.png` (Ctrl K aberto, 1280 px).
 
-| Tela | Claro (1280 px) | Escuro | Celular (390 px) |
-|---|---|---|---|
-| Login (`/entrar`) | `login.png` | — | `login-celular.png` |
-| Painel | `painel.png` | `painel-escuro.png` | `painel-celular.png` |
-| Lista de processos | `lista-de-processos.png` | `lista-de-processos-escuro.png` | `lista-de-processos-celular.png` |
-| Página do processo | `pagina-do-processo.png` | `pagina-do-processo-escuro.png` | `pagina-do-processo-celular.png` |
-| Caixa de tarefas (card 3) | `caixa-de-tarefas.png` | `caixa-de-tarefas-escuro.png` | `caixa-de-tarefas-celular.png` |
-| Caixa de tarefas vazia | `caixa-de-tarefas-vazia.png` | `caixa-de-tarefas-vazia-escuro.png` | `caixa-de-tarefas-vazia-celular.png` |
-| Aprovações (card 3) | `aprovacoes.png` | `aprovacoes-escuro.png` | `aprovacoes-celular.png` |
-| Aprovações vazia | `aprovacoes-vazia.png` | `aprovacoes-vazia-escuro.png` | `aprovacoes-vazia-celular.png` |
-| Decisão da aprovação | `decisao-da-aprovacao.png` | `decisao-da-aprovacao-escuro.png` | `decisao-da-aprovacao-celular.png` |
-| Novo processo · passo 1 (card 4) | `novo-processo-passo-1.png` | `novo-processo-passo-1-escuro.png` | `novo-processo-passo-1-celular.png` |
-| Novo processo · passo 2 | `novo-processo-passo-2.png` | `novo-processo-passo-2-escuro.png` | `novo-processo-passo-2-celular.png` |
-| Menu "Mais" do processo | `processo-menu-mais.png` | `processo-menu-mais-escuro.png` | `processo-menu-mais-celular.png` |
-| Diálogo Atribuir responsável | `dialogo-atribuir.png` | `dialogo-atribuir-escuro.png` | `dialogo-atribuir-celular.png` |
-| Diálogo Suspender processo | `dialogo-suspender.png` | `dialogo-suspender-escuro.png` | `dialogo-suspender-celular.png` |
-| Diálogo Cancelar processo | `dialogo-cancelar.png` | `dialogo-cancelar-escuro.png` | `dialogo-cancelar-celular.png` |
-| Aba Tramitação | `aba-tramitacao.png` | `aba-tramitacao-escuro.png` | `aba-tramitacao-celular.png` |
-| Aba Itens | `aba-itens.png` | `aba-itens-escuro.png` | `aba-itens-celular.png` |
-| DFD · Identificação (card 5) | `dfd-identificacao.png` | `dfd-identificacao-escuro.png` | `dfd-identificacao-celular.png` |
-| DFD · Planejamento | `dfd-planejamento.png` | `dfd-planejamento-escuro.png` | `dfd-planejamento-celular.png` |
-| ETP · seção e "O que falta" | `etp-secao.png` | `etp-secao-escuro.png` | `etp-secao-celular.png` |
-| ETP · quadro de alternativas | `etp-alternativas.png` | `etp-alternativas-escuro.png` | `etp-alternativas-celular.png` |
-| TR · itens | `tr-itens.png` | `tr-itens-escuro.png` | `tr-itens-celular.png` |
-| Fornecedores (card 7) | `fornecedores.png` | `fornecedores-escuro.png` | `fornecedores-celular.png` |
-| Auditoria · Registros | `auditoria.png` | `auditoria-escuro.png` | `auditoria-celular.png` |
-| Notificações | `notificacoes.png` | `notificacoes-escuro.png` | `notificacoes-celular.png` |
-| Meu perfil | `perfil.png` | `perfil-escuro.png` | `perfil-celular.png` |
-| Administração · hub (card 8) | `administracao.png` | `administracao-escuro.png` | `administracao-celular.png` |
-| Usuários · lista | `usuarios.png` | `usuarios-escuro.png` | `usuarios-celular.png` |
-| Usuários · detalhe | `usuario-detalhe.png` | `usuario-detalhe-escuro.png` | `usuario-detalhe-celular.png` |
-| Perfis · matriz de permissões | `perfis-matriz.png` | `perfis-matriz-escuro.png` | `perfis-matriz-celular.png` |
-| Configurações · Segurança | `configuracoes-seguranca.png` | `configuracoes-seguranca-escuro.png` | `configuracoes-seguranca-celular.png` |
-| Configurações · Inteligência artificial | `configuracoes-ia.png` | `configuracoes-ia-escuro.png` | `configuracoes-ia-celular.png` |
-| Estrutura · Órgãos | `estrutura.png` | `estrutura-escuro.png` | `estrutura-celular.png` |
-| Calendário | `calendario.png` | `calendario-escuro.png` | `calendario-celular.png` |
-| Templates · lista (card 9) | `templates.png` | `templates-escuro.png` | `templates-celular.png` |
-| Templates · editor de versão | `editor-de-template.png` | `editor-de-template-escuro.png` | `editor-de-template-celular.png` |
-| Workflows · editor | `editor-de-workflow.png` | `editor-de-workflow-escuro.png` | `editor-de-workflow-celular.png` |
-| Workflows · regras | `regras-do-workflow.png` | `regras-do-workflow-escuro.png` | `regras-do-workflow-celular.png` |
-| Catálogos | `catalogos.png` | `catalogos-escuro.png` | `catalogos-celular.png` |
-| IA · Gerar (card 10) | `ia-gerar.png` | `ia-gerar-escuro.png` | `ia-gerar-celular.png` |
-| IA · Progresso | `ia-progresso.png` | `ia-progresso-escuro.png` | `ia-progresso-celular.png` |
-| IA · Proposta | `ia-proposta.png` | `ia-proposta-escuro.png` | `ia-proposta-celular.png` |
-| Selecionar órgão | `selecionar-orgao.png` | `selecionar-orgao-escuro.png` | `selecionar-orgao-celular.png` |
-| Convite | `convite.png` | `convite-escuro.png` | `convite-celular.png` |
-| Erro 404 | `erro-404.png` | `erro-404-escuro.png` | `erro-404-celular.png` |
+| Tela                                    | Claro (1280 px)               | Escuro                               | Celular (390 px)                      |
+| --------------------------------------- | ----------------------------- | ------------------------------------ | ------------------------------------- |
+| Login (`/entrar`)                       | `login.png`                   | —                                    | `login-celular.png`                   |
+| Painel                                  | `painel.png`                  | `painel-escuro.png`                  | `painel-celular.png`                  |
+| Lista de processos                      | `lista-de-processos.png`      | `lista-de-processos-escuro.png`      | `lista-de-processos-celular.png`      |
+| Página do processo                      | `pagina-do-processo.png`      | `pagina-do-processo-escuro.png`      | `pagina-do-processo-celular.png`      |
+| Caixa de tarefas (card 3)               | `caixa-de-tarefas.png`        | `caixa-de-tarefas-escuro.png`        | `caixa-de-tarefas-celular.png`        |
+| Caixa de tarefas vazia                  | `caixa-de-tarefas-vazia.png`  | `caixa-de-tarefas-vazia-escuro.png`  | `caixa-de-tarefas-vazia-celular.png`  |
+| Aprovações (card 3)                     | `aprovacoes.png`              | `aprovacoes-escuro.png`              | `aprovacoes-celular.png`              |
+| Aprovações vazia                        | `aprovacoes-vazia.png`        | `aprovacoes-vazia-escuro.png`        | `aprovacoes-vazia-celular.png`        |
+| Decisão da aprovação                    | `decisao-da-aprovacao.png`    | `decisao-da-aprovacao-escuro.png`    | `decisao-da-aprovacao-celular.png`    |
+| Novo processo · passo 1 (card 4)        | `novo-processo-passo-1.png`   | `novo-processo-passo-1-escuro.png`   | `novo-processo-passo-1-celular.png`   |
+| Novo processo · passo 2                 | `novo-processo-passo-2.png`   | `novo-processo-passo-2-escuro.png`   | `novo-processo-passo-2-celular.png`   |
+| Menu "Mais" do processo                 | `processo-menu-mais.png`      | `processo-menu-mais-escuro.png`      | `processo-menu-mais-celular.png`      |
+| Diálogo Atribuir responsável            | `dialogo-atribuir.png`        | `dialogo-atribuir-escuro.png`        | `dialogo-atribuir-celular.png`        |
+| Diálogo Suspender processo              | `dialogo-suspender.png`       | `dialogo-suspender-escuro.png`       | `dialogo-suspender-celular.png`       |
+| Diálogo Cancelar processo               | `dialogo-cancelar.png`        | `dialogo-cancelar-escuro.png`        | `dialogo-cancelar-celular.png`        |
+| Aba Tramitação                          | `aba-tramitacao.png`          | `aba-tramitacao-escuro.png`          | `aba-tramitacao-celular.png`          |
+| Aba Itens                               | `aba-itens.png`               | `aba-itens-escuro.png`               | `aba-itens-celular.png`               |
+| DFD · Identificação (card 5)            | `dfd-identificacao.png`       | `dfd-identificacao-escuro.png`       | `dfd-identificacao-celular.png`       |
+| DFD · Planejamento                      | `dfd-planejamento.png`        | `dfd-planejamento-escuro.png`        | `dfd-planejamento-celular.png`        |
+| ETP · seção e "O que falta"             | `etp-secao.png`               | `etp-secao-escuro.png`               | `etp-secao-celular.png`               |
+| ETP · quadro de alternativas            | `etp-alternativas.png`        | `etp-alternativas-escuro.png`        | `etp-alternativas-celular.png`        |
+| TR · itens                              | `tr-itens.png`                | `tr-itens-escuro.png`                | `tr-itens-celular.png`                |
+| Fornecedores (card 7)                   | `fornecedores.png`            | `fornecedores-escuro.png`            | `fornecedores-celular.png`            |
+| Auditoria · Registros                   | `auditoria.png`               | `auditoria-escuro.png`               | `auditoria-celular.png`               |
+| Notificações                            | `notificacoes.png`            | `notificacoes-escuro.png`            | `notificacoes-celular.png`            |
+| Meu perfil                              | `perfil.png`                  | `perfil-escuro.png`                  | `perfil-celular.png`                  |
+| Administração · hub (card 8)            | `administracao.png`           | `administracao-escuro.png`           | `administracao-celular.png`           |
+| Usuários · lista                        | `usuarios.png`                | `usuarios-escuro.png`                | `usuarios-celular.png`                |
+| Usuários · detalhe                      | `usuario-detalhe.png`         | `usuario-detalhe-escuro.png`         | `usuario-detalhe-celular.png`         |
+| Perfis · matriz de permissões           | `perfis-matriz.png`           | `perfis-matriz-escuro.png`           | `perfis-matriz-celular.png`           |
+| Configurações · Segurança               | `configuracoes-seguranca.png` | `configuracoes-seguranca-escuro.png` | `configuracoes-seguranca-celular.png` |
+| Configurações · Inteligência artificial | `configuracoes-ia.png`        | `configuracoes-ia-escuro.png`        | `configuracoes-ia-celular.png`        |
+| Estrutura · Órgãos                      | `estrutura.png`               | `estrutura-escuro.png`               | `estrutura-celular.png`               |
+| Calendário                              | `calendario.png`              | `calendario-escuro.png`              | `calendario-celular.png`              |
+| Templates · lista (card 9)              | `templates.png`               | `templates-escuro.png`               | `templates-celular.png`               |
+| Templates · editor de versão            | `editor-de-template.png`      | `editor-de-template-escuro.png`      | `editor-de-template-celular.png`      |
+| Workflows · editor                      | `editor-de-workflow.png`      | `editor-de-workflow-escuro.png`      | `editor-de-workflow-celular.png`      |
+| Workflows · regras                      | `regras-do-workflow.png`      | `regras-do-workflow-escuro.png`      | `regras-do-workflow-celular.png`      |
+| Catálogos                               | `catalogos.png`               | `catalogos-escuro.png`               | `catalogos-celular.png`               |
+| IA · Gerar (card 10)                    | `ia-gerar.png`                | `ia-gerar-escuro.png`                | `ia-gerar-celular.png`                |
+| IA · Progresso                          | `ia-progresso.png`            | `ia-progresso-escuro.png`            | `ia-progresso-celular.png`            |
+| IA · Proposta                           | `ia-proposta.png`             | `ia-proposta-escuro.png`             | `ia-proposta-celular.png`             |
+| Selecionar órgão                        | `selecionar-orgao.png`        | `selecionar-orgao-escuro.png`        | `selecionar-orgao-celular.png`        |
+| Convite                                 | `convite.png`                 | `convite-escuro.png`                 | `convite-celular.png`                 |
+| Erro 404                                | `erro-404.png`                | `erro-404-escuro.png`                | `erro-404-celular.png`                |
 
 Painéis do card 7 (1280 px, claro): `fornecedores-formulario.png` (painel lateral "Novo
 fornecedor"), `auditoria-filtros.png` (painel "Filtros da auditoria") e `notificacoes-sino.png`
@@ -204,25 +206,25 @@ claro (1280 px), escuro (`-escuro`, `data-theme="dark"`) e celular (`-celular`, 
 `screenshots/repaginacao-2026-10/leva-2/`. Substituem, como referência da leva fechada, as das
 tabelas acima (que mostram cada card no seu momento).
 
-| Família | Arquivo-base |
-|---|---|
-| Painel | `painel` |
-| Processos · lista | `lista-de-processos` |
-| Processo · página | `pagina-do-processo` |
-| Novo processo | `novo-processo` |
-| Caixa de tarefas | `caixa-de-tarefas` |
-| Aprovações · decisão | `decisao-da-aprovacao`, `aprovacoes` |
-| ETP (documento) | `etp` |
-| TR | `tr` |
-| Pesquisa de preços | `pesquisa-de-precos`, `mapa-comparativo` |
-| Riscos | `riscos` |
-| Documentos · versões | `versoes-do-documento` |
-| Fornecedores | `fornecedores` |
-| Auditoria | `auditoria` |
-| Notificações | `notificacoes` |
-| Meu perfil | `perfil` |
-| Administração | `administracao`, `usuarios`, `templates` |
-| Erro | `erro-404` |
+| Família              | Arquivo-base                             |
+| -------------------- | ---------------------------------------- |
+| Painel               | `painel`                                 |
+| Processos · lista    | `lista-de-processos`                     |
+| Processo · página    | `pagina-do-processo`                     |
+| Novo processo        | `novo-processo`                          |
+| Caixa de tarefas     | `caixa-de-tarefas`                       |
+| Aprovações · decisão | `decisao-da-aprovacao`, `aprovacoes`     |
+| ETP (documento)      | `etp`                                    |
+| TR                   | `tr`                                     |
+| Pesquisa de preços   | `pesquisa-de-precos`, `mapa-comparativo` |
+| Riscos               | `riscos`                                 |
+| Documentos · versões | `versoes-do-documento`                   |
+| Fornecedores         | `fornecedores`                           |
+| Auditoria            | `auditoria`                              |
+| Notificações         | `notificacoes`                           |
+| Meu perfil           | `perfil`                                 |
+| Administração        | `administracao`, `usuarios`, `templates` |
+| Erro                 | `erro-404`                               |
 
 Login, DFD, editores de template e workflow e o assistente de IA seguem nas capturas dos cards
 (tabelas acima). Regenerar quando uma tela mudar de aspecto: o roteiro é subir `next start` com a
@@ -254,13 +256,13 @@ carrega a mesma família pelo Google Fonts (`.storybook/preview-head.html`, só 
 
 **Tokens.**
 
-| Token | Antes (prd-4/5) | Agora |
-|---|---|---|
-| `--radius-control` | 10 px | 8 px |
-| `--radius-card` | 14 px | 12 px |
-| `--shadow-card` | contorno 1 px a 4 % + elevação | contorno 1 px a 9 % (escuro: branco a 9 %) + elevação — cartões e tabelas "com borda" |
-| `text-page-title` | 28/800 | 26/700, −0,02em |
-| Cabeçalho de tabela (`Th`) | `text-label` 12/600 sobre `muted/60` | 11/700, 0,06em, caixa alta sobre `muted/40` |
+| Token                      | Antes (prd-4/5)                      | Agora                                                                                 |
+| -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `--radius-control`         | 10 px                                | 8 px                                                                                  |
+| `--radius-card`            | 14 px                                | 12 px                                                                                 |
+| `--shadow-card`            | contorno 1 px a 4 % + elevação       | contorno 1 px a 9 % (escuro: branco a 9 %) + elevação — cartões e tabelas "com borda" |
+| `text-page-title`          | 28/800                               | 26/700, −0,02em                                                                       |
+| Cabeçalho de tabela (`Th`) | `text-label` 12/600 sobre `muted/60` | 11/700, 0,06em, caixa alta sobre `muted/40`                                           |
 
 O `KpiTile` (que já tinha `border`) troca a `shadow-card` por `shadow-xs`, para não desenhar dois
 contornos.
@@ -289,6 +291,20 @@ filtros" e para listas pequenas, e os chips passam a valer só para os filtros d
 ação primária da tela volta ao cabeçalho da página (continua uma por tela). As regras 3 a 8 do prd-5
 seguem valendo (até 6 colunas, sem cartão dentro de cartão, faixa de detalhe, etapas finas, "Ver
 mais", **só a página rola**, nenhum controle nativo).
+
+**Shell e login (card 2).** Menu lateral sem rótulos "Operação"/"Governança": os itens do dia a dia
+(40 px) com o contador no texto ("Caixa de tarefas · 2", `aria-hidden`, o leitor ouve o plural) e o
+grupo "Sistema" com Auditoria e **Administração recolhível** — o rótulo leva ao hub `/admin`, o
+chevron (`aria-expanded`, "Áreas de administração") abre os subitens de `ADMIN_NAV` (30 px, recuo de
+42 px, mesmas permissões); aberto nas rotas `/admin*`, fechado fora. A barra horizontal `AdminNav`
+saiu. No rodapé, o cartão do usuário (avatar, nome, "Minha conta" → `/perfil`, "Sair" só de ícone
+com dica, pelo `LogoutGuard`). Barra superior: busca em pílula (`bg-muted`, sem borda), ajuda
+(ícone com dica → canal de suporte), sino e o bloco da instituição (nome em negrito + "Instituição
+ativa · trocar", que abre o seletor). Login: painel navy em 58 % da largura, em degradê (165°,
+`#1E2D40 → #141E2B → #0B1118`) com brilho azul no canto, colunas translúcidas decorativas e o slogan
+"Contratações públicas, do planejamento à contratação." no rodapé; formulário "Acesse sua conta"
+com ajuda sob o usuário, "Precisa de ajuda para entrar?" recolhível e o rodapé "ContrataFlow ·
+Visual Sistemas Eletrônicos"; na etapa do código, o indicador "Etapa 2 de 2".
 
 ## Tokens (`packages/ui/src/styles.css`)
 

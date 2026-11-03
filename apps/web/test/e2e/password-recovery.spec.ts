@@ -25,7 +25,7 @@ test('SCR-001: "Esqueci minha senha" leva à recuperação e volta com "Senha re
   // Nenhuma sessão criada; a entrada nativa leva ao destino guardado na recuperação (FA-05).
   await page.getByLabel('Usuário ou e-mail').fill('ana');
   await page.getByLabel('Senha', { exact: true }).fill('senha-fake');
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page).toHaveURL(/\/exemplo\?aba=2$/);
 });
 

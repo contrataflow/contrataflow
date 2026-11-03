@@ -49,7 +49,7 @@ import { CorrelationCode } from '@/components/errors/correlation-code';
 import { ErrorView } from '@/components/errors/error-view';
 import { Icon } from '@/components/shell/icons';
 import { AppPageHeader } from '@/components/shell/page-header';
-import { NEW_PROCESS_PATH } from '@/features/processes/new-process-button';
+import { NEW_PROCESS_PATH, NewProcessButton } from '@/features/processes/new-process-button';
 import { ProcessStatusBadge } from '@/features/processes/process-status-badge';
 import type { Messages } from '@/i18n/messages';
 import { isApiError } from '@/lib/api/api-error';
@@ -533,19 +533,23 @@ export function ProcessListPage() {
             breadcrumbs={[{ label: t('breadcrumbHome'), href: HOME_PATH }, { label: t('title') }]}
             title={t('title')}
             description={t('description')}
-            // "Novo processo" fica só na barra superior (prd-5 · regra 1).
+            // Ações à direita do cabeçalho (prd-6 · §2.3): "Exportar CSV" secundária e "Novo
+            // processo" primária — a ação primária da tela, que saiu da barra superior.
             actions={
-              canExport ? (
-                <Button
-                  variant="secondary"
-                  onClick={(event) => {
-                    openExport(event.currentTarget);
-                  }}
-                >
-                  <Icon name="download" />
-                  {tExport('button')}
-                </Button>
-              ) : null
+              <>
+                {canExport ? (
+                  <Button
+                    variant="secondary"
+                    onClick={(event) => {
+                      openExport(event.currentTarget);
+                    }}
+                  >
+                    <Icon name="download" />
+                    {tExport('button')}
+                  </Button>
+                ) : null}
+                <NewProcessButton />
+              </>
             }
           />
         }

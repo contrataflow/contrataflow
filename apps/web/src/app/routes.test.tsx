@@ -411,7 +411,7 @@ describe('SCR-001 — /entrar (login nativo — DEC-187)', () => {
 
   it('sem motivo mostra o formulário (nada de redirecionar ao IdP); motivo desconhecido é ignorado', async () => {
     renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: '<script>' }) }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
     expect(screen.getByLabelText('Usuário ou e-mail')).toBeTruthy();
     expect(screen.getByLabelText('Senha')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Entrar' })).toBeTruthy();
@@ -448,7 +448,7 @@ describe('SCR-001 — /entrar (login nativo — DEC-187)', () => {
   it('Redis de sessões indisponível: a página continua acessível', async () => {
     server.lookup = { status: 'unavailable' };
     renderIntl(await LoginPage({ searchParams: Promise.resolve({ motivo: 'indisponivel' }) }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
   });
 
   it.each(REASON_MESSAGES)(
@@ -480,21 +480,16 @@ describe('SCR-001 — /entrar (login nativo — DEC-187)', () => {
     expect(screen.getByRole('link', { name: 'Precisa de ajuda?' }).getAttribute('href')).toMatch(
       /^mailto:/,
     );
-    // Painel institucional e aviso de privacidade.
-    for (const text of [
-      'Contratações públicas mais simples, seguras e eficientes.',
-      'Da demanda à publicação, todo o processo em um único lugar, com rastreabilidade completa sob a Lei 14.133/2021.',
-      'Processos padronizados',
-      'DFD, ETP, pesquisa de preços, riscos e TR com regras da lei.',
-      'Tramitação e aprovações',
-      'Fluxos configuráveis por órgão, com prazo por etapa.',
-      'Transparência e controle',
-      'Trilha de evidências imutável e painel situacional.',
-      'Lei 14.133/2021 · MVP 1',
-    ]) {
-      expect(screen.getByText(text)).toBeTruthy();
-    }
+    // Painel institucional (prd-6 · §2.7): só o slogan, sem os destaques; aviso de privacidade e
+    // a empresa no rodapé do acesso.
+    const panel = screen.getByRole('region', { name: 'Sobre o ContrataFlow' });
+    expect(
+      within(panel).getByText('Contratações públicas, do planejamento à contratação.'),
+    ).toBeTruthy();
+    expect(screen.queryByText('Processos padronizados')).toBeNull();
+    expect(screen.queryByText('Lei 14.133/2021 · MVP 1')).toBeNull();
     expect(screen.getByText(/Ao entrar, seus dados são tratados conforme a LGPD/)).toBeTruthy();
+    expect(screen.getByText('ContrataFlow · Visual Sistemas Eletrônicos')).toBeTruthy();
     // Sem imagem de fundo, sem login gov.br no MVP 1 (PEND-18) e sem dados de instituição.
     expect(document.querySelector('img')).toBeNull();
     expect(screen.queryByText(/gov\.br/i)).toBeNull();
@@ -828,14 +823,14 @@ describe('(app): exemplo, admin, loading e error', () => {
     expect(await ExamplePage()).toBeTruthy();
   });
 
-  it('admin com navegação própria; loading anuncia o carregamento', async () => {
+  it('admin sem barra própria (as áreas são subitens do menu lateral); loading anuncia o carregamento', async () => {
     const { renderWithShell } = await import('@test/support/render');
     renderWithShell(
       <AdminLayout>
         <AdminHomePage />
       </AdminLayout>,
     );
-    expect(screen.getByRole('navigation', { name: 'Navegação de administração' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: 'Navegação de administração' })).toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Administração' })).toBeTruthy();
     renderIntl(<AppLoading />);
     expect(screen.getByText('Carregando…')).toBeTruthy();

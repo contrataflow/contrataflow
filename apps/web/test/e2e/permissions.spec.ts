@@ -17,13 +17,16 @@ test('item de administração aparece com ROLE_VIEW e some ao trocar para a inst
 }) => {
   await page.goto(`/api/auth/login?as=ana&returnTo=${encodeURIComponent('/admin')}`);
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole('link', { name: 'Perfis e permissões' })).toBeVisible();
+  await expect(
+    page.getByRole('main').getByRole('link', { name: 'Perfis e permissões' }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' }).click();
   await page.getByRole('menuitem', { name: 'Prefeitura B' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura B' })).toBeVisible();
   // A troca leva ao Dashboard (US-093 · fluxo principal 7): volta à administração para conferir.
   await openAdmin(page);
+  // Some do hub e dos subitens do menu lateral.
   await expect(page.getByRole('link', { name: 'Perfis e permissões' })).toHaveCount(0);
   await expectNoSeriousA11yViolations(page, 'administração sem perfil');
 
@@ -31,5 +34,7 @@ test('item de administração aparece com ROLE_VIEW e some ao trocar para a inst
   await page.getByRole('menuitem', { name: 'Prefeitura A' }).click();
   await expect(page.getByRole('button', { name: 'Instituição ativa: Prefeitura A' })).toBeVisible();
   await openAdmin(page);
-  await expect(page.getByRole('link', { name: 'Perfis e permissões' })).toBeVisible();
+  await expect(
+    page.getByRole('main').getByRole('link', { name: 'Perfis e permissões' }),
+  ).toBeVisible();
 });

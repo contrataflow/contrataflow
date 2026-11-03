@@ -418,10 +418,20 @@ describe('Feature: SCR-004 — Processos (US-002)', () => {
     expect(screen.getByRole('link', { name: 'Criar processo' }).getAttribute('href')).toBe(
       '/processos/novo',
     );
-    // Cabeçalho: "Novo processo" fica só na barra superior (prd-5 · regra 1); sem PROCESS_EXPORT,
+    // Cabeçalho: "Novo processo" primário com PROCESS_CREATE (prd-6 · §2.3); sem PROCESS_EXPORT,
     // sem "Exportar CSV".
-    expect(screen.queryByRole('link', { name: 'Novo processo' })).toBeNull();
+    expect((await screen.findByRole('link', { name: 'Novo processo' })).getAttribute('href')).toBe(
+      '/processos/novo',
+    );
     expect(screen.queryByRole('button', { name: 'Exportar CSV' })).toBeNull();
+  });
+
+  it('[Permissão] sem PROCESS_CREATE o cabeçalho não mostra "Novo processo"', async () => {
+    nav.set('/processos');
+    mockApi(() => page([]), { permissions: ['PROCESS_EXPORT'] });
+    renderWithShell(<ProcessListPage />);
+    expect(await screen.findByRole('button', { name: 'Exportar CSV' })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Novo processo' })).toBeNull();
   });
 
   it('[Falha de banco] 503: mantém filtros, mensagem com correlationId e "Tentar novamente"', async () => {

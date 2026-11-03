@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -47,7 +46,7 @@ export function tenantSwitchFailure(error: unknown): TenantSwitchFailure {
 
 /**
  * Seletor de instituição contratante no cabeçalho (`TenantSwitcherMenu` de SCR-101 · DEC-012 ·
- * US-093): troca a instituição ativa na mesma sessão, apaga o cache do tenant anterior antes de
+ * US-093), aberto pelo bloco de texto da instituição ativa (prd-6 · §2.2): troca a instituição ativa na mesma sessão, apaga o cache do tenant anterior antes de
  * buscar qualquer dado do novo (RN-IAM-72) e segue ao início com o toast "Agora você está em …".
  * Com um único vínculo, mostra a instituição atual sem opção de troca (FA-03); o destino que
  * exige MFA leva ao *step-up* (FA-01).
@@ -106,20 +105,22 @@ export function TenantSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="secondary"
-          className="px-3.5"
+        {/* Bloco da instituição à direita da barra (prd-6 · §2.2): nome em negrito + "trocar". */}
+        <button
+          type="button"
           aria-label={t('label', { name: active.name })}
           aria-busy={pending !== null}
+          className="flex min-h-11 max-w-44 min-w-0 flex-col items-end justify-center rounded-control px-2 text-right leading-tight hover:bg-muted sm:max-w-60"
         >
-          <Icon name="building" className="size-[1.125rem] text-muted-foreground" />
-          <span className="hidden max-w-48 truncate font-medium sm:inline">
+          <span className="w-full truncate text-[0.8125rem] font-bold text-brand-ink">
             {pending ? t('switching') : active.name}
           </span>
-          <Icon name="chevronDown" className="size-4 text-muted-foreground" />
-        </Button>
+          <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
+            {t('trigger')}
+          </span>
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-72">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel>{t('heading')}</DropdownMenuLabel>
         {memberships.map((membership) => {
           const current = membership.tenant.id === active.id;

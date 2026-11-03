@@ -17,11 +17,11 @@ import { useState } from 'react';
 
 import { Icon } from './icons';
 import { MainNav } from './main-nav';
-import { SidebarHelp } from './sidebar-help';
+import { UserCard } from './user-card';
 
 /**
  * Menu em gaveta abaixo de 1024 px (shell responsivo — a barra lateral colapsa), com a mesma
- * estrutura dela: marca, grupos e ajuda.
+ * estrutura dela: marca, itens, grupo "Sistema" e o cartão do usuário.
  */
 export function MobileNav({ showExample = false }: { readonly showExample?: boolean }) {
   const t = useTranslations('shell');
@@ -40,7 +40,7 @@ export function MobileNav({ showExample = false }: { readonly showExample?: bool
       </Tooltip>
       <DialogContent
         closeLabel={null}
-        className="top-0! left-0! flex! h-dvh max-w-72! translate-x-0! translate-y-0! flex-col gap-6! overflow-y-auto rounded-none! border-y-0! border-l-0! border-r-border! bg-sidebar! p-0! pb-4! text-sidebar-foreground!"
+        className="top-0! left-0! flex! h-dvh max-w-72! translate-x-0! translate-y-0! flex-col gap-4! overflow-y-auto rounded-none! border-y-0! border-l-0! border-r-border! bg-sidebar! p-0! pb-4! text-sidebar-foreground!"
         aria-describedby={undefined}
       >
         <div className="flex flex-none items-center justify-between gap-2 px-4 pt-4">
@@ -60,7 +60,11 @@ export function MobileNav({ showExample = false }: { readonly showExample?: bool
             setOpen(false);
           }}
         />
-        <SidebarHelp />
+        <UserCard
+          onNavigate={() => {
+            setOpen(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

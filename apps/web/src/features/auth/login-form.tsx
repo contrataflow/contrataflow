@@ -1,11 +1,18 @@
 'use client';
 
-import { Alert, buttonClassName } from '@contrataflow/ui';
+import {
+  Alert,
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+  buttonClassName,
+} from '@contrataflow/ui';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode, SyntheticEvent } from 'react';
 
 import { AuthIcon } from './auth-icons';
+import { SUPPORT_HREF } from './help-link';
 import { LoginReasonMessage } from './login-reason-message';
 import type { LoginReason } from './login-reason-message';
 
@@ -106,6 +113,36 @@ function FieldError({ id, children }: { readonly id: string; readonly children: 
     <p id={id} className="text-sm text-destructive">
       {children}
     </p>
+  );
+}
+
+/**
+ * "Precisa de ajuda para entrar?" abaixo do botão (prd-6 · §2.7): recolhível, com o canal de
+ * suporte da plataforma (`SUPPORT_HREF`).
+ */
+function LoginHelp() {
+  const t = useTranslations('auth.login.loginHelp');
+  return (
+    <Collapsible className="flex flex-col gap-1">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="group inline-flex min-h-11 items-center gap-2 self-start rounded-control text-[0.9375rem] font-semibold text-brand-ink"
+        >
+          <AuthIcon
+            name="chevronRight"
+            className="size-4 text-primary transition-transform group-data-[state=open]:rotate-90"
+          />
+          {t('title')}
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-1 pl-6 text-sm leading-relaxed text-muted-foreground">
+        <p>{t('description')}</p>
+        <a href={SUPPORT_HREF} className={`${LINK_CLASS} self-start`}>
+          {t('link')}
+        </a>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -249,9 +286,14 @@ export function LoginForm({ returnTo, reason, forgotHref }: LoginFormProps) {
     return (
       <div className="flex flex-col gap-7">
         <div className="flex flex-col gap-2">
-          <span className="grid size-12 place-items-center rounded-card bg-primary-soft text-primary">
-            <AuthIcon name="smartphone" className="size-6" />
-          </span>
+          {/* Indicador de etapa (prd-6 · §2.7): usuário e senha já passaram; agora o código. */}
+          <div className="flex flex-col gap-2">
+            <span aria-hidden="true" className="flex gap-1.5">
+              <span className="h-1 w-10 rounded-full bg-border-strong" />
+              <span className="h-1 w-10 rounded-full bg-primary" />
+            </span>
+            <p className="text-[0.8125rem] font-semibold text-muted-foreground">{t('mfa.step')}</p>
+          </div>
           <h1 className="mt-2 text-page-title text-brand-ink">{t('mfa.title')}</h1>
           <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
             {t('mfa.description')}
@@ -319,6 +361,9 @@ export function LoginForm({ returnTo, reason, forgotHref }: LoginFormProps) {
           <label htmlFor="login-username" className="text-sm font-semibold text-brand-ink">
             {t('fields.username')}
           </label>
+          <p id="login-username-help" className="text-[0.8125rem] text-muted-foreground">
+            {t('fields.usernameHelp')}
+          </p>
           <input
             ref={usernameRef}
             id="login-username"
@@ -333,7 +378,9 @@ export function LoginForm({ returnTo, reason, forgotHref }: LoginFormProps) {
               setUsername(event.target.value);
             }}
             aria-invalid={usernameInvalid || undefined}
-            aria-describedby={usernameInvalid ? 'login-username-error' : undefined}
+            aria-describedby={
+              usernameInvalid ? 'login-username-help login-username-error' : 'login-username-help'
+            }
             className={INPUT_CLASS}
           />
           {usernameInvalid ? (
@@ -385,6 +432,10 @@ export function LoginForm({ returnTo, reason, forgotHref }: LoginFormProps) {
           {pending ? t('submitting') : t('submit')}
         </button>
       </form>
+      <div className="-mt-2 flex flex-col gap-3">
+        <hr className="border-border" />
+        <LoginHelp />
+      </div>
     </div>
   );
 }

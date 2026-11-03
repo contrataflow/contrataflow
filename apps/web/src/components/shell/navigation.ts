@@ -6,8 +6,11 @@ import type { IconName } from './icons';
  * namespace `shell` (next-intl).
  */
 
-/** Grupos da barra lateral (prd-4 · padrão 1): o trabalho do dia e o controle da instituição. */
-export type NavGroup = 'operation' | 'governance';
+/**
+ * Blocos da barra lateral (prd-6 · §2.2, padrão do Microlegis): os itens do dia a dia sem rótulo
+ * (`main`) e o grupo "Sistema" (`system`), com Auditoria e Administração recolhível.
+ */
+export type NavGroup = 'main' | 'system';
 
 export interface NavItem {
   readonly href: string;
@@ -30,7 +33,7 @@ export const MAIN_NAV: readonly NavItem[] = [
     href: '/painel',
     labelKey: 'dashboard',
     icon: 'dashboard',
-    group: 'operation',
+    group: 'main',
     permission: 'DASHBOARD_VIEW',
   },
   // US-056: sem `INBOX_VIEW` (caso excepcional) o menu some; a rota responde com o estado 403.
@@ -38,7 +41,7 @@ export const MAIN_NAV: readonly NavItem[] = [
     href: '/tarefas',
     labelKey: 'tasks',
     icon: 'inbox',
-    group: 'operation',
+    group: 'main',
     permission: 'INBOX_VIEW',
     counter: 'mine',
   },
@@ -46,23 +49,23 @@ export const MAIN_NAV: readonly NavItem[] = [
     href: '/aprovacoes',
     labelKey: 'approvals',
     icon: 'stamp',
-    group: 'operation',
+    group: 'main',
     counter: 'pendingApprovals',
   },
-  { href: '/processos', labelKey: 'processes', icon: 'folder', group: 'operation' },
-  { href: '/fornecedores', labelKey: 'suppliers', icon: 'truck', group: 'operation' },
-  { href: '/exemplo', labelKey: 'example', icon: 'flask', group: 'operation' },
+  { href: '/processos', labelKey: 'processes', icon: 'folder', group: 'main' },
+  { href: '/fornecedores', labelKey: 'suppliers', icon: 'truck', group: 'main' },
+  { href: '/exemplo', labelKey: 'example', icon: 'flask', group: 'main' },
   {
     href: '/auditoria',
     labelKey: 'audit',
     icon: 'shield',
-    group: 'governance',
+    group: 'system',
     permission: 'AUDIT_VIEW',
   },
-  { href: '/admin', labelKey: 'admin', icon: 'settings', group: 'governance' },
+  { href: '/admin', labelKey: 'admin', icon: 'settings', group: 'system' },
 ];
 
-export const NAV_GROUPS: readonly NavGroup[] = ['operation', 'governance'];
+export const NAV_GROUPS: readonly NavGroup[] = ['main', 'system'];
 
 export interface AdminNavItem {
   readonly href: string;
@@ -94,6 +97,9 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/calendario', labelKey: 'calendar' },
   { href: '/admin/configuracoes', labelKey: 'settings' },
 ];
+
+/** Raiz da administração: o item do menu que abre os subitens de `ADMIN_NAV`. */
+export const ADMIN_PATH = '/admin';
 
 /** Item ativo: rota exata ou subrota. */
 export function isActivePath(pathname: string, href: string): boolean {

@@ -15,22 +15,20 @@
     "admin": "Administração",
     "example": "Exemplo do shell",
     "groups": {
-      "operation": "Operação",
-      "governance": "Governança"
+      "system": "Sistema"
     },
-    "count": "({count, plural, one {# pendente} other {# pendentes}})",
+    "adminAreas": "Áreas de administração",
+    "count": "({count, plural, =0 {nenhuma pendência} one {# pendente} other {# pendentes}})",
     "countOverflow": "99+"
   },
   "help": {
-    "title": "Precisa de ajuda?",
-    "description": "Fale com o suporte da plataforma.",
-    "link": "Falar com o suporte →"
+    "label": "Ajuda",
+    "tooltip": "Precisa de ajuda? Fale com o suporte da plataforma."
   },
   "pageHeader": {
     "breadcrumb": "Trilha de navegação"
   },
   "admin": {
-    "label": "Navegação de administração",
     "title": "Administração",
     "description": "Configurações da instituição. Cada área exige a permissão administrativa correspondente.",
     "users": "Usuários",
@@ -85,6 +83,7 @@
   "tenant": {
     "label": "Instituição ativa: {name}",
     "heading": "Instituição ativa",
+    "trigger": "Instituição ativa · trocar",
     "current": "(atual)",
     "switched": "Agora você está em {name}.",
     "switching": "Trocando de instituição…",
@@ -99,8 +98,7 @@
     }
   },
   "user": {
-    "menu": "Menu do usuário {name}",
-    "profile": "Meu perfil",
+    "account": "Minha conta",
     "logout": "Sair"
   },
   "readOnly": "Instituição em encerramento: somente consulta e exportação.",

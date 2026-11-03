@@ -117,7 +117,7 @@ export function DashboardPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      {/* "Novo processo" fica só na barra superior (prd-5 · regra 1). */}
+      {/* "Novo processo": cabeçalho da lista de processos e paleta Ctrl K (prd-6 · §2.3). */}
       <AppPageHeader title={title} description={description} />
       {allowed ? <DepartmentFilterBar filters={filters} onChange={navigate} /> : null}
 

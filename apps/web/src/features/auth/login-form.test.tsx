@@ -203,6 +203,26 @@ describe('SCR-001 — formulário de entrada nativo (DEC-187)', () => {
     });
   });
 
+  it('ajuda sob o usuário (descrição do campo) e "Precisa de ajuda para entrar?" recolhível', async () => {
+    renderForm();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
+    const username = screen.getByLabelText('Usuário ou e-mail');
+    expect(username.getAttribute('aria-describedby')).toBe('login-username-help');
+    expect(document.getElementById('login-username-help')?.textContent).toBe(
+      'Use o usuário que o seu órgão cadastrou para você.',
+    );
+    const toggle = screen.getByRole('button', { name: 'Precisa de ajuda para entrar?' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('link', { name: 'Falar com o suporte' })).toBeNull();
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Falar com o suporte' }).getAttribute('href')).toBe(
+      'mailto:suporte@contrataflow.com.br',
+    );
+    expect(screen.queryByText('Etapa 2 de 2: código de verificação')).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
   it('mostrar/ocultar senha troca o tipo do campo e o rótulo do botão', async () => {
     renderForm();
     const password = screen.getByLabelText('Senha');
@@ -223,6 +243,8 @@ describe('SCR-001 — formulário de entrada nativo (DEC-187)', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Confirme sua identidade' }),
     ).toBeTruthy();
+    // Indicador de etapa acima do título (prd-6 · §2.7).
+    expect(screen.getByText('Etapa 2 de 2: código de verificação')).toBeTruthy();
     const code = screen.getByLabelText('Código de verificação');
     await waitFor(() => {
       expect(document.activeElement).toBe(code);
@@ -264,7 +286,7 @@ describe('SCR-001 — formulário de entrada nativo (DEC-187)', () => {
     expect((await screen.findByRole('alert')).textContent).toBe(
       'A verificação expirou. Informe usuário e senha novamente.',
     );
-    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByLabelText('Senha'));
     });
@@ -275,7 +297,7 @@ describe('SCR-001 — formulário de entrada nativo (DEC-187)', () => {
     renderForm();
     await fillAndSubmit();
     await userEvent.click(await screen.findByRole('button', { name: 'Voltar' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Entrar' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acesse sua conta' })).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>('Usuário ou e-mail').value).toBe(
       'requisitante.a',
     );

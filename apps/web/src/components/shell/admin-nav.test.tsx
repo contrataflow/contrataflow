@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { jsonResponse, renderWithShell, requestUrl } from '@test/support/render';
 
-import { AdminNav } from './main-nav';
+import { MainNav } from './main-nav';
 
 // A suíte completa roda em paralelo com as demais; o padrão de 1 s é curto para a primeira renderização.
 configure({ asyncUtilTimeout: 5000 });
@@ -31,12 +31,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/*
+ * As áreas de administração são subitens do grupo "Administração" do menu lateral (prd-6 · §2.2),
+ * aberto nas rotas de `/admin*` — aqui, `/admin/usuarios`.
+ */
+
 describe('[Permissão] item "Perfis e permissões" da navegação de administração', () => {
   it('aparece para quem tem ROLE_VIEW', async () => {
     const api = mockPermissions(() =>
       jsonResponse({ data: { permissions: [{ code: 'ROLE_VIEW', scopes: [] }] } }),
     );
-    renderWithShell(<AdminNav />);
+    renderWithShell(<MainNav />);
     await waitFor(() => {
       expect(api).toHaveBeenCalled();
     });
@@ -47,7 +52,7 @@ describe('[Permissão] item "Perfis e permissões" da navegação de administra�
     mockPermissions(() =>
       jsonResponse({ data: { permissions: [{ code: 'PROCESS_VIEW', scopes: ['TENANT'] }] } }),
     );
-    renderWithShell(<AdminNav />);
+    renderWithShell(<MainNav />);
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: 'Perfis e permissões' })).toBeNull();
     });
@@ -60,7 +65,7 @@ describe('[Permissão] item "Tipos de documento" da navegação de administraç�
     const api = mockPermissions(() =>
       jsonResponse({ data: { permissions: [{ code: 'DOCUMENT_TYPE_MANAGE', scopes: [] }] } }),
     );
-    renderWithShell(<AdminNav />);
+    renderWithShell(<MainNav />);
     await waitFor(() => {
       expect(api).toHaveBeenCalled();
     });
@@ -71,7 +76,7 @@ describe('[Permissão] item "Tipos de documento" da navegação de administraç�
     mockPermissions(() =>
       jsonResponse({ data: { permissions: [{ code: 'PROCESS_VIEW', scopes: ['TENANT'] }] } }),
     );
-    renderWithShell(<AdminNav />);
+    renderWithShell(<MainNav />);
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: 'Tipos de documento' })).toBeNull();
     });
@@ -81,7 +86,7 @@ describe('[Permissão] item "Tipos de documento" da navegação de administraç�
 
   it('sem resposta de permissões (ME-03 ainda indisponível) o item permanece: a rota decide com o 403', async () => {
     const api = mockPermissions(() => jsonResponse({ code: 'NOT_FOUND' }, { status: 404 }));
-    renderWithShell(<AdminNav />);
+    renderWithShell(<MainNav />);
     await waitFor(() => {
       expect(api).toHaveBeenCalled();
     });
