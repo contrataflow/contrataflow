@@ -68,8 +68,25 @@ export function aiSectionsOf(document: Pick<DocumentDto, 'draftContent'>): AiSec
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
-/** "JUSTIFICATION" → "Justification"; "EXPECTED_RESULTS" → "Expected results". */
-export function sectionLabelOf(key: string): string {
+/** Títulos das seções do template fixado no documento (`meta.template.sections`), por chave. */
+export type SectionTitles = Readonly<Record<string, string>>;
+
+export function sectionTitlesOf(
+  template:
+    | { readonly sections: readonly { readonly key: string; readonly title: string }[] }
+    | null
+    | undefined,
+): SectionTitles {
+  return Object.fromEntries((template?.sections ?? []).map((item) => [item.key, item.title]));
+}
+
+/**
+ * Rótulo da seção: o título do template (pt-BR) quando o documento o traz; sem ele, a chave
+ * legível — "EXPECTED_RESULTS" → "Expected results".
+ */
+export function sectionLabelOf(key: string, titles?: SectionTitles): string {
+  const title = titles?.[key];
+  if (title !== undefined && title.trim() !== '') return title;
   const spaced = key.replaceAll('_', ' ').toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

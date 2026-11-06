@@ -2845,10 +2845,20 @@ const dfdState = {
         'Os contratos de limpeza vencem em dezembro e as unidades escolares não podem ficar sem o serviço.',
       ),
     ),
-    EXPECTED_RESULTS: docsSection(
-      'FILLED',
-      docsText('Ambientes higienizados diariamente e redução das reclamações das direções.'),
-    ),
+    // US-122: conteúdo gerado por IA ainda sem revisão humana (DOC-27 pelo assistente).
+    EXPECTED_RESULTS: {
+      ...docsSection(
+        'FILLED',
+        docsText('Ambientes higienizados diariamente e redução das reclamações das direções.'),
+      ),
+      ai: {
+        generationId: '0192a000-0000-7000-8000-0000000e4703',
+        appliedAt: '2026-11-02T14:00:00.000Z',
+        appliedById: TERM_AUTHOR_ID,
+        reviewedAt: null,
+        reviewedById: null,
+      },
+    },
     NOTES: docsSection('EMPTY', null),
   },
   items: [
@@ -2898,6 +2908,18 @@ dfdState.header = {
   version: 1,
 };
 const dfdDtoOf = () => ({ ...dfdState.header });
+/** SECTION_AI_REVIEW_PENDING (RN-AI-57) das seções de IA ainda não revisadas. */
+const dfdAiViolations = () =>
+  Object.entries(dfdState.sections)
+    .filter(([, section]) => section.ai && section.ai.reviewedAt === null)
+    .map(([key]) =>
+      docsViolation(
+        'SECTION_AI_REVIEW_PENDING',
+        'BLOCKING',
+        `Revise o conteúdo gerado por IA na seção "${DFD_TEMPLATE.sections.find((item) => item.key === key).title}".`,
+        { sectionKey: key },
+      ),
+    );
 const dfdDocumentOf = () => ({
   ...versionedDocument,
   id: DFD_DOC_ID,
@@ -4100,6 +4122,12 @@ createServer(async (request, response) => {
     const body = JSON.parse((await readBody(request)) || '{}');
     if (body.status) failures.set(body.path, body);
     else failures.delete(body.path);
+    return send(response, 204);
+  }
+  if (url.pathname === '/__mock/dfd-ai-pending') {
+    // US-122: devolve a seção de IA do DFD ao estado "revisão pendente" (E2E repetível).
+    const section = dfdState.sections.EXPECTED_RESULTS;
+    section.ai = { ...section.ai, reviewedAt: null, reviewedById: null };
     return send(response, 204);
   }
   if (url.pathname === '/__mock/template-library') {
@@ -6501,6 +6529,30 @@ createServer(async (request, response) => {
       );
     }
   }
+  // DOC-27 (US-122): marcar seções de IA do DFD como revisadas (a revisão da seção sobe +1).
+  if (request.method === 'POST' && url.pathname === `/api/v1/documents/${DFD_DOC_ID}/ai-review`) {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const reviewed = [];
+    for (const key of body.sectionKeys ?? []) {
+      const section = dfdState.sections[key];
+      if (!section?.ai) continue;
+      if (body.expectedRevisions?.[key] !== section.revision) {
+        return problem(response, 412, 'SECTION_REVISION_CONFLICT', String(correlationId));
+      }
+      if (section.ai.reviewedAt === null) {
+        section.ai = {
+          ...section.ai,
+          reviewedAt: new Date().toISOString(),
+          reviewedById: TERM_AUTHOR_ID,
+        };
+        section.revision += 1;
+      }
+      reviewed.push(key);
+    }
+    return send(response, 200, {
+      data: { document: dfdDocumentOf(), reviewedSectionKeys: reviewed },
+    });
+  }
   const docsDocument =
     /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/(items|validation|presence|sections\/([A-Z_]+)))?$/.exec(
       url.pathname,
@@ -6529,7 +6581,19 @@ createServer(async (request, response) => {
         200,
         {
           data: docsKind === 'DFD' ? dfdDocumentOf() : riskMapDocumentOf(),
-          meta: { allowedActions: ['UPDATE'] },
+          meta: {
+            allowedActions: ['UPDATE'],
+            ...(docsKind === 'DFD'
+              ? {
+                  template: {
+                    versionId: DFD_TEMPLATE.versionId,
+                    versionNumber: DFD_TEMPLATE.versionNumber,
+                    sections: DFD_TEMPLATE.sections,
+                    fieldConfig: {},
+                  },
+                }
+              : {}),
+          },
         },
         { ETag: '"1"' },
       );
@@ -6537,7 +6601,7 @@ createServer(async (request, response) => {
     if (part === 'validation' && request.method === 'GET') {
       const data =
         docsKind === 'DFD'
-          ? docsValidation(DFD_DOC_ID, DFD_TEMPLATE.sections, dfdState.sections)
+          ? docsValidation(DFD_DOC_ID, DFD_TEMPLATE.sections, dfdState.sections, dfdAiViolations())
           : docsKind === 'RISK_MAP'
             ? docsValidation(RISK_MAP_DOC_ID, RISK_MAP_TEMPLATE_SECTIONS, {}, riskMapViolations())
             : docsKind === 'ETP'

@@ -300,6 +300,20 @@ export function useDfdAutosave(input: UseDfdAutosaveInput) {
         await autosave.discard(sectionTarget(key));
       }
     },
+    /** `If-Match` corrente da seção (o autosave pode ter gravado depois da carga do documento). */
+    revisionOf(key: string): number | undefined {
+      return revisions.current[key];
+    },
+    /**
+     * US-122: seções marcadas como revisadas (DOC-27) mudam só de revisão (`+1`), nunca de texto:
+     * adota a nova revisão sem tocar no editor nem nas pendências locais.
+     */
+    adoptRevisions(document: DocumentDto, keys: readonly string[]) {
+      for (const key of keys) {
+        const section = document.draftContent.sections[key];
+        if (section !== undefined) revisions.current[key] = section.revision;
+      }
+    },
     /**
      * US-121: uma seção gravada fora do autosave (ajuste com IA — DOC-26 — ou o "Desfazer" pelo
      * DOC-05): a revisão e o texto do servidor passam a valer e a pendência local é apagada.

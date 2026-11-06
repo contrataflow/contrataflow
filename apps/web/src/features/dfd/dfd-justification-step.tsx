@@ -19,6 +19,8 @@ export interface DfdSectionFieldProps {
   readonly onChange: (key: string, value: string) => void;
   /** US-121: o `AiSectionMenu` da seção (ajuste com IA), no cabeçalho do campo. */
   readonly aiMenu?: ReactNode;
+  /** US-122: selo "Gerado por IA" e "Marcar seção como revisada", abaixo do campo. */
+  readonly aiReview?: ReactNode;
 }
 
 /**
@@ -32,6 +34,7 @@ export function DfdSectionField({
   editable,
   onChange,
   aiMenu,
+  aiReview,
 }: DfdSectionFieldProps) {
   const t = useTranslations('dfd.justification');
   const id = `dfd-section-${section.key}`;
@@ -77,6 +80,7 @@ export function DfdSectionField({
           />
         )}
       </FormField>
+      {aiReview}
     </div>
   );
 }
@@ -92,6 +96,8 @@ export interface DfdJustificationStepProps {
   readonly onChange: (key: string, value: string) => void;
   /** US-121: o menu de ajuste com IA de cada seção. */
   readonly aiMenuFor?: ((section: DfdTemplateSectionDto) => ReactNode) | undefined;
+  /** US-122: a revisão do conteúdo de IA de cada seção. */
+  readonly aiReviewFor?: ((section: DfdTemplateSectionDto) => ReactNode) | undefined;
   /** Testes: sondagem e XHR simulados do upload. */
   readonly uploadDeps?: UploadDeps | undefined;
 }
@@ -110,6 +116,7 @@ export function DfdJustificationStep({
   allowedActions,
   onChange,
   aiMenuFor,
+  aiReviewFor,
   uploadDeps,
 }: DfdJustificationStepProps) {
   return (
@@ -123,6 +130,7 @@ export function DfdJustificationStep({
             editable={editable}
             onChange={onChange}
             aiMenu={aiMenuFor?.(section)}
+            aiReview={aiReviewFor?.(section)}
           />
         ))}
       </div>

@@ -23,7 +23,7 @@ import type {
   DocumentDto,
   ProcessDto,
 } from '@contrataflow/validation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
@@ -32,6 +32,8 @@ import { isApiError } from '@/lib/api/api-error';
 import { formatDateTime } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { SectionAiReview } from './dfd-ai-review';
+import type { DfdAiReview } from './dfd-ai-review';
 import { resumeStep } from './dfd-autosave';
 import type { DfdHeaderDraft } from './dfd-autosave';
 import { DfdAutosavePanels } from './dfd-autosave-panels';
@@ -56,6 +58,7 @@ import { AiAssistant } from '../ai/ai-assistant';
 import { AiSectionMenu } from '../ai/ai-section-assistant';
 import type { UploadDeps } from '../attachments/use-attachment-uploads';
 import { DuplicateDfdDialog, useCanDuplicateDfd } from '../dfd-duplicate/duplicate-dfd-dialog';
+import { sectionTitlesOf } from '../documents/ai-review-model';
 import { DocumentHeader } from '../documents/document-header';
 import { DocumentStatusBadge, PendingApprovalBadge } from '../documents/document-status-badge';
 import { documentKeys, fetchDocument } from '../documents/documents.api';
@@ -201,6 +204,25 @@ function LoadedWizard({
     },
   });
   const editable = allowed && autosave.blocked === null;
+  // US-122: revisar o conteúdo de IA (DOC-27) dentro do assistente. A revisão sobe a revisão da
+  // seção em +1 e o autosave deve adotá-la; antes de enviar, descarrega o que estiver pendente.
+  const queryClient = useQueryClient();
+  const tenantId = session.activeTenant.id;
+  const refreshDocument = () =>
+    queryClient.invalidateQueries({ queryKey: documentKeys.detail(tenantId, dfd.documentId) });
+  const aiReview: DfdAiReview = {
+    document,
+    canReview: editable,
+    host: {
+      titles: sectionTitlesOf(meta.template),
+      revisionOf: (key) => autosave.revisionOf(key),
+      prepare: () => autosave.flush(),
+      onDone: (result) => {
+        autosave.adoptRevisions(result.document, result.reviewedSectionKeys);
+      },
+    },
+  };
+  const aiReviewOf = (key: string) => <SectionAiReview review={aiReview} sectionKey={key} />;
   // RN-DFD-34: sem `?passo=`, abre no passo salvo — na Conclusão com pendência, na Revisão.
   const resumeValidation = useDfdValidation(
     dfd.documentId,
@@ -329,7 +351,10 @@ function LoadedWizard({
       state={(sections[section.key] ?? '').trim() === '' ? 'EMPTY' : 'FILLED'}
       text={sections[section.key] ?? ''}
       editable={editable}
-      onSectionChanged={(aiChange) => void autosave.adoptSection(aiChange.key, aiChange)}
+      onSectionChanged={(aiChange) => {
+        void autosave.adoptSection(aiChange.key, aiChange);
+        void refreshDocument();
+      }}
     />
   );
   const changeSection = (key: string, value: string) => {
@@ -444,7 +469,10 @@ function LoadedWizard({
               targetModule="DFD"
               editable={dfd.status === 'DRAFT' || dfd.status === 'RETURNED'}
               initialGenerationId={searchParams.get('ia')}
-              onApplied={(applied) => void autosave.adoptSections(applied)}
+              onApplied={(applied) => {
+                void autosave.adoptSections(applied);
+                void refreshDocument();
+              }}
             />
           }
         />
@@ -550,6 +578,7 @@ function LoadedWizard({
             allowedActions={meta.allowedActions}
             onChange={changeSection}
             aiMenuFor={aiMenuFor}
+            aiReviewFor={(section) => aiReviewOf(section.key)}
             uploadDeps={uploadDeps}
           />
         ) : null}
@@ -575,6 +604,7 @@ function LoadedWizard({
               const notes = templateSections.find((section) => section.key === 'NOTES');
               return notes === undefined ? null : aiMenuFor(notes);
             })()}
+            notesAiReview={aiReviewOf('NOTES')}
           />
         ) : null}
         {step === 'REVIEW' ? (
@@ -585,6 +615,7 @@ function LoadedWizard({
             responsibleName={responsibleName}
             itemsCount={items.data?.items.length ?? 0}
             onGoTo={goTo}
+            aiReview={aiReview}
           />
         ) : null}
         {conclusionStep ? (

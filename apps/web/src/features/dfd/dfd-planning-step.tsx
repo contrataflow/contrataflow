@@ -332,6 +332,8 @@ export interface DfdPlanningStepProps {
   readonly onSectionChange: (key: string, value: string) => void;
   /** US-121: o menu de ajuste com IA das observações. */
   readonly notesAiMenu?: ReactNode;
+  /** US-122: selo de IA e "Marcar seção como revisada" das observações. */
+  readonly notesAiReview?: ReactNode;
 }
 
 /**
@@ -354,6 +356,7 @@ export function DfdPlanningStep({
   onEstimatedValueText,
   onSectionChange,
   notesAiMenu,
+  notesAiReview,
 }: DfdPlanningStepProps) {
   const t = useTranslations('dfd.planning');
   const masked = header.estimatedValueMasked === true;
@@ -452,6 +455,7 @@ export function DfdPlanningStep({
             editable={editable}
             onChange={onSectionChange}
             aiMenu={notesAiMenu}
+            aiReview={notesAiReview}
           />
         )}
       </div>

@@ -12,7 +12,12 @@ import {
   Label,
   toast,
 } from '@contrataflow/ui';
-import type { DocumentAiReview, DocumentDto, DocumentMeta } from '@contrataflow/validation';
+import type {
+  DocumentAiReview,
+  DocumentAiReviewResultDto,
+  DocumentDto,
+  DocumentMeta,
+} from '@contrataflow/validation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
@@ -20,8 +25,8 @@ import { useId, useState } from 'react';
 
 import { useShellSession, useTenantId } from '@/lib/session/session-context';
 
-import { aiSectionAnchor, aiSectionsOf, sectionLabelOf } from './ai-review-model';
-import type { AiSectionState, ToConfirmMark } from './ai-review-model';
+import { aiSectionAnchor, aiSectionsOf, sectionLabelOf, sectionTitlesOf } from './ai-review-model';
+import type { AiSectionState, SectionTitles, ToConfirmMark } from './ai-review-model';
 import { describeDocumentError } from './document-errors';
 import type { DocumentOutcome } from './document-errors';
 import { documentKeys, reviewAiContent } from './documents.api';
@@ -88,25 +93,43 @@ export function ToConfirmChip({ mark }: { readonly mark: ToConfirmMark }) {
 
 type ReviewOutcome = DocumentOutcome | null;
 
+/**
+ * Ajustes de quem hospeda a revisão fora do visualizador (o assistente do DFD): títulos pt-BR das
+ * seções, a revisão corrente de cada uma (o autosave pode ter gravado depois da carga do
+ * documento), a descarga das pendências antes de enviar e o resultado, para atualizar o autosave.
+ */
+export interface AiReviewHost {
+  readonly titles?: SectionTitles;
+  readonly revisionOf?: (key: string) => number | undefined;
+  readonly prepare?: () => Promise<void>;
+  readonly onDone?: (result: DocumentAiReviewResultDto) => void;
+}
+
 /** DOC-27 com recarga do documento e da completude; 412 recarrega a seção (V-04). */
-function useAiReview(document: DocumentDto, onDone: (reviewed: number) => void) {
+function useAiReview(
+  document: DocumentDto,
+  onDone: (reviewed: number) => void,
+  host?: AiReviewHost,
+) {
   const tenantId = useTenantId();
   const queryClient = useQueryClient();
   const pathname = usePathname();
   const router = useRouter();
   const [outcome, setOutcome] = useState<ReviewOutcome>(null);
-  const [last, setLast] = useState<DocumentAiReview | null>(null);
+  const [last, setLast] = useState<(() => DocumentAiReview) | null>(null);
   const mutation = useMutation({
     mutationFn: (body: DocumentAiReview) => reviewAiContent(document.id, body),
   });
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: documentKeys.all(tenantId, document.id) });
 
-  const send = async (body: DocumentAiReview) => {
-    setLast(body);
+  const send = async (build: () => DocumentAiReview) => {
+    setLast(() => build);
     setOutcome(null);
     try {
-      const result = await mutation.mutateAsync(body);
+      await host?.prepare?.();
+      const result = await mutation.mutateAsync(build());
+      host?.onDone?.(result);
       void refresh();
       onDone(result.reviewedSectionKeys.length);
     } catch (failure) {
@@ -165,16 +188,22 @@ export function MarkReviewedButton({
   document,
   section,
   onReviewed,
+  host,
 }: {
   readonly document: DocumentDto;
   readonly section: AiSectionState;
   readonly onReviewed: (message: string) => void;
+  readonly host?: AiReviewHost;
 }) {
   const t = useTranslations('documents.aiReview');
-  const review = useAiReview(document, () => {
-    toast({ title: t('toast.one'), tone: 'success' });
-    onReviewed(t('announce.one', { section: sectionLabelOf(section.key) }));
-  });
+  const review = useAiReview(
+    document,
+    () => {
+      toast({ title: t('toast.one'), tone: 'success' });
+      onReviewed(t('announce.one', { section: sectionLabelOf(section.key, host?.titles) }));
+    },
+    host,
+  );
   const pending = review.mutation.isPending;
   return (
     <div className="flex flex-col items-start gap-2">
@@ -183,10 +212,12 @@ export function MarkReviewedButton({
         disabled={pending}
         aria-busy={pending}
         onClick={() => {
-          void review.send({
+          void review.send(() => ({
             sectionKeys: [section.key],
-            expectedRevisions: { [section.key]: section.revision },
-          });
+            expectedRevisions: {
+              [section.key]: host?.revisionOf?.(section.key) ?? section.revision,
+            },
+          }));
         }}
       >
         {pending ? t('working') : t('markReviewed')}
@@ -202,21 +233,27 @@ export function ReviewAllDialog({
   sections,
   onClose,
   onReviewed,
+  host,
 }: {
   readonly document: DocumentDto;
   readonly sections: readonly AiSectionState[];
   readonly onClose: () => void;
   readonly onReviewed: (message: string) => void;
+  readonly host?: AiReviewHost;
 }) {
   const t = useTranslations('documents.aiReview');
   const returnFocus = useReturnFocus();
   const confirmId = useId();
   const [confirmed, setConfirmed] = useState(false);
-  const review = useAiReview(document, (reviewed) => {
-    toast({ title: t('toast.many', { count: reviewed }), tone: 'success' });
-    onReviewed(t('announce.many', { count: reviewed }));
-    onClose();
-  });
+  const review = useAiReview(
+    document,
+    (reviewed) => {
+      toast({ title: t('toast.many', { count: reviewed }), tone: 'success' });
+      onReviewed(t('announce.many', { count: reviewed }));
+      onClose();
+    },
+    host,
+  );
   const pending = review.mutation.isPending;
   const count = sections.length;
   return (
@@ -235,7 +272,7 @@ export function ReviewAllDialog({
         <DialogDescription>{t('reviewAll.description', { count })}</DialogDescription>
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
           {sections.map((section) => (
-            <li key={section.key}>{sectionLabelOf(section.key)}</li>
+            <li key={section.key}>{sectionLabelOf(section.key, host?.titles)}</li>
           ))}
         </ul>
         <div className="flex items-start gap-2">
@@ -262,13 +299,16 @@ export function ReviewAllDialog({
             disabled={pending || !confirmed}
             aria-busy={pending}
             onClick={() => {
-              void review.send({
+              void review.send(() => ({
                 sectionKeys: sections.map((section) => section.key),
                 expectedRevisions: Object.fromEntries(
-                  sections.map((section) => [section.key, section.revision]),
+                  sections.map((section) => [
+                    section.key,
+                    host?.revisionOf?.(section.key) ?? section.revision,
+                  ]),
                 ),
                 confirmAll: true,
-              });
+              }));
             }}
           >
             {pending ? t('working') : t('reviewAll.confirm', { count })}
@@ -296,6 +336,7 @@ export function AiReviewPanel({
   const [reviewAllOpen, setReviewAllOpen] = useState(false);
   const sections = aiSectionsOf(document);
   if (sections.length === 0) return null;
+  const host: AiReviewHost = { titles: sectionTitlesOf(meta.template) };
   const canReview = meta.allowedActions.includes('UPDATE');
   const pending = sections.filter((section) => section.pending);
   const marks = sections.reduce((sum, section) => sum + section.marks.length, 0);
@@ -331,7 +372,9 @@ export function AiReviewPanel({
             className="flex min-w-0 flex-col gap-2 rounded-control border border-border p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold break-words">{sectionLabelOf(section.key)}</h3>
+              <h3 className="text-sm font-semibold break-words">
+                {sectionLabelOf(section.key, host.titles)}
+              </h3>
               <AiGeneratedBadge section={section} />
             </div>
             {section.marks.length > 0 ? (
@@ -351,6 +394,7 @@ export function AiReviewPanel({
                 document={document}
                 section={section}
                 onReviewed={setAnnouncement}
+                host={host}
               />
             ) : null}
           </li>
@@ -367,6 +411,7 @@ export function AiReviewPanel({
             setReviewAllOpen(false);
           }}
           onReviewed={setAnnouncement}
+          host={host}
         />
       ) : null}
     </section>

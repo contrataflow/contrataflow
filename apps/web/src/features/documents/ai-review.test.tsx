@@ -159,6 +159,9 @@ describe('modelo das marcas de IA (RN-AI-55/57)', () => {
     ).toEqual(['JUSTIFICATION:true:0', 'REVIEWED:false:0', 'ZETA:false:1']);
     expect(toConfirmMarksOf(null)).toEqual([]);
     expect(sectionLabelOf('EXPECTED_RESULTS')).toBe('Expected results');
+    expect(sectionLabelOf('EXPECTED_RESULTS', { EXPECTED_RESULTS: 'Resultados esperados' })).toBe(
+      'Resultados esperados',
+    );
     expect(aiSectionAnchor('EXPECTED_RESULTS')).toBe('secao-ia-expected-results');
   });
 });
@@ -192,6 +195,57 @@ describe('AiReviewPanel (US-122 · DOC-27)', () => {
     expect(await screen.findByText('Seção Justification marcada como revisada.')).toBeTruthy();
     // Só uma seção pendente: sem "Revisar todas".
     expect(screen.queryByRole('button', { name: /Revisar todas/ })).toBeNull();
+  });
+
+  it('rótulos das seções em pt-BR, vindos do template fixado no documento (DFD: Justificativa, Observações)', async () => {
+    mockReview();
+    const meta: DocumentMeta = {
+      ...EDITABLE,
+      template: {
+        versionId: ID(801),
+        versionNumber: 1,
+        sections: [
+          {
+            key: 'JUSTIFICATION',
+            title: 'Justificativa',
+            order: 1,
+            requirement: 'REQUIRED',
+            helpText: null,
+            legalBasis: null,
+            minChars: null,
+            maxChars: 50_000,
+          },
+          {
+            key: 'NOTES',
+            title: 'Observações',
+            order: 2,
+            requirement: 'OPTIONAL',
+            helpText: null,
+            legalBasis: null,
+            minChars: null,
+            maxChars: 50_000,
+          },
+        ],
+      },
+    };
+    renderWithShell(
+      <AiReviewPanel
+        document={documentDto({
+          JUSTIFICATION: section({ ai: ai() }),
+          NOTES: section({ ai: ai() }),
+        })}
+        meta={meta}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Justificativa' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Observações' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Justification' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Notes' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Revisar todas (2)' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Justificativa')).toBeTruthy();
+    expect(within(dialog).getByText('Observações')).toBeTruthy();
   });
 
   it('"Revisar todas": confirmação obrigatória e DOC-27 com confirmAll e as revisões de cada seção', async () => {

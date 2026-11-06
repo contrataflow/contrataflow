@@ -64,9 +64,39 @@ test.describe('Telas de documento na API simulada', () => {
   test('DFD 0006/2026: revisão com o resumo, os itens e as pendências', async ({ page }) => {
     await open(page, `${processPath(47)}/dfd/0192a000-0000-7000-8000-0000000e4701`);
     await expect(page.getByRole('heading', { level: 1, name: 'DFD 0006/2026' })).toBeVisible();
-    await expect(page.getByText('2 itens')).toBeVisible();
+    await expect(page.getByRole('definition').filter({ hasText: '2 itens' })).toBeVisible();
     await expect(page.getByText('A seção "Observações" ainda não foi preenchida.')).toBeVisible();
     await expectLoadedWithoutErrors(page);
     await expectNoSeriousA11yViolations(page, 'DFD — revisão (API simulada)');
+  });
+
+  test('DFD 0006/2026: conteúdo de IA pendente é revisado no próprio assistente', async ({
+    page,
+  }) => {
+    const mockApiUrl = String(test.info().config.metadata.mockApiUrl);
+    await fetch(`${mockApiUrl}/__mock/dfd-ai-pending`, { method: 'POST' });
+    await open(page, `${processPath(47)}/dfd/0192a000-0000-7000-8000-0000000e4701`);
+    const pending = page.getByText(
+      'Revise o conteúdo gerado por IA na seção "Resultados esperados".',
+    );
+    await expect(pending).toBeVisible();
+
+    await page
+      .getByRole('button', { name: 'Marcar a seção Resultados esperados como revisada' })
+      .click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('checkbox', { name: 'Li e revisei a seção' }).click();
+    await expectNoSeriousA11yViolations(page, 'DFD — confirmação da revisão de IA');
+    await dialog.getByRole('button', { name: 'Marcar a seção como revisada' }).click();
+    await expect(pending).toHaveCount(0);
+    await expectLoadedWithoutErrors(page);
+
+    // No passo de edição o selo passa a "revisada" e o botão some.
+    await page.goto(
+      `${processPath(47)}/dfd/0192a000-0000-7000-8000-0000000e4701?passo=justificativa`,
+    );
+    await expect(page.getByRole('heading', { level: 2, name: 'Justificativa' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Marcar seção como revisada' })).toHaveCount(0);
+    await expectNoSeriousA11yViolations(page, 'DFD — justificativa com selo de IA');
   });
 });

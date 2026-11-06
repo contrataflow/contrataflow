@@ -2,8 +2,10 @@
 import type {
   DfdDto,
   DfdMeta,
+  DocumentAiReview,
   DocumentItemDto,
   DocumentValidationDto,
+  DraftSection,
   ProcessItemDto,
   Violation,
 } from '@contrataflow/validation';
@@ -212,7 +214,11 @@ interface DfdApiOptions {
   readonly meta?: DfdMeta;
   readonly items?: () => Response;
   readonly putItems?: (init?: RequestInit) => Response;
-  readonly validation?: DocumentValidationDto;
+  readonly validation?: DocumentValidationDto | (() => DocumentValidationDto);
+  /** Seções do rascunho (DOC-03), lidas a cada GET — o teste de IA muda o estado entre leituras. */
+  readonly sections?: () => Record<string, DraftSection>;
+  /** DOC-27: a resposta da revisão (o teste atualiza o estado que as leituras devolvem). */
+  readonly aiReview?: (body: DocumentAiReview) => Response;
   readonly actions?: readonly { action: string; enabled: boolean }[];
 }
 
@@ -256,7 +262,7 @@ function mockDfdApi(options: DfdApiOptions = {}) {
             id: DFD_ID,
             status: 'DRAFT',
             pendingApprovalId: null,
-            draftContent: { sections: {} },
+            draftContent: { sections: options.sections?.() ?? {} },
             version: 1,
           },
           meta: { allowedActions: ['UPDATE'] },
@@ -274,7 +280,15 @@ function mockDfdApi(options: DfdApiOptions = {}) {
       );
     }
     if (method === 'GET' && url === `/api/v1/documents/${DFD_ID}/validation`) {
-      return Promise.resolve(jsonResponse({ data: options.validation ?? validationDto([]) }));
+      const validation =
+        typeof options.validation === 'function' ? options.validation() : options.validation;
+      return Promise.resolve(jsonResponse({ data: validation ?? validationDto([]) }));
+    }
+    if (method === 'POST' && url === `/api/v1/documents/${DFD_ID}/ai-review`) {
+      return Promise.resolve(
+        options.aiReview?.(bodyOf(init) as unknown as DocumentAiReview) ??
+          problemResponse(404, 'NOT_FOUND'),
+      );
     }
     if (url.startsWith(`/api/v1/attachments`) || url.includes('/attachments?')) {
       return Promise.resolve(jsonResponse({ data: [], meta: { page: 1, totalItems: 0 } }));
@@ -517,5 +531,137 @@ describe('SCR-007 — DFD em wizard (US-014)', () => {
     );
     renderWithShell(<DfdWizard processId={PROCESS_ID} dfdId={DFD_ID} />);
     expect(await screen.findByText('DFD não encontrado.')).toBeTruthy();
+  });
+
+  describe('US-122 — revisão do conteúdo de IA no assistente', () => {
+    const aiSection = (key: string, reviewed: boolean, revision = 4): DraftSection => ({
+      state: 'FILLED',
+      content: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: `Texto de ${key}` }] }],
+      },
+      justification: null,
+      revision,
+      updatedAt: '2026-10-17T15:00:00.000Z',
+      updatedById: ANA,
+      ai: {
+        generationId: ID(950),
+        appliedAt: '2026-10-17T15:00:00.000Z',
+        appliedById: ANA,
+        reviewedAt: reviewed ? '2026-10-17T16:00:00.000Z' : null,
+        reviewedById: reviewed ? ANA : null,
+      },
+    });
+    const pendingViolation = (key: string) =>
+      violation('SECTION_AI_REVIEW_PENDING', {
+        sectionKey: key,
+        message: `Revise o conteúdo gerado por IA na seção ${key}.`,
+      });
+
+    /** Estado do servidor: DOC-27 troca as seções para "revisadas" e a completude acompanha. */
+    function aiState(keys: string[]) {
+      const reviewed = new Set<string>();
+      const sections = () =>
+        Object.fromEntries(
+          keys.map((key) => [key, aiSection(key, reviewed.has(key), reviewed.has(key) ? 5 : 4)]),
+        );
+      const validation = () =>
+        validationDto(keys.filter((key) => !reviewed.has(key)).map(pendingViolation));
+      const aiReview = (body: DocumentAiReview) => {
+        body.sectionKeys.forEach((key) => reviewed.add(key));
+        return jsonResponse({
+          data: {
+            document: { draftContent: { sections: sections() } },
+            reviewedSectionKeys: body.sectionKeys,
+          },
+        });
+      };
+      return { sections, validation, aiReview };
+    }
+
+    const reviewBodies = (api: ReturnType<typeof mockDfdApi>) =>
+      callsTo(api, 'POST', `/api/v1/documents/${DFD_ID}/ai-review`).map((call) => call.body);
+
+    it('Revisão: "Marcar como revisada" confirma a leitura, chama o DOC-27 com a revisão da seção e a pendência some', async () => {
+      nav.set(`/processos/${PROCESS_ID}/dfd/${DFD_ID}?passo=revisao`);
+      const state = aiState(['JUSTIFICATION']);
+      const api = mockDfdApi(state);
+      const user = userEvent.setup();
+      renderWithShell(<DfdWizard processId={PROCESS_ID} dfdId={DFD_ID} />);
+
+      const blocking = await screen.findByRole('list', { name: 'Pendências obrigatórias' });
+      await user.click(
+        within(blocking).getByRole('button', {
+          name: 'Marcar a seção Justificativa da necessidade como revisada',
+        }),
+      );
+      const dialog = await screen.findByRole('dialog');
+      const confirm = within(dialog).getByRole('button', { name: 'Marcar a seção como revisada' });
+      expect(confirm.hasAttribute('disabled')).toBe(true);
+      await user.click(within(dialog).getByRole('checkbox', { name: 'Li e revisei a seção' }));
+      await user.click(confirm);
+
+      await waitFor(() => {
+        expect(reviewBodies(api)).toEqual([
+          {
+            sectionKeys: ['JUSTIFICATION'],
+            expectedRevisions: { JUSTIFICATION: 4 },
+            confirmAll: true,
+          },
+        ]);
+      });
+      expect(await screen.findByText('Sem pendências')).toBeTruthy();
+    });
+
+    it('Revisão: com duas seções pendentes aparece "Revisar todas (2)" e envia as duas de uma vez', async () => {
+      nav.set(`/processos/${PROCESS_ID}/dfd/${DFD_ID}?passo=revisao`);
+      const state = aiState(['JUSTIFICATION', 'EXPECTED_RESULTS']);
+      const api = mockDfdApi(state);
+      const user = userEvent.setup();
+      renderWithShell(<DfdWizard processId={PROCESS_ID} dfdId={DFD_ID} />);
+
+      await user.click(await screen.findByRole('button', { name: 'Revisar todas (2)' }));
+      const dialog = await screen.findByRole('dialog');
+      await user.click(within(dialog).getByRole('checkbox', { name: 'Li e revisei as 2 seções' }));
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Marcar as 2 seções como revisadas' }),
+      );
+      await waitFor(() => {
+        expect(reviewBodies(api)).toHaveLength(1);
+      });
+      expect(reviewBodies(api)[0]).toMatchObject({
+        sectionKeys: ['JUSTIFICATION', 'EXPECTED_RESULTS'],
+        confirmAll: true,
+      });
+      expect(await screen.findByText('Sem pendências')).toBeTruthy();
+    });
+
+    it('Sem permissão de edição, a pendência só tem "Ir para o campo"', async () => {
+      nav.set(`/processos/${PROCESS_ID}/dfd/${DFD_ID}?passo=revisao`);
+      const state = aiState(['JUSTIFICATION']);
+      mockDfdApi({ ...state, meta: { ...META, allowedActions: [] } });
+      renderWithShell(<DfdWizard processId={PROCESS_ID} dfdId={DFD_ID} />);
+      await screen.findByRole('list', { name: 'Pendências obrigatórias' });
+      expect(screen.queryByRole('button', { name: /como revisada/ })).toBeNull();
+    });
+
+    it('Passo de edição: a seção com IA mostra o selo e "Marcar seção como revisada"', async () => {
+      nav.set(`/processos/${PROCESS_ID}/dfd/${DFD_ID}?passo=justificativa`);
+      const state = aiState(['JUSTIFICATION']);
+      const api = mockDfdApi(state);
+      const user = userEvent.setup();
+      renderWithShell(<DfdWizard processId={PROCESS_ID} dfdId={DFD_ID} />);
+
+      const badge = await screen.findByText(/Gerado por IA · revisão pendente/);
+      expect(badge).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Marcar seção como revisada' }));
+      await waitFor(() => {
+        expect(reviewBodies(api)).toEqual([
+          { sectionKeys: ['JUSTIFICATION'], expectedRevisions: { JUSTIFICATION: 4 } },
+        ]);
+      });
+      expect(await screen.findByText(/Gerado por IA · revisada por você em/)).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Marcar seção como revisada' })).toBeNull();
+    });
   });
 });

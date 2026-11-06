@@ -18,11 +18,17 @@ import type {
 } from '@contrataflow/validation';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import { useState } from 'react';
 
 import { useTenantId } from '@/lib/session/session-context';
 
+import { aiGeneratedSectionsOf } from './dfd-ai-review';
+import type { DfdAiReview } from './dfd-ai-review';
 import { STEP_CARD } from './dfd-justification-step';
 import { fieldAnchor, violationsByStep } from './dfd-model';
+import { ReviewAllDialog } from '../documents/ai-review';
+import { sectionLabelOf } from '../documents/ai-review-model';
+import type { AiSectionState } from '../documents/ai-review-model';
 import { documentKeys, fetchDocumentValidation } from '../documents/documents.api';
 import { GeneratePdfButton } from '../documents/generate-pdf-button';
 
@@ -44,6 +50,8 @@ export interface DfdReviewStepProps {
   readonly responsibleName: string;
   readonly itemsCount: number;
   readonly onGoTo: (step: DfdWizardStep, anchor: string) => void;
+  /** US-122: a revisão do conteúdo de IA no próprio passo (DOC-27); sem ela, só "Ir para o campo". */
+  readonly aiReview?: DfdAiReview | undefined;
 }
 
 /**
@@ -59,10 +67,13 @@ export function DfdReviewStep({
   responsibleName,
   itemsCount,
   onGoTo,
+  aiReview,
 }: DfdReviewStepProps) {
   const t = useTranslations('dfd');
   const validation = useDfdValidation(documentId);
   const pending = validation.data?.violations.length ?? 0;
+  const [reviewing, setReviewing] = useState<readonly AiSectionState[] | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <Collapsible defaultOpen asChild>
@@ -87,8 +98,13 @@ export function DfdReviewStep({
                   void validation.refetch();
                 }}
                 onGoTo={onGoTo}
+                aiReview={aiReview}
+                onReview={setReviewing}
               />
             </div>
+            <p aria-live="polite" className="sr-only">
+              {announcement}
+            </p>
           </CollapsibleContent>
         </section>
       </Collapsible>
@@ -132,6 +148,17 @@ export function DfdReviewStep({
           label={t('review.previewAction')}
         />
       </section>
+      {aiReview !== undefined && reviewing !== null ? (
+        <ReviewAllDialog
+          document={aiReview.document}
+          sections={reviewing}
+          host={aiReview.host}
+          onClose={() => {
+            setReviewing(null);
+          }}
+          onReviewed={setAnnouncement}
+        />
+      ) : null}
     </div>
   );
 }
@@ -163,11 +190,15 @@ function Checklist({
   error,
   onRetry,
   onGoTo,
+  aiReview,
+  onReview,
 }: {
   readonly validation: DocumentValidationDto | undefined;
   readonly error: boolean;
   readonly onRetry: () => void;
   readonly onGoTo: (step: DfdWizardStep, anchor: string) => void;
+  readonly aiReview: DfdAiReview | undefined;
+  readonly onReview: (sections: readonly AiSectionState[]) => void;
 }) {
   const t = useTranslations('dfd');
   if (validation === undefined) {
@@ -204,10 +235,22 @@ function Checklist({
   return (
     <div className="flex flex-col gap-4">
       {blocking.length > 0 ? (
-        <ViolationGroup title={t('review.blocking')} entries={blocking} onGoTo={onGoTo} />
+        <ViolationGroup
+          title={t('review.blocking')}
+          entries={blocking}
+          onGoTo={onGoTo}
+          aiReview={aiReview}
+          onReview={onReview}
+        />
       ) : null}
       {warnings.length > 0 ? (
-        <ViolationGroup title={t('review.warnings')} entries={warnings} onGoTo={onGoTo} />
+        <ViolationGroup
+          title={t('review.warnings')}
+          entries={warnings}
+          onGoTo={onGoTo}
+          aiReview={aiReview}
+          onReview={onReview}
+        />
       ) : null}
     </div>
   );
@@ -217,15 +260,45 @@ function ViolationGroup({
   title,
   entries,
   onGoTo,
+  aiReview,
+  onReview,
 }: {
   readonly title: string;
   readonly entries: readonly { readonly item: Violation; readonly step: DfdWizardStep }[];
   readonly onGoTo: (step: DfdWizardStep, anchor: string) => void;
+  readonly aiReview: DfdAiReview | undefined;
+  readonly onReview: (sections: readonly AiSectionState[]) => void;
 }) {
   const t = useTranslations('dfd');
+  // US-122: a revisão pendente de cada seção de IA vira ação (DOC-27); com 2+, "Revisar todas".
+  const pendingByKey = new Map(
+    aiReview?.canReview !== true
+      ? []
+      : aiGeneratedSectionsOf(aiReview.document)
+          .filter((section) => section.pending)
+          .map((section) => [section.key, section] as const),
+  );
+  const reviewable = (item: Violation): AiSectionState | undefined =>
+    item.code === 'SECTION_AI_REVIEW_PENDING' && item.sectionKey !== null
+      ? pendingByKey.get(item.sectionKey)
+      : undefined;
+  const reviewables = entries.flatMap(({ item }) => reviewable(item) ?? []);
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="text-sm font-semibold">{title}</h4>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold">{title}</h4>
+        {reviewables.length >= 2 ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              onReview(reviewables);
+            }}
+          >
+            {t('review.reviewAll', { count: reviewables.length })}
+          </Button>
+        ) : null}
+      </div>
       <ul aria-label={title} className="flex flex-col divide-y divide-border">
         {entries.map(({ item, step }, index) => (
           <li
@@ -243,16 +316,35 @@ function ViolationGroup({
                 <span className="ml-1 text-muted-foreground">· {t(`steps.${step}`)}</span>
               </span>
             </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={t('review.goToStep', { step: t(`steps.${step}`) })}
-              onClick={() => {
-                onGoTo(step, fieldAnchor(item));
-              }}
-            >
-              {t('review.goTo')}
-            </Button>
+            <span className="flex flex-none flex-wrap items-center gap-1">
+              {(() => {
+                const section = reviewable(item);
+                return section === undefined ? null : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={t('review.markReviewedOf', {
+                      section: sectionLabelOf(section.key, aiReview?.host.titles),
+                    })}
+                    onClick={() => {
+                      onReview([section]);
+                    }}
+                  >
+                    {t('review.markReviewed')}
+                  </Button>
+                );
+              })()}
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={t('review.goToStep', { step: t(`steps.${step}`) })}
+                onClick={() => {
+                  onGoTo(step, fieldAnchor(item));
+                }}
+              >
+                {t('review.goTo')}
+              </Button>
+            </span>
           </li>
         ))}
       </ul>
