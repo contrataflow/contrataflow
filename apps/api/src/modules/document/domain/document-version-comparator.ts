@@ -1,4 +1,4 @@
-import { richTextPlainText } from '@contrataflow/validation';
+import { HEADER_DERIVED_KEYS, richTextPlainText } from '@contrataflow/validation';
 import type {
   CollectionDiff,
   DocumentKind,
@@ -103,6 +103,7 @@ function diffHeader(from: DocumentSnapshot | null, to: DocumentSnapshot | null):
   const fromHeader = from?.header ?? {};
   const toHeader = to?.header ?? {};
   const typed = dataKeys(fromHeader, toHeader)
+    .filter((field) => !HEADER_DERIVED_KEYS.has(field))
     .sort()
     .map((field) => headerEntry(field, fromHeader, toHeader));
   return [...generic, ...typed].filter((entry): entry is HeaderDiff => entry !== null);

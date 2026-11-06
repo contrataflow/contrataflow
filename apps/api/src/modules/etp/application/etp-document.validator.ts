@@ -78,8 +78,19 @@ export class EtpDocumentValidator implements DocumentValidator {
     if (etp === null) return { header: {}, collections: {} };
     const items = await this.documents.snapshotItemsIn(tx, subject.document);
     const alternatives = await this.alternatives.listByEtp(tx, etp.id);
+    const research =
+      etp.priceResearchId === null
+        ? undefined
+        : (await this.documents.documentLabels(tx, [etp.priceResearchId])).get(etp.priceResearchId);
+    // Nomes do momento da versão ao lado dos ids: o PDF mostra a alternativa e a pesquisa, não UUIDs.
     return {
-      header: etpSnapshotHeader(etp),
+      header: {
+        ...etpSnapshotHeader(etp),
+        recommendedAlternativeName:
+          alternatives.find((alternative) => alternative.id === etp.recommendedAlternativeId)
+            ?.name ?? null,
+        priceResearchLabel: research === undefined ? null : (research.code ?? research.title),
+      },
       collections: { items, alternatives: alternatives.map(alternativeSnapshot) },
     };
   }

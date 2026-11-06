@@ -3,7 +3,11 @@ import type { HtmlRichTextNode } from '@contrataflow/editor';
 import {
   DEFAULT_TEMPLATE_LAYOUT,
   layoutDefinitionSchema,
+  presentCollection,
+  presentTypedHeader,
+  PRESENTATION_MASKED_LABEL,
   PRICE_SUMMARY_COLLECTIONS,
+  sectionKeyLabel,
 } from '@contrataflow/validation';
 import type {
   DocumentSnapshot,
@@ -11,6 +15,7 @@ import type {
   RenditionKind,
   SectionDefinition,
   SectionRender,
+  SystemDocumentModule,
 } from '@contrataflow/validation';
 
 import { priceSummaryHtml } from './price-summary-html.js';
@@ -75,7 +80,7 @@ export interface RenditionHtml {
 
 export const DRAFT_WATERMARK = 'RASCUNHO';
 export const AI_REVIEW_PENDING_NOTE = 'Conteúdo gerado por IA — revisão pendente';
-export const MASKED_VALUE_LABEL = 'Valor sigiloso';
+export const MASKED_VALUE_LABEL = PRESENTATION_MASKED_LABEL;
 
 /* Marcadores de página (área de uso privado do Unicode): sobrevivem ao escape do texto e viram os
  * `<span class="pageNumber|totalPages">` que o Chromium preenche no cabeçalho/rodapé. */
@@ -152,77 +157,79 @@ export function renditionLayout(layout: unknown): LayoutDefinition {
 
 // --- Campos tipados (cabeçalho e coleções) -------------------------------------------------------
 
-function humanize(key: string): string {
-  const spaced = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .toLowerCase();
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
+/** Módulo tipado dono do cabeçalho/coleções, pelo código do tipo de documento do sistema. */
+const MODULE_BY_TYPE_CODE: Readonly<Record<string, SystemDocumentModule>> = {
+  DFD: 'DFD',
+  ETP: 'ETP',
+  TR: 'TERM_OF_REFERENCE',
+  RISK_MAP: 'RISK_MAP',
+  PRICE_RESEARCH: 'PRICE_RESEARCH',
+};
 
-function scalar(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
-  if (typeof value === 'string' || typeof value === 'number') return String(value);
-  return JSON.stringify(value);
-}
-
-/** Campos de um registro com POL-09 aplicado: `<campo>Masked: true` vira "Valor sigiloso". */
-function recordFields(record: Readonly<Record<string, unknown>>): [string, string][] {
-  const fields: [string, string][] = [];
-  for (const [key, value] of Object.entries(record)) {
-    if (key.endsWith('Masked')) continue;
-    if (record[`${key}Masked`] === true) {
-      fields.push([key, MASKED_VALUE_LABEL]);
-      continue;
-    }
-    if (typeof value === 'object' && value !== null) continue;
-    fields.push([key, scalar(value)]);
-  }
-  return fields;
-}
-
-function headerTable(header: Readonly<Record<string, unknown>>): string {
-  const rows = recordFields(header);
+/**
+ * Cabeçalho tipado em pt-BR (rótulos, datas, moeda e enumerações traduzidas, nomes no lugar de ids,
+ * POL-09): o dicionário é o de `packages/validation`. Sem módulo tipado (documento livre) não há
+ * tabela. Snapshots antigos sem o nome da unidade usam a do processo.
+ */
+function headerTable(snapshot: DocumentSnapshot): string {
+  const module = MODULE_BY_TYPE_CODE[snapshot.document.typeCode];
+  if (module === undefined) return '';
+  const rows = presentTypedHeader(module, {
+    requestingDepartmentName: snapshot.process.requestingDepartmentName,
+    ...snapshot.header,
+  });
   if (rows.length === 0) return '';
   return (
     '<table class="cf-fields"><tbody>' +
     rows
-      .map(
-        ([key, value]) =>
-          `<tr><th>${escapeHtml(humanize(key))}</th><td>${escapeHtml(value)}</td></tr>`,
-      )
+      .map((row) => `<tr><th>${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`)
       .join('') +
     '</tbody></table>'
   );
 }
 
+/** Coleção em pt-BR (título e colunas do dicionário; sem entrada = não impressa). */
 function collectionTable(name: string, items: readonly unknown[]): string {
-  const records = items.filter(
-    (item): item is Record<string, unknown> => typeof item === 'object' && item !== null,
-  );
-  if (records.length === 0) return '';
-  const rows = records.map((record) => new Map(recordFields(record)));
-  const columns = [...new Set(rows.flatMap((row) => [...row.keys()]))].filter(
-    (key) => key !== 'id' && !key.endsWith('Id'),
-  );
-  if (columns.length === 0) return '';
+  const table = presentCollection(name, items);
+  if (table === null) return '';
   return (
-    `<h3 class="cf-collection">${escapeHtml(humanize(name))}</h3>` +
+    `<h3 class="cf-collection">${escapeHtml(table.title)}</h3>` +
     '<table class="cf-grid"><thead><tr>' +
-    columns.map((column) => `<th>${escapeHtml(humanize(column))}</th>`).join('') +
+    table.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('') +
     '</tr></thead><tbody>' +
-    rows
-      .map(
-        (row) =>
-          '<tr>' +
-          columns.map((column) => `<td>${escapeHtml(row.get(column) ?? '—')}</td>`).join('') +
-          '</tr>',
-      )
+    table.rows
+      .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`)
       .join('') +
     '</tbody></table>'
   );
+}
+
+/**
+ * Título do documento sem o prefixo repetido: o título gravado costuma começar pelo tipo ("DFD —
+ * Compras…") e o código já o traz ("DFD 0005/2026"), então sai "DFD 0005/2026 — Compras…".
+ */
+export function renditionTitle(document: DocumentSnapshot['document']): string {
+  const prefixes = [document.typeCode, /^\D+/.exec(document.code ?? '')?.[0]?.trim() ?? ''].filter(
+    (prefix) => prefix !== '',
+  );
+  let title = document.title.trim();
+  if (document.code !== null) {
+    // Tira "DFD — " (ou "DFD - ") do começo, quantas vezes se repetir.
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const prefix of prefixes) {
+        const match = /^\s*[—–-]\s*/.exec(title.slice(prefix.length));
+        if (title.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase() && match) {
+          const rest = title.slice(prefix.length + match[0].length);
+          if (rest !== '') {
+            title = rest;
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+  return [document.code, title].filter((part): part is string => Boolean(part)).join(' — ');
 }
 
 // --- Seções ---------------------------------------------------------------------------------------
@@ -236,7 +243,7 @@ interface OrderedSection {
 function orderedSections(input: RenditionHtmlInput): OrderedSection[] {
   const keys = Object.keys(input.snapshot.sections);
   if (input.template === null || input.template.sections.length === 0) {
-    return keys.sort().map((key) => ({ key, title: humanize(key), render: 'TEXT' }));
+    return keys.sort().map((key) => ({ key, title: sectionKeyLabel(key), render: 'TEXT' }));
   }
   const defined = [...input.template.sections].sort((a, b) => a.order - b.order);
   const known = new Set(defined.map((section) => section.key));
@@ -250,7 +257,7 @@ function orderedSections(input: RenditionHtmlInput): OrderedSection[] {
     ...keys
       .filter((key) => !known.has(key))
       .sort()
-      .map((key): OrderedSection => ({ key, title: humanize(key), render: 'TEXT' })),
+      .map((key): OrderedSection => ({ key, title: sectionKeyLabel(key), render: 'TEXT' })),
   ];
 }
 
@@ -397,9 +404,7 @@ export function buildRenditionHtml(input: RenditionHtmlInput): RenditionHtml {
     isPreview ? 'Rascunho' : `Versão ${String(snapshot.document.versionNumber)}`,
     snapshot.process.organizationName,
   ].filter((part): part is string => part !== null && part !== '');
-  const title = [snapshot.document.code, snapshot.document.title]
-    .filter((part): part is string => part !== null && part !== '')
-    .join(' — ');
+  const title = renditionTitle(snapshot.document);
   const collections = Object.entries(snapshot.collections)
     .filter(([name]) => !COMPUTED_COLLECTIONS.has(name))
     .sort(([a], [b]) => a.localeCompare(b))
@@ -409,7 +414,7 @@ export function buildRenditionHtml(input: RenditionHtmlInput): RenditionHtml {
     (isPreview ? `<div class="cf-watermark" aria-hidden="true">${DRAFT_WATERMARK}</div>` : '') +
     `<h1>${escapeHtml(title)}</h1>` +
     `<p class="cf-meta">${meta.map(escapeHtml).join(' · ')}</p>` +
-    headerTable(snapshot.header) +
+    headerTable(snapshot) +
     sectionsHtml(input, variables) +
     collections;
   return {

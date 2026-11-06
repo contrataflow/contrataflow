@@ -9,6 +9,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 
 import { TERM_REPOSITORY } from './ports.js';
 import type { TermRepository } from './ports.js';
+import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import type {
   DocumentValidationSubject,
@@ -42,6 +43,7 @@ export class TermDocumentValidator implements DocumentValidator {
     @Inject(TERM_REPOSITORY) private readonly terms: TermRepository,
     private readonly documents: DocumentFacade,
     private readonly processes: ProcessFacade,
+    private readonly catalogs: CatalogFacade,
   ) {}
 
   async validate(tx: TenantTx, subject: DocumentValidationSubject): Promise<readonly Violation[]> {
@@ -131,6 +133,24 @@ export class TermDocumentValidator implements DocumentValidator {
       specification: rows.get(line.processItemId)?.specification ?? null,
       acceptanceCriteria: rows.get(line.processItemId)?.acceptanceCriteria ?? null,
     }));
-    return { header: termSnapshotHeader(term), collections: { items } };
+    const research =
+      term.priceResearchId === null
+        ? undefined
+        : (await this.documents.documentLabels(tx, [term.priceResearchId])).get(
+            term.priceResearchId,
+          );
+    const criterion =
+      term.selectionCriterionId === null
+        ? null
+        : await this.catalogs.find(tx, term.selectionCriterionId);
+    // Nomes do momento da versão ao lado dos ids: o PDF mostra o critério e a pesquisa, não UUIDs.
+    return {
+      header: {
+        ...termSnapshotHeader(term),
+        selectionCriterionName: criterion?.label ?? null,
+        priceResearchLabel: research === undefined ? null : (research.code ?? research.title),
+      },
+      collections: { items },
+    };
   }
 }

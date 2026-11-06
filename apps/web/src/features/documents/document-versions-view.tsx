@@ -22,7 +22,13 @@ import {
   Tr,
 } from '@contrataflow/ui';
 import type { StatusTone } from '@contrataflow/ui';
-import { DOCUMENT_VERSION_LIMITS, DOCUMENT_VERSION_MESSAGES } from '@contrataflow/validation';
+import {
+  DOCUMENT_VERSION_LIMITS,
+  DOCUMENT_VERSION_MESSAGES,
+  presentFieldValue,
+  TYPED_COLLECTION_PRESENTATION,
+  TYPED_HEADER_PRESENTATION,
+} from '@contrataflow/validation';
 import type {
   CollectionDiff,
   DocumentVersionComparisonDto,
@@ -481,6 +487,20 @@ type KnownField = (typeof KNOWN_FIELDS)[number];
 const isKnownField = (field: string): field is KnownField =>
   (KNOWN_FIELDS as readonly string[]).includes(field);
 
+/** Campos do cabeçalho tipado de todos os módulos por chave (rótulo e formato em pt-BR). */
+const TYPED_HEADER_BY_KEY = new Map(
+  Object.values(TYPED_HEADER_PRESENTATION)
+    .flat()
+    .map((spec) => [spec.key, spec] as const),
+);
+
+/** Valor do campo do cabeçalho tipado no formato brasileiro (id de referência fica como veio). */
+function headerValue(field: string, value: unknown): string {
+  const spec = TYPED_HEADER_BY_KEY.get(field);
+  if (spec === undefined || spec.kind === 'ref') return display(value);
+  return presentFieldValue(spec, { [field]: value });
+}
+
 function display(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'string') return value;
@@ -561,13 +581,23 @@ function HeaderBlock({ entries, fromLabel, toLabel }: BlockProps<HeaderDiff>) {
                   scope="row"
                   className="align-top font-semibold whitespace-normal text-foreground normal-case"
                 >
-                  {isKnownField(entry.field) ? t(`fields.${entry.field}`) : entry.field}
+                  {isKnownField(entry.field)
+                    ? t(`fields.${entry.field}`)
+                    : (TYPED_HEADER_BY_KEY.get(entry.field)?.label ?? entry.field)}
                 </Th>
                 <Td className="align-top break-words">
-                  {entry.changeType === 'MASKED' ? <MaskedValue /> : display(entry.from)}
+                  {entry.changeType === 'MASKED' ? (
+                    <MaskedValue />
+                  ) : (
+                    headerValue(entry.field, entry.from)
+                  )}
                 </Td>
                 <Td className="align-top break-words">
-                  {entry.changeType === 'MASKED' ? <MaskedValue /> : display(entry.to)}
+                  {entry.changeType === 'MASKED' ? (
+                    <MaskedValue />
+                  ) : (
+                    headerValue(entry.field, entry.to)
+                  )}
                 </Td>
                 <Td className="align-top">
                   <ChangeBadge changeType={entry.changeType} />
@@ -637,11 +667,36 @@ function SectionsBlock({ entries, fromLabel, toLabel }: BlockProps<SectionDiff>)
   );
 }
 
-function rowSummary(row: Readonly<Record<string, unknown>> | null, masked: readonly string[]) {
+function collectionTitle(collection: string): string {
+  return TYPED_COLLECTION_PRESENTATION[collection]?.title ?? collection;
+}
+
+function columnLabel(collection: string, key: string): string {
+  return (
+    TYPED_COLLECTION_PRESENTATION[collection]?.columns.find((column) => column.key === key)
+      ?.label ?? key
+  );
+}
+
+function rowSummary(
+  collection: string,
+  row: Readonly<Record<string, unknown>> | null,
+  masked: readonly string[],
+) {
   if (row === null) return '—';
-  return Object.entries(row)
-    .filter(([key]) => !key.endsWith('Masked'))
-    .map(([key, value]) => `${key}: ${masked.includes(key) ? '—' : display(value)}`)
+  const columns = TYPED_COLLECTION_PRESENTATION[collection]?.columns;
+  if (columns === undefined) {
+    return Object.entries(row)
+      .filter(([key]) => !key.endsWith('Masked'))
+      .map(([key, value]) => `${key}: ${masked.includes(key) ? '—' : display(value)}`)
+      .join(' · ');
+  }
+  return columns
+    .filter((column) => column.key in row)
+    .map(
+      (column) =>
+        `${column.label}: ${masked.includes(column.key) ? '—' : presentFieldValue(column, { ...row })}`,
+    )
     .join(' · ');
 }
 
@@ -653,9 +708,9 @@ function CollectionsBlock({ entries, fromLabel, toLabel }: BlockProps<Collection
       <h3 className="font-semibold">{t('diff.collections')}</h3>
       {groups.map((collection) => (
         <div key={collection} className="flex min-w-0 flex-col gap-2">
-          <h4 className="text-sm font-medium">{collection}</h4>
-          <TableContainer label={collection}>
-            <Table aria-label={collection} className="min-w-[36rem]">
+          <h4 className="text-sm font-medium">{collectionTitle(collection)}</h4>
+          <TableContainer label={collectionTitle(collection)}>
+            <Table aria-label={collectionTitle(collection)} className="min-w-[36rem]">
               <TableHead>
                 <Tr>
                   <Th>{t('diff.item')}</Th>
@@ -679,22 +734,30 @@ function CollectionsBlock({ entries, fromLabel, toLabel }: BlockProps<Collection
                         {entry.itemId}
                       </Th>
                       <Td className="align-top break-words">
-                        {rowSummary(entry.from, entry.maskedFields)}
+                        {rowSummary(entry.collection, entry.from, entry.maskedFields)}
                       </Td>
                       <Td className="align-top break-words">
-                        {rowSummary(entry.to, entry.maskedFields)}
+                        {rowSummary(entry.collection, entry.to, entry.maskedFields)}
                       </Td>
                       <Td className="align-top">
                         <div className="flex flex-col items-start gap-1">
                           <ChangeBadge changeType={entry.changeType} />
                           {entry.changedFields.length > 0 ? (
                             <span className="text-xs text-muted-foreground">
-                              {t('diff.changedFields', { fields: entry.changedFields.join(', ') })}
+                              {t('diff.changedFields', {
+                                fields: entry.changedFields
+                                  .map((key) => columnLabel(entry.collection, key))
+                                  .join(', '),
+                              })}
                             </span>
                           ) : null}
                           {entry.maskedFields.length > 0 ? (
                             <span className="text-xs text-muted-foreground">
-                              {t('diff.maskedFields', { fields: entry.maskedFields.join(', ') })}
+                              {t('diff.maskedFields', {
+                                fields: entry.maskedFields
+                                  .map((key) => columnLabel(entry.collection, key))
+                                  .join(', '),
+                              })}
                             </span>
                           ) : null}
                         </div>

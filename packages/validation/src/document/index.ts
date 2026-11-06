@@ -10,3 +10,4 @@ export * from './numbering-mask.js';
 export * from './process-documents.js';
 export * from './rich-text.js';
 export * from './template.js';
+export * from './typed-presentation.js';

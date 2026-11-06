@@ -10,6 +10,7 @@ import {
   InvalidLayoutError,
   MASKED_VALUE_LABEL,
   renditionLayout,
+  renditionTitle,
   renditionVariables,
 } from './rendition-html.js';
 import type { RenditionHtmlInput } from './rendition-html.js';
@@ -94,7 +95,7 @@ describe('buildRenditionHtml (RN-DOC-65 · ADR-007)', () => {
     expect(html.indexHtml).toContain('Não se aplica.');
     expect(html.indexHtml).toContain('Sem demanda');
     // Seção do snapshot fora do template continua no PDF (depois das definidas).
-    expect(html.indexHtml).toContain('3. Extra');
+    expect(html.indexHtml).toContain('3. Seção');
     expect(html.indexHtml).toContain('Seção não preenchida.');
     expect(html.indexHtml).toContain('Cimento');
     expect(html.indexHtml).not.toContain(DRAFT_WATERMARK);
@@ -163,7 +164,138 @@ describe('buildRenditionHtml (RN-DOC-65 · ADR-007)', () => {
   it('sem template: layout padrão e seções pela chave', () => {
     const html = buildRenditionHtml(input({ template: null }));
     expect(html.layout).toEqual(DEFAULT_TEMPLATE_LAYOUT);
-    expect(html.indexHtml).toContain('1. Extra');
+    expect(html.indexHtml).toContain('1. Seção');
+    expect(html.indexHtml).toContain('Problema a ser resolvido');
+  });
+});
+
+describe('PDF em português (US-067 · US-109)', () => {
+  const dfd = snapshot({
+    document: {
+      ...snapshot().document,
+      code: 'DFD 0005/2026',
+      title: 'DFD — Compras de material de escritório',
+      typeCode: 'DFD',
+    },
+    header: {
+      requestDate: '2026-11-06',
+      requestingDepartmentId: '0192f067-0000-7000-8000-0000000000aa',
+      requestingDepartmentName: 'Gerência de Compras',
+      responsibleId: '0192f067-0000-7000-8000-0000000000bb',
+      responsibleName: 'Maria Souza',
+      objectSummary: 'Material de escritório',
+      priority: 'URGENT',
+      expectedDate: '2026-12-01',
+      estimatedValue: '650000.00',
+      pcaStatus: 'NOT_PLANNED',
+      pcaYear: null,
+      pcaItemCode: null,
+      pcaJustification: 'Demanda nova',
+    },
+    sections: {
+      JUSTIFICATION: { state: 'EMPTY', content: null, justification: null },
+      SEM_ROTULO: { state: 'EMPTY', content: null, justification: null },
+    },
+    collections: {
+      items: [
+        {
+          processItemId: '0192f067-0000-7000-8000-0000000000cc',
+          unitOfMeasureId: '0192f067-0000-7000-8000-0000000000dd',
+          sequence: 1,
+          lotNumber: null,
+          description: 'Papel A4',
+          unit: 'Resma',
+          quantity: '1500.0000',
+          notes: null,
+          sortOrder: 0,
+        },
+      ],
+    },
+  });
+
+  it('cabeçalho com rótulos, datas, moeda, enumerações e nomes em português', () => {
+    const html = buildRenditionHtml(input({ snapshot: dfd, template: null })).indexHtml;
+    expect(html).toContain('<th>Data do pedido</th><td>06/11/2026</td>');
+    expect(html).toContain('<th>Unidade requisitante</th><td>Gerência de Compras</td>');
+    expect(html).toContain('<th>Responsável</th><td>Maria Souza</td>');
+    expect(html).toContain('<th>Prioridade</th><td>Urgente</td>');
+    expect(html).toContain('<th>Situação no PCA</th><td>Não previsto no PCA</td>');
+    expect(html).toContain('<th>Valor estimado</th><td>R$ 650.000,00</td>');
+    expect(html).toContain('<th>Ano do PCA</th><td>—</td>');
+  });
+
+  it('nenhuma palavra em inglês nem valor cru (UUID, enumeração, decimal ou data ISO)', () => {
+    const html = buildRenditionHtml(input({ snapshot: dfd, template: null })).indexHtml;
+    const body = html.slice(html.indexOf('<body>'));
+    expect(body).not.toMatch(/Request|Responsible|Object summary|Pca |Priority|Items\b/);
+    expect(body).not.toMatch(/URGENT|NOT_PLANNED|650000|2026-11-06|0192f067-0000/);
+    expect(body).toContain('<h3 class="cf-collection">Itens</h3>');
+    expect(body).toContain('<th>Quantidade</th>');
+    expect(body).toContain('<td>1.500</td>');
+    expect(body).toContain('<td>Resma</td>');
+    expect(body).toContain('<h2>2. Seção</h2>');
+  });
+
+  it('snapshot antigo sem o nome da unidade usa o do processo, nunca o id', () => {
+    const { requestingDepartmentName: _omitted, ...header } = dfd.header;
+    const html = buildRenditionHtml(input({ snapshot: { ...dfd, header }, template: null }));
+    expect(html.indexHtml).toContain('<th>Unidade requisitante</th><td>Manutenção</td>');
+  });
+
+  it('sigilo: valor estimado mascarado continua "Valor sigiloso"', () => {
+    const html = buildRenditionHtml(
+      input({ snapshot: maskConfidentialSnapshot(dfd), template: null }),
+    ).indexHtml;
+    expect(html).toContain('<th>Valor estimado</th><td>Valor sigiloso</td>');
+    expect(html).not.toContain('650');
+  });
+
+  it('título sem o prefixo repetido', () => {
+    expect(renditionTitle(dfd.document)).toBe('DFD 0005/2026 — Compras de material de escritório');
+    expect(renditionTitle({ ...dfd.document, title: 'DFD - DFD — Compras de material' })).toBe(
+      'DFD 0005/2026 — Compras de material',
+    );
+    expect(renditionTitle({ ...dfd.document, code: null, title: 'DFD — Compras' })).toBe(
+      'DFD — Compras',
+    );
+    expect(renditionTitle({ ...dfd.document, title: 'Compras do DFD' })).toBe(
+      'DFD 0005/2026 — Compras do DFD',
+    );
+  });
+
+  it('TR: enumerações, prazos e critério de julgamento em português', () => {
+    const term = snapshot({
+      document: {
+        ...snapshot().document,
+        code: 'TR 0001/2026',
+        title: 'TR — Papel',
+        typeCode: 'TR',
+      },
+      header: {
+        contractDurationMonths: 12,
+        executionDeadline: 30,
+        executionDeadlineType: 'BUSINESS',
+        paymentTermDays: 30,
+        contractGuaranteePercent: '5.00',
+        allowsSubcontracting: false,
+        selectionCriterionId: '0192f067-0000-7000-8000-0000000000ee',
+        selectionCriterionName: 'Menor preço',
+        awardType: 'BY_ITEM',
+        estimatedTotalValue: '1000.50',
+        estimatedValueSource: 'PRICE_RESEARCH',
+      },
+      collections: {},
+    });
+    const html = buildRenditionHtml(input({ snapshot: term, template: null })).indexHtml;
+    expect(html).toContain('<th>Vigência do contrato</th><td>12 meses</td>');
+    expect(html).toContain('<th>Contagem do prazo</th><td>Dias úteis</td>');
+    expect(html).toContain('<th>Garantia contratual</th><td>5%</td>');
+    expect(html).toContain('<th>Permite subcontratação</th><td>Não</td>');
+    expect(html).toContain('<th>Critério de julgamento</th><td>Menor preço</td>');
+    expect(html).toContain('<th>Tipo de adjudicação</th><td>Por item</td>');
+    expect(html).toContain('<td>R$ 1.000,50</td>');
+    expect(html).toContain('<td>Pesquisa de preços</td>');
+    expect(html).not.toMatch(/BUSINESS|BY_ITEM|PRICE_RESEARCH|0192f067-0000/);
   });
 });
 

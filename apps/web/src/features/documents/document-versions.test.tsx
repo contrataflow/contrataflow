@@ -365,7 +365,7 @@ describe('SCR-106 · Versões e comparação (DOC-15/18)', () => {
     const objective = within(header).getByRole('row', { name: /objective/ });
     expect(within(objective).getByText('Alterado')).toBeTruthy();
     expect(within(objective).getByText('Pavimentar ruas')).toBeTruthy();
-    const masked = within(header).getByRole('row', { name: /estimatedValue/ });
+    const masked = within(header).getByRole('row', { name: /Valor estimado/ });
     expect(within(masked).getAllByText(/Valor sigiloso/).length).toBeGreaterThanOrEqual(1);
     expect(within(header).getByRole('row', { name: /Título/ })).toBeTruthy();
 

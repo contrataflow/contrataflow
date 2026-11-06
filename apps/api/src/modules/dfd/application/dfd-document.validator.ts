@@ -137,8 +137,15 @@ export class DfdDocumentValidator implements DocumentValidator {
     const dfd = await this.dfds.findById(tx, subject.document.id);
     if (dfd === null) return { header: {}, collections: {} };
     const items = await this.documents.snapshotItemsIn(tx, subject.document);
+    // Nomes do momento da versão ao lado dos ids: o PDF mostra a unidade e o responsável, não UUIDs.
+    const departments = await this.organization.departmentNames(tx, [dfd.requestingDepartmentId]);
+    const users = await this.identity.userDisplayNames(tx, [dfd.responsibleId]);
     return {
-      header: snapshotHeader(dfd),
+      header: {
+        ...snapshotHeader(dfd),
+        requestingDepartmentName: departments.get(dfd.requestingDepartmentId) ?? null,
+        responsibleName: users.get(dfd.responsibleId) ?? null,
+      },
       collections: { items },
     };
   }

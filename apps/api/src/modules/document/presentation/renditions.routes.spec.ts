@@ -544,7 +544,7 @@ describe('Feature: Gerar PDF de documentos (US-067)', () => {
       expect(full.id).not.toBe(masked.id);
       expect(full.masked).toBe(false);
       await runRender(api, full.id);
-      expect(renderer.lastHtml()).toContain('1000.00');
+      expect(renderer.lastHtml()).toContain('R$ 1.000,00');
       expect(stored(full.id)?.storageKey).toMatch(/\/content\.pdf$/);
       expect(stored(masked.id)?.storageKey).toMatch(/\/content-masked\.pdf$/);
       // Quem não atende POL-09 nunca baixa o completo.
