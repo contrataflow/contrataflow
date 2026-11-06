@@ -74,7 +74,7 @@ export function RiskMapCompletenessPanel({
               {violation.itemId === null ? null : (
                 <button
                   type="button"
-                  className="self-start text-xs text-primary underline"
+                  className="self-start text-xs text-foreground underline"
                   onClick={() => {
                     if (violation.itemId !== null) onGoToRisk(violation.itemId);
                   }}

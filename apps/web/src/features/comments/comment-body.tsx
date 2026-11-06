@@ -22,7 +22,7 @@ export function MentionPill({
 }) {
   const t = useTranslations('comments.mentions');
   return (
-    <span className="inline-flex items-center gap-0.5 rounded-control bg-primary/10 px-1 font-medium text-primary">
+    <span className="inline-flex items-center gap-0.5 rounded-control bg-primary-soft px-1 font-medium text-primary-soft-foreground">
       <span aria-hidden="true">{kind === 'DEPARTMENT' ? '#' : '@'}</span>
       <span className="sr-only">{kind === 'DEPARTMENT' ? t('department') : t('user')}: </span>
       {label}

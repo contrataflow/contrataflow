@@ -217,6 +217,7 @@ tabelas acima (que mostram cada card no seu momento).
 | Novo processo        | `novo-processo`                          |
 | Caixa de tarefas     | `caixa-de-tarefas`                       |
 | Aprovações · decisão | `decisao-da-aprovacao`, `aprovacoes`     |
+| DFD (wizard)         | `dfd`                                    |
 | ETP (documento)      | `etp`                                    |
 | TR                   | `tr`                                     |
 | Pesquisa de preços   | `pesquisa-de-precos`, `mapa-comparativo` |
@@ -351,6 +352,7 @@ segunda leva e as dos cards (`screenshots/leva-3-2026-11/`, que mostram cada car
 | Novo processo        | `novo-processo`                          |
 | Caixa de tarefas     | `caixa-de-tarefas`                       |
 | Aprovações · decisão | `aprovacoes`, `decisao-da-aprovacao`     |
+| DFD (wizard)         | `dfd`                                    |
 | ETP (documento)      | `etp`                                    |
 | TR                   | `tr`                                     |
 | Pesquisa de preços   | `pesquisa-de-precos`, `mapa-comparativo` |
@@ -366,10 +368,12 @@ segunda leva e as dos cards (`screenshots/leva-3-2026-11/`, que mostram cada car
 
 O roteiro é o da leva anterior: subir `next start` (porta 3300) com a API simulada (porta 4310),
 entrar em `/api/auth/login?as=ana&returnTo=…`, `POST /__mock/template-library` para a lista de
-templates e fotografar; o tema escuro vem de `data-theme="dark"` no `<html>`. Na API simulada o ETP,
-o TR e o mapa de riscos mostram "Não foi possível carregar…" nos blocos de anexos, comentários e
-pendências — são endpoints que o mock não implementa (já era assim na segunda leva), não defeito
-das telas. O DFD não tem fixture na API simulada e fica de fora das capturas.
+templates e fotografar; o tema escuro vem de `data-theme="dark"` no `<html>`. As capturas de
+DFD, ETP, TR e Riscos usam os processos dedicados da API simulada (spec-597): ETP 0002/2026 no
+processo 0028/2026, TR 0002/2026 no 0034/2026, DFD 0006/2026 (passo Revisão) no 0047/2026 e o mapa
+de riscos no 0048/2026, todos com anexos, comentários (com menção) e pendências carregados, sem
+"Não foi possível carregar…". Os specs `test/e2e/document-screens.spec.ts` abrem as quatro telas
+e medem o axe.
 
 **Estado das telas (varredura de 2026-11-03).** Todas as rotas alcançáveis de `apps/web/src/app`
 foram medidas em claro, escuro e 390 px (180 medições = 45 URLs × 2 temas × 2 larguras: as 20 rotas do menu e do hub de administração, o 404, 18 de detalhe, wizards e documentos e as 6 públicas de entrada, recuperação, órgão, convite e erro): **zero violações

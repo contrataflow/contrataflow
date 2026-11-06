@@ -589,6 +589,44 @@ function commentsOf(processId) {
         version: 1,
       },
     ]);
+    // Processos dos documentos (spec-597): um segundo comentário, da Ana, com uma menção.
+    if (DOCS_PROCESS_IDS.has(processId)) {
+      comments.get(processId).push({
+        id: randomUUID(),
+        processId,
+        targetType: 'PROCESS',
+        documentId: null,
+        sectionKey: null,
+        parentId: null,
+        authorId: 'sub-ana',
+        authorName: 'Ana Souza',
+        body: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'Combinado com ' },
+                {
+                  type: 'mention',
+                  attrs: {
+                    kind: 'USER',
+                    id: '0192e072-0000-7000-8000-0000000000c1',
+                    label: 'Cláudia Ramos',
+                  },
+                },
+                { type: 'text', text: ': a planilha segue na próxima versão.' },
+              ],
+            },
+          ],
+        },
+        createdAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        deletionReason: null,
+        version: 1,
+      });
+    }
   }
   return comments.get(processId);
 }
@@ -2627,6 +2665,455 @@ termStates.get(listProcessId(34)).term = buildTerm(TERM_FIXTURES[1], {
 });
 const termOf = (termId) =>
   [...termStates.values()].find((state) => state.term?.id === termId)?.term;
+
+// Telas completas na API simulada (spec-597): DFD (US-014), ETP-03 (US-020), anexos (US-069), comentários
+// (US-071) e pendências DOC-08 de ETP, TR, DFD e mapa de riscos (US-033/US-035). Dois processos
+// dedicados, fora da lista (SCR-004): 0047/2026 com o DFD 0006/2026 em elaboração e 0048/2026 com o
+// mapa de riscos (três riscos, um deles ALTO sem tratamento). Valem a abertura e a leitura das telas;
+// regras, idempotência e isolamento por tenant são cobertos nos testes da API.
+const DOCS_FIXTURES = [
+  { n: 47, code: '0047/2026', title: 'Contratação de serviços de limpeza e conservação predial' },
+  { n: 48, code: '0048/2026', title: 'Aquisição de equipamentos de informática para as escolas' },
+].map((fixture) => ({
+  ...fixture,
+  status: 'IN_PROGRESS',
+  priority: 'MEDIUM',
+  overdue: false,
+  unit: 0,
+}));
+const docsText = (...paragraphs) => ({
+  type: 'doc',
+  content: paragraphs.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })),
+});
+const docsSection = (state, content, updatedAt = '2026-11-02T14:00:00.000Z') => ({
+  state,
+  content,
+  justification: null,
+  revision: 1,
+  updatedAt,
+  updatedById: TERM_AUTHOR_ID,
+});
+const docsViolation = (code, severity, message, extra = {}) => ({
+  code,
+  severity,
+  message,
+  ruleId: null,
+  sectionKey: null,
+  field: null,
+  itemId: null,
+  params: {},
+  ...extra,
+});
+/** DOC-08 a partir das seções do modelo: obrigatória vazia = bloqueante; opcional vazia = aviso. */
+function docsValidation(documentId, template, sections, extraViolations = []) {
+  const rows = template.map((section) => {
+    const state = sections[section.key]?.state ?? 'EMPTY';
+    return {
+      key: section.key,
+      requirement: section.requirement,
+      state,
+      complete: state !== 'EMPTY',
+    };
+  });
+  const violations = [
+    ...template
+      .filter((section) => (sections[section.key]?.state ?? 'EMPTY') === 'EMPTY')
+      .map((section) =>
+        section.requirement === 'OPTIONAL'
+          ? docsViolation(
+              'SECTION_RECOMMENDED',
+              'WARNING',
+              `A seção "${section.title}" ainda não foi preenchida.`,
+              { sectionKey: section.key },
+            )
+          : docsViolation(
+              'SECTION_REQUIRED',
+              'BLOCKING',
+              `A seção "${section.title}" é obrigatória.`,
+              { sectionKey: section.key },
+            ),
+      ),
+    ...extraViolations,
+  ];
+  return {
+    documentId,
+    isComplete: !violations.some((violation) => violation.severity === 'BLOCKING'),
+    draftRevision: 1,
+    evaluatedAt: '2026-11-02T14:00:00.000Z',
+    summary: {
+      blocking: violations.filter((violation) => violation.severity === 'BLOCKING').length,
+      warnings: violations.filter((violation) => violation.severity === 'WARNING').length,
+    },
+    sections: rows,
+    violations,
+  };
+}
+
+// ETP: o rascunho por seção (ETP-03) e a pendência de um aviso sobre a estimativa.
+const ETP_TEMPLATE = {
+  versionId: '0192a000-0000-7000-8000-0000000e1901',
+  versionNumber: 1,
+  sections: [
+    ['NEED', 'Descrição da necessidade', 'REQUIRED', 'Lei 14.133/2021, art. 18, §1º, I'],
+    ['REQUIREMENTS', 'Requisitos da contratação', 'REQUIRED', 'Art. 18, §1º, III'],
+    ['MARKET', 'Levantamento de mercado', 'REQUIRED', 'Art. 18, §1º, V'],
+    ['SOLUTION', 'Descrição da solução como um todo', 'REQUIRED', 'Art. 18, §1º, VII'],
+    [
+      'VIABILITY',
+      'Posicionamento sobre a viabilidade',
+      'REQUIRED_OR_JUSTIFY',
+      'Art. 18, §1º, XIII',
+    ],
+    ['NOTES', 'Observações complementares', 'OPTIONAL', null],
+  ].map(([key, title, requirement, legalBasis], index) => ({
+    key,
+    title,
+    order: index + 1,
+    requirement,
+    helpText: `Oriente-se pela base legal para redigir a seção "${title}".`,
+    legalBasis,
+    minChars: null,
+    maxChars: 50000,
+    render: 'TEXT',
+    allowNarrative: true,
+  })),
+};
+const ETP_SEEDED_TEXT = {
+  NEED: 'A rede escolar precisa da quadra para as aulas de educação física.',
+  REQUIREMENTS: 'Piso esportivo, cobertura e iluminação conforme as normas.',
+  MARKET: 'Três fornecedores locais atendem ao escopo da reforma.',
+  SOLUTION: 'Reforma completa da quadra com cobertura metálica.',
+};
+function etpSectionsOf(etp) {
+  if (!etp.sections) {
+    const seeded = etp.dto.code === 'ETP 0002/2026';
+    etp.sections = Object.fromEntries(
+      ETP_TEMPLATE.sections.map(({ key }) => [
+        key,
+        seeded && ETP_SEEDED_TEXT[key]
+          ? docsSection('FILLED', docsText(ETP_SEEDED_TEXT[key]))
+          : docsSection('EMPTY', null),
+      ]),
+    );
+  }
+  return etp.sections;
+}
+const etpDetailOf = (etp) => ({
+  ...etp.dto,
+  recommendedAlternativeId: null,
+  parcelingDecision: null,
+  estimatedValueSource: null,
+  estimatedTotalValue: null,
+  estimatedTotalValueMasked: false,
+  priceResearchId: null,
+  draftRevision: 1,
+  draftContent: { sections: etpSectionsOf(etp) },
+});
+
+// DFD 0006/2026 do processo 0047/2026 (DFD-01..03, DOC-03, DOC-06/08).
+const DFD_DOC_ID = '0192a000-0000-7000-8000-0000000e4701';
+const DFD_TYPE = documentTypes.find((type) => type.code === 'DFD');
+const DFD_TEMPLATE = {
+  versionId: '0192a000-0000-7000-8000-0000000e4702',
+  versionNumber: 1,
+  sections: [
+    [
+      'JUSTIFICATION',
+      'Justificativa da necessidade',
+      'REQUIRED',
+      'Lei 14.133/2021, art. 18, §1º, I',
+    ],
+    ['EXPECTED_RESULTS', 'Resultados esperados', 'REQUIRED', 'Art. 18, §1º, IX'],
+    ['NOTES', 'Observações', 'OPTIONAL', null],
+  ].map(([key, title, requirement, legalBasis], index) => ({
+    key,
+    title,
+    order: index + 1,
+    requirement,
+    helpText: `Oriente-se pela base legal para redigir a seção "${title}".`,
+    legalBasis,
+    minChars: null,
+    maxChars: 5000,
+  })),
+};
+const dfdState = {
+  processId: listProcessId(47),
+  sections: {
+    JUSTIFICATION: docsSection(
+      'FILLED',
+      docsText(
+        'Os contratos de limpeza vencem em dezembro e as unidades escolares não podem ficar sem o serviço.',
+      ),
+    ),
+    EXPECTED_RESULTS: docsSection(
+      'FILLED',
+      docsText('Ambientes higienizados diariamente e redução das reclamações das direções.'),
+    ),
+    NOTES: docsSection('EMPTY', null),
+  },
+  items: [
+    ['Limpeza diária de salas de aula', '1200.0000'],
+    ['Conservação de áreas externas', '300.0000'],
+  ].map(([description, quantity], index) => ({
+    processItemId: `0192a000-0000-7000-8000-0000000e47a${String(index + 1)}`,
+    sequence: index + 1,
+    description,
+    unit: { id: TERM_UNIT.id, label: 'M²', allowsDecimal: true },
+    quantity,
+    notes: null,
+    sortOrder: index + 1,
+    calculationMemo: null,
+    specification: null,
+    acceptanceCriteria: null,
+  })),
+};
+dfdState.header = {
+  id: DFD_DOC_ID,
+  documentId: DFD_DOC_ID,
+  processId: dfdState.processId,
+  code: 'DFD 0006/2026',
+  title: 'DFD — Contratação de serviços de limpeza e conservação predial',
+  status: 'DRAFT',
+  templateVersionId: DFD_TEMPLATE.versionId,
+  documentVersion: 1,
+  draftRevision: 1,
+  requestDate: '2026-10-26',
+  requestingDepartmentId: departments[0].id,
+  // O mesmo id do usuário da sessão simulada (o resumo mostra o nome só para ele).
+  responsibleId: '0192a000-0000-7000-8000-0000000000a1',
+  objectSummary:
+    'Contratação de serviços continuados de limpeza e conservação predial das escolas.',
+  priority: 'HIGH',
+  expectedDate: '2026-12-15',
+  estimatedValue: '120000.00',
+  estimatedValueMasked: false,
+  pcaStatus: 'PLANNED',
+  pcaYear: 2026,
+  pcaItemCode: 'PCA-2026-014',
+  pcaJustification: null,
+  wizardStep: 'REVIEW',
+  completedSteps: ['IDENTIFICATION', 'JUSTIFICATION', 'PLANNING'],
+  createdAt: '2026-10-26T12:00:00.000Z',
+  updatedAt: '2026-11-02T14:00:00.000Z',
+  version: 1,
+};
+const dfdDtoOf = () => ({ ...dfdState.header });
+const dfdDocumentOf = () => ({
+  ...versionedDocument,
+  id: DFD_DOC_ID,
+  processId: dfdState.processId,
+  documentType: {
+    id: DFD_TYPE.id,
+    code: 'DFD',
+    name: DFD_TYPE.name,
+    kind: 'STRUCTURED',
+    systemModule: 'DFD',
+    requiresApproval: true,
+  },
+  templateVersionId: DFD_TEMPLATE.versionId,
+  number: 6,
+  code: 'DFD 0006/2026',
+  title: 'DFD — Contratação de serviços de limpeza e conservação predial',
+  confidentiality: 'INTERNAL',
+  draftContent: { sections: dfdState.sections, collections: {}, headerFields: {} },
+  draftRevision: 1,
+  createdAt: '2026-10-26T12:00:00.000Z',
+  updatedAt: '2026-11-02T14:00:00.000Z',
+  version: 1,
+});
+
+// Mapa de riscos do processo 0048/2026 (RSK-01/09, DOC-03/08): R01 ALTO sem tratamento.
+const RISK_MAP_DOC_ID = '0192a000-0000-7000-8000-0000000e4801';
+const RISK_SCALE = {
+  scale: {
+    max: 5,
+    probabilityLabels: ['Muito baixa', 'Baixa', 'Média', 'Alta', 'Muito alta'],
+    impactLabels: ['Muito baixo', 'Baixo', 'Médio', 'Alto', 'Muito alto'],
+  },
+  levelThresholds: [
+    { level: 'LOW', minScore: 1, maxScore: 4 },
+    { level: 'MEDIUM', minScore: 5, maxScore: 9 },
+    { level: 'HIGH', minScore: 10, maxScore: 16 },
+    { level: 'EXTREME', minScore: 17, maxScore: 25 },
+  ],
+};
+const riskLevelOf = (score) =>
+  RISK_SCALE.levelThresholds.find((band) => score >= band.minScore && score <= band.maxScore).level;
+const RISK_OWNER = { id: TERM_AUTHOR_ID, name: 'Ana Souza' };
+const RISK_PROCESS_ID = listProcessId(48);
+const RISKS = [
+  [
+    'R01',
+    'Atraso na entrega dos equipamentos',
+    'PLANNING',
+    4,
+    4,
+    'Fornecedor sem estoque.',
+    'Escolas sem os equipamentos no início do ano letivo.',
+    [],
+  ],
+  [
+    'R02',
+    'Especificação técnica incompleta',
+    'SELECTION',
+    3,
+    2,
+    'Termo de referência sem requisitos mínimos.',
+    'Propostas incompatíveis com a necessidade.',
+    ['PREVENTIVE'],
+  ],
+  [
+    'R03',
+    'Variação cambial dos preços',
+    'CONTRACT_MANAGEMENT',
+    2,
+    1,
+    'Equipamentos importados.',
+    'Pedido de reequilíbrio do contrato.',
+    [],
+  ],
+].map(([code, title, phase, probability, impact, cause, consequence, treatments], index) => {
+  const id = `0192a000-0000-7000-8000-0000000e481${String(index + 1)}`;
+  const score = probability * impact;
+  return {
+    id,
+    processId: RISK_PROCESS_ID,
+    code,
+    title,
+    description: null,
+    categoryId: '0192a000-0000-7000-8000-0000000e4821',
+    category: {
+      id: '0192a000-0000-7000-8000-0000000e4821',
+      code: 'CONTRATUAL',
+      label: 'Contratual',
+    },
+    phase,
+    cause,
+    consequence,
+    probability,
+    impact,
+    score,
+    level: riskLevelOf(score),
+    scaleSnapshot: RISK_SCALE,
+    ownerId: RISK_OWNER.id,
+    owner: RISK_OWNER,
+    ownerDepartmentId: null,
+    ownerDepartment: null,
+    residualProbability: null,
+    residualImpact: null,
+    residualScore: null,
+    residualLevel: null,
+    status: treatments.length > 0 ? 'IN_TREATMENT' : 'OPEN',
+    sortOrder: index + 1,
+    treatments: treatments.map((type, order) => ({
+      id: `0192a000-0000-7000-8000-0000000e482${String(index + 1)}`,
+      riskId: id,
+      processId: RISK_PROCESS_ID,
+      type,
+      description: 'Exigir as especificações mínimas no termo de referência.',
+      responsibleId: RISK_OWNER.id,
+      responsible: RISK_OWNER,
+      responsibleDepartmentId: null,
+      responsibleDepartment: null,
+      dueDate: '2026-12-01',
+      status: 'IN_PROGRESS',
+      completedAt: null,
+      notes: null,
+      sortOrder: order + 1,
+      version: 1,
+    })),
+    aiGenerationId: null,
+    aiReviewedAt: null,
+    aiReviewedBy: null,
+    version: 1,
+  };
+});
+const RISK_MAP_TEMPLATE_SECTIONS = [
+  { key: 'SCOPE', title: 'Escopo da análise', requirement: 'OPTIONAL' },
+];
+const riskMapViolations = () =>
+  RISKS.filter(
+    (risk) => ['HIGH', 'EXTREME'].includes(risk.level) && risk.treatments.length === 0,
+  ).map((risk) =>
+    docsViolation(
+      'RISK_TREATMENT_REQUIRED',
+      'BLOCKING',
+      `O risco ${risk.code} precisa de ao menos uma ação de tratamento.`,
+      { itemId: risk.id },
+    ),
+  );
+const riskMatrixOf = () => {
+  const max = RISK_SCALE.scale.max;
+  const cells = [];
+  for (let probability = max; probability >= 1; probability -= 1) {
+    for (let impact = 1; impact <= max; impact += 1) {
+      const score = probability * impact;
+      cells.push({
+        probability,
+        impact,
+        score,
+        level: riskLevelOf(score),
+        risks: RISKS.filter(
+          (risk) => risk.probability === probability && risk.impact === impact,
+        ).map(({ id, code, title }) => ({ id, code, title })),
+      });
+    }
+  }
+  return { scale: RISK_SCALE.scale, levelThresholds: RISK_SCALE.levelThresholds, cells };
+};
+const riskMapDocumentOf = () => ({
+  ...versionedDocument,
+  id: RISK_MAP_DOC_ID,
+  processId: RISK_PROCESS_ID,
+  documentType: {
+    id: '0192a000-0000-7000-8000-0000000e4822',
+    code: 'RISK_MAP',
+    name: 'Mapa de Riscos',
+    kind: 'STRUCTURED',
+    systemModule: 'RISK_MAP',
+    requiresApproval: false,
+  },
+  number: 1,
+  code: 'MR 0001/2026',
+  title: 'Mapa de Riscos',
+  confidentiality: 'INTERNAL',
+  draftContent: { sections: {}, collections: {}, headerFields: {} },
+  draftRevision: 1,
+  createdAt: '2026-10-28T12:00:00.000Z',
+  updatedAt: '2026-11-02T14:00:00.000Z',
+  version: 1,
+});
+
+// Anexos (ATT-01) e comentários (CMT-01) dos processos dos documentos: um PDF no ETP 0028/2026 e no
+// TR 0034/2026; os demais processos ficam com a lista vazia.
+const DOCS_PROCESS_IDS = new Set(
+  [...ETP_FIXTURES, ...TERM_FIXTURES, ...DOCS_FIXTURES].map((fixture) => listProcessId(fixture.n)),
+);
+const attachmentsOf = (processId) =>
+  [28, 34, 48].some((n) => listProcessId(n) === processId)
+    ? [
+        {
+          id: `${processId.slice(0, 24)}0000000e4901`,
+          processId,
+          targetType: 'PROCESS',
+          targetId: processId,
+          fileName: 'planilha-de-quantitativos.pdf',
+          extension: 'pdf',
+          declaredMimeType: 'application/pdf',
+          sizeBytes: 245_760,
+          categoryId: null,
+          description: 'Planilha de quantitativos revisada.',
+          status: 'AVAILABLE',
+          reasonCode: null,
+          sha256: 'a'.repeat(64),
+          createdAt: '2026-11-02T14:00:00.000Z',
+          uploadedAt: '2026-11-02T14:00:05.000Z',
+          scannedAt: '2026-11-02T14:00:12.000Z',
+          uploadedById: TERM_AUTHOR_ID,
+          version: 1,
+        },
+      ]
+    : [];
 
 // Documento livre (US-063 · DOC-01/02/03/05): o processo 0036/2026, fora da lista (SCR-004), com o
 // Ofício no menu "Criar documento"; o DOC-02 cria o ofício do modelo padrão (duas seções, uma que
@@ -5703,7 +6190,11 @@ createServer(async (request, response) => {
   const commentsRoute = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/comments$/.exec(url.pathname);
   if (commentsRoute) {
     // CMT-01/CMT-02 (US-071): threads (raízes mais recentes primeiro) e criação/resposta.
-    const found = processes.find((item) => item.view.id === commentsRoute[1]);
+    const found =
+      processes.find((item) => item.view.id === commentsRoute[1]) ??
+      (DOCS_PROCESS_IDS.has(commentsRoute[1])
+        ? { view: { id: commentsRoute[1], isBudgetConfidential: false } }
+        : undefined);
     if (!found) return problem(response, 404, 'PROCESS_NOT_FOUND', String(correlationId));
     const list = commentsOf(found.view.id);
     if (request.method === 'GET') {
@@ -5918,6 +6409,195 @@ createServer(async (request, response) => {
         ETag: '"1"',
       });
     }
+  }
+  // Telas completas dos documentos (spec-597): anexos (ATT-01), riscos (RSK-01/09), DFD (DFD-01..04,
+  // DOC-03/05/06), ETP-03, pendências (DOC-08) e presença (DOC-24/25) sem outros editores.
+  const docsAttachments = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/attachments$/.exec(url.pathname);
+  if (docsAttachments && request.method === 'GET' && DOCS_PROCESS_IDS.has(docsAttachments[1])) {
+    const data = attachmentsOf(docsAttachments[1]);
+    return send(response, 200, {
+      data,
+      meta: { page: 1, pageSize: 100, totalItems: data.length, totalPages: 1 },
+    });
+  }
+  const docsRisks = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/(risks|risk-matrix)$/.exec(
+    url.pathname,
+  );
+  if (docsRisks && request.method === 'GET' && DOCS_PROCESS_IDS.has(docsRisks[1])) {
+    const withRisks = docsRisks[1] === RISK_PROCESS_ID;
+    if (docsRisks[2] === 'risk-matrix') {
+      return send(response, 200, {
+        data: withRisks
+          ? riskMatrixOf()
+          : {
+              ...riskMatrixOf(),
+              cells: riskMatrixOf().cells.map((cell) => ({ ...cell, risks: [] })),
+            },
+      });
+    }
+    return send(response, 200, {
+      data: withRisks ? RISKS : [],
+      meta: {
+        ...RISK_SCALE,
+        riskMap: withRisks ? { id: RISK_MAP_DOC_ID, code: 'MR 0001/2026', status: 'DRAFT' } : null,
+        canManage: true,
+        lockReason: null,
+      },
+    });
+  }
+  const docsDfdList = /^\/api\/v1\/processes\/([0-9a-f-]{36})\/dfds$/.exec(url.pathname);
+  if (docsDfdList && request.method === 'GET' && docsDfdList[1] === dfdState.processId) {
+    return send(response, 200, {
+      data: [
+        {
+          id: DFD_DOC_ID,
+          documentId: DFD_DOC_ID,
+          code: dfdState.header.code,
+          status: dfdState.header.status,
+          requestDate: dfdState.header.requestDate,
+          priority: dfdState.header.priority,
+          version: dfdState.header.version,
+        },
+      ],
+    });
+  }
+  const docsDfd = /^\/api\/v1\/dfds\/([0-9a-f-]{36})$/.exec(url.pathname);
+  if (docsDfd && docsDfd[1] === DFD_DOC_ID) {
+    if (request.method === 'GET') {
+      return send(
+        response,
+        200,
+        {
+          data: dfdDtoOf(),
+          meta: {
+            allowedActions: ['UPDATE', 'SUBMIT'],
+            decision: null,
+            template: {
+              versionId: DFD_TEMPLATE.versionId,
+              versionNumber: DFD_TEMPLATE.versionNumber,
+              sections: DFD_TEMPLATE.sections,
+              fieldConfig: {},
+            },
+          },
+        },
+        { ETag: `"${String(dfdState.header.version)}"` },
+      );
+    }
+    if (request.method === 'PATCH') {
+      // DFD-04: `If-Match` da versão do DFD; só os campos do cabeçalho.
+      if (String(request.headers['if-match'] ?? '') !== `"${String(dfdState.header.version)}"`) {
+        return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      Object.assign(dfdState.header, body, {
+        version: dfdState.header.version + 1,
+        updatedAt: new Date().toISOString(),
+      });
+      return send(
+        response,
+        200,
+        { data: dfdDtoOf(), meta: { allowedActions: ['UPDATE', 'SUBMIT'], template: null } },
+        { ETag: `"${String(dfdState.header.version)}"` },
+      );
+    }
+  }
+  const docsDocument =
+    /^\/api\/v1\/documents\/([0-9a-f-]{36})(\/(items|validation|presence|sections\/([A-Z_]+)))?$/.exec(
+      url.pathname,
+    );
+  const docsEtp = docsDocument ? etpOf(docsDocument[1]) : undefined;
+  const docsTerm = docsDocument ? termOf(docsDocument[1]) : undefined;
+  const docsKind =
+    docsDocument?.[1] === DFD_DOC_ID
+      ? 'DFD'
+      : docsDocument?.[1] === RISK_MAP_DOC_ID
+        ? 'RISK_MAP'
+        : docsEtp
+          ? 'ETP'
+          : docsTerm
+            ? 'TR'
+            : null;
+  if (docsDocument && docsKind !== null) {
+    const part = docsDocument[3];
+    if (
+      part === undefined &&
+      request.method === 'GET' &&
+      (docsKind === 'DFD' || docsKind === 'RISK_MAP')
+    ) {
+      return send(
+        response,
+        200,
+        {
+          data: docsKind === 'DFD' ? dfdDocumentOf() : riskMapDocumentOf(),
+          meta: { allowedActions: ['UPDATE'] },
+        },
+        { ETag: '"1"' },
+      );
+    }
+    if (part === 'validation' && request.method === 'GET') {
+      const data =
+        docsKind === 'DFD'
+          ? docsValidation(DFD_DOC_ID, DFD_TEMPLATE.sections, dfdState.sections)
+          : docsKind === 'RISK_MAP'
+            ? docsValidation(RISK_MAP_DOC_ID, RISK_MAP_TEMPLATE_SECTIONS, {}, riskMapViolations())
+            : docsKind === 'ETP'
+              ? docsValidation(docsDocument[1], ETP_TEMPLATE.sections, etpSectionsOf(docsEtp))
+              : docsValidation(docsDocument[1], TERM_SECTIONS, docsTerm.sections);
+      return send(response, 200, { data });
+    }
+    if (part === 'presence' && (request.method === 'PUT' || request.method === 'DELETE')) {
+      if (request.method === 'DELETE') return send(response, 204);
+      return send(response, 200, { data: { editors: [] } }, { 'Cache-Control': 'no-store' });
+    }
+    if (part === 'items' && request.method === 'GET' && docsKind === 'DFD') {
+      return send(response, 200, { data: dfdState.items }, { ETag: '"1"' });
+    }
+    if (docsDocument[4] !== undefined && request.method === 'PUT' && docsKind !== 'TR') {
+      // DOC-05: revisão por seção (`If-Match: "s<revision>"`), como no TR.
+      const sections =
+        docsKind === 'DFD' ? dfdState.sections : docsKind === 'ETP' ? etpSectionsOf(docsEtp) : {};
+      const current = sections[docsDocument[4]];
+      if (!current) return problem(response, 422, 'SECTION_NOT_IN_TEMPLATE', String(correlationId));
+      if (String(request.headers['if-match'] ?? '') !== `"s${String(current.revision)}"`) {
+        return problem(response, 412, 'SECTION_REVISION_CONFLICT', String(correlationId));
+      }
+      const body = JSON.parse((await readBody(request)) || '{}');
+      const filled = body.content !== null && body.content !== undefined;
+      current.state = body.notApplicable === true ? 'NOT_APPLICABLE' : filled ? 'FILLED' : 'EMPTY';
+      current.content = body.notApplicable === true ? null : (body.content ?? null);
+      current.justification = body.notApplicable === true ? (body.justification ?? null) : null;
+      current.revision += 1;
+      current.updatedAt = new Date().toISOString();
+      return send(
+        response,
+        200,
+        {
+          data: {
+            sectionKey: docsDocument[4],
+            state: current.state,
+            revision: current.revision,
+            updatedAt: current.updatedAt,
+            updatedBy: { id: TERM_AUTHOR_ID, name: 'Ana Souza' },
+            draftRevision: current.revision,
+          },
+        },
+        { ETag: `"s${String(current.revision)}"` },
+      );
+    }
+  }
+  // ETP-03 (US-020): o ETP com o rascunho por seção e o modelo fixado.
+  const docsEtpRoute = /^\/api\/v1\/etps\/([0-9a-f-]{36})$/.exec(url.pathname);
+  const docsEtpFound = docsEtpRoute ? etpOf(docsEtpRoute[1]) : undefined;
+  if (docsEtpFound && request.method === 'GET') {
+    return send(
+      response,
+      200,
+      {
+        data: etpDetailOf(docsEtpFound),
+        meta: { allowedActions: ['UPDATE'], template: ETP_TEMPLATE },
+      },
+      { ETag: `"${String(docsEtpFound.dto.version)}"` },
+    );
   }
   const etpDocumentRoute = /^\/api\/v1\/documents\/([0-9a-f-]{36})$/.exec(url.pathname);
   const etpDocument = etpDocumentRoute ? etpOf(etpDocumentRoute[1]) : undefined;
@@ -6491,6 +7171,7 @@ createServer(async (request, response) => {
         ...PRICE_FIXTURES,
         ...ETP_FIXTURES,
         ...TERM_FIXTURES,
+        ...DOCS_FIXTURES,
         ...FREE_TEXT_FIXTURES,
         ...CANCELLATION_FIXTURES,
         ...ASSIGN_FIXTURES,
@@ -6993,6 +7674,8 @@ createServer(async (request, response) => {
     if (processRoute[2] === '/summary') return send(response, 200, { data: createdSummary(found) });
     return send(response, 200, { data: processRoute[2] ? [] : found.view });
   }
+  process.stderr.write(`404 ${request.method} ${url.pathname}
+`);
   return problem(response, 404, 'NOT_FOUND', String(correlationId));
 }).listen(PORT, () => {
   process.stdout.write(`mock-api pronto na porta ${PORT}\n`);
