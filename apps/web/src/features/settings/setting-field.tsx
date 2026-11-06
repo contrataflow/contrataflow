@@ -19,6 +19,7 @@ import { useTranslations } from 'next-intl';
 import { useId } from 'react';
 import type { ReactNode } from 'react';
 
+import { ColorField } from './color-field';
 import {
   EXTENSION_OPTIONS,
   MASK_TOKENS,
@@ -28,8 +29,6 @@ import {
   isLowContrast,
 } from './settings-model';
 import type { Draft, FieldKind } from './settings-model';
-
-const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
 export interface SettingFieldProps {
   readonly settingKey: string;
@@ -170,40 +169,19 @@ function SettingControl({
           </SelectContent>
         </Select>
       );
-    case 'color': {
-      const valid = HEX_COLOR.test(text);
+    case 'color':
       return (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="color"
-            aria-label={t('field.colorPicker')}
-            disabled={field?.disabled}
-            className="h-11 w-12 rounded-control border border-border bg-surface p-1"
-            value={valid ? text : '#000000'}
-            onChange={(event) => {
-              onChange(event.target.value.toUpperCase());
-            }}
-          />
-          <Input
-            aria-describedby={describedBy}
-            className="w-36 font-mono"
-            value={text}
-            maxLength={7}
-            spellCheck={false}
-            onChange={(event) => {
-              onChange(event.target.value);
-            }}
-          />
-          <span
-            aria-hidden="true"
-            className="grid h-11 min-w-24 place-items-center rounded-control px-3 text-sm font-bold text-white"
-            style={{ backgroundColor: valid ? text : '#000000' }}
-          >
-            Aa
-          </span>
-        </div>
+        <ColorField
+          id={field?.id}
+          value={text}
+          disabled={field?.disabled}
+          describedBy={describedBy}
+          invalid={field?.invalid}
+          onChange={(value) => {
+            onChange(value.toUpperCase());
+          }}
+        />
       );
-    }
     case 'extensions':
       return (
         <div className="flex flex-wrap gap-x-5 gap-y-3">

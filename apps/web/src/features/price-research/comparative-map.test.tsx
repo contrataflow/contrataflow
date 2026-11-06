@@ -260,9 +260,32 @@ describe('SCR-010 — Mapa comparativo (US-031)', () => {
     expect(third.textContent).toContain('Sem cotações válidas');
     expect(screen.getByText(/Calculado em 06\/10\/2026/)).toBeTruthy();
     expect(screen.getByText(/^R\$\s12\.345,60$/)).toBeTruthy();
+    // Cabeçalho no modelo (prd-6 · spec-596): trilha em vez de "Voltar", uma única ação primária.
+    const trail = screen.getByRole('navigation', { name: 'Trilha de navegação' });
+    expect(within(trail).getByRole('link', { name: 'Painel' }).getAttribute('href')).toBe(
+      '/painel',
+    );
+    expect(within(trail).getByRole('link', { name: 'Processos' }).getAttribute('href')).toBe(
+      '/processos',
+    );
     expect(
-      screen.getByRole('link', { name: 'Voltar à pesquisa de preços' }).getAttribute('href'),
+      within(trail).getByRole('link', { name: 'Pesquisa de preços' }).getAttribute('href'),
     ).toBe(`/processos/${PROCESS_ID}/pesquisa-precos/${RESEARCH_ID}`);
+    expect(within(trail).getByText('Mapa comparativo')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Voltar à pesquisa de preços' })).toBeNull();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'Mapa comparativo — PP 0001/2026',
+    );
+  });
+
+  it('[Cabeçalho] "Gerar PDF" é a única ação primária e "Exportar XLSX" é secundária', async () => {
+    await renderPage(mapRoute(comparativeMap()));
+    await grid();
+    const pdf = screen.getByRole('button', { name: 'Gerar PDF' });
+    const xlsx = screen.getByRole('button', { name: 'Exportar XLSX' });
+    expect(pdf.className).not.toBe(xlsx.className);
+    expect(pdf.className).toMatch(/bg-primary/);
+    expect(xlsx.className).not.toMatch(/bg-primary(?!-)/);
   });
 
   it('[Permissão] POL-09: toda célula, estatística e o total como "Sigiloso"; selos continuam', async () => {

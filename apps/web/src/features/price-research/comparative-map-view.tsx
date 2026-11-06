@@ -2,9 +2,11 @@
 
 import { Alert, Button, Skeleton } from '@contrataflow/ui';
 import { COMPARATIVE_MAP_MESSAGES } from '@contrataflow/validation';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
+import { AppPageHeader } from '@/components/shell/page-header';
 import { isApiError } from '@/lib/api/api-error';
 import { formatCivilDate, formatDateTime } from '@/lib/i18n/format';
 import { useShellSession } from '@/lib/session/session-context';
@@ -13,6 +15,7 @@ import { ComparativeMapExportMenu } from './comparative-map-export-menu';
 import { ComparativeMapGrid, formatPrice } from './comparative-map-grid';
 import { useComparativeMap } from './comparative-map.api';
 import { priceResearchHref, usePriceResearch } from './price-research.api';
+import { fetchProcess, processKeys } from '../processes/processes.api';
 
 /**
  * SCR-010 — Mapa comparativo (`/processos/[id]/pesquisa-precos/[researchId]/mapa`, US-031): a matriz
@@ -35,6 +38,12 @@ export function ComparativeMapView({
   const map = useComparativeMap(researchId);
   // Limiares de destaque para o tooltip dos selos (opcional: sem eles o selo só explica o motivo).
   const research = usePriceResearch(researchId);
+  // Código do processo para a trilha (opcional: sem ele a trilha mostra só "Processo").
+  const process = useQuery({
+    queryKey: processKeys.detail(session.activeTenant.id, processId),
+    queryFn: ({ signal }) => fetchProcess(processId, signal),
+    throwOnError: false,
+  });
   const back = (
     <Link
       href={priceResearchHref(processId, researchId)}
@@ -95,16 +104,36 @@ export function ComparativeMapView({
   const parameters = research.data?.research.parameters ?? null;
   return (
     <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4">
+      <AppPageHeader
+        breadcrumbs={[
+          { label: t('breadcrumb.dashboard'), href: '/painel' },
+          { label: t('breadcrumb.processes'), href: '/processos' },
+          {
+            label:
+              process.data === undefined
+                ? t('breadcrumb.processFallback')
+                : t('breadcrumb.process', { code: process.data.code ?? t('breadcrumb.draft') }),
+            href: `/processos/${processId}`,
+          },
+          {
+            label: t('breadcrumb.priceResearch'),
+            href: priceResearchHref(processId, researchId),
+          },
+          { label: t('breadcrumb.map') },
+        ]}
+        title={t('title', { code: data.code ?? data.title })}
+        description={
+          <>
+            {t('referenceDate', { date: formatCivilDate(data.referenceDate) })}
+            {' · '}
+            {data.lastCalculatedAt === null
+              ? t('notCalculatedYet')
+              : t('calculatedAt', { when: formatDateTime(data.lastCalculatedAt, timeZone) })}
+          </>
+        }
+        actions={<ComparativeMapExportMenu researchId={researchId} code={data.code} />}
+      />
       <div className="flex flex-col gap-1">
-        {back}
-        <h1 className="text-page-title">{t('title', { code: data.code ?? data.title })}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t('referenceDate', { date: formatCivilDate(data.referenceDate) })}
-          {' · '}
-          {data.lastCalculatedAt === null
-            ? t('notCalculatedYet')
-            : t('calculatedAt', { when: formatDateTime(data.lastCalculatedAt, timeZone) })}
-        </p>
         <p className="text-sm">
           {t('total')}{' '}
           <strong>
@@ -117,7 +146,6 @@ export function ComparativeMapView({
         </p>
         {data.masked ? <p className="text-sm text-muted-foreground">{t('maskedHint')}</p> : null}
       </div>
-      <ComparativeMapExportMenu researchId={researchId} code={data.code} />
       {data.sources.length === 0 ? (
         <Alert tone="info" title={COMPARATIVE_MAP_MESSAGES.noSources} />
       ) : null}

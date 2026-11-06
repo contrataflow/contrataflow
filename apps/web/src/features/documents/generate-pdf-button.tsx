@@ -41,6 +41,11 @@ export interface GeneratePdfButtonProps {
   readonly label?: string | undefined;
   /** Mensagem de `FAILED` da tela dona (ex.: "Não foi possível gerar o PDF agora." — US-031). */
   readonly failedMessage?: string | undefined;
+  /**
+   * Variante do botão de gerar. Telas em que "Gerar PDF" é a ação primária passam `primary`; o botão
+   * volta a `secondary` quando "Baixar PDF" (primário) aparece, para manter uma ação primária só.
+   */
+  readonly generateVariant?: 'primary' | 'secondary' | undefined;
 }
 
 type OutcomeOrigin = 'request' | 'download' | 'poll';
@@ -59,6 +64,7 @@ export function GeneratePdfButton({
   navigate = startDownload,
   label,
   failedMessage = RENDITION_MESSAGES.failed,
+  generateVariant = 'secondary',
 }: GeneratePdfButtonProps) {
   const t = useTranslations('documents.renditions');
   const tenantId = useTenantId();
@@ -197,7 +203,7 @@ export function GeneratePdfButton({
       <div className="flex flex-wrap items-center gap-3">
         {showGenerate ? (
           <Button
-            variant="secondary"
+            variant={status === 'READY' || status === 'EXPIRED' ? 'secondary' : generateVariant}
             size="sm"
             disabled={request.isPending || inProgress || blocked}
             onClick={generate}

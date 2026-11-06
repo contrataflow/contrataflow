@@ -18,7 +18,8 @@ import { saveBlob } from '../process-list/use-csv-download';
  * "Gerar PDF" (o `GeneratePdfButton` do US-067 faz o papel de `RenditionStatusPoller`: DOC-20 →
  * DOC-22 a cada 2 s até `READY`/`FAILED` → DOC-23). Os dois caminhos são independentes (FA-02): a
  * falha do PDF não bloqueia o XLSX e vice-versa. Acima do teto (FA-01) a mensagem sugere o PDF ou
- * reduzir o recorte; indisponibilidade mantém o mapa em tela com "Tentar novamente".
+ * reduzir o recorte; indisponibilidade mantém o mapa em tela com "Tentar novamente". Vive no
+ * cabeçalho da página (prd-6 · spec-596): "Gerar PDF" é a ação primária e "Exportar XLSX" a secundária.
  */
 export function ComparativeMapExportMenu({
   researchId,
@@ -53,9 +54,9 @@ export function ComparativeMapExportMenu({
   };
 
   return (
-    <section aria-label={t('label')} className="flex min-w-0 flex-col gap-3">
+    <section aria-label={t('label')} className="flex min-w-0 flex-col gap-3 sm:items-end">
       <div className="flex flex-wrap items-start gap-3">
-        <Button variant="primary" size="sm" disabled={exportXlsx.isPending} onClick={start}>
+        <Button variant="secondary" size="sm" disabled={exportXlsx.isPending} onClick={start}>
           {exportXlsx.isPending ? (
             <span
               aria-hidden="true"
@@ -67,6 +68,7 @@ export function ComparativeMapExportMenu({
         <GeneratePdfButton
           source={{ kind: 'preview', documentId: researchId }}
           label={t('pdf')}
+          generateVariant="primary"
           failedMessage={COMPARATIVE_MAP_MESSAGES.pdfFailed}
         />
       </div>

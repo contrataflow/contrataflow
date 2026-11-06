@@ -438,6 +438,15 @@
     "loadError": "Não foi possível carregar o mapa comparativo agora.",
     "retry": "Tentar novamente",
     "back": "Voltar à pesquisa de preços",
+    "breadcrumb": {
+      "dashboard": "Painel",
+      "processes": "Processos",
+      "process": "Processo {code}",
+      "processFallback": "Processo",
+      "draft": "em rascunho",
+      "priceResearch": "Pesquisa de preços",
+      "map": "Mapa comparativo"
+    },
     "backToProcesses": "Voltar aos processos",
     "referenceDate": "Data-base {date}",
     "calculatedAt": "Calculado em {when}",

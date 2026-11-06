@@ -318,9 +318,12 @@ describe('[Validação]', () => {
     await userEvent.type(idle, '30');
 
     await openGroup('Marca');
-    const color = await screen.findByLabelText('Cor principal');
+    // Seletor do kit (spec-596): o botão leva o rótulo do campo e abre o painel com o campo hexadecimal.
+    await userEvent.click(await screen.findByRole('button', { name: /Cor principal/ }));
+    const color = await screen.findByLabelText('Código hexadecimal (#RRGGBB)');
     await userEvent.clear(color);
     await userEvent.type(color, '#FFFF00');
+    expect(await screen.findByText('Abaixo do mínimo AA de 4,5:1.')).toBeTruthy();
     expect((await screen.findAllByText(/contraste com texto branco/)).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Salvar' }).hasAttribute('disabled')).toBe(true);
   });
