@@ -94,15 +94,20 @@ export function createQueueDashboardApp(deps: QueueDashboardDeps): express.Expre
   const { limit, windowMs } = deps.rateLimit ?? DASHBOARD_RATE_LIMIT;
   const now = deps.now ?? Date.now;
   /** Janela aberta por endereço de origem; as vencidas saem quando outra janela abre. */
-  const windows = new Map<string, { start: number; count: number }>();
+  const windows = new Map<string, { start: number; count: number; logged: boolean }>();
 
+  /*
+   * Limitador próprio, sem biblioteca: o CodeQL (`js/missing-rate-limiting`) só reconhece
+   * `express-rate-limit`, `express-brute`, `express-limiter` e `rate-limiter-flexible`, então
+   * continua apontando esta rota — alerta descartado como falso positivo (queues.md §15.1).
+   */
   const rateLimit = (request: Request, response: Response, next: NextFunction) => {
     const at = now();
     const key = request.socket.remoteAddress ?? 'desconhecido';
     let window = windows.get(key);
     if (window === undefined || at - window.start >= windowMs) {
       for (const [other, open] of windows) if (at - open.start >= windowMs) windows.delete(other);
-      window = { start: at, count: 0 };
+      window = { start: at, count: 0, logged: false };
       windows.set(key, window);
     }
     window.count += 1;
@@ -111,7 +116,11 @@ export function createQueueDashboardApp(deps: QueueDashboardDeps): express.Expre
       return;
     }
     const retryAfterSeconds = Math.max(1, Math.ceil((window.start + windowMs - at) / 1000));
-    logger.warn({ event: 'queue_dashboard.rate_limited' });
+    // Uma linha por origem e janela: numa varredura, o log não cresce com o volume barrado.
+    if (!window.logged) {
+      window.logged = true;
+      logger.warn({ event: 'queue_dashboard.rate_limited', limit, windowMs });
+    }
     response
       .status(429)
       .setHeader('Retry-After', String(retryAfterSeconds))
