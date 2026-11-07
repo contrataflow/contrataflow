@@ -35,6 +35,16 @@ ignoredBuiltDependencies:
   - ssh2
   - unrs-resolver
 
+# Versões forçadas de transitivas com CVE corrigida (gate de CVE das imagens — RN-FND-26), sem
+# trocar a major de quem as traz. Exatas, como no catálogo; remova quando o pai já trouxer a versão.
+# - body-parser: express@5.2.1 (fixado pelo @nestjs/platform-express@11) aceita ^2.2.1 —
+#   CVE-2026-111181, corrigida em 2.4.0.
+# - multer: @nestjs/platform-express@11.2.x fixa 2.4.0 — CVE-2026-113872, corrigida em 2.5.0; a
+#   saída sem override é o Nest 12 (troca de major, card próprio).
+overrides:
+  body-parser: 2.4.0
+  multer: 2.5.0
+
 catalog:
   # Runtime e build
   typescript: 5.9.3
@@ -56,7 +66,7 @@ catalog:
   eslint-import-resolver-typescript: 4.4.5
   eslint-plugin-jsx-a11y: 6.10.2
   eslint-plugin-react-hooks: 7.1.1
-  '@next/eslint-plugin-next': 16.3.8
+  '@next/eslint-plugin-next': 16.4.1
   globals: 17.13.0
   prettier: 3.9.9
   prettier-plugin-tailwindcss: 0.8.1
@@ -118,7 +128,7 @@ catalog:
   '@asteasolutions/zod-to-openapi': 8.5.0
 
   # Front-end (web/ui)
-  next: 16.3.8
+  next: 16.4.1
   tailwindcss: 4.3.3
   '@tailwindcss/postcss': 4.3.3
   '@tanstack/react-query': 5.104.1
