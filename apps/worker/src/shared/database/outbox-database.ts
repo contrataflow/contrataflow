@@ -1,5 +1,7 @@
 import pg from 'pg';
 
+import { checkoutClient } from './pooled-client.js';
+
 /*
  * Conexões do outbox (US-082 · DEC-072) — único ponto do worker com o driver `pg`
  * (lint `contrataflow/no-prisma-client-outside-database`). O relay usa o papel `cf_relay` (BYPASSRLS, só
@@ -105,7 +107,9 @@ export function createOutboxDatabase(options: OutboxDatabaseOptions): OutboxData
 
   return {
     async transaction<T>(work: (client: SqlClient) => Promise<T>): Promise<T> {
-      const connection = await pool.connect();
+      // Com listener de `'error'`: queda do backend em voo não derruba o processo (pooled-client.ts).
+      const checkout = await checkoutClient(pool);
+      const { connection } = checkout;
       let broken = false;
       try {
         await connection.query('BEGIN');
@@ -129,7 +133,7 @@ export function createOutboxDatabase(options: OutboxDatabaseOptions): OutboxData
         }
         throw error;
       } finally {
-        connection.release(broken);
+        checkout.release(broken);
       }
     },
     async openSession(): Promise<RelaySession> {

@@ -1,6 +1,7 @@
 import pg from 'pg';
 
 import type { SqlClient, SqlResult } from './outbox-database.js';
+import { checkoutClient } from './pooled-client.js';
 
 /*
  * Banco dos handlers de fila (US-083 · DEC-072 · RN-FND-64): papel `cf_worker` (sem BYPASSRLS).
@@ -59,7 +60,9 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
     tenantId: string | null,
     work: (client: SqlClient) => Promise<T>,
   ): Promise<T> {
-    const connection = await pool.connect();
+    // Com listener de `'error'`: queda do backend em voo não derruba o processo (pooled-client.ts).
+    const checkout = await checkoutClient(pool);
+    const { connection } = checkout;
     let broken = false;
     try {
       await connection.query('BEGIN');
@@ -77,7 +80,7 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
       }
       throw error;
     } finally {
-      connection.release(broken);
+      checkout.release(broken);
     }
   }
 
@@ -85,7 +88,8 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
     tenantTransaction: (tenantId, work) => transaction(tenantId, work),
     platformTransaction: (work) => transaction(null, work),
     async withAdvisoryLock<T>(key: string, work: () => Promise<T>) {
-      const connection = await pool.connect();
+      const checkout = await checkoutClient(pool);
+      const { connection } = checkout;
       let broken = false;
       try {
         const { rows } = await connection.query<{ acquired: boolean }>(
@@ -104,7 +108,7 @@ export function createWorkerDatabase(options: WorkerDatabaseOptions): WorkerData
             });
         }
       } finally {
-        connection.release(broken);
+        checkout.release(broken);
       }
     },
     async close() {

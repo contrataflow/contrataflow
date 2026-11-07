@@ -379,6 +379,40 @@ describe('relay do outbox no PostgreSQL + Redis (US-082)', () => {
     expect(await jobCount(queue(appEnv))).toBe(5);
   });
 
+  it('[Falha de banco] backend terminado com transação em voo: a query rejeita sem uncaughtException e o pool segue', async () => {
+    const applicationName = 'it-tx-in-flight';
+    const outbox = createOutboxDatabase({ url: db.url('cf_relay'), applicationName });
+    cleanups.push(() => outbox.close());
+    const uncaught = vi.fn();
+    process.on('uncaughtException', uncaught);
+    try {
+      const inFlight = outbox.transaction((client) => client.query('SELECT pg_sleep(30)'));
+      await vi.waitFor(async () => {
+        expect(
+          await db.admin(
+            `SELECT pid FROM pg_stat_activity WHERE application_name = $1 AND state = 'active'`,
+            [applicationName],
+          ),
+        ).toHaveLength(1);
+      });
+      await db.admin(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE application_name = $1`,
+        [applicationName],
+      );
+      await expect(inFlight).rejects.toThrow();
+      // O `'error'` do cliente sai junto com o fim do socket: dá tempo de ele chegar.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(uncaught).not.toHaveBeenCalled();
+      // O cliente derrubado não voltou ao pool: a transação seguinte abre conexão nova.
+      const after = await outbox.transaction((client) =>
+        client.query<{ ok: number }>('SELECT 1 AS ok'),
+      );
+      expect(after.rows).toEqual([{ ok: 1 }]);
+    } finally {
+      process.off('uncaughtException', uncaught);
+    }
+  });
+
   it('[V-04] linha acima de 16 KB não bloqueia o lote: backoff isolado e, na 10ª tentativa, FAILED', async () => {
     const appEnv = 'it-poison';
     const [big] = await insertEvents(1, { payload: { blob: 'x'.repeat(17 * 1024) } });
