@@ -71,4 +71,84 @@ cve:
   # RN-FND-26 · FA-03 — CVE crítica/alta SEM correção disponível vira exceção com prazo de revisão
   # (security.md §19). Vencido o prazo, a exceção deixa de valer e o pós-deploy alerta o time.
   # Formato: { id: CVE-AAAA-NNNN, package?: nome, reason: texto, reviewBy: AAAA-MM-DD, owner: quem }
-  exceptions: []
+  # Sem `package`, a exceção cobre todos os pacotes binários com esse id (util-linux e ncurses se
+  # dividem em vários). Se sair correção, o gate volta a bloquear mesmo com a exceção registrada.
+  #
+  # Lote de 2026-11-07 (spec-578): Trivy 0.75.0 nas imagens api, web e worker. As 11 vêm da base
+  # Debian 12 (node:24-bookworm-slim) e aparecem nas três imagens. Nenhuma tem correção no bookworm
+  # (status affected, fix_deferred ou will_not_fix). O runtime roda como `node`, sem
+  # privilégio, sem montar volumes e sem descompactar arquivo enviado com essas ferramentas.
+  exceptions:
+    - id: CVE-2023-45853
+      package: zlib1g
+      reason: >-
+        Overflow no zipOpenNewFileInZip4_6 do minizip (contrib do zlib). O Debian marcou
+        will_not_fix porque a biblioteca libz não inclui essa função, então nada do runtime a chama.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-85091
+      package: zlib1g
+      reason: >-
+        Heap overflow no gz_vacate (API gzFile do zlib), sem correção no bookworm. O Node usa o
+        próprio zlib embutido no binário, não a libz do sistema.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-76844
+      package: zlib1g
+      reason: >-
+        O registro do Trivy fala de webpack-dev-middleware, ferramenta de desenvolvimento que não
+        entra na imagem de produção, mas o pacote associado é o zlib1g. Sem correção no
+        bookworm. Na revisão, confira se o mapeamento do Trivy foi corrigido.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2025-69720
+      reason: >-
+        Buffer overflow no ncurses (libtinfo6, ncurses-base, ncurses-bin), sem correção no bookworm.
+        Só é explorável por terminal interativo, que os containers de produção não abrem.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-16742
+      reason: >-
+        Escalada local pelo systemd-homed (libsystemd0, libudev1 vêm só como bibliotecas). O
+        systemd não roda no container e o homed não está instalado. Correção adiada pelo Debian.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-41992
+      package: gzip
+      reason: >-
+        Vazamento de memória ao descompactar LZH com o gzip, correção adiada pelo Debian. Nenhum
+        processo do runtime invoca o binário gzip.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-53613
+      reason: >-
+        TOCTOU no `mount` do util-linux (e bibliotecas irmãs), sem correção no bookworm. O
+        usuário `node` não tem privilégio para montar e o runtime não chama `mount`.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-53615
+      reason: >-
+        Overflow no parser de partição DOS do libblkid (util-linux), sem correção no bookworm.
+        O runtime não lê tabelas de partição nem dispositivos de bloco.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-78410
+      reason: >-
+        Bind mount restrito do util-linux sem fixar a origem, sem correção no bookworm. O runtime
+        não monta nada e roda sem CAP_SYS_ADMIN.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-54369
+      package: libacl1
+      reason: >-
+        Symlink traversal nas funções do libacl, correção adiada pelo Debian. O runtime não
+        manipula ACL e o sistema de arquivos da aplicação é somente leitura para o `node`.
+      reviewBy: '2027-02-05'
+      owner: Mantenedor
+    - id: CVE-2026-9538
+      package: perl-base
+      reason: >-
+        DoS no Archive::Tar do Perl, correção adiada pelo Debian. Nenhum processo do runtime
+        executa Perl nem abre tar com ele (o perl-base está lá só porque o dpkg depende dele).
+      reviewBy: '2027-02-05'
+      owner: Mantenedor

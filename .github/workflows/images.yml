@@ -82,6 +82,9 @@ jobs:
           driver-opts: network=host
 
       # FA-04: registry instável ganha uma segunda tentativa antes da falha definitiva.
+      # `no-cache-filters: runtime-base`: o `apt-get upgrade` do runtime nunca sai do cache do GHA.
+      # Sem isso, correções do Debian publicadas depois do primeiro build não entram na imagem
+      # (spec-578: apt 2.6.1 com CVE-2026-109518 preso no cache).
       - name: Build multi-stage
         id: build
         continue-on-error: true
@@ -95,6 +98,7 @@ jobs:
           push: true
           load: true
           provenance: false
+          no-cache-filters: runtime-base
           cache-from: type=gha,scope=image-${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=image-${{ matrix.app }}
 
@@ -111,6 +115,7 @@ jobs:
           push: true
           load: true
           provenance: false
+          no-cache-filters: runtime-base
           cache-from: type=gha,scope=image-${{ matrix.app }}
 
       - name: Digest publicado
