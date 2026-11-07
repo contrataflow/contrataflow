@@ -14,7 +14,7 @@
       "cache": false
     },
     "openapi:generate": {
-      "dependsOn": ["^build", "db:generate"],
+      "dependsOn": ["build"],
       "outputs": ["openapi/**"]
     },
     "dev": {

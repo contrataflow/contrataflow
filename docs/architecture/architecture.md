@@ -392,6 +392,8 @@ A matriz de níveis do §3.3 é gerada a partir de um arquivo `tools/module-leve
 }
 ```
 
+Em `apps/api/turbo.json`, `openapi:generate` depende do `build` do próprio pacote e o script só executa `dist/openapi/generate.js`: o `swc --delete-dir-on-start` roda uma única vez. Embutir `pnpm run build` no script fazia dois `swc` apagarem `apps/api/dist` na mesma onda do Turbo (`ENOTEMPTY`).
+
 Estágios do CI (GitHub Actions — DEC-061), todos obrigatórios para *merge* (detalhe em US-079; implementação em DEC-066):
 
 | Estágio | Conteúdo | Falha bloqueia |

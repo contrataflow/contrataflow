@@ -33,7 +33,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "openapi:generate": "pnpm run build && node --enable-source-maps dist/openapi/generate.js",
+    "openapi:generate": "node --enable-source-maps dist/openapi/generate.js",
     "ai:eval": "pnpm run build && node --enable-source-maps dist/cli/ai-eval.cli.js",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
