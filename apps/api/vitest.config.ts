@@ -15,6 +15,9 @@ export default defineConfig({
   test: {
     include: ['src/**/*.spec.ts'],
     environment: 'node',
+    // Os `beforeAll` das specs de rotas sobem o app Nest inteiro; com a suíte completa (cobertura +
+    // muitos workers) o import pesado passa dos 10s padrão e o hook estoura sem haver defeito.
+    hookTimeout: 60_000,
     // lcov alimenta o gate de cobertura do código novo do CI (US-079 — RN-FND-24); `include`
     // faz arquivos sem teste aparecerem com 0% em vez de sumirem do relatório.
     coverage: {

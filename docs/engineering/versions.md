@@ -43,7 +43,7 @@
 | Observabilidade | `@opentelemetry/instrumentation-http` · `-undici` · `-nestjs-core` · `-pg` · `-ioredis` · `@prisma/instrumentation` | 0.222.0 · 0.32.0 · 0.68.0 · 0.74.0 · 0.70.0 · 7.10.1 | instrumentações de observability.md §4.1, alinhadas ao `@opentelemetry/instrumentation` 0.222 (US-084) |
 | Observabilidade | `@opentelemetry/sdk-metrics` · `exporter-prometheus` | 2.11.0 · 0.222.0 | `MeterProvider` e leitor *pull* de `/metrics` (HLT-03) em porta interna; já vinham no lockfile como dependências do `sdk-node` — nenhuma versão nova baixada (US-085) |
 | Back-end | `pino` · `nestjs-pino` · `pino-http` | 10.4.0 · 4.6.1 · 11.0.0 | logs JSON de web, api e worker (US-084) |
-| Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.5 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
+| Contratos | `zod` · `@asteasolutions/zod-to-openapi` | 4.6.6 · 8.5.0 | `packages/validation`; OpenAPI 3.1 (DEC-063) |
 | Front-end | `next` | 16.3.8 | web (App Router, Turbopack) |
 | Front-end | `tailwindcss` · `@tailwindcss/postcss` | 4.3.3 | ui e web |
 | Front-end | `@tanstack/react-query` · `@tanstack/react-table` | 5.104.1 · 8.21.3 | web — cache por tenant (US-086); Table reservado |
