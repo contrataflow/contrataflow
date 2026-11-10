@@ -1,7 +1,7 @@
 // Diagrama do workflow sobre PostgreSQL real (US-046 · Tenant incorreto, Concorrência): a versão de
 // outro tenant não é lida pelo WF-09 nem listada pelo WF-07 (404 idêntico ao de id inexistente) e,
 // com etapas sendo salvas em paralelo, toda leitura do WF-09 devolve um snapshot consistente — as
-// etapas e o ETag do mesmo instante, nunca parcial (READ COMMITTED + conferência da versão).
+// etapas e o ETag do mesmo instante, nunca parcial (instantâneo REPEATABLE READ READ ONLY).
 // `pnpm --filter @contrataflow/api test:tenant-leak`.
 import { randomUUID } from 'node:crypto';
 

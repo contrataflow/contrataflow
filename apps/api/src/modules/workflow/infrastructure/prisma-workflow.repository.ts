@@ -768,4 +768,8 @@ export class PrismaWorkflowTransactions implements WorkflowTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return this.transaction.read(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return this.transaction.snapshot(work);
+  }
 }

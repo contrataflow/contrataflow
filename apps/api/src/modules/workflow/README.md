@@ -110,9 +110,10 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
 ## Diagrama do workflow (US-046)
 
 - **Sem endpoint novo:** a aba "Diagrama" do SCR-034 lê WF-09 e WF-07 (RN-WF-71).
-- **WF-09 consistente (`GetWorkflowVersionQuery`):** o rascunho é lido numa transação só, com a
-  `version` conferida antes e depois de `loadDefinition`; mudou (escrita confirmada entre os
-  SELECTs em `READ COMMITTED`) → refaz, até 3 vezes, e depois 503 `DEPENDENCY_UNAVAILABLE`.
+- **WF-09 consistente (`GetWorkflowVersionQuery`):** versão e `loadDefinition` do rascunho numa
+  transação `REPEATABLE READ READ ONLY` (`WorkflowTransactions.snapshot`): etapas e ETag do mesmo
+  instante, sem retentativa. O laço anterior (conferir `version` em `READ COMMITTED` e refazer até
+  3 vezes) dava 503 sob gravações paralelas (spec-632). O adaptador em memória não isola.
   Publicada/aposentada segue pelo `definitionSnapshot` (imutável).
 - **Front:** `apps/web/src/features/workflows/workflow-diagram.tsx` e o modelo puro
   `workflow-diagram-model.ts` (layout em camadas, alcançabilidade RN-WF-74 com as ações de avanço,

@@ -41,9 +41,11 @@ const MFA = ['pwd', 'otp'];
 
 type User = 'sub-marta' | 'sub-fabio' | 'sub-ana' | 'sub-heitor';
 
-/** Transações em memória que podem simular o banco fora do ar (Falha de banco). */
+/** Transações em memória que podem simular o banco fora do ar (Falha de banco) e expõem o instantâneo. */
 class FlakyTransactions implements WorkflowTransactions {
   down = false;
+  /** `true` enquanto um trabalho roda dentro de `snapshot` (instantâneo único). */
+  inSnapshot = false;
   private readonly inner = new InMemoryWorkflowTransactions();
 
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
@@ -54,6 +56,18 @@ class FlakyTransactions implements WorkflowTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     if (this.down) return Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED')));
     return this.inner.read(work);
+  }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    if (this.down) return Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED')));
+    return this.inner.snapshot(async (tx) => {
+      this.inSnapshot = true;
+      try {
+        return await work(tx);
+      } finally {
+        this.inSnapshot = false;
+      }
+    });
   }
 }
 
@@ -206,58 +220,31 @@ describe('Feature: Visualizar diagrama do workflow — leituras WF-09/WF-07 (US-
     expect(new Set(second.stages.map((stage) => stage.id)).size).toBe(second.stages.length);
   });
 
-  it('[Concorrência] etapa salva entre as leituras: WF-09 refaz e devolve o snapshot inteiro', async () => {
-    const before = data<WorkflowVersionDetailDto>(await get(`/workflow-versions/${draftId}`));
+  it('[Concorrência] rascunho lido num instantâneo único: versão e etapas da mesma transação, sem retentativa', async () => {
+    // O isolamento em si (REPEATABLE READ sob gravações paralelas) é provado sobre PostgreSQL em
+    // test/tenant-leak/workflow-diagram.spec.ts; aqui, que o WF-09 do rascunho usa esse instantâneo.
+    const snapshot = vi.spyOn(transactions, 'snapshot');
+    const read = vi.spyOn(transactions, 'read');
+    const calls: string[] = [];
+    const find = repository.findVersion.bind(repository);
     const load = repository.loadDefinition.bind(repository);
-    let injected = false;
-    const spy = vi.spyOn(repository, 'loadDefinition').mockImplementation(async (tx, id) => {
-      const definition = await load(tx, id);
-      if (!injected && id === draftId) {
-        // "Carla" confirma uma etapa depois que a leitura de "Elisa" já viu as etapas.
-        injected = true;
-        await addStage({ key: 'TR', name: 'Termo de referência', type: 'TASK' });
-      }
-      return definition;
+    vi.spyOn(repository, 'findVersion').mockImplementation((tx, id) => {
+      calls.push(`findVersion:${String(transactions.inSnapshot)}`);
+      return find(tx, id);
+    });
+    vi.spyOn(repository, 'loadDefinition').mockImplementation((tx, id) => {
+      calls.push(`loadDefinition:${String(transactions.inSnapshot)}`);
+      return load(tx, id);
     });
 
     const response = await get(`/workflow-versions/${draftId}`);
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     const version = data<WorkflowVersionDetailDto>(response);
-    expect(spy.mock.calls.filter(([, id]) => id === draftId).length).toBeGreaterThanOrEqual(2);
-    // Nunca parcial: as etapas e o ETag são do mesmo instante (depois da etapa de "Carla").
-    expect(version.version).toBe(before.version + 1);
     expect(response.headers.etag).toBe(`"${String(version.version)}"`);
-    expect(version.stages.map((stage) => stage.key)).toEqual([
-      ...before.stages.map((stage) => stage.key),
-      'TR',
-    ]);
-  });
-
-  it('[Concorrência] versão que muda a cada leitura: depois de 3 tentativas → 503 DEPENDENCY_UNAVAILABLE', async () => {
-    const load = repository.loadDefinition.bind(repository);
-    let counter = 0;
-    // A própria escrita injetada também lê a definição: sem reentrar.
-    let writing = false;
-    vi.spyOn(repository, 'loadDefinition').mockImplementation(async (tx, id) => {
-      const definition = await load(tx, id);
-      if (id === draftId && !writing) {
-        writing = true;
-        counter += 1;
-        await addStage({
-          key: `EXTRA_${String(counter)}`,
-          name: `Extra ${String(counter)}`,
-          type: 'TASK',
-        });
-        writing = false;
-      }
-      return definition;
-    });
-
-    const response = await get(`/workflow-versions/${draftId}`);
-
-    expectProblem(response, 503, 'DEPENDENCY_UNAVAILABLE');
-    expect(counter).toBe(3);
+    expect(snapshot).toHaveBeenCalledTimes(1);
+    expect(read).not.toHaveBeenCalled();
+    expect(calls).toEqual(['findVersion:true', 'loadDefinition:true']);
   });
 
   it('[Falha de banco] banco indisponível ao carregar o diagrama → 503 DEPENDENCY_UNAVAILABLE', async () => {

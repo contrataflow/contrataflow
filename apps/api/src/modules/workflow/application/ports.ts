@@ -199,6 +199,11 @@ export const WORKFLOW_REPOSITORY = Symbol('WorkflowRepository');
 export interface WorkflowTransactions {
   run<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
+  /**
+   * Consulta em instantâneo único (`REPEATABLE READ READ ONLY`): todas as leituras do trabalho veem
+   * o mesmo instante — WF-09 do rascunho com etapas sendo salvas em paralelo (US-046 · Concorrência).
+   */
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T>;
 }
 
 export const WORKFLOW_TRANSACTIONS = Symbol('WorkflowTransactions');

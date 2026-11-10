@@ -465,4 +465,9 @@ export class InMemoryWorkflowTransactions implements WorkflowTransactions {
   read<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
     return runSimulatedTransaction(work);
   }
+
+  /** Sem isolamento real: uma escrita que intercale num `await` do trabalho fica visível. */
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    return runSimulatedTransaction(work);
+  }
 }

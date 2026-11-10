@@ -167,7 +167,7 @@ Feature: Visualizar diagrama do workflow
 - Sem persistência de posição, qualquer mudança futura para edição visual (arrastar etapas) exigirá nova modelagem (campos x/y) — fora do escopo desta story.
 - O layout roda no cliente; grafos muito grandes (> 100 nós, fora do cenário atual do produto) podem exigir mover o cálculo para o servidor — não necessário no MVP 1.
 - Reaproveita o mesmo payload de `WF-09` já consumido por US-043/US-045; nenhuma mudança de contrato de API é necessária.
-- O cenário de Concorrência exigiu uma correção na leitura do WF-09 (sem mudança de contrato): em `READ COMMITTED` cada SELECT vê o seu instante, então o rascunho é lido conferindo `WorkflowVersion.version` antes e depois da definição e refeito (até 3 vezes) se mudou — ver api/10-workflow.md, WF-09.
+- O cenário de Concorrência exigiu uma correção na leitura do WF-09 (sem mudança de contrato): em `READ COMMITTED` cada SELECT vê o seu instante, então o rascunho é lido numa transação `REPEATABLE READ READ ONLY` (instantâneo único). A primeira versão conferia `WorkflowVersion.version` antes e depois e refazia até 3 vezes, mas sob gravações paralelas desistia com 503 (endurecimento, spec-632) — ver api/10-workflow.md, WF-09.
 
 ## Backend
 - **Módulo(s):** `workflow` (reaproveita `WF-07`/`WF-09` existentes; só a leitura consistente do WF-09 — Impacto técnico).

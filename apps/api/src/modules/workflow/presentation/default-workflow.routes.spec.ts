@@ -52,6 +52,11 @@ class FlakyTransactions implements WorkflowTransactions {
     if (this.down) return Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED')));
     return this.inner.read(work);
   }
+
+  snapshot<T>(work: (tx: TenantTx) => Promise<T>): Promise<T> {
+    if (this.down) return Promise.reject(new DatabaseUnavailableError(new Error('ECONNREFUSED')));
+    return this.inner.snapshot(work);
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- o chamador informa o tipo do corpo
