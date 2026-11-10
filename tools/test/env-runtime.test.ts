@@ -1,7 +1,8 @@
 // US-078 — portas (V-03), trava de execução ("[Concorrência]"), CLI e sondas do smoke.
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import type { AddressInfo } from 'node:net';
+import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -116,6 +117,36 @@ describe('trava de execução ([Concorrência] subida reentrante)', () => {
     await expect(
       withLock(file, () => Promise.resolve('ok'), { timeoutMs: 1000, isAlive: () => false }),
     ).resolves.toBe('ok');
+  });
+
+  it('trata arquivo de trava vazio como ocupado, não como dono morto', async () => {
+    // Janela da corrida: o dono criou o arquivo e ainda não gravou o PID.
+    writeFileSync(file, '', { mode: 0o600 });
+    let acquired = false;
+    const pending = withLock(
+      file,
+      () => {
+        acquired = true;
+        return Promise.resolve('ok');
+      },
+      { timeoutMs: 5000, pollMs: 5, isAlive: () => false },
+    );
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+    expect(acquired).toBe(false);
+    expect(existsSync(file)).toBe(true);
+    unlinkSync(file);
+    await expect(pending).resolves.toBe('ok');
+    expect(acquired).toBe(true);
+  });
+
+  it('não deixa arquivo temporário para trás', async () => {
+    await withLock(file, () => Promise.resolve(1), { timeoutMs: 1000 });
+    const left = readdirSync(path.dirname(file)).filter(
+      (name) => name.startsWith(path.basename(file)) && name.endsWith('.tmp'),
+    );
+    expect(left).toEqual([]);
   });
 
   it('libera a trava mesmo quando a tarefa falha', async () => {
