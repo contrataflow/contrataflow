@@ -135,6 +135,61 @@ describe('SmtpMailProvider (US-112 · DEC-050)', () => {
   });
 });
 
+describe('resolução do host pelo resolvedor do sistema (EDNS do nodemailer 10.1.0)', () => {
+  it('nome vira endereço: "localhost" entrega sem passar pelo dns.resolve do nodemailer', async () => {
+    const smtp = await fakeSmtp('250 2.1.5 ok');
+    const provider = new SmtpMailProvider({
+      url: `smtp://localhost:${String(smtp.port)}`,
+      connectionTimeoutMs: 3_000,
+      socketTimeoutMs: 3_000,
+    });
+    cleanup.push(async () => {
+      await provider.close();
+      await new Promise((resolve) => smtp.server.close(resolve));
+    });
+    await expect(provider.send(message)).resolves.toEqual({
+      providerMessageId: '<notification.n10@contrataflow.test>',
+    });
+    expect(smtp.received).toHaveLength(1);
+  });
+
+  it('o nome original segue no TLS (SNI do ClientHello), não o endereço', async () => {
+    const hello = await new Promise<Buffer>((resolve) => {
+      const server = createServer((socket: Socket) => {
+        socket.once('data', (chunk) => {
+          resolve(chunk);
+          socket.destroy();
+          server.close();
+        });
+        socket.on('error', () => undefined);
+      });
+      server.listen(0, '127.0.0.1', () => {
+        const provider = new SmtpMailProvider({
+          url: `smtps://localhost:${String((server.address() as AddressInfo).port)}`,
+          connectionTimeoutMs: 2_000,
+          socketTimeoutMs: 2_000,
+        });
+        cleanup.push(() => provider.close());
+        void provider.send(message).catch(() => undefined);
+      });
+    });
+    expect(hello[0]).toBe(0x16); // handshake TLS
+    expect(hello.includes(Buffer.from('localhost', 'ascii'))).toBe(true);
+    expect(hello.includes(Buffer.from('127.0.0.1', 'ascii'))).toBe(false);
+  });
+
+  it('falha de DNS continua transitória (EDNS)', async () => {
+    const provider = new SmtpMailProvider({
+      url: 'smtp://host-que-nao-existe.invalid:25',
+      connectionTimeoutMs: 5_000,
+    });
+    cleanup.push(() => provider.close());
+    const error: unknown = await provider.send(message).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(MailTransientError);
+    expect((error as MailTransientError).code).toMatch(/^(EDNS|ECONNECTION)$/);
+  });
+});
+
 describe('classificação e opções do SMTP', () => {
   it('5xx no envelope/mensagem é definitivo; 4xx, rede e autenticação são transitórios', () => {
     expect(classifySmtpError({ code: 'EENVELOPE', responseCode: 553 })).toBeInstanceOf(

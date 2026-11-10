@@ -1,3 +1,5 @@
+import { connect } from 'node:net';
+
 import { createTransport } from 'nodemailer';
 import type { NodemailerError, SMTPPoolOptions } from 'nodemailer';
 
@@ -9,6 +11,13 @@ import type { MailMessage, MailProvider, MailReceipt } from './mail-provider.js'
  * SES em produção (`smtps://<usuário-smtp>:<senha>@email-smtp.<região>.amazonaws.com:465`). Pool de
  * conexões com timeouts menores que o da fila `email` (30 s): um provedor travado vira falha
  * transitória antes de o `runJob` abortar o job.
+ *
+ * Resolução de nomes: o nodemailer resolve o host por conta própria com `dns.resolve4/6`, que ignora
+ * o arquivo hosts e consulta cada servidor DNS da máquina; para `localhost` isso devolve `ENOTFOUND`
+ * (ou leva mais que o `connectionTimeout`) e o envio falha com `EDNS`. Por isso a conexão TCP é
+ * aberta aqui, pelo `net.connect` (resolvedor do sistema, `dns.lookup`, que respeita o hosts) e
+ * entregue ao nodemailer via `getSocket`. O nome original continua em `host`: o STARTTLS e o TLS
+ * implícito do nodemailer usam esse nome no SNI e na validação do certificado, nunca o IP.
  */
 
 export interface SmtpMailProviderOptions {
@@ -37,6 +46,47 @@ export function smtpPoolOptions(
     greetingTimeout: options.connectionTimeoutMs ?? 10_000,
     socketTimeout: options.socketTimeoutMs ?? 20_000,
   };
+}
+
+/** Callback do `getSocket` do nodemailer (o tipo não é exportado pela raiz do pacote). */
+type GetSocketCallback = Parameters<NonNullable<SMTPPoolOptions['getSocket']>>[1];
+
+/**
+ * Abre o socket TCP pelo resolvedor do sistema. Falha de DNS vira `EDNS` e as demais, `ECONNECTION`
+ * ou `ETIMEDOUT` (todas transitórias); o TLS é negociado depois pelo nodemailer sobre este socket,
+ * com o nome original do host.
+ */
+export function openSystemResolvedSocket(
+  options: Pick<SMTPPoolOptions, 'host' | 'port' | 'connectionTimeout'>,
+  callback: GetSocketCallback,
+): void {
+  const socket = connect({ host: options.host ?? 'localhost', port: Number(options.port) });
+  let settled = false;
+  const finish = (error: Error | null): void => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    socket.removeListener('error', onError);
+    socket.removeListener('connect', onConnect);
+    if (error) {
+      socket.destroy();
+      callback(error);
+      return;
+    }
+    // O socket conectado passa a ser do nodemailer, que instala os próprios manipuladores de erro.
+    callback(null, { connection: socket });
+  };
+  const onError = (error: NodeJS.ErrnoException): void => {
+    finish(Object.assign(error, { code: error.code === 'ENOTFOUND' ? 'EDNS' : 'ECONNECTION' }));
+  };
+  const onConnect = (): void => {
+    finish(null);
+  };
+  const timer = setTimeout(() => {
+    finish(Object.assign(new Error('Tempo esgotado ao conectar'), { code: 'ETIMEDOUT' }));
+  }, options.connectionTimeout ?? 10_000);
+  socket.once('error', onError);
+  socket.once('connect', onConnect);
 }
 
 /**
@@ -76,7 +126,11 @@ export class SmtpMailProvider implements MailProvider {
   private readonly transport;
 
   constructor(options: SmtpMailProviderOptions) {
-    this.transport = createTransport(smtpPoolOptions(options));
+    const poolOptions: SMTPPoolOptions & { pool: true } = {
+      ...smtpPoolOptions(options),
+      getSocket: openSystemResolvedSocket,
+    };
+    this.transport = createTransport(poolOptions);
   }
 
   async send(message: MailMessage): Promise<MailReceipt> {
