@@ -69,6 +69,61 @@ export function runPrisma(args: string[], url: string): Promise<{ stdout: string
   });
 }
 
+/**
+ * Partições mensais de `audit_logs` para relógios fixos: a migração só cria o mês corrente e os dois
+ * seguintes (`cf_audit_ensure_partitions(2)`), então um teste com data fixa num mês anterior falha com
+ * "no partition of relation audit_logs found for row" (teste dependente do calendário). Aqui a janela
+ * vai de 2026-01 ao mês corrente (UTC) + 2, com o mesmo DDL, a mesma RLS e o mesmo gatilho que a função
+ * da migração aplica a cada partição, criadas como `cf_owner`. Idempotente.
+ */
+export const AUDIT_PARTITIONS_FROM = '2026-01-01';
+
+export const ENSURE_AUDIT_PARTITIONS_SQL = `
+SET ROLE cf_owner;
+DO $do$
+DECLARE
+  month_start timestamp;
+  partition_name text;
+BEGIN
+  FOR month_start IN
+    SELECT generate_series(
+      '${AUDIT_PARTITIONS_FROM}'::timestamp,
+      date_trunc('month', now() AT TIME ZONE 'UTC') + interval '2 months',
+      interval '1 month'
+    )
+  LOOP
+    partition_name := 'audit_logs_' || to_char(month_start, 'YYYY_MM');
+    CONTINUE WHEN to_regclass('public.' || partition_name) IS NOT NULL;
+    EXECUTE format(
+      'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+      partition_name,
+      (month_start AT TIME ZONE 'UTC')::text,
+      ((month_start + interval '1 month') AT TIME ZONE 'UTC')::text
+    );
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', partition_name);
+    EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', partition_name);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON public.%I FOR SELECT USING (tenant_id = current_setting(''app.tenant_id'')::uuid)',
+      partition_name
+    );
+    EXECUTE format(
+      'CREATE POLICY tenant_insert ON public.%I FOR INSERT WITH CHECK (tenant_id = NULLIF(current_setting(''app.tenant_id'', true), '''')::uuid)',
+      partition_name
+    );
+    EXECUTE format(
+      'CREATE POLICY platform_insert ON public.%I FOR INSERT WITH CHECK (tenant_id IS NULL AND NULLIF(current_setting(''app.tenant_id'', true), '''') IS NULL)',
+      partition_name
+    );
+    EXECUTE format(
+      'CREATE TRIGGER audit_logs_no_truncate BEFORE TRUNCATE ON public.%I FOR EACH STATEMENT EXECUTE FUNCTION public.cf_audit_logs_immutable()',
+      partition_name
+    );
+  END LOOP;
+END
+$do$;
+RESET ROLE;
+`;
+
 export async function startTestDatabase(): Promise<TestDatabase> {
   const container = await new GenericContainer(postgresImage())
     .withEnvironment({ POSTGRES_PASSWORD: PASSWORD, POSTGRES_DB: 'contrataflow' })
@@ -101,6 +156,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     .join('\n');
   await admin(extensions);
   await runPrisma(['migrate', 'deploy'], url('postgres'));
+  await admin(ENSURE_AUDIT_PARTITIONS_SQL);
   // Em produção as senhas vêm do Secrets Manager; a migração cria os papéis sem senha.
   for (const role of [
     'cf_app',

@@ -7,6 +7,8 @@ import {
   escalatedPermissions,
   externalAssignmentForbidden,
   grantRoleAssignment,
+  IMMEDIATE_VALIDITY_LEEWAY_MS,
+  immediateValidFrom,
   isAdministrativeRole,
   isEffective,
   revokeRoleAssignment,
@@ -85,14 +87,14 @@ function validationErrorsOf(fn: () => unknown) {
 }
 
 describe('RoleAssignment.grant (RN-IAM-89/93)', () => {
-  it('padrões: validFrom = agora, sem término, versão 1, ninguém revogou', () => {
+  it('padrões: validFrom = agora (com a folga entre relógios), sem término, versão 1, ninguém revogou', () => {
     const assignment = grantRoleAssignment(base, internal);
     expect(assignment).toMatchObject({
       scopeType: 'TENANT',
       scopeOrganizationId: null,
       scopeDepartmentId: null,
       includeSubtree: true,
-      validFrom: NOW,
+      validFrom: immediateValidFrom(NOW),
       validUntil: null,
       grantedById: internal.userId,
       revokedAt: null,
@@ -154,6 +156,21 @@ describe('RoleAssignment.grant (RN-IAM-89/93)', () => {
       ['scopeOrganizationId', 'NOT_ALLOWED'],
       ['scopeDepartmentId', 'NOT_ALLOWED'],
     ]);
+  });
+
+  it('vigência imediata: o início recua a folga entre relógios e já vale para quem confere com qualquer um', () => {
+    const assignment = grantRoleAssignment(base, internal);
+    expect(NOW.getTime() - assignment.validFrom.getTime()).toBe(IMMEDIATE_VALIDITY_LEEWAY_MS);
+    // Relógio da aplicação ou do banco, até a folga adiantado ou atrasado: já vigente.
+    expect(isEffective(assignment, NOW)).toBe(true);
+    expect(isEffective(assignment, new Date(NOW.getTime() - IMMEDIATE_VALIDITY_LEEWAY_MS))).toBe(
+      true,
+    );
+    // Início explícito (agendado ou retroativo) é gravado como veio.
+    const scheduled = new Date(NOW.getTime() + DAY);
+    expect(grantRoleAssignment({ ...base, validFrom: scheduled }, internal).validFrom).toEqual(
+      scheduled,
+    );
   });
 
   it('V-04: término depois do início; externo não passa da validade do vínculo', () => {

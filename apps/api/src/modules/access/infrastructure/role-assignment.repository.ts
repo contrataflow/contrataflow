@@ -6,7 +6,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 
 import { RoleAssignmentAlreadyExistsError } from '../application/ports.js';
 import type { InitialRoleAssignment, RoleAssignmentRepository } from '../application/ports.js';
-import { isEffective, sameAssignment } from '../domain/role-assignment.js';
+import { immediateValidFrom, isEffective, sameAssignment } from '../domain/role-assignment.js';
 import type { RoleAssignment } from '../domain/role-assignment.js';
 import type { ScopeType } from '../domain/role.js';
 
@@ -59,7 +59,7 @@ export class PrismaRoleAssignmentRepository implements RoleAssignmentRepository 
           roleId: assignment.roleId,
           scopeType: assignment.scopeType,
           includeSubtree: true,
-          validFrom: assignment.now,
+          validFrom: immediateValidFrom(assignment.now),
           grantedById: assignment.grantedById,
           reason: 'Perfil inicial do convite',
           createdAt: assignment.now,
@@ -194,7 +194,7 @@ export class InMemoryRoleAssignmentRepository implements RoleAssignmentRepositor
       scopeOrganizationId: null,
       scopeDepartmentId: null,
       includeSubtree: true,
-      validFrom: assignment.now,
+      validFrom: immediateValidFrom(assignment.now),
       validUntil: null,
       grantedById: assignment.grantedById,
       reason: 'Perfil inicial do convite',

@@ -123,7 +123,22 @@ export function scopeShapeErrors(input: GrantInput): AssignmentFieldError[] {
 }
 
 /**
- * RN-IAM-93: `validFrom` padrão agora; `validUntil` (se houver) > `validFrom`; no vínculo
+ * Folga da vigência imediata. O `validFrom` padrão é gravado pelo relógio da aplicação, mas a vigência é
+ * conferida por dois relógios — o da aplicação (`isEffective`) e o do banco (`now()` em
+ * `cf_user_memberships`) —, e os dois nunca andam juntos: no Docker/WSL2 a diferença oscila entre
+ * ~-20 ms e ~+100 ms. Sem folga, o perfil recém-atribuído ficava "no futuro" para um dos dois por
+ * alguns instantes e a próxima requisição não o enxergava. Um segundo cobre a diferença com sobra e
+ * não é perceptível como histórico (`createdAt` continua sendo o instante da atribuição).
+ */
+export const IMMEDIATE_VALIDITY_LEEWAY_MS = 1_000;
+
+/** `validFrom` da vigência imediata (padrão de RN-IAM-93): agora, menos a folga entre relógios. */
+export function immediateValidFrom(now: Date): Date {
+  return new Date(now.getTime() - IMMEDIATE_VALIDITY_LEEWAY_MS);
+}
+
+/**
+ * RN-IAM-93: `validFrom` padrão agora (com a folga de `IMMEDIATE_VALIDITY_LEEWAY_MS`); `validUntil` (se houver) > `validFrom`; no vínculo
  * `EXTERNAL`, a vigência não passa da validade do vínculo (`expiresAt`).
  */
 export function validityErrors(
@@ -155,11 +170,14 @@ export function validityErrors(
  * @throws AssignmentValidationError
  */
 export function grantRoleAssignment(input: GrantInput, context: GrantContext): RoleAssignment {
-  const validFrom = input.validFrom ?? context.now;
+  // A validade é conferida contra o início pedido (agora, sem a folga): `validUntil` no passado
+  // continua inválido. Só a gravação do início imediato recua pela folga.
+  const requestedFrom = input.validFrom ?? context.now;
+  const validFrom = input.validFrom ?? immediateValidFrom(context.now);
   const validUntil = input.validUntil ?? null;
   const errors = [
     ...scopeShapeErrors(input),
-    ...validityErrors(validFrom, validUntil, context.membership),
+    ...validityErrors(requestedFrom, validUntil, context.membership),
   ];
   if (errors.length > 0) throw new AssignmentValidationError(errors);
   const subtree = SUBTREE_SCOPE_TYPES.includes(input.scopeType);

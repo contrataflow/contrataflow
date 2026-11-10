@@ -95,10 +95,10 @@ INSERT INTO membership_departments (id, tenant_id, membership_id, department_id,
 INSERT INTO roles (id, tenant_id, key, name, is_system) VALUES
   ('${ADMIN_A}', '${A}', 'ADMIN_ORGAO', 'Administrador do órgão', true),
   ('${ADMIN_B}', '${B}', 'ADMIN_ORGAO', 'Administrador LEAK-B', true);
-INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type, granted_by_id) VALUES
-  ('0192d000-0000-7000-8000-0000000926a1', '${A}', '${M_ANA}', '${ADMIN_A}', 'TENANT', '${ANA}'),
-  ('0192d000-0000-7000-8000-0000000926a2', '${A}', '${M_ZECA}', '${ADMIN_A}', 'TENANT', '${ANA}'),
-  ('0192d000-0000-7000-8000-0000000926b1', '${B}', '${M_BETO}', '${ADMIN_B}', 'TENANT', '${BETO}');
+INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type, granted_by_id, valid_from) VALUES
+  ('0192d000-0000-7000-8000-0000000926a1', '${A}', '${M_ANA}', '${ADMIN_A}', 'TENANT', '${ANA}', now() - interval '1 day'),
+  ('0192d000-0000-7000-8000-0000000926a2', '${A}', '${M_ZECA}', '${ADMIN_A}', 'TENANT', '${ANA}', now() - interval '1 day'),
+  ('0192d000-0000-7000-8000-0000000926b1', '${B}', '${M_BETO}', '${ADMIN_B}', 'TENANT', '${BETO}', now() - interval '1 day');
 INSERT INTO role_permissions (id, tenant_id, role_id, permission_code)
 SELECT gen_random_uuid(), r.tenant_id, r.id, p.code
   FROM roles r CROSS JOIN unnest(ARRAY[${DEFAULT_ROLE_GRANTS.ADMIN_ORGAO.map((code) => `'${code}'`).join(', ')}]) AS p(code)

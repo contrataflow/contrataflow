@@ -278,8 +278,8 @@ describe('Feature: Devolver processo sobre PostgreSQL (US-048)', () => {
     ]);
     // Elegibilidade da Ana (RN-TRAM-08: PROCESS_VIEW) lida das atribuições gravadas no banco.
     await db.admin(
-      `INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type, granted_by_id)
-       SELECT $1, $2, $3, r.id, 'OWN_DEPARTMENTS', $4 FROM roles r WHERE r.tenant_id = $2 AND r.key = 'REQUISITANTE'`,
+      `INSERT INTO role_assignments (id, tenant_id, membership_id, role_id, scope_type, granted_by_id, valid_from)
+       SELECT $1, $2, $3, r.id, 'OWN_DEPARTMENTS', $4, now() - interval '1 day' FROM roles r WHERE r.tenant_id = $2 AND r.key = 'REQUISITANTE'`,
       [randomUUID(), A, ANA_M, CARLA],
     );
     catalog = {

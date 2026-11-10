@@ -25,6 +25,7 @@ import {
   seedOrganizations,
 } from '../../../../test/support/structure-fixtures.js';
 import { ACCESS_CLOCK } from '../application/ports.js';
+import { immediateValidFrom } from '../domain/role-assignment.js';
 import { createRole } from '../domain/role-management.js';
 import { grantPermission } from '../domain/role.js';
 import type { Role } from '../domain/role.js';
@@ -59,6 +60,8 @@ const SUSPENSO = FAKE_USERS.bruno;
 const MFA = ['pwd', 'otp'];
 const NO_MFA = ['pwd'];
 const NOW = new Date('2026-10-16T12:00:00.000Z');
+/** Início gravado da vigência imediata: agora menos a folga entre relógios (RN-IAM-93). */
+const IMMEDIATE = immediateValidFrom(NOW);
 const DAY = 86_400_000;
 
 const PMA = newId();
@@ -237,7 +240,7 @@ describe('Feature: Atribuir perfis com escopo e vigência (US-096)', () => {
         scopeOrganizationId: null,
         scopeName: 'Secretaria de Obras',
         includeSubtree: true,
-        validFrom: NOW.toISOString(),
+        validFrom: IMMEDIATE.toISOString(),
         validUntil: null,
         status: 'ACTIVE',
         grantedBy: { id: CARLA.id },
@@ -268,7 +271,7 @@ describe('Feature: Atribuir perfis com escopo e vigência (US-096)', () => {
           roleId: requisitante.id,
           scopeType: 'DEPARTMENT',
           scopeDepartmentId: OBRAS,
-          validFrom: NOW.toISOString(),
+          validFrom: IMMEDIATE.toISOString(),
         },
       });
       expect(deleted).toHaveBeenCalledWith(
