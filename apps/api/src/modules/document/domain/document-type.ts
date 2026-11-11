@@ -1,5 +1,7 @@
 import type {
   ApprovalPolicy,
+  ApproverLineFields,
+  ApproverLineInput,
   Confidentiality,
   DocumentKind,
   DocumentTypeUpdate,
@@ -7,7 +9,10 @@ import type {
   SystemDocumentModule,
 } from '@contrataflow/validation';
 import {
+  approversBelowMinimum,
+  APPROVERS_MIN_MESSAGE,
   DOCUMENT_TYPE_UPDATABLE_FIELDS,
+  normalizeApproverLine,
   NUMBERING_MASK_MESSAGE,
   numberingMaskProblem,
 } from '@contrataflow/validation';
@@ -53,7 +58,13 @@ export type DocumentTypeViolation =
       readonly code: 'NOT_ALLOWED' | 'CONDITIONAL_REQUIRED';
       readonly message: string;
     }
-  | { readonly kind: 'NUMBERING_MASK'; readonly field: 'numberingMask'; readonly message: string };
+  | { readonly kind: 'NUMBERING_MASK'; readonly field: 'numberingMask'; readonly message: string }
+  /** US-132 (RN-APV-11 · V-14): `ALL`/`SEQUENTIAL` com menos de duas linhas. */
+  | {
+      readonly kind: 'APPROVAL_POLICY';
+      readonly field: 'approvalPolicy.approvers';
+      readonly message: string;
+    };
 
 export class DocumentTypeRuleError extends Error {
   constructor(readonly violations: readonly DocumentTypeViolation[]) {
@@ -99,8 +110,62 @@ function maskViolation(mask: string | null): DocumentTypeViolation | null {
 /**
  * Política gravada: só os campos do tipo de aprovador escolhido (campos de outro tipo, vindos de
  * um formulário que trocou de opção, não ficam) e `slaType` padrão `BUSINESS` quando há prazo.
+ * US-132 (RN-APV-11): com `approvers[]` não vazio, as linhas são normalizadas (sem `sequence`: a
+ * ordem do array é a ordem) e o aprovador único passa a ser o espelho da linha 1; `decisionPolicy`
+ * e `approvers` só são gravados fora do padrão (`ANY` sem linhas), para a política do MVP 1 ficar
+ * idêntica.
  */
 export function normalizeApprovalPolicy(policy: ApprovalPolicy): ApprovalPolicy {
+  const lines = (policy.approvers ?? []).map((line) => normalizeApproverLine(line));
+  const decisionPolicy = policy.decisionPolicy ?? 'ANY';
+  const [first] = lines;
+  const single = first
+    ? {
+        ...policy,
+        approverType: first.approverType,
+        approverUserId: first.approverUserId ?? undefined,
+        approverRoleId: first.approverRoleId ?? undefined,
+        approverDepartmentResolution: first.approverDepartmentResolution ?? undefined,
+        approverFixedDepartmentId: first.approverFixedDepartmentId ?? undefined,
+        allowDeputy: first.allowDeputy,
+      }
+    : policy;
+  return {
+    ...(decisionPolicy === 'ANY' && lines.length === 0
+      ? {}
+      : { decisionPolicy, approvers: lines.map(storedLine) }),
+    ...normalizeSingleApprover(single),
+  };
+}
+
+/** Linha gravada na `approvalPolicy`: sem chaves nulas (como o aprovador único). */
+function storedLine(line: ApproverLineFields): ApproverLineInput {
+  return {
+    approverType: line.approverType,
+    ...(line.approverUserId ? { approverUserId: line.approverUserId } : {}),
+    ...(line.approverRoleId ? { approverRoleId: line.approverRoleId } : {}),
+    ...(line.approverDepartmentResolution
+      ? { approverDepartmentResolution: line.approverDepartmentResolution }
+      : {}),
+    ...(line.approverFixedDepartmentId
+      ? { approverFixedDepartmentId: line.approverFixedDepartmentId }
+      : {}),
+    allowDeputy: line.allowDeputy,
+    ...(line.label ? { label: line.label } : {}),
+  };
+}
+
+/** RN-APV-11 (V-14): `ALL`/`SEQUENTIAL` exigem ao menos duas linhas no salvamento. */
+function policyViolation(policy: ApprovalPolicy | null): DocumentTypeViolation | null {
+  if (!policy) return null;
+  return approversBelowMinimum(policy.decisionPolicy ?? 'ANY', policy.approvers?.length ?? 0)
+    ? { kind: 'APPROVAL_POLICY', field: 'approvalPolicy.approvers', message: APPROVERS_MIN_MESSAGE }
+    : null;
+}
+
+function normalizeSingleApprover(
+  policy: Omit<ApprovalPolicy, 'decisionPolicy' | 'approvers'>,
+): ApprovalPolicy {
   const base = {
     approverType: policy.approverType,
     allowDeputy: policy.allowDeputy,
@@ -163,6 +228,8 @@ export function createCustomDocumentType(
       message: POLICY_REQUIRED_MESSAGE,
     });
   }
+  const policy = policyViolation(input.approvalPolicy ?? null);
+  if (policy) violations.push(policy);
   if (violations.length > 0) throw new DocumentTypeRuleError(violations);
 
   return {
@@ -283,6 +350,10 @@ export function updateDocumentType(
       code: 'CONDITIONAL_REQUIRED',
       message: POLICY_REQUIRED_MESSAGE,
     });
+  }
+  if (patch.approvalPolicy) {
+    const policy = policyViolation(approvalPolicy);
+    if (policy) violations.push(policy);
   }
   if (violations.length > 0) throw new DocumentTypeRuleError(violations);
 

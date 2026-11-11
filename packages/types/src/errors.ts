@@ -34,6 +34,8 @@ export const ERROR_CODES = [
   'SELF_APPROVAL_FORBIDDEN',
   // US-053: novo aprovador do redirecionamento inelegível ou igual ao atual (APV-05 · POL-03).
   'APPROVER_NOT_ELIGIBLE',
+  // US-132: política de aprovação do tipo de documento inválida (api.md MVP 2 §2.2 · RN-APV-11).
+  'DOCUMENT_APPROVAL_POLICY_INVALID',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',

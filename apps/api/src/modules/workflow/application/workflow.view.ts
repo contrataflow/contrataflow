@@ -1,4 +1,5 @@
 import type {
+  ApproverLineDto,
   WorkflowDto,
   WorkflowRuleDto,
   WorkflowStageDto,
@@ -7,6 +8,8 @@ import type {
   WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
 
+import { approversOf, decisionPolicyOf } from '../domain/stage-approvers.js';
+import type { WorkflowStageApprover } from '../domain/stage-approvers.js';
 import type {
   Workflow,
   WorkflowDefinition,
@@ -87,7 +90,28 @@ export function toStageDto(stage: WorkflowStage): WorkflowStageDto {
     slaDays: stage.slaDays,
     slaType: stage.slaType,
     color: stage.color,
+    decisionPolicy: decisionPolicyOf(stage),
+    approvers: approversOf(stage).map((line) => toApproverLineDto(line)),
     version: stage.version,
+  };
+}
+
+/** Linha de aprovador (US-132); `resolved` só na resposta do WF-65. */
+export function toApproverLineDto(
+  line: WorkflowStageApprover,
+  resolved?: ApproverLineDto['resolved'],
+): ApproverLineDto {
+  return {
+    id: line.id,
+    sequence: line.sequence,
+    approverType: line.approverType,
+    approverUserId: line.approverUserId,
+    approverRoleId: line.approverRoleId,
+    approverDepartmentResolution: line.approverDepartmentResolution,
+    approverFixedDepartmentId: line.approverFixedDepartmentId,
+    allowDeputy: line.allowDeputy,
+    label: line.label,
+    ...(resolved ? { resolved } : {}),
   };
 }
 
@@ -156,9 +180,16 @@ export function toVersionDetailFromSnapshot(
   return {
     ...toVersionSummaryDto(version),
     initialStageId: snapshot.initialStageId,
-    stages: [...snapshot.stages]
-      .sort(byDisplayOrder)
-      .map((stage) => ({ ...stage, workflowVersionId })),
+    stages: [...snapshot.stages].sort(byDisplayOrder).map((stage) => {
+      // US-132: snapshot do MVP 1 (sem a política) = `ANY` sem linhas; a alçada não vai ao DTO.
+      const { decisionPolicyRules: _rules, approvers, decisionPolicy, ...rest } = stage;
+      return {
+        ...rest,
+        workflowVersionId,
+        decisionPolicy: decisionPolicy ?? 'ANY',
+        approvers: (approvers ?? []).map(({ applicabilityRule: _rule, ...line }) => line),
+      };
+    }),
     transitions: [...snapshot.transitions].sort(byDisplayOrder).map((transition) => {
       const { fromStageKey: _from, toStageKey: _to, ...rest } = transition;
       return { ...rest, workflowVersionId };

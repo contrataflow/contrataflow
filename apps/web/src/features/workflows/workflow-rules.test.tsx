@@ -83,6 +83,8 @@ function stage(
     slaDays: null,
     slaType: 'BUSINESS',
     color: null,
+    decisionPolicy: 'ANY',
+    approvers: [],
     version: 1,
   } satisfies WorkflowStageDto;
 }

@@ -253,6 +253,8 @@ Mudanças **aditivas** (campos opcionais, enums ampliados, filtros novos) sobre 
 - **Request:** `{ decisionPolicy, approvers: [{ approverType, approverUserId?, approverRoleId?, approverDepartmentResolution?, approverFixedDepartmentId?, allowDeputy?, label? }] }` + `If-Match`
 - **Response:** `200 { data: { stageId, decisionPolicy, approvers: [{ id, sequence, …, resolved { label, status } }] } }` · `ETag`
 - **Códigos:** 200, 403, 404, 409, 412, 422, 428, 503
+- **Regras (US-132):** `approvers` padrão `[]`; `sequence`, `applicabilityRule` e `decisionPolicyRules` no corpo → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`); mais de 20 → `TOO_LONG` em `approvers`; linha repetida → `DUPLICATE_IN_LIST` em `approvers[n]`; referência ausente/incompatível → `CONDITIONAL_REQUIRED`/`NOT_ALLOWED` em `approvers[n].campo`; usuário/perfil/unidade inexistente, de outro tenant ou inativo → `REFERENCE_NOT_FOUND`/`REFERENCE_INACTIVE` em `approvers[n].campo`; política diferente de `ANY` (ou linhas) em etapa que não é `APPROVAL` → `NOT_ALLOWED` em `decisionPolicy`/`approvers`. O rascunho aceita `ALL`/`SEQUENTIAL` com menos de duas linhas (o mínimo é da validação/publicação). Mesmo conteúdo já gravado = 200 sem novo `ETag` nem auditoria. Etapa de outro tenant → 404 `NOT_FOUND`; versão publicada → 409 `WORKFLOW_VERSION_NOT_DRAFT`.
+- **`resolved`:** `label` = rótulo da linha ou o nome resolvido (usuário, perfil, "Titular de {unidade}", "Titular da secretaria/unidade solicitante"); `status` ∈ `OK`, `INACTIVE`, `NO_HEAD`. Só na resposta do WF-65; WF-09 devolve as linhas sem `resolved` (e sem `id` quando servida do snapshot publicado).
 
 ### APV-01 — GET `/approvals` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
@@ -295,7 +297,7 @@ Contrato original: [mvp-01/api/03-documents.md](../../mvp-01/api/03-documents.md
 
 ### DTY-02 — POST `/document-types` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/03-documents.md](../../mvp-01/api/03-documents.md). Mudanças do MVP 2, todas aditivas:
-- **US-132:** request `approvalPolicy` com `decisionPolicy?` e `approvers[]?` → response `201 { data: DocumentType }` · códigos 201, 403, 409, 422
+- **US-132:** request `approvalPolicy` com `decisionPolicy?` e `approvers[]?` → response `201 { data: DocumentType }` · códigos 201, 403, 409, 422. Com linhas, os campos do aprovador único enviados são sobrescritos pelo espelho da linha 1; `ALL`/`SEQUENTIAL` com menos de duas linhas → 422 `DOCUMENT_APPROVAL_POLICY_INVALID`; repetição → `VALIDATION_ERROR` (`DUPLICATE_IN_LIST` em `approvalPolicy.approvers[n]`); referência por linha em `approvalPolicy.approvers[n].campo`. A resposta sempre traz `decisionPolicy` e `approvers` (padrão `ANY`, `[]`).
 
 ### DTY-03 — PATCH `/document-types/{id}` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/03-documents.md](../../mvp-01/api/03-documents.md). Mudanças do MVP 2, todas aditivas:

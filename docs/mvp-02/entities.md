@@ -519,6 +519,7 @@ Lista ordenada de aprovadores da etapa `APPROVAL` quando `WorkflowStage.decision
 
 | Campo | Tipo | Null | Default | Regras |
 |---|---|---|---|---|
+| `workflowVersionId` | uuid | não | — | Versão da etapa (repetida para a FK composta `(tenant_id, workflow_version_id, workflow_stage_id)` e o gatilho `trg_wf_definition_immutable` — US-132) |
 | `workflowStageId` | uuid | não | — | FK → `workflow_stages` (`CASCADE` só em `DRAFT`) |
 | `sequence` | smallint | não | — | 1..20 |
 | `approverType` | ApproverType | não | — | |
@@ -531,6 +532,9 @@ Lista ordenada de aprovadores da etapa `APPROVAL` quando `WorkflowStage.decision
 
 - **Unique:** `(tenant_id, workflow_stage_id, sequence)`.
 - **Validação na publicação:** etapa `APPROVAL` com política `ALL`/`SEQUENTIAL` exige ≥ 2 linhas; com alçadas, para todo contexto ao menos uma linha aplicável (o simulador avisa); `WF_APPROVERS_INVALID` (422).
+- **Checks (US-132):** `sequence BETWEEN 1 AND 20`; tipo × coluna como no aprovador único (`USER` ⇔ `approverUserId`, `ROLE` ⇔ `approverRoleId`, `DEPARTMENT_HEAD` ⇔ `approverDepartmentResolution`, `FIXED` ⇔ `approverFixedDepartmentId`, nunca `CHOSEN_ON_FORWARD`); `label` de 1 a 120. Na etapa: `type = 'APPROVAL' OR decision_policy = 'ANY'` e `decision_policy_rules` sempre array.
+- **Espelho (US-132 · RN-APV-08):** com lista não vazia, as colunas do aprovador único da `WorkflowStage` (`approverType` e referências, `allowDeputy`) espelham a linha 1 e ficam somente leitura no WF-11 (`NOT_ALLOWED`); com lista vazia voltam a valer e a ser editáveis. A escrita da lista é só pelo WF-65 (substituição atômica, `sequence` calculada pela ordem do array).
+- **`DocumentType.approvalPolicy` (US-132 · RN-APV-11, aditivo ao §5.7 do MVP 1):** ganha `decisionPolicy?` (padrão `ANY`) e `approvers?[]` (1 a 20 linhas na forma acima, sem `sequence` — a ordem do array é a ordem). Só são gravados fora do padrão (`ANY` sem linhas), para a política do MVP 1 ficar idêntica; a leitura (DTY-01..03) devolve `decisionPolicy = ANY` e `approvers = []` quando ausentes. Com linhas, o aprovador único é o espelho da linha 1; `ALL`/`SEQUENTIAL` exigem ≥ 2 linhas no salvamento (`DOCUMENT_APPROVAL_POLICY_INVALID`).
 
 ### 4.7 Paralelismo e migração de versão (módulo `process`)
 
@@ -1080,7 +1084,7 @@ Ordem de aplicação (cada linha = uma ou mais migrações Prisma/SQL; `R` = rev
 | M2-01 | expand | `ALTER TYPE … ADD VALUE` em `StageType`, `ProcessStageStatus`, `MovementAction`, `AssignmentType`, `ApprovalSubjectType`, `SystemDocumentModule`, `CatalogType`, `AttachmentTargetType`; criar enums novos (§2) | vários | **NR** (PostgreSQL não remove valor de enum) | Fora de transação longa; o código só usa os valores depois do deploy correspondente |
 | M2-02 | expand | `approval_approvers`; `approvals.decision_policy` (padrão `ANY`), `pca_id`, `approver_type` nulo; checks novos como `NOT VALID` + `VALIDATE` | `approval` | R | — |
 | M2-03 | dados | Backfill: uma `approval_approvers` por aprovação existente (lotes de 1.000, idempotente por `(approval_id, sequence)`); view `v_inbox_pending_approvals` v2 | `approval` | R (apaga as linhas geradas) | Pré-requisito do DT-03 |
-| M2-04 | expand | `workflow_stage_approvers`; `workflow_stages`: `branch_key`, `decision_policy`, `decision_policy_rules`, `applicability_rule`, `is_legally_required`, `pause_sla_while_returned`; `workflow_transitions.condition`; `workflow_rules.rule_definition_version_id`, `context_version`; `workflows.seed_key`, `offered_seed_version`, `offer_dismissed_at`; `workflow_versions.seed_version`, `rule_refs` | `workflow` | R | Trigger de imutabilidade estendido às tabelas novas |
+| M2-04 | expand | (US-132 entregou `workflow_stage_approvers`, `decision_policy` e `decision_policy_rules` na migração `20261111090000_workflow_stage_approvers`; as demais colunas entram com as stories donas) `workflow_stage_approvers`; `workflow_stages`: `branch_key`, `decision_policy`, `decision_policy_rules`, `applicability_rule`, `is_legally_required`, `pause_sla_while_returned`; `workflow_transitions.condition`; `workflow_rules.rule_definition_version_id`, `context_version`; `workflows.seed_key`, `offered_seed_version`, `offer_dismissed_at`; `workflow_versions.seed_version`, `rule_refs` | `workflow` | R | Trigger de imutabilidade estendido às tabelas novas |
 | M2-05 | expand | `process_stages`: `stage_type` (nulo), `branch_key`, `split_process_stage_id`, `sla_policy_id`, `pause_reason`, `escalation_level`, `last_escalated_at`, `skip_rule_result`; `process_branches`; `process_movements.branch_key` | `process` | R | — |
 | M2-06 | dados + contract parcial | Backfill `process_stages.stage_type` → `SET NOT NULL`; **troca dos índices únicos** de `process_stages` e `process_assignments` (cria os novos `CONCURRENTLY`, remove os antigos) | `process` | R (recria os antigos enquanto não houver ramo ativo) | Pré-requisito do DT-03; depois do primeiro ramo aberto o *down* é recusado |
 | M2-07 | expand | `processes.active_stages_count`, `pca_link_status`; relaxar o trigger de imutabilidade de `workflow_version_id` (só com `app.migration_item_id`) | `process` | R | — |

@@ -19,7 +19,8 @@ export interface ClonedDefinition extends WorkflowDefinition {
 }
 
 /**
- * RN-WF-22: copia etapas, transições e regras para outra versão com ids NOVOS e as referências
+ * RN-WF-22: copia etapas (com a política e as linhas de aprovadores — US-132), transições e regras
+ * para outra versão com ids NOVOS e as referências
  * remapeadas (`fromStageId`/`toStageId`, `stageId`/`transitionId` e a etapa inicial). As linhas
  * nascem com `version = 1` e autoria de quem criou a versão; `REQUIRED_APPROVAL.stageKey` é por
  * chave e continua valendo.
@@ -50,6 +51,22 @@ export function cloneDefinition(source: WorkflowDefinition, target: CloneTarget)
       id,
       approvalDocumentTypeCodes: [...stage.approvalDocumentTypeCodes],
       documentTypeCodes: [...stage.documentTypeCodes],
+      ...(stage.decisionPolicyRules === undefined
+        ? {}
+        : { decisionPolicyRules: structuredClone(stage.decisionPolicyRules) }),
+      // US-132 (FA-05 · RN-APV-10): linhas com ids novos; a alçada vai sem alteração.
+      ...(stage.approvers === undefined
+        ? {}
+        : {
+            approvers: stage.approvers.map((line) => ({
+              ...line,
+              ...control,
+              id: target.newId(),
+              tenantId: line.tenantId,
+              workflowStageId: id,
+              applicabilityRule: structuredClone(line.applicabilityRule),
+            })),
+          }),
     };
   });
   const transitions = source.transitions.map((transition): WorkflowTransition => {

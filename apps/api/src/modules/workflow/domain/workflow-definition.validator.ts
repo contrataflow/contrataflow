@@ -6,6 +6,8 @@ import type {
   WorkflowValidationWarningCode,
 } from '@contrataflow/validation';
 
+import { approversOf, decisionConfigurationProblems } from './stage-approvers.js';
+import type { DecisionConfigurationProblem, WorkflowStageApprover } from './stage-approvers.js';
 import {
   actionAllowedFrom,
   actionAllowedTo,
@@ -55,6 +57,8 @@ interface IssueTarget {
   readonly stageKey?: string | null;
   readonly transitionKey?: string | null;
   readonly ruleId?: string | null;
+  /** `params` estruturado (US-132: `sequence` da linha, `reason`). */
+  readonly params?: Readonly<Record<string, string | number>>;
 }
 
 function issue(
@@ -68,7 +72,22 @@ function issue(
     stageKey: target.stageKey ?? null,
     transitionKey: target.transitionKey ?? null,
     ruleId: target.ruleId ?? null,
+    ...(target.params ? { params: { ...target.params } } : {}),
   };
+}
+
+/** Mensagens de `WF_APPROVERS_INVALID` por `params.reason` (US-132 · V-12). */
+function approversInvalidMessage(stageName: string, problem: DecisionConfigurationProblem): string {
+  switch (problem.reason) {
+    case 'MIN_LINES':
+      return `A etapa ${stageName} precisa de ao menos dois aprovadores distintos.`;
+    case 'DUPLICATE_APPROVER':
+      return `O aprovador da linha ${String(problem.sequence ?? '')} da etapa ${stageName} já aparece na lista.`;
+    case 'TOO_MANY_LINES':
+      return `A etapa ${stageName} tem mais de 20 aprovadores.`;
+    default:
+      return `Só etapas de aprovação têm política de decisão (etapa ${stageName}).`;
+  }
 }
 
 const ADVANCE = new Set(ADVANCE_ACTIONS);
@@ -291,7 +310,24 @@ export class WorkflowDefinitionValidator {
       }
     }
 
-    if (stage.type === 'APPROVAL') this.checkApprover(stage, references, errors, warnings);
+    for (const problem of decisionConfigurationProblems(stage)) {
+      errors.push(
+        issue('WF_APPROVERS_INVALID', approversInvalidMessage(stage.name, problem), {
+          ...target,
+          params: {
+            reason: problem.reason,
+            ...(problem.sequence === undefined ? {} : { sequence: problem.sequence }),
+          },
+        }),
+      );
+    }
+    if (stage.type === 'APPROVAL') {
+      const lines = approversOf(stage);
+      if (lines.length === 0) this.checkApprover(stage, references, errors, warnings);
+      else {
+        for (const line of lines) this.checkApproverLine(stage, line, references, errors, warnings);
+      }
+    }
 
     if ((stage.type === 'TASK' || stage.type === 'APPROVAL') && stage.slaDays === null) {
       warnings.push(issue('WF_STAGE_NO_SLA', `A etapa ${stage.name} não tem prazo.`, target));
@@ -304,6 +340,64 @@ export class WorkflowDefinitionValidator {
           target,
         ),
       );
+    }
+  }
+
+  /**
+   * RN-APV-06 (US-132 · FA-04): cada linha da lista resolvível como o aprovador único (RN-WF-16),
+   * com `params.sequence` para o painel apontar a linha. A cobertura de `ROLE` sobre a unidade
+   * solicitante é verificada em execução (DEC-022).
+   */
+  private checkApproverLine(
+    stage: WorkflowStage,
+    line: WorkflowStageApprover,
+    references: WorkflowReferences,
+    errors: WorkflowValidationIssue[],
+    warnings: WorkflowValidationIssue[],
+  ): void {
+    const target = { stageKey: stage.key, params: { sequence: line.sequence } };
+    const unresolvable = () =>
+      errors.push(
+        issue(
+          'WF_APPROVER_UNRESOLVABLE',
+          `O aprovador da linha ${String(line.sequence)} da etapa ${stage.name} não pode ser determinado.`,
+          target,
+        ),
+      );
+    switch (line.approverType) {
+      case 'USER':
+        if (!line.approverUserId || !references.activeUserIds.has(line.approverUserId)) {
+          unresolvable();
+        }
+        return;
+      case 'ROLE': {
+        const role = line.approverRoleId ? references.roles.get(line.approverRoleId) : undefined;
+        if (!role?.isActive || !role.canDecideApprovals) unresolvable();
+        return;
+      }
+      default: {
+        if (!line.approverDepartmentResolution) {
+          unresolvable();
+          return;
+        }
+        if (line.approverDepartmentResolution !== 'FIXED') return;
+        const department = line.approverFixedDepartmentId
+          ? references.departments.get(line.approverFixedDepartmentId)
+          : undefined;
+        if (!department?.isActive) {
+          unresolvable();
+          return;
+        }
+        if (department.headUserId === null) {
+          warnings.push(
+            issue(
+              'WF_APPROVER_HEAD_MISSING',
+              `A unidade aprovadora da linha ${String(line.sequence)} da etapa ${stage.name} não tem titular cadastrado.`,
+              target,
+            ),
+          );
+        }
+      }
     }
   }
 

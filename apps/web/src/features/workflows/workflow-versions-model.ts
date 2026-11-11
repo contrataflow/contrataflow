@@ -41,6 +41,8 @@ export function changeNotesProblem(versionNumber: number, changeNotes: string): 
 /** Onde corrigir o problema (`stageKey`/`transitionKey`/`ruleId`), para o link do painel. */
 export type IssueTarget =
   | { readonly kind: 'stage'; readonly key: string }
+  /** Linha da lista de aprovadores da etapa (US-132 · `params.sequence`). */
+  | { readonly kind: 'stageLine'; readonly key: string; readonly sequence: number }
   | { readonly kind: 'transition'; readonly key: string }
   | { readonly kind: 'rule'; readonly id: string }
   | { readonly kind: 'none' };
@@ -48,6 +50,10 @@ export type IssueTarget =
 export function issueTarget(issue: WorkflowValidationIssue): IssueTarget {
   if (issue.ruleId) return { kind: 'rule', id: issue.ruleId };
   if (issue.transitionKey) return { kind: 'transition', key: issue.transitionKey };
+  const sequence = issue.params?.sequence;
+  if (issue.stageKey && typeof sequence === 'number') {
+    return { kind: 'stageLine', key: issue.stageKey, sequence };
+  }
   if (issue.stageKey) return { kind: 'stage', key: issue.stageKey };
   // FA-05: sem etapa inicial, a correção é na aba "Etapas".
   if (issue.code === 'WF_START_STAGE_COUNT' || issue.code === 'WF_END_STAGE_MISSING') {

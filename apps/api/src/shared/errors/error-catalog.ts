@@ -141,6 +141,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Aprovador não elegível',
     detail: 'Selecione um aprovador diferente e elegível para este processo.',
   },
+  DOCUMENT_APPROVAL_POLICY_INVALID: {
+    status: 422,
+    title: 'Política de aprovação inválida',
+    detail: 'Informe ao menos dois aprovadores para esta política.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

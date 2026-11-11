@@ -1,12 +1,22 @@
-import { WORKFLOW_LIMITS, workflowStageIssues } from '@contrataflow/validation';
+import {
+  normalizeApproverLine,
+  STAGE_SINGLE_APPROVER_FIELDS,
+  WORKFLOW_LIMITS,
+  workflowStageIssues,
+} from '@contrataflow/validation';
 import type {
+  FieldError,
+  WorkflowStageApproversDto,
+  WorkflowStageApproversSet,
   WorkflowStageCreate,
   WorkflowStageDto,
   WorkflowStageFields,
   WorkflowStageUpdate,
 } from '@contrataflow/validation';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import type { AuditChange } from '#shared/audit/audit-trail.js';
+import { requireRequestContext } from '#shared/context/request-context.js';
 import { newId } from '#shared/database/ids.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
@@ -14,7 +24,7 @@ import { ApiError, validationError } from '#shared/errors/api-error.js';
 import { WORKFLOW_REPOSITORY } from './ports.js';
 import type { WorkflowRepository } from './ports.js';
 import { changedFields, WorkflowDraftEditor } from './workflow-draft-editor.js';
-import type { DraftContext } from './workflow-draft-editor.js';
+import type { DraftContext, DraftEdit } from './workflow-draft-editor.js';
 import { WorkflowReferenceService } from './workflow-references.js';
 import {
   workflowDeleteBlocked,
@@ -22,7 +32,15 @@ import {
   workflowKeyTaken,
   workflowVersionConflict,
 } from './workflow.errors.js';
-import { toStageDto } from './workflow.view.js';
+import { toApproverLineDto, toStageDto } from './workflow.view.js';
+import {
+  approversAuditValue,
+  approversOf,
+  buildStageApprovers,
+  decisionPolicyOf,
+  mirrorFirstLine,
+  sameDecisionConfiguration,
+} from '../domain/stage-approvers.js';
 import type { WorkflowStage } from '../domain/workflow-definition.js';
 import { stageDeleteBlockers } from '../domain/workflow-delete-guard.js';
 
@@ -196,6 +214,21 @@ export class UpdateWorkflowStageCommand {
       );
       const merged: WorkflowStage = { ...current, ...definedEntries(input.patch) };
       const changes = changedFields(current, merged, STAGE_FIELDS);
+      // US-132 (RN-APV-08 · V-09): com lista, o aprovador único é o espelho da linha 1.
+      if (approversOf(current).length > 0) {
+        const mirrored = changes.filter((change) =>
+          (STAGE_SINGLE_APPROVER_FIELDS as readonly string[]).includes(change.path),
+        );
+        if (mirrored.length > 0) {
+          throw validationError(
+            mirrored.map((change) => ({
+              field: change.path,
+              code: 'NOT_ALLOWED',
+              message: 'O aprovador desta etapa é definido pela lista de aprovadores.',
+            })),
+          );
+        }
+      }
       const base = {
         entityType: 'WorkflowStage',
         entityId: current.id,
@@ -236,6 +269,185 @@ export class UpdateWorkflowStageCommand {
         ...(initialStageId === undefined ? {} : { initialStageId }),
       };
     });
+  }
+}
+
+const NOT_APPROVAL_POLICY = 'Só etapas de aprovação têm política de decisão.';
+
+/** Motivo do `warn workflow.stage_approvers_rejected` (US-132 · Logs). */
+function rejectionReason(error: ApiError): 'NOT_DRAFT' | 'DUPLICATE' | 'REFERENCE' | null {
+  if (error.code === 'WORKFLOW_VERSION_NOT_DRAFT') return 'NOT_DRAFT';
+  if (error.errors.some((item) => item.code === 'DUPLICATE_IN_LIST')) return 'DUPLICATE';
+  if (error.errors.some((item) => item.code.startsWith('REFERENCE_'))) return 'REFERENCE';
+  return null;
+}
+
+interface SetStageApproversInput {
+  readonly stageId: string;
+  readonly body: WorkflowStageApproversSet;
+  readonly expectedVersion: number;
+}
+
+/**
+ * `SetStageApproversCommand` — WF-65 (US-132 · RN-APV-01..10): na transação do rascunho (versão
+ * travada, `DRAFT`, `WORKFLOW_MANAGE` + MFA), confere o `If-Match` da etapa (412), recusa política
+ * ou linhas fora de etapa `APPROVAL` (`NOT_ALLOWED`), confere as referências por linha (V-06),
+ * substitui a lista de forma atômica (`sequence` 1..n, ids novos, alçada preservada), espelha a
+ * linha 1 no aprovador único (RN-APV-08), incrementa a etapa e a versão e audita `workflow.update`.
+ * O mesmo conteúdo já gravado é *no-op* (200 sem versão nova nem auditoria). O rascunho tolera
+ * `ALL`/`SEQUENTIAL` com menos de duas linhas (FA-03): o mínimo é da validação/publicação.
+ */
+@Injectable()
+export class SetStageApproversCommand {
+  private readonly logger = new Logger('Workflows');
+
+  constructor(
+    @Inject(WORKFLOW_REPOSITORY) private readonly workflows: WorkflowRepository,
+    private readonly editor: WorkflowDraftEditor,
+    private readonly references: WorkflowReferenceService,
+  ) {}
+
+  async execute(input: SetStageApproversInput): Promise<WorkflowStageApproversDto> {
+    try {
+      return await this.editor.edit(stageLocator(this.workflows, input.stageId), (context) =>
+        this.apply(context, input),
+      );
+    } catch (error) {
+      this.logFailure(input.stageId, error);
+      throw error;
+    }
+  }
+
+  private async apply(
+    context: DraftContext,
+    input: SetStageApproversInput,
+  ): Promise<DraftEdit<WorkflowStageApproversDto>> {
+    const { tx, now, userId } = context;
+    const current = await currentStage(
+      this.workflows,
+      context,
+      input.stageId,
+      input.expectedVersion,
+    );
+    const policy = input.body.decisionPolicy;
+    const lines = input.body.approvers.map((line) => normalizeApproverLine(line));
+    if (current.type !== 'APPROVAL') {
+      const issues: FieldError[] = [];
+      if (policy !== 'ANY') {
+        issues.push({ field: 'decisionPolicy', code: 'NOT_ALLOWED', message: NOT_APPROVAL_POLICY });
+      }
+      if (lines.length > 0) {
+        issues.push({ field: 'approvers', code: 'NOT_ALLOWED', message: NOT_APPROVAL_POLICY });
+      }
+      if (issues.length > 0) throw validationError(issues);
+    }
+    const base = {
+      entityType: 'WorkflowStage',
+      entityId: current.id,
+      operation: 'UPDATE',
+    } as const;
+    if (sameDecisionConfiguration(current, policy, lines)) {
+      return { ...base, result: await this.dto(context, current), written: false, changes: [] };
+    }
+    const errors = await this.references.approverLineErrors(tx, lines, now);
+    if (errors.length > 0) throw validationError(errors);
+
+    const approvers = buildStageApprovers(lines, approversOf(current), {
+      tenantId: current.tenantId,
+      workflowVersionId: current.workflowVersionId,
+      workflowStageId: current.id,
+      now,
+      userId,
+      newId,
+    });
+    const next: WorkflowStage = {
+      ...current,
+      ...mirrorFirstLine(current, lines),
+      decisionPolicy: policy,
+      approvers,
+      updatedAt: now,
+      updatedById: userId,
+      version: current.version + 1,
+    };
+    await this.workflows.updateStage(tx, next, input.expectedVersion);
+    await this.workflows.replaceStageApprovers(tx, next, approvers);
+
+    const changes: AuditChange[] = [];
+    if (decisionPolicyOf(current) !== policy) {
+      changes.push({ path: 'decisionPolicy', old: decisionPolicyOf(current), new: policy });
+    }
+    const before = approversAuditValue(approversOf(current));
+    const after = approversAuditValue(lines);
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      changes.push({ path: 'approvers', old: before, new: after });
+    }
+    changes.push(...changedFields(current, next, STAGE_SINGLE_APPROVER_FIELDS));
+    return {
+      ...base,
+      result: await this.dto(context, next),
+      written: true,
+      changes,
+      metadata: {
+        stageId: current.id,
+        stageKey: current.key,
+        decisionPolicy: policy,
+        approversCount: lines.length,
+      },
+      log: {
+        event: 'workflow.stage_approvers_set',
+        fields: { stageId: current.id, decisionPolicy: policy, approversCount: lines.length },
+      },
+    };
+  }
+
+  private async dto(
+    { tx, now }: DraftContext,
+    stage: WorkflowStage,
+  ): Promise<WorkflowStageApproversDto> {
+    const lines = approversOf(stage);
+    const resolved = await this.references.resolveApproverLines(tx, lines, now);
+    return {
+      stageId: stage.id,
+      decisionPolicy: decisionPolicyOf(stage),
+      approvers: lines.map((line, index) => toApproverLineDto(line, resolved[index])),
+      version: stage.version,
+    };
+  }
+
+  private logFailure(stageId: string, error: unknown): void {
+    const context = requireRequestContext();
+    const common = {
+      stageId,
+      tenantId: context.tenantId,
+      userId: context.actor.userId,
+      correlationId: context.correlationId,
+    };
+    if (error instanceof ApiError && error.code === 'VERSION_CONFLICT') {
+      this.logger.warn(
+        { event: 'workflow.stage_approvers_conflict', ...common },
+        'workflow.stage_approvers_conflict',
+      );
+      return;
+    }
+    if (error instanceof ApiError && error.status < 500) {
+      const reason = rejectionReason(error);
+      if (reason) {
+        this.logger.warn(
+          { event: 'workflow.stage_approvers_rejected', reason, ...common },
+          'workflow.stage_approvers_rejected',
+        );
+      }
+      return;
+    }
+    this.logger.error(
+      {
+        event: 'workflow.stage_approvers_write_failed',
+        cause:
+          error instanceof ApiError ? error.code : error instanceof Error ? error.name : 'unknown',
+        ...common,
+      },
+      'workflow.stage_approvers_write_failed',
+    );
   }
 }
 

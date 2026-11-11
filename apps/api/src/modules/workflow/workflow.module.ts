@@ -38,6 +38,7 @@ import {
 import {
   CreateWorkflowStageCommand,
   DeleteWorkflowStageCommand,
+  SetStageApproversCommand,
   UpdateWorkflowStageCommand,
 } from './application/workflow-stage.commands.js';
 import {
@@ -121,6 +122,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DefaultWorkflowsSeeder,
     CreateWorkflowStageCommand,
     UpdateWorkflowStageCommand,
+    SetStageApproversCommand,
     DeleteWorkflowStageCommand,
     CreateWorkflowTransitionCommand,
     UpdateWorkflowTransitionCommand,

@@ -21419,6 +21419,20 @@
               "null"
             ]
           },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApproverLine"
+            }
+          },
           "version": {
             "type": "integer"
           }
@@ -21445,7 +21459,134 @@
           "documentTypeCodes",
           "slaDays",
           "slaType",
-          "color"
+          "color",
+          "decisionPolicy",
+          "approvers"
+        ]
+      },
+      "ApproverLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "approverType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ROLE",
+              "DEPARTMENT_HEAD"
+            ]
+          },
+          "approverUserId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "approverRoleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "approverDepartmentResolution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "FIXED",
+              "REQUESTING_SECRETARIAT",
+              "REQUESTING_DEPARTMENT",
+              null
+            ]
+          },
+          "approverFixedDepartmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "allowDeputy": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolved": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "OK",
+                  "INACTIVE",
+                  "NO_HEAD"
+                ]
+              }
+            },
+            "required": [
+              "label",
+              "status"
+            ]
+          }
+        },
+        "required": [
+          "sequence",
+          "approverType",
+          "approverUserId",
+          "approverRoleId",
+          "approverDepartmentResolution",
+          "approverFixedDepartmentId",
+          "allowDeputy",
+          "label"
+        ]
+      },
+      "WorkflowStageApprovers": {
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApproverLine"
+            }
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stageId",
+          "decisionPolicy",
+          "approvers",
+          "version"
         ]
       },
       "WorkflowTransition": {
@@ -21853,6 +21994,7 @@
               "WF_PRIMARY_DUPLICATED",
               "WF_DOCUMENT_TYPE_UNKNOWN",
               "WF_APPROVER_UNRESOLVABLE",
+              "WF_APPROVERS_INVALID",
               "WF_DEPARTMENT_INVALID",
               "WF_RULE_CONFIG_INVALID",
               "WF_RULE_PATH_UNKNOWN",
@@ -21885,6 +22027,19 @@
               "string",
               "null"
             ]
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
           }
         },
         "required": [
@@ -30673,6 +30828,78 @@
                               "null"
                             ],
                             "properties": {
+                              "decisionPolicy": {
+                                "type": "string",
+                                "enum": [
+                                  "ANY",
+                                  "ALL",
+                                  "SEQUENTIAL"
+                                ]
+                              },
+                              "approvers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "approverType": {
+                                      "type": "string",
+                                      "enum": [
+                                        "USER",
+                                        "ROLE",
+                                        "DEPARTMENT_HEAD"
+                                      ]
+                                    },
+                                    "approverUserId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "format": "uuid"
+                                    },
+                                    "approverRoleId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "format": "uuid"
+                                    },
+                                    "approverDepartmentResolution": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "enum": [
+                                        "FIXED",
+                                        "REQUESTING_SECRETARIAT",
+                                        "REQUESTING_DEPARTMENT",
+                                        null
+                                      ]
+                                    },
+                                    "approverFixedDepartmentId": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "format": "uuid"
+                                    },
+                                    "allowDeputy": {
+                                      "type": "boolean"
+                                    },
+                                    "label": {
+                                      "type": [
+                                        "string",
+                                        "null"
+                                      ],
+                                      "maxLength": 120
+                                    }
+                                  },
+                                  "required": [
+                                    "approverType"
+                                  ],
+                                  "additionalProperties": false
+                                },
+                                "maxItems": 20
+                              },
                               "approverType": {
                                 "type": "string",
                                 "enum": [
@@ -30959,6 +31186,78 @@
                       "null"
                     ],
                     "properties": {
+                      "decisionPolicy": {
+                        "type": "string",
+                        "enum": [
+                          "ANY",
+                          "ALL",
+                          "SEQUENTIAL"
+                        ]
+                      },
+                      "approvers": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "approverType": {
+                              "type": "string",
+                              "enum": [
+                                "USER",
+                                "ROLE",
+                                "DEPARTMENT_HEAD"
+                              ]
+                            },
+                            "approverUserId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "approverRoleId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "approverDepartmentResolution": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "enum": [
+                                "FIXED",
+                                "REQUESTING_SECRETARIAT",
+                                "REQUESTING_DEPARTMENT",
+                                null
+                              ]
+                            },
+                            "approverFixedDepartmentId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "allowDeputy": {
+                              "type": "boolean"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "maxLength": 120
+                            }
+                          },
+                          "required": [
+                            "approverType"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 20
+                      },
                       "approverType": {
                         "type": "string",
                         "enum": [
@@ -31119,6 +31418,78 @@
                             "null"
                           ],
                           "properties": {
+                            "decisionPolicy": {
+                              "type": "string",
+                              "enum": [
+                                "ANY",
+                                "ALL",
+                                "SEQUENTIAL"
+                              ]
+                            },
+                            "approvers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "approverType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "USER",
+                                      "ROLE",
+                                      "DEPARTMENT_HEAD"
+                                    ]
+                                  },
+                                  "approverUserId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverRoleId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverDepartmentResolution": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "enum": [
+                                      "FIXED",
+                                      "REQUESTING_SECRETARIAT",
+                                      "REQUESTING_DEPARTMENT",
+                                      null
+                                    ]
+                                  },
+                                  "approverFixedDepartmentId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "allowDeputy": {
+                                    "type": "boolean"
+                                  },
+                                  "label": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "maxLength": 120
+                                  }
+                                },
+                                "required": [
+                                  "approverType"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "maxItems": 20
+                            },
                             "approverType": {
                               "type": "string",
                               "enum": [
@@ -31406,6 +31777,78 @@
                       "null"
                     ],
                     "properties": {
+                      "decisionPolicy": {
+                        "type": "string",
+                        "enum": [
+                          "ANY",
+                          "ALL",
+                          "SEQUENTIAL"
+                        ]
+                      },
+                      "approvers": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "approverType": {
+                              "type": "string",
+                              "enum": [
+                                "USER",
+                                "ROLE",
+                                "DEPARTMENT_HEAD"
+                              ]
+                            },
+                            "approverUserId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "approverRoleId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "approverDepartmentResolution": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "enum": [
+                                "FIXED",
+                                "REQUESTING_SECRETARIAT",
+                                "REQUESTING_DEPARTMENT",
+                                null
+                              ]
+                            },
+                            "approverFixedDepartmentId": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "uuid"
+                            },
+                            "allowDeputy": {
+                              "type": "boolean"
+                            },
+                            "label": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "maxLength": 120
+                            }
+                          },
+                          "required": [
+                            "approverType"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 20
+                      },
                       "approverType": {
                         "type": "string",
                         "enum": [
@@ -31560,6 +32003,78 @@
                             "null"
                           ],
                           "properties": {
+                            "decisionPolicy": {
+                              "type": "string",
+                              "enum": [
+                                "ANY",
+                                "ALL",
+                                "SEQUENTIAL"
+                              ]
+                            },
+                            "approvers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "approverType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "USER",
+                                      "ROLE",
+                                      "DEPARTMENT_HEAD"
+                                    ]
+                                  },
+                                  "approverUserId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverRoleId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverDepartmentResolution": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "enum": [
+                                      "FIXED",
+                                      "REQUESTING_SECRETARIAT",
+                                      "REQUESTING_DEPARTMENT",
+                                      null
+                                    ]
+                                  },
+                                  "approverFixedDepartmentId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "allowDeputy": {
+                                    "type": "boolean"
+                                  },
+                                  "label": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "maxLength": 120
+                                  }
+                                },
+                                "required": [
+                                  "approverType"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "maxItems": 20
+                            },
                             "approverType": {
                               "type": "string",
                               "enum": [
@@ -31899,6 +32414,78 @@
                             "null"
                           ],
                           "properties": {
+                            "decisionPolicy": {
+                              "type": "string",
+                              "enum": [
+                                "ANY",
+                                "ALL",
+                                "SEQUENTIAL"
+                              ]
+                            },
+                            "approvers": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "approverType": {
+                                    "type": "string",
+                                    "enum": [
+                                      "USER",
+                                      "ROLE",
+                                      "DEPARTMENT_HEAD"
+                                    ]
+                                  },
+                                  "approverUserId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverRoleId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "approverDepartmentResolution": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "enum": [
+                                      "FIXED",
+                                      "REQUESTING_SECRETARIAT",
+                                      "REQUESTING_DEPARTMENT",
+                                      null
+                                    ]
+                                  },
+                                  "approverFixedDepartmentId": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "format": "uuid"
+                                  },
+                                  "allowDeputy": {
+                                    "type": "boolean"
+                                  },
+                                  "label": {
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ],
+                                    "maxLength": 120
+                                  }
+                                },
+                                "required": [
+                                  "approverType"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "maxItems": 20
+                            },
                             "approverType": {
                               "type": "string",
                               "enum": [
@@ -64475,6 +65062,215 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/WorkflowStage"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workflow-stages/{stageId}/approvers": {
+      "put": {
+        "operationId": "WF-65",
+        "summary": "Definir política de decisão e aprovadores da etapa",
+        "tags": [
+          "Workflows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "workflow.update"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "stageId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decisionPolicy": {
+                    "type": "string",
+                    "enum": [
+                      "ANY",
+                      "ALL",
+                      "SEQUENTIAL"
+                    ]
+                  },
+                  "approvers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "approverType": {
+                          "type": "string",
+                          "enum": [
+                            "USER",
+                            "ROLE",
+                            "DEPARTMENT_HEAD"
+                          ]
+                        },
+                        "approverUserId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "approverRoleId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "approverDepartmentResolution": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "FIXED",
+                            "REQUESTING_SECRETARIAT",
+                            "REQUESTING_DEPARTMENT",
+                            null
+                          ]
+                        },
+                        "approverFixedDepartmentId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        },
+                        "allowDeputy": {
+                          "type": "boolean"
+                        },
+                        "label": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "maxLength": 120
+                        }
+                      },
+                      "required": [
+                        "approverType"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 20,
+                    "default": []
+                  }
+                },
+                "required": [
+                  "decisionPolicy"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Política (`ANY`, `ALL`, `SEQUENTIAL`) e lista ordenada de aprovadores (até 20) da etapa `APPROVAL` do rascunho, substituídas de forma atômica (US-132 · DEC-193). `sequence` segue a ordem do array; a linha 1 é espelhada no aprovador único. O mesmo conteúdo já gravado é no-op (sem novo `ETag`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowStageApprovers"
                     }
                   },
                   "required": [

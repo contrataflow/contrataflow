@@ -57,6 +57,15 @@ import {
   updateDocumentType,
 } from './document-types.api';
 import { LockedField } from './locked-field';
+import { ApproverLinesEditor, DecisionPolicySelect } from '../approvers/approver-lines-editor';
+import {
+  approverListProblems,
+  draftsOf,
+  hasProblems,
+  lineIndexOf,
+  sameLines,
+} from '../approvers/approver-lines-model';
+import type { ApproverLineDraft, ApproverListProblems } from '../approvers/approver-lines-model';
 
 export interface DocumentTypeFormProps {
   readonly open: boolean;
@@ -125,6 +134,24 @@ function DocumentTypeFormBody({
   const watched = useWatch({ control });
   const values: FormValues = { ...initialValues(base), ...watched };
   const lockedPolicy = isEdit && !isEditablePolicy(base.approvalPolicy);
+  // US-132: linhas de aprovadores (fora do React Hook Form — lista ordenada de objetos).
+  const [savedLines, setSavedLines] = useState<ApproverLineDraft[]>(() =>
+    draftsOf(base?.approvalPolicy?.approvers ?? []),
+  );
+  const [lines, setLines] = useState<ApproverLineDraft[]>(savedLines);
+  const [lineProblems, setLineProblems] = useState<ApproverListProblems | null>(null);
+  const [lineErrors, setLineErrors] = useState<Readonly<Record<number, string>>>({});
+  const multiple = values.decisionPolicy !== 'ANY';
+  /** RN-APV-11: no tipo não há rascunho — o mínimo de duas linhas vale já no salvamento. */
+  const linesBlocked = (submitted: FormValues): boolean => {
+    if (!submitted.requiresApproval || submitted.decisionPolicy === 'ANY') {
+      setLineProblems(null);
+      return false;
+    }
+    const found = approverListProblems(submitted.decisionPolicy, lines, { requireMinimum: true });
+    setLineProblems(found);
+    return hasProblems(found);
+  };
 
   const create = useIdempotentMutation({
     mutationFn: (body: DocumentTypeCreate, context) => createDocumentType(body, context),
@@ -182,8 +209,16 @@ function DocumentTypeFormBody({
       setFormError(t('errors.unavailable'));
       return;
     }
-    let mapped = false;
+    // US-132: erros por linha da lista (`approvalPolicy.approvers[n].…`) ficam na própria linha.
+    const byLine: Record<number, string> = {};
     for (const fieldError of error.errors) {
+      const index = lineIndexOf(fieldError.field);
+      if (index !== null) byLine[index] ??= fieldError.message;
+    }
+    setLineErrors(byLine);
+    let mapped = Object.keys(byLine).length > 0;
+    for (const fieldError of error.errors) {
+      if (lineIndexOf(fieldError.field) !== null) continue;
       const field = formFieldOf(fieldError.field);
       if (field) {
         setError(field, { message: fieldError.message });
@@ -201,22 +236,27 @@ function DocumentTypeFormBody({
 
   const onSubmit = handleSubmit(async (submitted) => {
     setFormError(null);
+    setLineErrors({});
+    if (linesBlocked(submitted)) return;
     if (!base) {
-      const problems = validateCreate(submitted, maskMessage);
+      const problems = validateCreate(submitted, maskMessage, lines);
       const fields = Object.keys(problems) as (keyof FormValues)[];
       if (fields.length > 0) {
         for (const field of fields) setError(field, { message: problems[field] ?? '' });
         return;
       }
       try {
-        const result = await create.submit(buildCreateBody(submitted) as DocumentTypeCreate);
+        const result = await create.submit(buildCreateBody(submitted, lines) as DocumentTypeCreate);
         finish(result.data, 'created');
       } catch (error) {
         applyServerErrors(error);
       }
       return;
     }
-    const patch = buildPatch(submitted, dirtyFields, base);
+    const patch = buildPatch(submitted, dirtyFields, base, {
+      lines,
+      dirty: !sameLines(lines, savedLines),
+    });
     const problems = validatePatch(submitted, patch, maskMessage);
     const fields = Object.keys(problems) as (keyof FormValues)[];
     if (fields.length > 0) {
@@ -250,6 +290,7 @@ function DocumentTypeFormBody({
     }
     setBase(fresh);
     reset(initialValues(fresh));
+    setSavedLines(draftsOf(fresh.approvalPolicy?.approvers ?? []));
     for (const field of touched) {
       setValue(field, mine[field] as never, { shouldDirty: true });
     }
@@ -471,6 +512,31 @@ function DocumentTypeFormBody({
                     <p className="text-sm">{t('form.approver.locked')}</p>
                   ) : (
                     <>
+                      <DecisionPolicySelect
+                        value={values.decisionPolicy}
+                        onChange={(next) => {
+                          set('decisionPolicy', next);
+                        }}
+                      />
+                      {errorOf('decisionPolicy') ? (
+                        <p className="text-[0.8125rem] font-semibold text-destructive">
+                          {errorOf('decisionPolicy')}
+                        </p>
+                      ) : null}
+                      {multiple ? (
+                        <ApproverLinesEditor
+                          context="documentType"
+                          policy={values.decisionPolicy}
+                          lines={lines}
+                          onLinesChange={setLines}
+                          problems={lineProblems}
+                          serverErrors={lineErrors}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                  {!lockedPolicy && !multiple ? (
+                    <>
                       <Field label={t('form.approver.type')}>
                         <Select value="DEPARTMENT_HEAD">
                           <SelectTrigger>
@@ -518,6 +584,10 @@ function DocumentTypeFormBody({
                         </Select>
                       </Field>
                       {check('allowDeputy', t('form.approver.allowDeputy'))}
+                    </>
+                  ) : null}
+                  {!lockedPolicy ? (
+                    <>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <Field label={t('form.approver.sla')} error={errorOf('slaDays')}>
                           <Input
@@ -550,7 +620,7 @@ function DocumentTypeFormBody({
                         </Field>
                       </div>
                     </>
-                  )}
+                  ) : null}
                 </fieldset>
               ) : null}
             </div>

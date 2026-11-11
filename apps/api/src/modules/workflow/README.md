@@ -138,3 +138,11 @@ workflow.definition_cache_unavailable`. WF-09 de versão publicada usa o snapsho
   (`WF_RULE_OPERATOR_FORBIDDEN`); caminho desconhecido → não satisfeita com aviso `PATH_UNKNOWN`.
   `contextUsed` só traz caminhos do schema e mascara o orçamento sigiloso (`[sigiloso]`, POL-09).
   Nada é gravado (sem auditoria); logs `info workflow.rule_tested` e `warn workflow.rule_path_unknown`.
+
+## Política de decisão e aprovadores ordenados (US-132)
+
+- **WF-65** `PUT /workflow-stages/{stageId}/approvers` → `SetStageApproversCommand` (sobre o `WorkflowDraftEditor`): `If-Match` da etapa, substituição atômica de `workflow_stage_approvers` (`sequence` 1..n pela ordem do array), espelho da linha 1 nas colunas do aprovador único (RN-APV-08), no-op sem versão nova nem auditoria, `workflow.update` com `decisionPolicy`/`approvers` (só ids) e log `workflow.stage_approvers_set`.
+- **Domínio:** `domain/stage-approvers.ts` (`StageApproversPolicy`): `buildStageApprovers` (preserva a alçada `applicabilityRule` da linha com o mesmo aprovador), `mirrorFirstLine`, `sameDecisionConfiguration`, `decisionConfigurationProblems` (→ `WF_APPROVERS_INVALID` com `params.reason`). O value object `ApproverLine` (forma, unicidade, limites) é de `packages/validation` (`document/approver-lines.ts`), compartilhado com a `approvalPolicy` do tipo de documento.
+- **Etapa sem configuração** (`decisionPolicy` ausente/`ANY`, sem linhas) = MVP 1: o snapshot só ganha `decisionPolicy`/`approvers`/`decisionPolicyRules` fora do padrão, então o `definitionHash` das versões do MVP 1 não muda.
+- **WF-11** recusa `decisionPolicy` (schema estrito) e, com lista, qualquer mudança no aprovador único (`NOT_ALLOWED`). **WF-08** copia as linhas com ids novos. **WF-20/21** validam cada linha (`WF_APPROVER_UNRESOLVABLE`/`WF_APPROVER_HEAD_MISSING` com `params.sequence`).
+- **Banco:** migração `20261111090000_workflow_stage_approvers` (parte da M2-04): a linha repete `workflow_version_id` para a FK composta com a etapa e para o gatilho `trg_wf_definition_immutable`. `WorkflowStageApprover` está em `TENANT_SCOPED_MODELS`.

@@ -37,6 +37,7 @@ const stage = (
   displayOrder,
   slaDays: null,
   slaType: 'BUSINESS',
+  decisionPolicy: 'ANY',
   ...extra,
 });
 

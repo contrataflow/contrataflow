@@ -1,4 +1,5 @@
 import {
+  APPROVAL_DECISION_POLICIES,
   APPROVER_TYPES,
   DAY_COUNT_TYPES,
   DEPARTMENT_RESOLUTIONS,
@@ -20,6 +21,15 @@ import { z } from 'zod';
 
 import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
 
+import {
+  approversOf,
+  decisionPolicyOf,
+  hasDecisionConfiguration,
+  hasDecisionPolicyRules,
+  lineContent,
+} from './stage-approvers.js';
+import type { StageDecisionFields } from './stage-approvers.js';
+
 /*
  * Snapshot canônico da definição publicada (US-040 · RN-WF-20 · DEC-084): etapas, transições e
  * regras SEM colunas de controle (datas, autores, `version`), arrays ordenados de forma
@@ -32,6 +42,20 @@ import { canonicalJson, sha256Hex } from '#shared/integrity/canonical-json.js';
 export const WORKFLOW_SNAPSHOT_SCHEMA_VERSION = 1;
 
 const id = z.uuid();
+
+/** Linha de aprovador no snapshot (US-132): por `sequence`, sem ids nem colunas de controle. */
+const snapshotApproverSchema = z.object({
+  sequence: z.number().int().min(1),
+  approverType: z.enum(APPROVER_TYPES),
+  approverUserId: id.nullable(),
+  approverRoleId: id.nullable(),
+  approverDepartmentResolution: z.enum(DEPARTMENT_RESOLUTIONS).nullable(),
+  approverFixedDepartmentId: id.nullable(),
+  allowDeputy: z.boolean(),
+  label: z.string().nullable(),
+  /** Só quando há alçada (US-198). */
+  applicabilityRule: z.unknown().optional(),
+});
 
 const snapshotStageSchema = z.object({
   id,
@@ -55,6 +79,13 @@ const snapshotStageSchema = z.object({
   slaDays: z.number().int().nullable(),
   slaType: z.enum(DAY_COUNT_TYPES),
   color: z.string().nullable(),
+  /*
+   * US-132 (RN-APV-10): presentes só quando a etapa usa a política (diferente de `ANY` ou com
+   * linhas) ou a alçada — as versões do MVP 1 mantêm o snapshot e o `definitionHash` de antes.
+   */
+  decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES).optional(),
+  approvers: z.array(snapshotApproverSchema).optional(),
+  decisionPolicyRules: z.unknown().optional(),
 });
 
 const snapshotTransitionSchema = z.object({
@@ -103,6 +134,7 @@ export type WorkflowSnapshot = z.infer<typeof workflowSnapshotSchema>;
 export type WorkflowSnapshotStage = z.infer<typeof snapshotStageSchema>;
 export type WorkflowSnapshotTransition = z.infer<typeof snapshotTransitionSchema>;
 export type WorkflowSnapshotRule = z.infer<typeof snapshotRuleSchema>;
+export type WorkflowSnapshotApprover = z.infer<typeof snapshotApproverSchema>;
 
 function byKey(a: { key: string }, b: { key: string }): number {
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
@@ -118,12 +150,33 @@ function ruleOrder(rule: WorkflowSnapshotRule): string {
 
 /** Definição de entrada (estrutural: `WorkflowDefinition` satisfaz — sem ciclo de módulos). */
 export interface SnapshotSource {
-  readonly stages: readonly (WorkflowStageFields & { readonly id: string })[];
+  readonly stages: readonly (WorkflowStageFields & StageDecisionFields & { readonly id: string })[];
   readonly transitions: readonly (WorkflowTransitionFields & { readonly id: string })[];
   readonly rules: readonly (WorkflowRuleFields & {
     readonly id: string;
     readonly config: Record<string, unknown>;
   })[];
+}
+
+/** Política e linhas da etapa no snapshot — omitidas no padrão do MVP 1 (RN-APV-10). */
+function snapshotDecision(
+  stage: StageDecisionFields,
+): Pick<WorkflowSnapshotStage, 'decisionPolicy' | 'approvers' | 'decisionPolicyRules'> {
+  const decision = hasDecisionConfiguration(stage)
+    ? {
+        decisionPolicy: decisionPolicyOf(stage),
+        approvers: approversOf(stage).map((line, index) => ({
+          sequence: index + 1,
+          ...lineContent(line),
+          ...(line.applicabilityRule === null || line.applicabilityRule === undefined
+            ? {}
+            : { applicabilityRule: line.applicabilityRule }),
+        })),
+      }
+    : {};
+  return hasDecisionPolicyRules(stage)
+    ? { ...decision, decisionPolicyRules: stage.decisionPolicyRules }
+    : decision;
 }
 
 /** Monta o snapshot canônico da definição (RN-WF-20). */
@@ -157,6 +210,7 @@ export function buildWorkflowSnapshot(definition: SnapshotSource): WorkflowSnaps
       slaDays: stage.slaDays,
       slaType: stage.slaType,
       color: stage.color,
+      ...snapshotDecision(stage),
     }))
     .sort(byKey);
 

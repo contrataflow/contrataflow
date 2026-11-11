@@ -293,7 +293,9 @@ function ValidationResultPanel({
                   onGoTo(target);
                 }}
               >
-                {t(`validation.goTo.${target.kind}`)}
+                {target.kind === 'stageLine'
+                  ? t('validation.goTo.stageLine', { sequence: target.sequence })
+                  : t(`validation.goTo.${target.kind}`)}
               </button>
             ) : null}
           </li>

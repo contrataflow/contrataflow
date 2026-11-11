@@ -7,6 +7,7 @@ import type {
   WorkflowVersionStatus,
 } from '@contrataflow/validation';
 
+import type { StageDecisionFields } from './stage-approvers.js';
 import type { WorkflowSnapshot } from './workflow-snapshot.js';
 
 /*
@@ -52,7 +53,11 @@ export interface WorkflowVersion extends Audited {
   readonly definitionHash: string | null;
 }
 
-export interface WorkflowStage extends Audited, WorkflowStageFields {
+/**
+ * Etapa da versão. `decisionPolicy`/`decisionPolicyRules`/`approvers` (US-132) vêm sempre do
+ * repositório; ausentes (etapas montadas em memória, semente do MVP 1) valem `ANY` sem linhas.
+ */
+export interface WorkflowStage extends Audited, WorkflowStageFields, StageDecisionFields {
   readonly workflowVersionId: string;
 }
 

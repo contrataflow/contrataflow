@@ -839,6 +839,15 @@ enum ApproverType {
   @@map("approver_type")
 }
 
+/// entities.md MVP 2 §2 — `ApprovalDecisionPolicy` (DEC-193 · US-132): `ANY` = comportamento do MVP 1.
+enum ApprovalDecisionPolicy {
+  ANY
+  ALL
+  SEQUENTIAL
+
+  @@map("approval_decision_policy")
+}
+
 enum TransitionAction {
   FORWARD
   RETURN
@@ -961,6 +970,10 @@ model WorkflowStage {
   slaDays                      Int?                  @map("sla_days")
   slaType                      DayCountType          @default(BUSINESS) @map("sla_type")
   color                        String?               @db.VarChar(7)
+  /// US-132 (M2-04): política de decisão; só etapa `APPROVAL` aceita valor diferente de `ANY`.
+  decisionPolicy               ApprovalDecisionPolicy @default(ANY) @map("decision_policy")
+  /// Alçada da política por faixa (`[{ when: RuleRef, policy }]`) — só a biblioteca de regras (US-198).
+  decisionPolicyRules          Json                  @default("[]") @map("decision_policy_rules") @db.JsonB
   createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById                  String?               @map("created_by_id") @db.Uuid
@@ -972,6 +985,35 @@ model WorkflowStage {
   @@unique([tenantId, workflowVersionId, key], map: "workflow_stages_tenant_id_workflow_version_id_key_key")
   @@index([tenantId, workflowVersionId], map: "workflow_stages_single_start_key")
   @@map("workflow_stages")
+}
+
+/// entities.md MVP 2 §4.6 `WorkflowStageApprover` (US-132 · DEC-193 · M2-04): lista ordenada de
+/// aprovadores da etapa `APPROVAL`, substituída inteira pelo WF-65. `workflowVersionId` repete a
+/// versão da etapa (FK composta) para o gatilho de imutabilidade `trg_wf_definition_immutable`.
+model WorkflowStageApprover {
+  id                           String                @id @db.Uuid
+  tenantId                     String                @map("tenant_id") @db.Uuid
+  workflowVersionId            String                @map("workflow_version_id") @db.Uuid
+  workflowStageId              String                @map("workflow_stage_id") @db.Uuid
+  sequence                     Int                   @db.SmallInt
+  approverType                 ApproverType          @map("approver_type")
+  approverUserId               String?               @map("approver_user_id") @db.Uuid
+  approverRoleId               String?               @map("approver_role_id") @db.Uuid
+  approverDepartmentResolution DepartmentResolution? @map("approver_department_resolution")
+  approverFixedDepartmentId    String?               @map("approver_fixed_department_id") @db.Uuid
+  allowDeputy                  Boolean               @default(true) @map("allow_deputy")
+  applicabilityRule            Json?                 @map("applicability_rule") @db.JsonB
+  label                        String?               @db.VarChar(120)
+  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                  String?               @map("created_by_id") @db.Uuid
+  updatedById                  String?               @map("updated_by_id") @db.Uuid
+  version                      Int                   @default(1)
+
+  @@unique([tenantId, id], map: "workflow_stage_approvers_tenant_id_id_key")
+  @@unique([tenantId, workflowStageId, sequence], map: "workflow_stage_approvers_sequence_key")
+  @@index([tenantId, workflowVersionId], map: "workflow_stage_approvers_version_idx")
+  @@map("workflow_stage_approvers")
 }
 
 /// entities.md §4.5 `WorkflowTransition`: origem e destino da mesma versão (FKs compostas na

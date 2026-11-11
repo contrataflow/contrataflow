@@ -1,6 +1,7 @@
 import ai from '../../messages/pt-BR/ai.json';
 import approvalList from '../../messages/pt-BR/approvalList.json';
 import approvals from '../../messages/pt-BR/approvals.json';
+import approverLines from '../../messages/pt-BR/approverLines.json';
 import attachments from '../../messages/pt-BR/attachments.json';
 import audit from '../../messages/pt-BR/audit.json';
 import auth from '../../messages/pt-BR/auth.json';
@@ -52,6 +53,7 @@ export const messages = {
   ai,
   approvalList,
   approvals,
+  approverLines,
   attachments,
   audit,
   auth,

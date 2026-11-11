@@ -62,6 +62,7 @@ export const TENANT_SCOPED_MODELS = [
   'Workflow',
   'WorkflowRule',
   'WorkflowStage',
+  'WorkflowStageApprover',
   'WorkflowTransition',
   'WorkflowVersion',
 ] as const;

@@ -1428,6 +1428,8 @@ const STAGE_DEFAULTS = {
   slaDays: null,
   slaType: 'BUSINESS',
   color: null,
+  decisionPolicy: 'ANY',
+  approvers: [],
 };
 function workflowItemOwner(kind, id) {
   for (const version of workflowVersions.values()) {
@@ -5713,6 +5715,66 @@ createServer(async (request, response) => {
       version.version += 1;
       return send(response, 201, { data: created }, { ETag: '"1"' });
     }
+  }
+  // US-132 · WF-65: política de decisão e aprovadores ordenados (substitui a lista; linha 1 espelhada).
+  const approversRoute = /^\/api\/v1\/workflow-stages\/([0-9a-f-]{36})\/approvers$/.exec(
+    url.pathname,
+  );
+  if (approversRoute && request.method === 'PUT') {
+    const owner = workflowItemOwner('stages', approversRoute[1]);
+    if (!owner) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    const { version, item } = owner;
+    if (version.status !== 'DRAFT') {
+      return problem(response, 409, 'WORKFLOW_VERSION_NOT_DRAFT', String(correlationId));
+    }
+    if (request.headers['if-match'] !== `"${String(item.version)}"`) {
+      return problem(response, 412, 'VERSION_CONFLICT', String(correlationId));
+    }
+    const body = JSON.parse((await readBody(request)) || '{}');
+    const approvers = (body.approvers ?? []).map((line, index) => ({
+      id: mockUuid(),
+      sequence: index + 1,
+      approverType: line.approverType,
+      approverUserId: line.approverUserId ?? null,
+      approverRoleId: line.approverRoleId ?? null,
+      approverDepartmentResolution: line.approverDepartmentResolution ?? null,
+      approverFixedDepartmentId: line.approverFixedDepartmentId ?? null,
+      allowDeputy: line.allowDeputy ?? true,
+      label: line.label ?? null,
+    }));
+    const [first] = approvers;
+    Object.assign(item, {
+      decisionPolicy: body.decisionPolicy,
+      approvers,
+      version: item.version + 1,
+      ...(first
+        ? {
+            approverType: first.approverType,
+            approverUserId: first.approverUserId,
+            approverRoleId: first.approverRoleId,
+            approverDepartmentResolution: first.approverDepartmentResolution,
+            approverFixedDepartmentId: first.approverFixedDepartmentId,
+            allowDeputy: first.allowDeputy,
+          }
+        : {}),
+    });
+    version.version += 1;
+    return send(
+      response,
+      200,
+      {
+        data: {
+          stageId: item.id,
+          decisionPolicy: item.decisionPolicy,
+          approvers: approvers.map((line) => ({
+            ...line,
+            resolved: { label: line.label ?? line.approverType, status: 'OK' },
+          })),
+          version: item.version,
+        },
+      },
+      { ETag: `"${String(item.version)}"` },
+    );
   }
   const itemRoute = /^\/api\/v1\/workflow-(stages|transitions)\/([0-9a-f-]{36})$/.exec(
     url.pathname,

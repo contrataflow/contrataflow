@@ -74,6 +74,8 @@ function stage(
     slaDays: null,
     slaType: 'BUSINESS',
     color: null,
+    decisionPolicy: 'ANY',
+    approvers: [],
     ...extra,
   };
 }

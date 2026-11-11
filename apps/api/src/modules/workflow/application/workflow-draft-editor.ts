@@ -40,6 +40,11 @@ export interface DraftEdit<T> {
   readonly metadata?: Readonly<Record<string, unknown>>;
   /** Etapa inicial derivada depois da escrita (RN-WF-07); `undefined` = inalterada. */
   readonly initialStageId?: string | null;
+  /**
+   * Log `info` próprio da escrita (ex.: `workflow.stage_approvers_set` — US-132), no lugar do
+   * `workflow.*_saved` padrão; ganha `workflowVersionId` e `durationMs`. Só ids e contagens.
+   */
+  readonly log?: { readonly event: string; readonly fields: Readonly<Record<string, unknown>> };
 }
 
 export interface DraftContext {
@@ -115,8 +120,14 @@ export class WorkflowDraftEditor {
     const context = requireRequestContext();
     const now = this.clock();
     let versionId = typeof locator === 'string' ? locator : null;
+    const startedAt = Date.now();
     const saved: {
-      current: { entityType: DraftEntityType; entityId: string; operation: DraftOperation } | null;
+      current: {
+        entityType: DraftEntityType;
+        entityId: string;
+        operation: DraftOperation;
+        log: DraftEdit<unknown>['log'];
+      } | null;
     } = { current: null };
     try {
       const result = await this.transactions.run(async (tx) => {
@@ -149,10 +160,25 @@ export class WorkflowDraftEditor {
           entityType: edit.entityType,
           entityId: edit.entityId,
           operation: edit.operation,
+          log: edit.log,
         };
         return edit.result;
       });
-      if (saved.current) {
+      if (saved.current?.log) {
+        const { event, fields } = saved.current.log;
+        this.logger.log(
+          {
+            event,
+            workflowVersionId: versionId,
+            ...fields,
+            durationMs: Date.now() - startedAt,
+            tenantId: context.tenantId,
+            userId: context.actor.userId,
+            correlationId: context.correlationId,
+          },
+          event,
+        );
+      } else if (saved.current) {
         const { entityType, entityId, operation } = saved.current;
         this.logger.log(
           {

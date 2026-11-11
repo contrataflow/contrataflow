@@ -1,6 +1,7 @@
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { DocumentTypeUsage } from '#shared/document/document-type-usage.js';
 
+import type { WorkflowStageApprover } from '../domain/stage-approvers.js';
 import type {
   Workflow,
   WorkflowDefinition,
@@ -160,10 +161,22 @@ export interface WorkflowRepository {
   ): Promise<void>;
 
   // Definição -------------------------------------------------------------------------------
+  /** Etapas (com as linhas de aprovadores — US-132), transições e regras da versão. */
   loadDefinition(tx: TenantTx, versionId: string): Promise<WorkflowDefinition>;
+  /** Insere etapas, linhas de aprovadores, transições e regras (cópia WF-08 e sementes). */
   insertDefinition(tx: TenantTx, definition: WorkflowDefinition): Promise<void>;
 
+  /** A etapa com a política e as linhas de aprovadores (US-132). */
   findStage(tx: TenantTx, id: string): Promise<WorkflowStage | null>;
+  /**
+   * WF-65 (US-132 · RN-APV-09): substitui TODAS as linhas de aprovadores da etapa (exclusão e
+   * inserção no mesmo `tx`, sob a trava da versão). Fora de `DRAFT` → `WorkflowImmutableError`.
+   */
+  replaceStageApprovers(
+    tx: TenantTx,
+    stage: Pick<WorkflowStage, 'id' | 'workflowVersionId'>,
+    lines: readonly WorkflowStageApprover[],
+  ): Promise<void>;
   /**
    * Etapas das versões publicadas e aposentadas do tenant (US-002: filtro "Etapa" por chave em
    * qualquer versão — RN-PROC-22 — e nomes da etapa atual na lista de processos).

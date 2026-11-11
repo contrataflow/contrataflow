@@ -373,7 +373,8 @@ function DraftEditor({
       router.push(workflowRulesHref(workflow.id));
     } else if (target.kind === 'transition') {
       setTab('transitions');
-    } else if (target.kind === 'stage') {
+    } else if (target.kind === 'stage' || target.kind === 'stageLine') {
+      // US-132: a linha com erro fica na seção "Quem decide" do painel da etapa.
       setTab('stages');
       const stage = stages.find((item) => item.key === target.key);
       if (stage) setSelected(stage.id);

@@ -45,6 +45,8 @@ function stage(overrides: Partial<WorkflowStageDto>): WorkflowStageDto {
     slaDays: null,
     slaType: 'BUSINESS',
     color: null,
+    decisionPolicy: 'ANY',
+    approvers: [],
     version: 1,
     ...overrides,
   };

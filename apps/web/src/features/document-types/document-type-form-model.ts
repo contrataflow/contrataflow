@@ -5,11 +5,15 @@ import {
   suggestDocumentTypeCode,
 } from '@contrataflow/validation';
 import type {
+  ApprovalDecisionPolicy,
   ApprovalPolicy,
   Confidentiality,
   DocumentTypeDto,
   DocumentTypeUpdate,
 } from '@contrataflow/validation';
+
+import { linesBody } from '../approvers/approver-lines-model';
+import type { ApproverLineDraft } from '../approvers/approver-lines-model';
 
 /*
  * Modelo do formulário do SCR-108 (US-061): valores como o usuário os edita (texto) ⇄ corpos de
@@ -19,6 +23,11 @@ import type {
  * solicitação (`REQUESTING_SECRETARIAT`/`REQUESTING_DEPARTMENT`). Aprovador por usuário, por perfil
  * ou unidade fixa exige os seletores `USR-02`/`ROL-02`/`DEP-02` (stories de usuários, perfis e
  * estrutura); uma política assim já gravada é preservada e mostrada em somente leitura.
+ *
+ * US-132 (RN-APV-11): com a política "Todos aprovam" ou "Aprovam em sequência", o bloco edita a
+ * lista ordenada de aprovadores (o editor compartilhado com o SCR-034, que tem os seletores); a
+ * lista fica fora do React Hook Form e entra nos corpos por `approvers` — o aprovador único vai como
+ * o espelho da linha 1.
  */
 
 export type EditableResolution = 'REQUESTING_SECRETARIAT' | 'REQUESTING_DEPARTMENT';
@@ -36,6 +45,8 @@ export interface FormValues {
   sortOrder: string;
   approverResolution: EditableResolution;
   allowDeputy: boolean;
+  /** US-132: `ANY` = aprovador único (MVP 1). */
+  decisionPolicy: ApprovalDecisionPolicy;
   slaDays: string;
   slaType: 'BUSINESS' | 'CALENDAR';
 }
@@ -53,6 +64,7 @@ export const EMPTY_VALUES: FormValues = {
   sortOrder: '0',
   approverResolution: 'REQUESTING_SECRETARIAT',
   allowDeputy: true,
+  decisionPolicy: 'ANY',
   slaDays: '',
   slaType: 'BUSINESS',
 };
@@ -61,6 +73,7 @@ export const EMPTY_VALUES: FormValues = {
 export function isEditablePolicy(policy: ApprovalPolicy | null): boolean {
   return (
     policy === null ||
+    (policy.approvers?.length ?? 0) > 0 ||
     (policy.approverType === 'DEPARTMENT_HEAD' &&
       (policy.approverDepartmentResolution === 'REQUESTING_SECRETARIAT' ||
         policy.approverDepartmentResolution === 'REQUESTING_DEPARTMENT'))
@@ -87,6 +100,7 @@ export function initialValues(type?: DocumentTypeDto): FormValues {
         ? 'REQUESTING_DEPARTMENT'
         : 'REQUESTING_SECRETARIAT',
     allowDeputy: policy?.allowDeputy ?? true,
+    decisionPolicy: policy?.decisionPolicy ?? 'ANY',
     slaDays: policy?.slaDays === undefined ? '' : String(policy.slaDays),
     slaType: policy?.slaType ?? 'BUSINESS',
   };
@@ -97,13 +111,48 @@ export function suggestedCode(name: string): string {
   return suggestDocumentTypeCode(name);
 }
 
-export function policyOf(values: FormValues): ApprovalPolicy {
+/**
+ * Política do corpo. Com `ALL`/`SEQUENTIAL` (US-132), a lista ordenada e o aprovador único como
+ * espelho da linha 1 (a API grava o mesmo espelho — RN-APV-11).
+ */
+export function policyOf(
+  values: FormValues,
+  lines: readonly ApproverLineDraft[] = [],
+): ApprovalPolicy {
   const slaDays = values.slaDays.trim();
+  const sla = slaDays === '' ? {} : { slaDays: Number(slaDays), slaType: values.slaType };
+  if (values.decisionPolicy !== 'ANY') {
+    const approvers = linesBody(lines);
+    const [first] = approvers;
+    return {
+      decisionPolicy: values.decisionPolicy,
+      approvers,
+      ...(first
+        ? {
+            approverType: first.approverType,
+            ...(first.approverUserId ? { approverUserId: first.approverUserId } : {}),
+            ...(first.approverRoleId ? { approverRoleId: first.approverRoleId } : {}),
+            ...(first.approverDepartmentResolution
+              ? { approverDepartmentResolution: first.approverDepartmentResolution }
+              : {}),
+            ...(first.approverFixedDepartmentId
+              ? { approverFixedDepartmentId: first.approverFixedDepartmentId }
+              : {}),
+            allowDeputy: first.allowDeputy ?? true,
+          }
+        : {
+            approverType: 'DEPARTMENT_HEAD' as const,
+            approverDepartmentResolution: values.approverResolution,
+            allowDeputy: values.allowDeputy,
+          }),
+      ...sla,
+    };
+  }
   return {
     approverType: 'DEPARTMENT_HEAD',
     approverDepartmentResolution: values.approverResolution,
     allowDeputy: values.allowDeputy,
-    ...(slaDays === '' ? {} : { slaDays: Number(slaDays), slaType: values.slaType }),
+    ...sla,
   };
 }
 
@@ -113,7 +162,10 @@ function sortOrderOf(values: FormValues): number | undefined {
 }
 
 /** Corpo candidato de DTY-02 (ainda não validado). */
-export function buildCreateBody(values: FormValues): unknown {
+export function buildCreateBody(
+  values: FormValues,
+  lines: readonly ApproverLineDraft[] = [],
+): unknown {
   const sortOrder = sortOrderOf(values);
   return {
     kind: values.kind,
@@ -126,7 +178,7 @@ export function buildCreateBody(values: FormValues): unknown {
       ? { numberingMask: values.numberingMask.trim() }
       : {}),
     requiresApproval: values.requiresApproval,
-    ...(values.requiresApproval ? { approvalPolicy: policyOf(values) } : {}),
+    ...(values.requiresApproval ? { approvalPolicy: policyOf(values, lines) } : {}),
     defaultConfidentiality: values.defaultConfidentiality,
     ...(sortOrder === undefined ? {} : { sortOrder }),
   };
@@ -137,6 +189,8 @@ export function formFieldOf(path: string): keyof FormValues | null {
   const [head, tail] = path.split('.');
   switch (head) {
     case 'approvalPolicy':
+      // US-132: política e linhas (`approvers[n].…`) ficam no seletor da política.
+      if (tail === 'decisionPolicy' || tail?.startsWith('approvers')) return 'decisionPolicy';
       if (tail === 'approverDepartmentResolution') return 'approverResolution';
       if (tail === 'slaDays') return 'slaDays';
       if (tail === 'slaType') return 'slaType';
@@ -169,9 +223,13 @@ function maskMessage(values: FormValues, message: string): FieldMessages {
 }
 
 /** Validação da criação com `documentTypeCreateSchema` (V-01, V-02, V-07, V-11). */
-export function validateCreate(values: FormValues, maskError: string): FieldMessages {
+export function validateCreate(
+  values: FormValues,
+  maskError: string,
+  lines: readonly ApproverLineDraft[] = [],
+): FieldMessages {
   const messages: FieldMessages = { ...maskMessage(values, maskError) };
-  const parsed = documentTypeCreateSchema.safeParse(buildCreateBody(values));
+  const parsed = documentTypeCreateSchema.safeParse(buildCreateBody(values, lines));
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const field = formFieldOf(issue.path.join('.'));
@@ -203,6 +261,11 @@ export function buildPatch(
   values: FormValues,
   dirty: DirtyFields,
   type: DocumentTypeDto,
+  /** US-132: linhas do editor de aprovadores e se a pessoa as alterou. */
+  approvers: { readonly lines: readonly ApproverLineDraft[]; readonly dirty: boolean } = {
+    lines: [],
+    dirty: false,
+  },
 ): DocumentTypeUpdate {
   const editable = new Set<string>(type.editableFields);
   const patch: Record<string, unknown> = {};
@@ -228,10 +291,12 @@ export function buildPatch(
     dirty.allowDeputy,
     dirty.slaDays,
     dirty.slaType,
+    dirty.decisionPolicy,
+    values.decisionPolicy !== 'ANY' && approvers.dirty,
   ].some(Boolean);
   if (editable.has('approvalPolicy') && isEditablePolicy(type.approvalPolicy)) {
     if (values.requiresApproval && (policyDirty || dirty.requiresApproval)) {
-      patch.approvalPolicy = policyOf(values);
+      patch.approvalPolicy = policyOf(values, approvers.lines);
     }
   }
   return patch;

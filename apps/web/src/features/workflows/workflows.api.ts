@@ -10,6 +10,8 @@ import type {
   WorkflowRuleDto,
   WorkflowRuleTestResult,
   WorkflowRuleUpdate,
+  WorkflowStageApproversDto,
+  WorkflowStageApproversSet,
   WorkflowStageCreate,
   WorkflowStageDto,
   WorkflowStageUpdate,
@@ -181,6 +183,18 @@ export function updateStage(
   return apiRequest<WorkflowStageDto>(`/workflow-stages/${stage.id}`, {
     method: 'PATCH',
     body: patch,
+    ifMatch: ifMatchOf(stage.version),
+  });
+}
+
+/** WF-65 (US-132): política de decisão e aprovadores ordenados da etapa, com o `If-Match` dela. */
+export function setStageApprovers(
+  stage: Pick<WorkflowStageDto, 'id' | 'version'>,
+  body: WorkflowStageApproversSet,
+): Promise<ApiResult<WorkflowStageApproversDto>> {
+  return apiRequest<WorkflowStageApproversDto>(`/workflow-stages/${stage.id}/approvers`, {
+    method: 'PUT',
+    body,
     ifMatch: ifMatchOf(stage.version),
   });
 }

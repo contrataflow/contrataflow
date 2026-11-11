@@ -13,7 +13,16 @@ import { sortStages } from './workflow-editor-model';
 
 export type DiagramStage = Pick<
   WorkflowStageDto,
-  'id' | 'key' | 'name' | 'type' | 'color' | 'groupLabel' | 'displayOrder' | 'slaDays' | 'slaType'
+  | 'id'
+  | 'key'
+  | 'name'
+  | 'type'
+  | 'color'
+  | 'groupLabel'
+  | 'displayOrder'
+  | 'slaDays'
+  | 'slaType'
+  | 'decisionPolicy'
 >;
 export type DiagramTransition = Pick<
   WorkflowTransitionDto,

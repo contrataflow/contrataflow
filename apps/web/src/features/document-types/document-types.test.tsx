@@ -619,3 +619,91 @@ describe('[Sucesso] desativar e reativar', () => {
     expect(bodyOf(callOf(api, 'PATCH').init)).toEqual({ isActive: true });
   });
 });
+
+describe('[Sucesso] US-132 — "Quem aprova" com política e aprovadores ordenados', () => {
+  async function openOficio(routes: Parameters<typeof mockApi>[0] = {}) {
+    const api = mockApi(routes);
+    renderWithShell(<DocumentTypesView />);
+    await chooseRowAction('Ofício', 'Editar');
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByLabelText('Exige aprovação avulsa'));
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Política de decisão' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Todos aprovam' }));
+    return { api, dialog };
+  }
+  const line = (dialog: HTMLElement, position: number, total: number) =>
+    within(dialog).getByRole('listitem', {
+      name: `Aprovador ${String(position)} de ${String(total)}`,
+    });
+
+  it('ALL com dois titulares: PATCH com a lista e o aprovador único espelhando a linha 1', async () => {
+    const { api, dialog } = await openOficio({
+      patch: () => jsonResponse({ data: { ...OFICIO, requiresApproval: true, version: 2 } }),
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar aprovador' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar aprovador' }));
+    await userEvent.click(
+      within(line(dialog, 2, 2)).getByRole('combobox', { name: 'Unidade do titular' }),
+    );
+    await userEvent.click(await screen.findByRole('option', { name: 'Unidade solicitante' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => {
+      expect(callsTo(api, 'PATCH')).toHaveLength(1);
+    });
+    expect(bodyOf(callOf(api, 'PATCH').init)).toEqual({
+      requiresApproval: true,
+      approvalPolicy: {
+        decisionPolicy: 'ALL',
+        approvers: [
+          {
+            approverType: 'DEPARTMENT_HEAD',
+            approverDepartmentResolution: 'REQUESTING_SECRETARIAT',
+            allowDeputy: true,
+          },
+          {
+            approverType: 'DEPARTMENT_HEAD',
+            approverDepartmentResolution: 'REQUESTING_DEPARTMENT',
+            allowDeputy: true,
+          },
+        ],
+        approverType: 'DEPARTMENT_HEAD',
+        approverDepartmentResolution: 'REQUESTING_SECRETARIAT',
+        allowDeputy: true,
+      },
+    });
+  });
+
+  it('[Validação] V-14: ALL com um aprovador não chama a API e avisa o mínimo', async () => {
+    const { api, dialog } = await openOficio();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar aprovador' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    expect(
+      await within(dialog).findByText('Informe ao menos dois aprovadores para esta política.'),
+    ).toBeTruthy();
+    expect(callsTo(api, 'PATCH')).toHaveLength(0);
+  });
+
+  it('[Validação] DOCUMENT_APPROVAL_POLICY_INVALID da API aparece no bloco', async () => {
+    const { dialog } = await openOficio({
+      patch: () =>
+        problemResponse(422, 'DOCUMENT_APPROVAL_POLICY_INVALID', 'x', [
+          {
+            field: 'approvalPolicy.approvers',
+            code: 'CONDITIONAL_REQUIRED',
+            message: 'Informe ao menos dois aprovadores para esta política.',
+          },
+        ]),
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar aprovador' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adicionar aprovador' }));
+    await userEvent.click(
+      within(line(dialog, 2, 2)).getByRole('combobox', { name: 'Unidade do titular' }),
+    );
+    await userEvent.click(await screen.findByRole('option', { name: 'Unidade solicitante' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    expect(
+      await within(dialog).findByText('Informe ao menos dois aprovadores para esta política.'),
+    ).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+});

@@ -51,7 +51,10 @@ export function toDocumentTypeDto(
     numberingMask: type.numberingMask,
     nextNumberPreview: nextNumberPreview(type, now),
     requiresApproval: type.requiresApproval,
-    approvalPolicy: type.approvalPolicy,
+    // US-132 (RN-APV-15 · DEC-108): política e linhas sempre presentes na resposta (aditivo).
+    approvalPolicy: type.approvalPolicy
+      ? { decisionPolicy: 'ANY', approvers: [], ...type.approvalPolicy }
+      : null,
     defaultConfidentiality: type.defaultConfidentiality,
     defaultTemplate,
     sortOrder: type.sortOrder,

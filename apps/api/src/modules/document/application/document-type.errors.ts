@@ -27,11 +27,17 @@ export function ruleErrorToApiError(error: DocumentTypeRuleError): ApiError {
   const errors: FieldError[] = error.violations.map((violation) =>
     violation.kind === 'NUMBERING_MASK'
       ? { field: violation.field, code: 'INVALID_FORMAT', message: violation.message }
-      : { field: violation.field, code: violation.code, message: violation.message },
+      : violation.kind === 'APPROVAL_POLICY'
+        ? { field: violation.field, code: 'CONDITIONAL_REQUIRED', message: violation.message }
+        : { field: violation.field, code: violation.code, message: violation.message },
   );
   const onlyMask = error.violations.every((violation) => violation.kind === 'NUMBERING_MASK');
   if (onlyMask) {
     return new ApiError('NUMBERING_MASK_INVALID', { detail: NUMBERING_MASK_MESSAGE, errors });
+  }
+  // US-132 (RN-APV-11 · V-14): política sem linhas suficientes.
+  if (error.violations.every((violation) => violation.kind === 'APPROVAL_POLICY')) {
+    return new ApiError('DOCUMENT_APPROVAL_POLICY_INVALID', { errors });
   }
   return validationError(errors);
 }

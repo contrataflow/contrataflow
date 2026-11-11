@@ -1,0 +1,73 @@
+{
+  "policy": {
+    "label": "Política de decisão",
+    "help": "Qualquer um: a primeira decisão encerra. Todos: cada aprovador decide. Em sequência: cada um decide na ordem da lista.",
+    "ANY": "Qualquer um aprova",
+    "ALL": "Todos aprovam",
+    "SEQUENTIAL": "Aprovam em sequência",
+    "invalid": "Selecione como a decisão será tomada."
+  },
+  "list": {
+    "legend": "Aprovadores",
+    "empty": "Nenhum aprovador definido — a etapa usa o aprovador único.",
+    "emptyDocumentType": "Nenhum aprovador definido.",
+    "add": "Adicionar aprovador",
+    "line": "Linha {line}",
+    "lineLabel": "Aprovador {line} de {total}",
+    "moveUp": "Subir",
+    "moveDown": "Descer",
+    "moveUpLabel": "Subir o aprovador {line}",
+    "moveDownLabel": "Descer o aprovador {line}",
+    "remove": "Remover",
+    "removeLabel": "Remover o aprovador {line}",
+    "reorderHint": "Use as setas para cima e para baixo para mudar a ordem.",
+    "moved": "{name} movido para a posição {position}.",
+    "orderHint": "A ordem define quem decide primeiro."
+  },
+  "line": {
+    "type": "Tipo de aprovador",
+    "user": "Usuário",
+    "role": "Perfil",
+    "resolution": "Unidade do titular",
+    "department": "Unidade fixa",
+    "allowDeputy": "Permitir substituto",
+    "label": "Rótulo (opcional)",
+    "labelPlaceholder": "Ex.: Secretário de Administração"
+  },
+  "types": {
+    "USER": "Usuário específico",
+    "ROLE": "Perfil",
+    "DEPARTMENT_HEAD": "Titular de unidade"
+  },
+  "resolutions": {
+    "REQUESTING_SECRETARIAT": "Secretaria solicitante",
+    "REQUESTING_DEPARTMENT": "Unidade solicitante",
+    "FIXED": "Unidade fixa"
+  },
+  "values": {
+    "select": "Selecione",
+    "search": "Buscar…",
+    "noResults": "Nenhum resultado.",
+    "currentSelection": "Seleção atual",
+    "optionsUnavailable": "Não foi possível carregar as opções agora."
+  },
+  "problems": {
+    "REQUIRED": "Informe o aprovador da linha {line}.",
+    "DUPLICATE": "O mesmo aprovador não pode aparecer duas vezes.",
+    "LABEL_TOO_LONG": "O rótulo deve ter até 120 caracteres.",
+    "tooMany": "Informe no máximo 20 aprovadores.",
+    "belowMinimum": "Informe ao menos dois aprovadores para esta política."
+  },
+  "summary": {
+    "single": "Aprovador único da etapa",
+    "line": "{position}. {name}",
+    "resolvedHead": "Titular de {name}",
+    "requestingSecretariat": "Titular da secretaria solicitante",
+    "requestingDepartment": "Titular da unidade solicitante",
+    "unknown": "Aprovador não identificado"
+  },
+  "status": {
+    "INACTIVE": "Inativo",
+    "NO_HEAD": "Sem titular"
+  }
+}

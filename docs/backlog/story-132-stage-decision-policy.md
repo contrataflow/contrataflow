@@ -237,7 +237,7 @@ Avisos de validação (`warnings[]`): `WF_APPROVER_HEAD_MISSING` por linha (`par
 - **Stories:** US-040 (modelo, `WF_*` e RN-WF-08/16), US-043 (editor e rascunho), US-045 (validação, publicação, versionamento), US-061 (`approvalPolicy` do tipo de documento). Habilita US-133 (solicitar com várias linhas), US-134, US-135, US-136 e US-198 (alçadas, EP-031).
 - **Decisões/ADRs:** DEC-193, DEC-022, DEC-014, DEC-084, DEC-104, DEC-108; ADR-005.
 - **Configurações:** nenhuma nova.
-- **Lacunas nas fontes canônicas:**
+- **Lacunas nas fontes canônicas** (resolvidas na implementação, card spec-641 — as propostas abaixo foram adotadas e registradas em `docs/mvp-02/entities.md` §4.6, `docs/mvp-02/api.md` §2.2 e `docs/mvp-02/api/20-workflow-v2.md` WF-65/DTY-02/DTY-03; rótulos em `docs/product/terminology.md`):
   1. `entities.md` não diz o que acontece com as colunas do aprovador único de `WorkflowStage` e de `approvalPolicy` quando a lista é usada; proposta: espelham a linha 1 e ficam somente leitura (RN-APV-08, RN-APV-11), à semelhança do espelho da `Approval` (§5.9).
   2. `DocumentType.approvalPolicy` (entities MVP 1 §5.7) não tem `decisionPolicy` nem `approvers[]`, embora §5.9 do MVP 2 diga que `Approval.decisionPolicy` é "copiada da etapa ou da `approvalPolicy` do tipo de documento"; é preciso ampliar o `approvalPolicySchema` (aditivo) e registrar em entities.md.
   3. O código `DOCUMENT_APPROVAL_POLICY_INVALID` (422) é novo; `WF_APPROVERS_INVALID` aparece em entities §4.6, mas sem catálogo de `params.reason` (`MIN_LINES`, `DUPLICATE_APPROVER`); registrar em `api.md`.

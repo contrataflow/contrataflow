@@ -16,6 +16,8 @@ import {
   workflowRuleTestSchema,
   workflowRuleUpdateSchema,
   workflowSchema,
+  workflowStageApproversDtoSchema,
+  workflowStageApproversSetSchema,
   workflowStageDtoSchema,
   workflowStageIdParamsSchema,
   workflowStageSchema,
@@ -45,6 +47,8 @@ import type {
   WorkflowRuleTest,
   WorkflowRuleTestResult,
   WorkflowRuleUpdate,
+  WorkflowStageApproversDto,
+  WorkflowStageApproversSet,
   WorkflowStageCreate,
   WorkflowStageDto,
   WorkflowStageUpdate,
@@ -57,7 +61,7 @@ import type {
   WorkflowVersionDetailDto,
   WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
-import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Headers, HttpCode, Patch, Post, Put, Res } from '@nestjs/common';
 
 import { ImplicitAccess, RequirePermission } from '#shared/auth/authorization.js';
 import type { HttpResponse } from '#shared/http/http-types.js';
@@ -87,6 +91,7 @@ import {
 import {
   CreateWorkflowStageCommand,
   DeleteWorkflowStageCommand,
+  SetStageApproversCommand,
   UpdateWorkflowStageCommand,
 } from '../application/workflow-stage.commands.js';
 import {
@@ -133,6 +138,7 @@ export class WorkflowController {
     private readonly createStage: CreateWorkflowStageCommand,
     private readonly updateStage: UpdateWorkflowStageCommand,
     private readonly deleteStage: DeleteWorkflowStageCommand,
+    private readonly setStageApprovers: SetStageApproversCommand,
     private readonly createTransition: CreateWorkflowTransitionCommand,
     private readonly updateTransition: UpdateWorkflowTransitionCommand,
     private readonly deleteTransition: DeleteWorkflowTransitionCommand,
@@ -513,6 +519,38 @@ export class WorkflowController {
     });
     response.setHeader('ETag', `"${stage.version ?? 1}"`);
     return stage;
+  }
+
+  @Put('workflow-stages/:stageId/approvers')
+  @HttpCode(200)
+  @RequireIfMatch()
+  @RequirePermission('WORKFLOW_MANAGE')
+  @ApiOperation({
+    operationId: 'WF-65',
+    summary: 'Definir política de decisão e aprovadores da etapa',
+    tags: TAGS,
+    auditActions: [...AUDIT_UPDATE],
+    responses: {
+      200: {
+        description:
+          'Política (`ANY`, `ALL`, `SEQUENTIAL`) e lista ordenada de aprovadores (até 20) da etapa `APPROVAL` do rascunho, substituídas de forma atômica (US-132 · DEC-193). `sequence` segue a ordem do array; a linha 1 é espelhada no aprovador único. O mesmo conteúdo já gravado é no-op (sem novo `ETag`).',
+        schema: dataEnvelope(workflowStageApproversDtoSchema),
+      },
+    },
+  })
+  async putStageApprovers(
+    @ZodParams(workflowStageIdParamsSchema) params: { stageId: string },
+    @ZodBody(workflowStageApproversSetSchema) body: WorkflowStageApproversSet,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WorkflowStageApproversDto> {
+    const result = await this.setStageApprovers.execute({
+      stageId: params.stageId,
+      body,
+      expectedVersion: ifMatchVersion(ifMatch),
+    });
+    response.setHeader('ETag', `"${result.version}"`);
+    return result;
   }
 
   @Delete('workflow-stages/:stageId')

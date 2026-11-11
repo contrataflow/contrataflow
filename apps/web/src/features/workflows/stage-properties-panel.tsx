@@ -31,6 +31,7 @@ import type { ReactNode } from 'react';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { OptionSelect } from './option-select';
+import { StageApproversSection } from './stage-approvers-section';
 import { outcomeOf } from './workflow-editor-errors';
 import type { EditorProblem } from './workflow-editor-errors';
 import {
@@ -312,6 +313,23 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
     );
 
   const isApproval = draft.type === 'APPROVAL';
+  // US-132 (RN-APV-08): com lista de aprovadores, o aprovador único é o espelho da linha 1.
+  const mirrored = stage !== null && stage.approvers.length > 0;
+
+  /** WF-65 salvo: o cache recebe a etapa nova e o rascunho do painel, o espelho da linha 1. */
+  const onApproversSaved = (updated: WorkflowStageDto) => {
+    const next = stageDraftOf(updated);
+    setDraft((current) => ({
+      ...current,
+      approverType: next.approverType,
+      approverUserId: next.approverUserId,
+      approverRoleId: next.approverRoleId,
+      approverDepartmentResolution: next.approverDepartmentResolution,
+      approverFixedDepartmentId: next.approverFixedDepartmentId,
+      allowDeputy: next.allowDeputy,
+    }));
+    onSaved(updated, false);
+  };
   const sorted = sortStages(stages);
   const position = stage ? sorted.findIndex((item) => item.id === stage.id) + 1 : sorted.length + 1;
   const knownColor = STAGE_COLORS.some(
@@ -404,7 +422,10 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           }}
         />,
       )}
-      {isApproval ? (
+      {isApproval && mirrored ? (
+        <p className="text-sm text-muted-foreground">{t('approvers.mirrorLocked')}</p>
+      ) : null}
+      {isApproval && !mirrored ? (
         <>
           {field(
             'approverType',
@@ -495,6 +516,10 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
               }}
             />
           </div>
+        </>
+      ) : null}
+      {isApproval ? (
+        <>
           <CodeChecklist
             legend={label('approvalDocumentTypeCodes')}
             options={activeTypes}
@@ -503,6 +528,15 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
               change({ approvalDocumentTypeCodes: codes }, true);
             }}
           />
+          {stage?.type === 'APPROVAL' ? (
+            <StageApproversSection
+              key={stage.id}
+              stage={stage}
+              readOnly={readOnly}
+              onSaved={onApproversSaved}
+              onProblem={onProblem}
+            />
+          ) : null}
         </>
       ) : null}
       {draft.type === 'END' ? null : (

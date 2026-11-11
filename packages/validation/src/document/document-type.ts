@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+import {
+  APPROVAL_DECISION_POLICIES,
+  APPROVER_TYPES,
+  approverLinesSchema,
+  DECISION_POLICY_MESSAGE,
+  DEPARTMENT_RESOLUTIONS,
+} from './approver-lines.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { trimmedString } from '../common/text.js';
 
@@ -25,15 +32,9 @@ export type SystemDocumentModule = (typeof SYSTEM_DOCUMENT_MODULES)[number];
 export const CONFIDENTIALITIES = ['PUBLIC', 'INTERNAL', 'RESTRICTED'] as const;
 export type Confidentiality = (typeof CONFIDENTIALITIES)[number];
 
-export const APPROVER_TYPES = ['USER', 'ROLE', 'DEPARTMENT_HEAD'] as const;
-export type ApproverType = (typeof APPROVER_TYPES)[number];
-
-export const DEPARTMENT_RESOLUTIONS = [
-  'FIXED',
-  'REQUESTING_SECRETARIAT',
-  'REQUESTING_DEPARTMENT',
-] as const;
-export type DepartmentResolution = (typeof DEPARTMENT_RESOLUTIONS)[number];
+// `APPROVER_TYPES`, `DEPARTMENT_RESOLUTIONS` e a linha de aprovador moraram aqui até a US-132;
+// agora são do value object compartilhado com a etapa do workflow.
+export * from './approver-lines.js';
 
 export const DAY_COUNT_TYPES = ['BUSINESS', 'CALENDAR'] as const;
 export type DayCountType = (typeof DAY_COUNT_TYPES)[number];
@@ -72,9 +73,19 @@ const sortOrderSchema = z
 
 const SLA_MESSAGE = 'O prazo deve estar entre 1 e 365 dias.';
 
-/** `ApprovalPolicy` (entities.md §5.7) com as condicionais sintáticas de RN-DOC-07. */
+/**
+ * `ApprovalPolicy` (entities.md §5.7) com as condicionais sintáticas de RN-DOC-07 e, a partir da
+ * US-132 (RN-APV-11), a política de decisão e a lista ordenada de aprovadores (aditivas: ausentes =
+ * `ANY` sem linhas, como no MVP 1). Com `approvers[]` não vazio, o aprovador único é o espelho da
+ * linha 1 (gravado pela API) e as suas condicionais não são conferidas aqui. O mínimo de duas
+ * linhas em `ALL`/`SEQUENTIAL` é da API (`DOCUMENT_APPROVAL_POLICY_INVALID`).
+ */
 export const approvalPolicySchema = z
   .strictObject({
+    decisionPolicy: z
+      .enum(APPROVAL_DECISION_POLICIES, { error: DECISION_POLICY_MESSAGE })
+      .optional(),
+    approvers: approverLinesSchema.optional(),
     approverType: z.enum(APPROVER_TYPES),
     approverUserId: uuidV7Schema.optional(),
     approverRoleId: uuidV7Schema.optional(),
@@ -90,6 +101,7 @@ export const approvalPolicySchema = z
     slaType: z.enum(DAY_COUNT_TYPES).optional(),
   })
   .superRefine((policy, ctx) => {
+    if ((policy.approvers?.length ?? 0) > 0) return;
     const required = (field: string, present: boolean) => {
       if (present) return;
       ctx.addIssue({

@@ -100,6 +100,8 @@
 | Contexto de regras | `RuleContext` (v1) | Conjunto versionado de dados expostos às regras: `process.*`, `documents.<TYPE>.*`, `priceResearch.*`, `risks.*`, `items.*`, `now`. O banco nunca é exposto diretamente. | DEC-016 |
 | Workflow padrão | "Fase preparatória — Lei 14.133/2021" | Fluxo semeado com as etapas `ABERTURA`, `APROVACAO_DFD`, `ESTUDOS_PRELIMINARES`, `PESQUISA_PRECOS`, `TERMO_REFERENCIA`, `APROVACAO_AUTORIDADE` e `CONCLUSAO`. | DEC-015 |
 | Responsável padrão da etapa | `REQUESTING_DEPARTMENT`, `DEPARTMENT_HEAD`, `CHOSEN_ON_FORWARD`; unidade fixa; perfil no escopo | Forma de definir a quem a etapa é atribuída quando o processo entra nela. | DEC-015. "Unidade fixa" e "perfil no escopo" ainda não têm identificador canônico |
+| Política de decisão | `ApprovalDecisionPolicy` (`ANY`, `ALL`, `SEQUENTIAL`) | Como a etapa de aprovação (ou a aprovação avulsa do tipo de documento) decide quando há mais de um aprovador: "Qualquer um aprova" (`ANY` — a primeira decisão encerra; padrão e comportamento do MVP 1), "Todos aprovam" (`ALL`) ou "Aprovam em sequência" (`SEQUENTIAL` — cada um decide na ordem da lista). | DEC-193; US-132 |
+| Aprovadores ordenados | `WorkflowStageApprover` · `approvalPolicy.approvers[]` | Lista de 1 a 20 aprovadores (usuário, perfil ou titular de unidade, com rótulo opcional) da etapa ou do tipo de documento; a ordem vale como ordem de decisão em "Aprovam em sequência". A mesma pessoa, perfil ou unidade não aparece duas vezes. | DEC-193; art. 7º, § 1º; US-132 |
 | Regra legal semeada | configuração | Exigência legal representada como regra configurável (ex.: elementos mínimos do ETP), nunca como código. | DEC-016; art. 18, §§ 1º e 2º |
 
 ---

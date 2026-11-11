@@ -61,7 +61,9 @@ O formato `application/problem+json`, os códigos genéricos (§2.1), os código
 | `APPROVAL_LINE_REQUIRED` | 422 | APV-05 em aprovação com várias linhas | US-135 |
 | `APPROVER_ALREADY_VOTED` | 409 | Pessoa já votou nesta aprovação | US-134 |
 | `APPROVER_DUPLICATED` | 422 | Mesma pessoa em duas linhas | US-133, US-135 |
-| `DOCUMENT_APPROVAL_POLICY_INVALID` | 422 | Política do tipo de documento inválida | US-132 |
+| `DOCUMENT_APPROVAL_POLICY_INVALID` | 422 | Política do tipo de documento inválida (`ALL`/`SEQUENTIAL` com menos de duas linhas; `errors[].field = approvalPolicy.approvers`) | US-132 |
+
+**Validação do grafo (`WORKFLOW_INVALID` — §2.3 do MVP 1), US-132:** novo erro `WF_APPROVERS_INVALID` com `params.reason` ∈ `MIN_LINES` (`ALL`/`SEQUENTIAL` com menos de duas linhas), `DUPLICATE_APPROVER` (+ `params.sequence` da linha repetida), `TOO_MANY_LINES` (mais de 20) e `POLICY_NOT_ALLOWED` (política ou linhas fora de etapa `APPROVAL`). Os itens de `validation.errors[]`/`warnings[]` ganham `params` opcional (aditivo); `WF_APPROVER_UNRESOLVABLE` e `WF_APPROVER_HEAD_MISSING` de uma linha da lista trazem `params.sequence`.
 
 ### 2.3 PCA (EP-023)
 | Código | HTTP | Quando | Story |

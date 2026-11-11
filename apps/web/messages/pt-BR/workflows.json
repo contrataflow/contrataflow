@@ -316,7 +316,16 @@
       "requiresComment": "Exige comentário",
       "allowDueDateOverride": "Permite alterar o prazo"
     },
-    "rulesLink": "Regras da versão"
+    "rulesLink": "Regras da versão",
+    "approvers": {
+      "title": "Quem decide",
+      "save": "Salvar aprovadores",
+      "saving": "Salvando…",
+      "saved": "Aprovadores salvos",
+      "failed": "Não foi possível salvar os aprovadores. Revise os campos destacados.",
+      "minimumHint": "Para validar e publicar, informe ao menos dois aprovadores distintos.",
+      "mirrorLocked": "O aprovador desta etapa é definido pela lista de aprovadores (seção \"Quem decide\")."
+    }
   },
   "rules": {
     "title": "Regras — {name}",
@@ -538,7 +547,8 @@
       "goTo": {
         "stage": "Ir para as etapas",
         "transition": "Ir para as transições",
-        "rule": "Ir para as regras"
+        "rule": "Ir para as regras",
+        "stageLine": "Ir para a linha {sequence} da etapa"
       }
     },
     "publishDialog": {
@@ -603,7 +613,8 @@
     "node": {
       "label": "Etapa {name}, tipo {type}",
       "group": "Grupo {group}",
-      "sla": "SLA {sla}"
+      "sla": "SLA {sla}",
+      "policy": "Política: {policy}"
     },
     "edge": {
       "label": "Transição {name}: {from} → {to}",
@@ -623,7 +634,8 @@
       "sla": "SLA",
       "route": "Origem → destino",
       "yes": "Sim",
-      "no": "Não"
+      "no": "Não",
+      "decisionPolicy": "Quem decide"
     },
     "fallback": {
       "stages": "Etapas",

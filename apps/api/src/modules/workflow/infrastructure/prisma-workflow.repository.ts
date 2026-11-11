@@ -23,6 +23,7 @@ import type {
   WorkflowRepository,
   WorkflowTransactions,
 } from '../application/ports.js';
+import type { WorkflowStageApprover } from '../domain/stage-approvers.js';
 import type {
   Workflow,
   WorkflowDefinition,
@@ -36,6 +37,7 @@ import { workflowSnapshotSchema } from '../domain/workflow-snapshot.js';
 type WorkflowRow = Prisma.WorkflowGetPayload<object>;
 type VersionRow = Prisma.WorkflowVersionGetPayload<object>;
 type StageRow = Prisma.WorkflowStageGetPayload<object>;
+type StageApproverRow = Prisma.WorkflowStageApproverGetPayload<object>;
 type TransitionRow = Prisma.WorkflowTransitionGetPayload<object>;
 type RuleRow = Prisma.WorkflowRuleGetPayload<object>;
 
@@ -113,13 +115,59 @@ function toVersion(row: VersionRow): WorkflowVersion {
   };
 }
 
-function toStage(row: StageRow): WorkflowStage {
+function toStage(row: StageRow, approvers: readonly WorkflowStageApprover[] = []): WorkflowStage {
   return {
     ...row,
     // O check de RN-WF-08 nunca grava `CHOSEN_ON_FORWARD` no aprovador (enum compartilhado).
     approverDepartmentResolution:
       row.approverDepartmentResolution as WorkflowStage['approverDepartmentResolution'],
+    approvers,
   };
+}
+
+function toStageApprover(row: StageApproverRow): WorkflowStageApprover {
+  return {
+    ...row,
+    // Check `workflow_stage_approvers_resolution`: nunca `CHOSEN_ON_FORWARD`.
+    approverDepartmentResolution:
+      row.approverDepartmentResolution as WorkflowStageApprover['approverDepartmentResolution'],
+  };
+}
+
+function stageApproverCreate(
+  line: WorkflowStageApprover,
+): Prisma.WorkflowStageApproverUncheckedCreateInput {
+  return {
+    id: line.id,
+    tenantId: line.tenantId,
+    workflowVersionId: line.workflowVersionId,
+    workflowStageId: line.workflowStageId,
+    sequence: line.sequence,
+    approverType: line.approverType,
+    approverUserId: line.approverUserId,
+    approverRoleId: line.approverRoleId,
+    approverDepartmentResolution: line.approverDepartmentResolution,
+    approverFixedDepartmentId: line.approverFixedDepartmentId,
+    allowDeputy: line.allowDeputy,
+    applicabilityRule: line.applicabilityRule ?? Prisma.DbNull,
+    label: line.label,
+    createdAt: line.createdAt,
+    updatedAt: line.updatedAt,
+    createdById: line.createdById,
+    updatedById: line.updatedById,
+    version: line.version,
+  };
+}
+
+/** Linhas por etapa, em ordem de `sequence`. */
+function approversByStage(rows: readonly StageApproverRow[]): Map<string, WorkflowStageApprover[]> {
+  const byStage = new Map<string, WorkflowStageApprover[]>();
+  for (const row of [...rows].sort((a, b) => a.sequence - b.sequence)) {
+    const lines = byStage.get(row.workflowStageId) ?? [];
+    lines.push(toStageApprover(row));
+    byStage.set(row.workflowStageId, lines);
+  }
+  return byStage;
 }
 
 function toTransition(row: TransitionRow): WorkflowTransition {
@@ -152,6 +200,8 @@ function stageData(stage: WorkflowStage) {
     slaDays: stage.slaDays,
     slaType: stage.slaType,
     color: stage.color,
+    decisionPolicy: stage.decisionPolicy ?? 'ANY',
+    decisionPolicyRules: (stage.decisionPolicyRules ?? []) as Prisma.InputJsonValue,
     updatedAt: stage.updatedAt,
     updatedById: stage.updatedById,
   };
@@ -540,8 +590,9 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       where,
       orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
     });
+    const approvers = approversByStage(await tx.workflowStageApprover.findMany({ where }));
     return {
-      stages: stages.map(toStage),
+      stages: stages.map((stage) => toStage(stage, approvers.get(stage.id))),
       transitions: transitions.map(toTransition),
       rules: rules.map(toRule),
     };
@@ -551,6 +602,10 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     await guarded('workflow_stages', async () => {
       if (definition.stages.length > 0) {
         await tx.workflowStage.createMany({ data: definition.stages.map(stageCreate) });
+      }
+      const lines = definition.stages.flatMap((stage) => stage.approvers ?? []);
+      if (lines.length > 0) {
+        await tx.workflowStageApprover.createMany({ data: lines.map(stageApproverCreate) });
       }
       if (definition.transitions.length > 0) {
         await tx.workflowTransition.createMany({
@@ -565,7 +620,27 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
 
   async findStage(tx: TenantTx, id: string): Promise<WorkflowStage | null> {
     const row = await tx.workflowStage.findFirst({ where: { id } });
-    return row === null ? null : toStage(row);
+    if (row === null) return null;
+    const lines = await tx.workflowStageApprover.findMany({
+      where: { workflowStageId: id },
+      orderBy: { sequence: 'asc' },
+    });
+    return toStage(row, lines.map(toStageApprover));
+  }
+
+  async replaceStageApprovers(
+    tx: TenantTx,
+    stage: Pick<WorkflowStage, 'id' | 'workflowVersionId'>,
+    lines: readonly WorkflowStageApprover[],
+  ): Promise<void> {
+    await guarded('workflow_stage_approvers', async () => {
+      await tx.workflowStageApprover.deleteMany({
+        where: { workflowStageId: stage.id, workflowVersionId: stage.workflowVersionId },
+      });
+      if (lines.length > 0) {
+        await tx.workflowStageApprover.createMany({ data: lines.map(stageApproverCreate) });
+      }
+    });
   }
 
   async listReleasedStages(tx: TenantTx): Promise<ReleasedStage[]> {
@@ -710,7 +785,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
       select: { id: true, fromStageId: true },
     });
     return documentTypeUsageOf(documentTypeCode, {
-      stages: stages.map(toStage),
+      stages: stages.map((row) => toStage(row)),
       rules: rules.map(toRule),
       transitions,
       workflowOf,

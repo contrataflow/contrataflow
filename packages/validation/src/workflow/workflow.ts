@@ -7,6 +7,12 @@ import { decimalString } from '../common/decimal.js';
 import { uuidV7Schema } from '../common/identifiers.js';
 import { trimmedString } from '../common/text.js';
 import {
+  APPROVAL_DECISION_POLICIES,
+  approverLineDtoSchema,
+  approverLinesSchema,
+  DECISION_POLICY_MESSAGE,
+} from '../document/approver-lines.js';
+import {
   APPROVER_TYPES,
   DAY_COUNT_TYPES,
   DEPARTMENT_RESOLUTIONS,
@@ -430,6 +436,46 @@ export type WorkflowStageCreate = z.infer<typeof workflowStageSchema>;
 export const workflowStageUpdateSchema = z.strictObject(stageBaseShape).partial();
 export type WorkflowStageUpdate = z.infer<typeof workflowStageUpdateSchema>;
 
+/**
+ * Colunas do aprovador único que espelham a linha 1 enquanto a lista de aprovadores existir
+ * (RN-APV-08): o WF-11 as recusa (`NOT_ALLOWED`) e o editor as mostra só para leitura.
+ */
+export const STAGE_SINGLE_APPROVER_FIELDS = [
+  'approverType',
+  'approverUserId',
+  'approverRoleId',
+  'approverDepartmentResolution',
+  'approverFixedDepartmentId',
+  'allowDeputy',
+] as const;
+
+// ---------------------------------------------------------------------------------------------
+// Política de decisão e aprovadores da etapa (WF-65 · US-132 · DEC-193)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Corpo do WF-65: a política e a lista inteira (substituição atômica). `sequence`,
+ * `applicabilityRule` e `decisionPolicyRules` não são aceitos (V-08 → `NOT_ALLOWED`); a ordem do
+ * array é a ordem de decisão em `SEQUENTIAL` (RN-APV-03). Política em etapa que não é `APPROVAL`
+ * e o mínimo de linhas são da API (o rascunho tolera menos de duas — FA-03).
+ */
+export const workflowStageApproversSetSchema = z.strictObject({
+  decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES, { error: DECISION_POLICY_MESSAGE }),
+  approvers: approverLinesSchema.default([]),
+});
+export type WorkflowStageApproversSet = z.infer<typeof workflowStageApproversSetSchema>;
+
+/** Resposta do WF-65 (`version` = `ETag` da etapa). */
+export const workflowStageApproversDtoSchema = z
+  .object({
+    stageId: z.uuid(),
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
+    approvers: z.array(approverLineDtoSchema),
+    version: z.number().int(),
+  })
+  .meta({ id: 'WorkflowStageApprovers' });
+export type WorkflowStageApproversDto = z.infer<typeof workflowStageApproversDtoSchema>;
+
 // ---------------------------------------------------------------------------------------------
 // Transição (WF-13/14/15)
 // ---------------------------------------------------------------------------------------------
@@ -724,6 +770,9 @@ export const workflowStageDtoSchema = z
     slaDays: z.number().int().nullable(),
     slaType: z.enum(DAY_COUNT_TYPES),
     color: z.string().nullable(),
+    /** US-132 (aditivo): política de decisão e aprovadores ordenados (`ANY` + `[]` = MVP 1). */
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
+    approvers: z.array(approverLineDtoSchema),
     /** `ETag` da linha (rascunho); ausente na leitura do snapshot publicado. */
     version: z.number().int().optional(),
   })
@@ -881,6 +930,7 @@ export const WORKFLOW_VALIDATION_ERROR_CODES = [
   'WF_PRIMARY_DUPLICATED',
   'WF_DOCUMENT_TYPE_UNKNOWN',
   'WF_APPROVER_UNRESOLVABLE',
+  'WF_APPROVERS_INVALID',
   'WF_DEPARTMENT_INVALID',
   'WF_RULE_CONFIG_INVALID',
   'WF_RULE_PATH_UNKNOWN',
@@ -889,6 +939,15 @@ export const WORKFLOW_VALIDATION_ERROR_CODES = [
   'WF_LIMIT_EXCEEDED',
 ] as const;
 export type WorkflowValidationErrorCode = (typeof WORKFLOW_VALIDATION_ERROR_CODES)[number];
+
+/** `params.reason` de `WF_APPROVERS_INVALID` (US-132 · api.md MVP 2 §2.2). */
+export const WF_APPROVERS_INVALID_REASONS = [
+  'MIN_LINES',
+  'DUPLICATE_APPROVER',
+  'TOO_MANY_LINES',
+  'POLICY_NOT_ALLOWED',
+] as const;
+export type WfApproversInvalidReason = (typeof WF_APPROVERS_INVALID_REASONS)[number];
 
 export const WORKFLOW_VALIDATION_WARNING_CODES = [
   'WF_STAGE_NO_SLA',
@@ -905,6 +964,11 @@ export const workflowValidationIssueSchema = z
     stageKey: z.string().nullable(),
     transitionKey: z.string().nullable(),
     ruleId: z.string().nullable(),
+    /**
+     * Detalhe estruturado (US-132, aditivo): `sequence` da linha de aprovador e `reason` de
+     * `WF_APPROVERS_INVALID` (`WF_APPROVERS_INVALID_REASONS`).
+     */
+    params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
   })
   .meta({ id: 'WorkflowValidationIssue' });
 export type WorkflowValidationIssue = z.infer<typeof workflowValidationIssueSchema>;

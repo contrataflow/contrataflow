@@ -531,13 +531,20 @@ function StageNode({
   readonly onSelect: () => void;
 }) {
   const t = useTranslations('workflows');
+  const tPolicy = useTranslations('approverLines.policy');
   const { stage } = node;
   const slaOf = useSlaText();
   const warningOf = useWarningText();
   const sla = slaOf(stage);
   const warning = warningOf(node);
+  // US-132 (passo 5): selo da política quando a etapa não é "Qualquer um aprova" do MVP 1.
+  const policy =
+    stage.type === 'APPROVAL' && stage.decisionPolicy !== 'ANY'
+      ? tPolicy(stage.decisionPolicy)
+      : null;
   const label = [
     t('diagram.node.label', { name: stage.name, type: t(`editor.stageTypes.${stage.type}`) }),
+    policy ? t('diagram.node.policy', { policy }) : null,
     stage.groupLabel ? t('diagram.node.group', { group: stage.groupLabel }) : null,
     sla ? t('diagram.node.sla', { sla }) : null,
     warning,
@@ -568,6 +575,14 @@ function StageNode({
           {t(`editor.stageTypes.${stage.type}`)}
         </span>
         {warning ? <span className="text-foreground">⚠</span> : null}
+        {policy ? (
+          <span
+            data-testid="stage-policy-badge"
+            className="rounded-full bg-primary-soft px-1.5 text-[0.6875rem] font-semibold text-foreground"
+          >
+            {policy}
+          </span>
+        ) : null}
       </span>
       <span className="w-full truncate text-sm font-medium" aria-hidden="true">
         {stage.name}
@@ -750,6 +765,7 @@ function DetailRow({ label, value }: { readonly label: string; readonly value: s
 
 function StageDetails({ stage }: { readonly stage: WorkflowStageDto }) {
   const t = useTranslations('workflows');
+  const tPolicy = useTranslations('approverLines.policy');
   const slaOf = useSlaText();
   return (
     <dl className="mt-3 flex flex-col gap-2">
@@ -768,6 +784,14 @@ function StageDetails({ stage }: { readonly stage: WorkflowStageDto }) {
         <DetailRow
           label={t('editor.fields.approverType')}
           value={stage.approverType ? t(`editor.approverTypes.${stage.approverType}`) : null}
+        />
+      ) : null}
+      {stage.type === 'APPROVAL' ? (
+        <DetailRow
+          label={t('diagram.details.decisionPolicy')}
+          value={`${tPolicy(stage.decisionPolicy)}${
+            stage.approvers.length > 0 ? ` (${String(stage.approvers.length)})` : ''
+          }`}
         />
       ) : null}
       <DetailRow label={t('diagram.details.sla')} value={slaOf(stage)} />

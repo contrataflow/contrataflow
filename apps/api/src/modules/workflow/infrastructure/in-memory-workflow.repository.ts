@@ -21,6 +21,7 @@ import type {
   WorkflowRepository,
   WorkflowTransactions,
 } from '../application/ports.js';
+import type { WorkflowStageApprover } from '../domain/stage-approvers.js';
 import { compareApplicability } from '../domain/workflow-applicability.js';
 import type {
   Audited,
@@ -330,6 +331,17 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
 
   findStage(_tx: TenantTx, id: string): Promise<WorkflowStage | null> {
     return Promise.resolve(this.visible(this.stages, id));
+  }
+
+  replaceStageApprovers(
+    _tx: TenantTx,
+    stage: Pick<WorkflowStage, 'id' | 'workflowVersionId'>,
+    lines: readonly WorkflowStageApprover[],
+  ): Promise<void> {
+    this.assertDraft(stage.workflowVersionId, 'workflow_stage_approvers');
+    const current = this.visible(this.stages, stage.id);
+    if (current) this.stages.set(stage.id, { ...current, approvers: [...lines] });
+    return Promise.resolve();
   }
 
   listReleasedStages(_tx: TenantTx): Promise<ReleasedStage[]> {
