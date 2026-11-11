@@ -49,6 +49,8 @@ export function cloneDefinition(source: WorkflowDefinition, target: CloneTarget)
       ...stage,
       ...control,
       id,
+      // US-123 (FA-05): o ramo é recalculado na publicação da nova versão.
+      branchKey: null,
       approvalDocumentTypeCodes: [...stage.approvalDocumentTypeCodes],
       documentTypeCodes: [...stage.documentTypeCodes],
       ...(stage.decisionPolicyRules === undefined

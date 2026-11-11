@@ -60,6 +60,7 @@ function stageOf(overrides: Partial<WorkflowStageDto>): WorkflowStageDto {
     color: null,
     decisionPolicy: 'ANY',
     approvers: [],
+    branchKey: null,
     version: 1,
     ...overrides,
   };
@@ -543,5 +544,168 @@ describe('SCR-034 · editor de workflow (US-043)', () => {
     });
     renderEditor();
     expect(await screen.findByText('Workflow não encontrado.')).toBeTruthy();
+  });
+});
+
+describe('SCR-034 · etapas paralelas (US-123)', () => {
+  /** Rascunho com ESTUDOS (TASK) → bloco RAMIFICACAO/JURIDICO/CONTROLE/JUNCAO → AUTORIZACAO. */
+  const parallelState = () => {
+    const state = initialState();
+    const stages = [
+      stageOf({ key: 'ABERTURA', name: 'Abertura', type: 'START', displayOrder: 0 }),
+      stageOf({ key: 'ESTUDOS', name: 'Estudos preliminares', displayOrder: 1 }),
+      stageOf({
+        key: 'RAMIFICACAO',
+        name: 'Ramificação — Análises',
+        type: 'PARALLEL_SPLIT',
+        displayOrder: 2,
+      }),
+      stageOf({ key: 'JURIDICO', name: 'Jurídico', displayOrder: 3, slaDays: 5 }),
+      stageOf({ key: 'CONTROLE', name: 'Controle interno', displayOrder: 4 }),
+      stageOf({
+        key: 'JUNCAO',
+        name: 'Junção — Análises',
+        type: 'PARALLEL_JOIN',
+        displayOrder: 5,
+      }),
+      stageOf({
+        key: 'AUTORIZACAO',
+        name: 'Autorização',
+        type: 'APPROVAL',
+        displayOrder: 6,
+        approverType: 'DEPARTMENT_HEAD',
+        approverDepartmentResolution: 'REQUESTING_SECRETARIAT',
+      }),
+    ];
+    state.versions.set(DRAFT_ID, { ...version(DRAFT_ID, 'DRAFT', 1), stages });
+    return state;
+  };
+  const branchesResponse = {
+    blocks: [
+      {
+        splitStageKey: 'RAMIFICACAO',
+        joinStageKey: null,
+        branches: [
+          {
+            branchKey: 'JURIDICO',
+            entryStageKey: 'JURIDICO',
+            stageKeys: ['JURIDICO'],
+            exitTransitionKey: null,
+          },
+        ],
+        issues: [
+          {
+            code: 'WF_PARALLEL_INVALID',
+            reason: 'SPLIT_BRANCHES_MIN',
+            message: 'A ramificação "Ramificação — Análises" precisa de pelo menos dois ramos.',
+            stageKey: 'RAMIFICACAO',
+            transitionKey: null,
+          },
+        ],
+      },
+    ],
+    issues: [],
+    stageBranch: { JURIDICO: 'JURIDICO' },
+  };
+  const withBranches: Override = (url) =>
+    url.endsWith('/branches') ? jsonResponse({ data: branchesResponse }) : null;
+
+  it('[Sucesso] painel "Ramificações" (WF-24) com ramos e problemas; chip "Ramo: JURIDICO" na etapa', async () => {
+    mockApi(parallelState(), { override: withBranches });
+    renderEditor();
+    const panel = await screen.findByRole('region', { name: 'Ramificações' });
+    expect(await within(panel).findByText('Ramo JURIDICO')).toBeTruthy();
+    expect(within(panel).getByText(/precisa de pelo menos dois ramos/)).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Remover ramificação' })).toBeTruthy();
+    expect(screen.getByLabelText('Etapa do ramo JURIDICO')).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('[Validação] ramificação no painel de propriedades: sem responsável, prazo nem documentos', async () => {
+    mockApi(parallelState(), { override: withBranches });
+    renderEditor();
+    await userEvent.click(
+      await screen.findByRole('button', {
+        name: 'Abrir as propriedades de Ramificação — Análises',
+      }),
+    );
+    const panel = await screen.findByRole('region', { name: 'Etapa Ramificação — Análises' });
+    expect(
+      within(panel).getByText(
+        'Ramificação e junção não têm responsável, prazo nem aprovador. Configure esses dados nas etapas dos ramos.',
+      ),
+    ).toBeTruthy();
+    expect(within(panel).queryByLabelText('SLA (dias)')).toBeNull();
+    expect(within(panel).queryByText('Documentos da etapa')).toBeNull();
+    expect(within(panel).queryByLabelText('Atribuição')).toBeNull();
+  });
+
+  it('[Sucesso] assistente "Adicionar ramificação" cria as etapas e as transições em sequência', async () => {
+    const state = initialState();
+    state.versions.set(DRAFT_ID, {
+      ...version(DRAFT_ID, 'DRAFT', 1),
+      stages: [
+        stageOf({ key: 'ESTUDOS', name: 'Estudos preliminares', displayOrder: 0 }),
+        stageOf({ key: 'AUTORIZACAO', name: 'Autorização', displayOrder: 1 }),
+      ],
+    });
+    const api = mockApi(state, {
+      override: (url) =>
+        url.endsWith('/branches')
+          ? jsonResponse({ data: { blocks: [], issues: [], stageBranch: {} } })
+          : null,
+    });
+    renderEditor();
+    expect(
+      await screen.findByText(
+        'Nenhuma ramificação nesta versão — adicione uma quando precisar de etapas simultâneas.',
+      ),
+    ).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Mais' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Adicionar ramificação' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar ramificação' });
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Criar ramificação' }));
+    expect(within(dialog).getAllByText('Preencha este campo.').length).toBeGreaterThan(0);
+    expect(calls(api, 'POST', '/stages')).toHaveLength(0);
+
+    await userEvent.type(within(dialog).getByLabelText(/Nome do bloco/), 'Análises');
+    await choose(dialog, 'Etapa de origem', 'Estudos preliminares');
+    await choose(dialog, 'Etapa depois da junção', 'Autorização');
+    await userEvent.type(within(dialog).getByLabelText(/Primeira etapa do ramo 1/), 'Jurídico');
+    await userEvent.type(
+      within(dialog).getByLabelText(/Primeira etapa do ramo 2/),
+      'Controle interno',
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Criar ramificação' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Adicionar ramificação' })).toBeNull();
+    });
+    const stages = calls(api, 'POST', '/stages').map(
+      ([, init]) => JSON.parse(init?.body as string) as Record<string, unknown>,
+    );
+    expect(stages.map((body) => [body.key, body.type])).toEqual([
+      ['RAMIFICACAO_ANALISES', 'PARALLEL_SPLIT'],
+      ['JURIDICO', 'TASK'],
+      ['CONTROLE_INTERNO', 'TASK'],
+      ['JUNCAO_ANALISES', 'PARALLEL_JOIN'],
+    ]);
+    expect(stages[0]).toMatchObject({ slaDays: null, documentTypeCodes: [] });
+    const transitions = calls(api, 'POST', '/transitions').map(
+      ([, init]) => JSON.parse(init?.body as string) as Record<string, unknown>,
+    );
+    expect(transitions).toHaveLength(6);
+    expect(transitions.every((body) => body.action === 'FORWARD')).toBe(true);
+  });
+
+  it('[Permissão] só WORKFLOW_VIEW: painel em leitura, sem "Remover" nem "Adicionar ramificação"', async () => {
+    mockApi(parallelState(), { permissions: ['WORKFLOW_VIEW'], override: withBranches });
+    renderEditor();
+    const panel = await screen.findByRole('region', { name: 'Ramificações' });
+    expect(await within(panel).findByText('Ramo JURIDICO')).toBeTruthy();
+    expect(within(panel).queryByRole('button', { name: 'Remover ramificação' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Mais' }));
+    expect(screen.queryByRole('menuitem', { name: 'Adicionar ramificação' })).toBeNull();
   });
 });

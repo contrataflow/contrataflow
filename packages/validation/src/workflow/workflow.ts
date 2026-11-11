@@ -31,8 +31,27 @@ import { pageQuerySchema } from '../http/pagination.js';
 export const WORKFLOW_VERSION_STATUSES = ['DRAFT', 'PUBLISHED', 'RETIRED'] as const;
 export type WorkflowVersionStatus = (typeof WORKFLOW_VERSION_STATUSES)[number];
 
-export const STAGE_TYPES = ['START', 'TASK', 'APPROVAL', 'END'] as const;
+/**
+ * `PARALLEL_SPLIT`/`PARALLEL_JOIN` (US-123 · DEC-194, aditivos): ramificação e junção de um bloco
+ * paralelo — sem responsável, prazo nem aprovador, atravessadas automaticamente pelo motor.
+ */
+export const STAGE_TYPES = [
+  'START',
+  'TASK',
+  'APPROVAL',
+  'END',
+  'PARALLEL_SPLIT',
+  'PARALLEL_JOIN',
+] as const;
 export type StageType = (typeof STAGE_TYPES)[number];
+
+/** Tipos de etapa da mecânica de ramos (RN-WF2-01). */
+export const PARALLEL_STAGE_TYPES = ['PARALLEL_SPLIT', 'PARALLEL_JOIN'] as const;
+export type ParallelStageType = (typeof PARALLEL_STAGE_TYPES)[number];
+
+export function isParallelStageType(type: StageType): type is ParallelStageType {
+  return type === 'PARALLEL_SPLIT' || type === 'PARALLEL_JOIN';
+}
 
 /** `DepartmentResolution` completo (a etapa aceita `CHOSEN_ON_FORWARD`; o aprovador, não). */
 export const STAGE_DEPARTMENT_RESOLUTIONS = [
@@ -56,6 +75,52 @@ export type TransitionAction = (typeof TRANSITION_ACTIONS)[number];
 
 /** Ações de avanço (alcançabilidade e terminação — RN-WF-11/12). */
 export const ADVANCE_ACTIONS: readonly TransitionAction[] = ['FORWARD', 'APPROVE', 'COMPLETE'];
+
+/**
+ * RN-WF-10 + RN-WF2-05 (US-123): tipos de etapa de onde cada ação pode sair. `END` não tem saída;
+ * ramificação e junção só saem por `FORWARD`. Compartilhado com o editor (SCR-034).
+ */
+export const ACTION_SOURCES: Readonly<Record<TransitionAction, readonly StageType[]>> = {
+  FORWARD: ['START', 'TASK', 'PARALLEL_SPLIT', 'PARALLEL_JOIN'],
+  COMPLETE: ['START', 'TASK'],
+  APPROVE: ['APPROVAL'],
+  RETURN: ['TASK', 'APPROVAL'],
+  REJECT: ['APPROVAL'],
+};
+
+/** RN-WF-10 + RN-WF2-05: tipos de etapa de destino aceitos por ação. */
+export const ACTION_TARGETS: Readonly<Record<TransitionAction, readonly StageType[]>> = {
+  FORWARD: ['TASK', 'APPROVAL', 'PARALLEL_SPLIT', 'PARALLEL_JOIN'],
+  COMPLETE: ['END'],
+  APPROVE: ['TASK', 'APPROVAL', 'END', 'PARALLEL_JOIN'],
+  RETURN: ['START', 'TASK'],
+  REJECT: ['START', 'TASK'],
+};
+
+export function actionAllowedFrom(action: TransitionAction, from: StageType): boolean {
+  return ACTION_SOURCES[action].includes(from);
+}
+
+export function actionAllowedTo(action: TransitionAction, to: StageType): boolean {
+  return ACTION_TARGETS[action].includes(to);
+}
+
+/**
+ * RN-WF2-05 (par origem × destino, além das tabelas): a saída da ramificação e da junção vai para
+ * `TASK`/`APPROVAL` (nunca outra ramificação, junção ou o fim) e só `TASK` (`FORWARD`) ou
+ * `APPROVAL` (`APPROVE`) chegam à junção. A escrita (WF-13/14) recusa o resto; a validação do grafo
+ * aponta o `reason` de `WF_PARALLEL_INVALID`.
+ */
+export function actionAllowedBetween(
+  action: TransitionAction,
+  from: StageType,
+  to: StageType,
+): boolean {
+  if (!actionAllowedFrom(action, from) || !actionAllowedTo(action, to)) return false;
+  if (isParallelStageType(from)) return to === 'TASK' || to === 'APPROVAL';
+  if (to === 'PARALLEL_JOIN') return from === 'TASK' || from === 'APPROVAL';
+  return true;
+}
 
 export const RULE_SCOPES = ['STAGE_EXIT', 'TRANSITION'] as const;
 export type RuleScope = (typeof RULE_SCOPES)[number];
@@ -286,8 +351,38 @@ const notAllowed = (field: string, message: string): WorkflowFieldIssue => ({
   message,
 });
 
+/** V-01 da US-123: mensagem dos campos recusados em ramificação/junção. */
+export const PARALLEL_STAGE_FIELD_MESSAGE =
+  'Ramificação e junção não têm responsável, prazo nem aprovador. Configure esses dados nas etapas dos ramos.';
+
+/**
+ * RN-WF2-01 (US-123 · V-01): ramificação e junção não têm responsável (unidade fixa ou escolhida no
+ * envio, política de atribuição), prazo, documentos nem aprovador.
+ */
+function parallelStageIssues(stage: WorkflowStageFields): WorkflowFieldIssue[] {
+  const filled: string[] = [];
+  if (stage.slaDays !== null) filled.push('slaDays');
+  if (stage.assignmentPolicy !== 'UNASSIGNED') filled.push('assignmentPolicy');
+  if (stage.departmentResolution === 'FIXED' || stage.departmentResolution === 'CHOSEN_ON_FORWARD')
+    filled.push('departmentResolution');
+  if (stage.fixedDepartmentId) filled.push('fixedDepartmentId');
+  for (const field of [
+    'approverType',
+    'approverUserId',
+    'approverRoleId',
+    'approverDepartmentResolution',
+    'approverFixedDepartmentId',
+  ] as const) {
+    if (stage[field]) filled.push(field);
+  }
+  if (stage.approvalDocumentTypeCodes.length > 0) filled.push('approvalDocumentTypeCodes');
+  if (stage.documentTypeCodes.length > 0) filled.push('documentTypeCodes');
+  return filled.map((field) => notAllowed(field, PARALLEL_STAGE_FIELD_MESSAGE));
+}
+
 /** RN-WF-08: campos condicionais por tipo de etapa, de unidade e de aprovador. */
 export function workflowStageIssues(stage: WorkflowStageFields): WorkflowFieldIssue[] {
+  if (isParallelStageType(stage.type)) return parallelStageIssues(stage);
   const issues: WorkflowFieldIssue[] = [];
   if (stage.departmentResolution === 'FIXED' && !stage.fixedDepartmentId) {
     issues.push(required('fixedDepartmentId', 'Selecione a unidade responsável.'));
@@ -773,6 +868,12 @@ export const workflowStageDtoSchema = z
     /** US-132 (aditivo): política de decisão e aprovadores ordenados (`ANY` + `[]` = MVP 1). */
     decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
     approvers: z.array(approverLineDtoSchema),
+    /**
+     * US-123 (aditivo): ramo da etapa — a `key` da primeira etapa do ramo, gravada na publicação
+     * (RN-WF2-07); `null` fora de ramos, no split, no join e no rascunho (o rascunho a calcula no
+     * WF-24).
+     */
+    branchKey: z.string().nullable(),
     /** `ETag` da linha (rascunho); ausente na leitura do snapshot publicado. */
     version: z.number().int().optional(),
   })
@@ -937,6 +1038,7 @@ export const WORKFLOW_VALIDATION_ERROR_CODES = [
   'WF_RULE_OPERATOR_FORBIDDEN',
   'WF_RULE_SCOPE_INVALID',
   'WF_LIMIT_EXCEEDED',
+  'WF_PARALLEL_INVALID',
 ] as const;
 export type WorkflowValidationErrorCode = (typeof WORKFLOW_VALIDATION_ERROR_CODES)[number];
 
@@ -948,6 +1050,23 @@ export const WF_APPROVERS_INVALID_REASONS = [
   'POLICY_NOT_ALLOWED',
 ] as const;
 export type WfApproversInvalidReason = (typeof WF_APPROVERS_INVALID_REASONS)[number];
+
+/**
+ * `reason` de `WF_PARALLEL_INVALID` (US-123 · RN-WF2-02..06 · V-02..V-10) — catálogo fechado.
+ */
+export const WF_PARALLEL_INVALID_REASONS = [
+  'SPLIT_BRANCHES_MIN',
+  'SPLIT_JOIN_MISSING',
+  'JOIN_NOT_COMMON',
+  'JOIN_WITHOUT_SPLIT',
+  'NESTED_SPLIT',
+  'CROSS_BRANCH_TRANSITION',
+  'BRANCH_EMPTY',
+  'BRANCH_ESCAPES',
+  'JOIN_EXIT_INVALID',
+  'RETURN_TARGET_INVALID',
+] as const;
+export type WfParallelInvalidReason = (typeof WF_PARALLEL_INVALID_REASONS)[number];
 
 export const WORKFLOW_VALIDATION_WARNING_CODES = [
   'WF_STAGE_NO_SLA',
@@ -969,6 +1088,8 @@ export const workflowValidationIssueSchema = z
      * `WF_APPROVERS_INVALID` (`WF_APPROVERS_INVALID_REASONS`).
      */
     params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+    /** Motivo de `WF_PARALLEL_INVALID` (US-123, aditivo — `WF_PARALLEL_INVALID_REASONS`). */
+    reason: z.enum(WF_PARALLEL_INVALID_REASONS).optional(),
   })
   .meta({ id: 'WorkflowValidationIssue' });
 export type WorkflowValidationIssue = z.infer<typeof workflowValidationIssueSchema>;
@@ -981,3 +1102,55 @@ export const workflowValidationResultSchema = z
   })
   .meta({ id: 'WorkflowValidationResult' });
 export type WorkflowValidationResult = z.infer<typeof workflowValidationResultSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Estrutura de ramos (WF-24 · US-123 · DEC-194)
+// ---------------------------------------------------------------------------------------------
+
+/** Problema de paralelismo apontado no painel "Ramificações" (mesmo item de WF-20). */
+export const workflowBranchIssueSchema = z
+  .object({
+    code: z.literal('WF_PARALLEL_INVALID'),
+    reason: z.enum(WF_PARALLEL_INVALID_REASONS),
+    message: z.string(),
+    stageKey: z.string().nullable(),
+    transitionKey: z.string().nullable(),
+  })
+  .meta({ id: 'WorkflowBranchIssue' });
+export type WorkflowBranchIssueDto = z.infer<typeof workflowBranchIssueSchema>;
+
+export const workflowBranchSchema = z
+  .object({
+    /** `key` da primeira etapa do ramo (RN-WF2-07). */
+    branchKey: z.string(),
+    entryStageKey: z.string(),
+    /** Etapas do ramo na ordem do caminho a partir da primeira. */
+    stageKeys: z.array(z.string()),
+    /** Transição do ramo para a junção (a primeira, se houver mais de uma). */
+    exitTransitionKey: z.string().nullable(),
+  })
+  .meta({ id: 'WorkflowBranch' });
+export type WorkflowBranchDto = z.infer<typeof workflowBranchSchema>;
+
+export const workflowParallelBlockSchema = z
+  .object({
+    splitStageKey: z.string(),
+    joinStageKey: z.string().nullable(),
+    branches: z.array(workflowBranchSchema),
+    issues: z.array(workflowBranchIssueSchema),
+  })
+  .meta({ id: 'WorkflowParallelBlock' });
+export type WorkflowParallelBlockDto = z.infer<typeof workflowParallelBlockSchema>;
+
+/**
+ * Resposta do WF-24. `issues` (fora dos blocos) traz os problemas sem ramificação de origem — ex.:
+ * junção solta (`JOIN_WITHOUT_SPLIT`); `stageBranch` = etapa → ramo.
+ */
+export const workflowVersionBranchesSchema = z
+  .object({
+    blocks: z.array(workflowParallelBlockSchema),
+    issues: z.array(workflowBranchIssueSchema),
+    stageBranch: z.record(z.string(), z.string()),
+  })
+  .meta({ id: 'WorkflowVersionBranches' });
+export type WorkflowVersionBranchesDto = z.infer<typeof workflowVersionBranchesSchema>;

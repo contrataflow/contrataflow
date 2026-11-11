@@ -183,6 +183,15 @@ export interface WorkflowRepository {
    */
   listReleasedStages(tx: TenantTx): Promise<ReleasedStage[]>;
   insertStage(tx: TenantTx, stage: WorkflowStage): Promise<void>;
+  /**
+   * US-123 (RN-WF2-07): grava o `branchKey` calculado das etapas na publicação (versão ainda
+   * `DRAFT`, travada). Não mexe na `version` da etapa — é coluna derivada.
+   */
+  setStageBranchKeys(
+    tx: TenantTx,
+    versionId: string,
+    changes: readonly { readonly stageId: string; readonly branchKey: string | null }[],
+  ): Promise<void>;
   /** @throws VersionConflictError */
   updateStage(tx: TenantTx, stage: WorkflowStage, expectedVersion: number): Promise<void>;
   /** Remove a etapa e, em cascata, as transições e regras ligadas a ela. @throws VersionConflictError */

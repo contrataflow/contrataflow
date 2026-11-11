@@ -47,6 +47,7 @@ function stage(overrides: Partial<WorkflowStageDto>): WorkflowStageDto {
     color: null,
     decisionPolicy: 'ANY',
     approvers: [],
+    branchKey: null,
     version: 1,
     ...overrides,
   };

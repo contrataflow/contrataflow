@@ -59,6 +59,11 @@ export interface WorkflowVersion extends Audited {
  */
 export interface WorkflowStage extends Audited, WorkflowStageFields, StageDecisionFields {
   readonly workflowVersionId: string;
+  /**
+   * Ramo da etapa (US-123 · RN-WF2-07): gravado só na publicação — no rascunho é `null` (ou
+   * ausente nas etapas montadas em memória) e o WF-24 o calcula na hora.
+   */
+  readonly branchKey?: string | null;
 }
 
 export interface WorkflowTransition extends Audited, WorkflowTransitionFields {
@@ -83,23 +88,14 @@ export const EMPTY_DEFINITION: WorkflowDefinition = Object.freeze({
   rules: [],
 });
 
-/** RN-WF-10: tipos de etapa de onde cada ação pode sair. `END` não tem saída. */
-export const ACTION_SOURCES: Readonly<Record<TransitionAction, readonly StageType[]>> = {
-  FORWARD: ['START', 'TASK'],
-  COMPLETE: ['START', 'TASK'],
-  APPROVE: ['APPROVAL'],
-  RETURN: ['TASK', 'APPROVAL'],
-  REJECT: ['APPROVAL'],
-};
-
-/** RN-WF-10: tipos de etapa de destino aceitos por ação. */
-export const ACTION_TARGETS: Readonly<Record<TransitionAction, readonly StageType[]>> = {
-  FORWARD: ['TASK', 'APPROVAL'],
-  COMPLETE: ['END'],
-  APPROVE: ['TASK', 'APPROVAL', 'END'],
-  RETURN: ['START', 'TASK'],
-  REJECT: ['START', 'TASK'],
-};
+/** RN-WF-10 + RN-WF2-05 (US-123): compatibilidade ação × tipo, compartilhada com o editor. */
+export {
+  ACTION_SOURCES,
+  ACTION_TARGETS,
+  actionAllowedBetween,
+  actionAllowedFrom,
+  actionAllowedTo,
+} from '@contrataflow/validation';
 
 /** Ações cujo destino deve ser uma etapa ANTERIOR (existe avanço do destino até a origem). */
 export const BACKWARD_ACTIONS: readonly TransitionAction[] = ['RETURN', 'REJECT'];
@@ -111,14 +107,6 @@ export const RULE_TRANSITION_ACTIONS: readonly TransitionAction[] = [
   'APPROVE',
 ];
 
-export function actionAllowedFrom(action: TransitionAction, from: StageType): boolean {
-  return ACTION_SOURCES[action].includes(from);
-}
-
-export function actionAllowedTo(action: TransitionAction, to: StageType): boolean {
-  return ACTION_TARGETS[action].includes(to);
-}
-
 /** RN-WF-09: `RETURN`/`REJECT` sempre exigem comentário. */
 export function forcedRequiresComment(action: TransitionAction, requested: boolean): boolean {
   return BACKWARD_ACTIONS.includes(action) ? true : requested;
@@ -129,6 +117,8 @@ const STAGE_TYPE_LABELS: Readonly<Record<StageType, string>> = {
   TASK: 'de tarefa',
   APPROVAL: 'de aprovação',
   END: 'final',
+  PARALLEL_SPLIT: 'de ramificação',
+  PARALLEL_JOIN: 'de junção',
 };
 
 /** "inicial", "de aprovação"… para as mensagens pt-BR. */

@@ -121,6 +121,9 @@ const WORKFLOW_ROUTE =
 const WORKFLOW_STAGE_APPROVERS_ROUTE =
   'Aprovadores da etapa (US-132 · WF-65): exige WORKFLOW_MANAGE e If-Match, e a suíte genérica não tem fixture de workflow do tenant B; o isolamento (etapa de B → 404 NOT_FOUND sem alterar nada, usuário/perfil/unidade de B na linha → 422 REFERENCE_NOT_FOUND em approvers[n].*, RLS e FK composta de workflow_stage_approvers, gatilho de imutabilidade) é coberto em test/tenant-leak/workflow-stage-approvers.spec.ts, com administradores nos dois tenants.';
 
+const WORKFLOW_BRANCHES_ROUTE =
+  'Estrutura de ramos (US-123 · WF-24): exige WORKFLOW_VIEW e a suíte genérica não tem fixture de workflow do tenant B; o isolamento (versão de B → 404 NOT_FOUND sem revelar etapas, escrita de etapa/transição com os tipos PARALLEL_SPLIT/PARALLEL_JOIN em versão de B → 404, etapa de B como destino → 422 REFERENCE_NOT_FOUND, RLS de workflow_stages.branch_key) é coberto em test/tenant-leak/workflow-parallel-stages.spec.ts, com administradores nos dois tenants.';
+
 const DEFAULT_WORKFLOW_ROUTE =
   'Workflow padrão e aplicabilidade (US-042): a suíte genérica não tem fixture de workflow nem de catálogo do tenant B; o isolamento (WF-01 só com linhas de A, 404 em WF-05 com id de B, WF-06 nunca resolve workflow de B e recusa item de catálogo de B com 422) é coberto em test/tenant-leak/default-workflows.spec.ts, com os seeders reais nos dois tenants.';
 
@@ -392,6 +395,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'WF-21': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
   'WF-22': { kind: 'exempt', reason: WORKFLOW_PUBLISHING_ROUTE },
   'WF-23': { kind: 'exempt', reason: WORKFLOW_RULE_TEST_ROUTE },
+  'WF-24': { kind: 'exempt', reason: WORKFLOW_BRANCHES_ROUTE },
   'WF-65': { kind: 'exempt', reason: WORKFLOW_STAGE_APPROVERS_ROUTE },
   'DSH-01': { kind: 'exempt', reason: DASHBOARD_ROUTE },
   'DSH-02': { kind: 'exempt', reason: DASHBOARD_ROUTE },

@@ -65,6 +65,8 @@ O formato `application/problem+json`, os códigos genéricos (§2.1), os código
 
 **Validação do grafo (`WORKFLOW_INVALID` — §2.3 do MVP 1), US-132:** novo erro `WF_APPROVERS_INVALID` com `params.reason` ∈ `MIN_LINES` (`ALL`/`SEQUENTIAL` com menos de duas linhas), `DUPLICATE_APPROVER` (+ `params.sequence` da linha repetida), `TOO_MANY_LINES` (mais de 20) e `POLICY_NOT_ALLOWED` (política ou linhas fora de etapa `APPROVAL`). Os itens de `validation.errors[]`/`warnings[]` ganham `params` opcional (aditivo); `WF_APPROVER_UNRESOLVABLE` e `WF_APPROVER_HEAD_MISSING` de uma linha da lista trazem `params.sequence`.
 
+**Validação do grafo, US-123 (DEC-194):** novo erro `WF_PARALLEL_INVALID` com o membro `reason` (aditivo, no próprio item, não em `params`) do catálogo fechado `SPLIT_BRANCHES_MIN`, `SPLIT_JOIN_MISSING`, `JOIN_NOT_COMMON`, `JOIN_WITHOUT_SPLIT`, `NESTED_SPLIT`, `CROSS_BRANCH_TRANSITION` (também a entrada num ramo por fora da ramificação), `BRANCH_EMPTY`, `BRANCH_ESCAPES` (também o ramo que avança de volta para antes da ramificação), `JOIN_EXIT_INVALID` e `RETURN_TARGET_INVALID`, com `stageKey`/`transitionKey`. `STAGE_EXIT` na ramificação → `WF_RULE_SCOPE_INVALID`. Na escrita (WF-10/11/13/14), campos de responsável, prazo, documentos ou aprovador em ramificação/junção e pares ação × tipo fora da RN-WF2-05 → 422 `VALIDATION_ERROR` (`NOT_ALLOWED`).
+
 ### 2.3 PCA (EP-023)
 | Código | HTTP | Quando | Story |
 |---|---|---|---|

@@ -80,12 +80,24 @@ export class WorkflowVersionPublisher {
     if (!workflow) throw workflowNotFound();
     if (version.status !== 'DRAFT') throw workflowVersionNotDraft(version.id);
 
-    const { definition, result } = await this.definitions.validateIn(tx, version);
+    const { definition, result, parallel } = await this.definitions.validateIn(tx, version);
     if (!result.valid) {
       recordPublication('invalid');
       throw workflowInvalid(result);
     }
-    const snapshot = buildWorkflowSnapshot(definition);
+    // US-123 (RN-WF2-07): `branchKey` calculado e gravado enquanto a versão ainda é DRAFT (o
+    // gatilho de imutabilidade barra depois); entra no snapshot e no `definitionHash`.
+    const stages = definition.stages.map((stage) => ({
+      ...stage,
+      branchKey: parallel.stageBranch.get(stage.key) ?? null,
+    }));
+    const branchChanges = stages
+      .filter((stage, index) => (definition.stages[index]?.branchKey ?? null) !== stage.branchKey)
+      .map((stage) => ({ stageId: stage.id, branchKey: stage.branchKey }));
+    if (branchChanges.length > 0) {
+      await this.workflows.setStageBranchKeys(tx, version.id, branchChanges);
+    }
+    const snapshot = buildWorkflowSnapshot({ ...definition, stages });
     const definitionHash = workflowSnapshotHash(snapshot);
     // O validador garante exatamente uma `START` (RN-WF-07).
     const initialStageId = snapshot.initialStageId ?? '';
@@ -119,6 +131,7 @@ export class WorkflowVersionPublisher {
         versionNumber: version.versionNumber,
         changeNotes,
         warningsCount: result.warnings.length,
+        parallelBlocks: parallel.blocks.length,
       },
     });
     await this.outbox.record(
@@ -160,6 +173,8 @@ export class WorkflowVersionPublisher {
       {
         event: 'workflow.version_published',
         workflowVersionId: version.id,
+        versionNumber: version.versionNumber,
+        parallelBlocks: parallel.blocks.length,
         definitionHash,
         stagesCount: definition.stages.length,
         transitionsCount: definition.transitions.length,

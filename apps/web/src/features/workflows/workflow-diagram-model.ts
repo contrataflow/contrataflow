@@ -23,6 +23,7 @@ export type DiagramStage = Pick<
   | 'slaDays'
   | 'slaType'
   | 'decisionPolicy'
+  | 'branchKey'
 >;
 export type DiagramTransition = Pick<
   WorkflowTransitionDto,

@@ -24,6 +24,7 @@ import {
   Th,
   Tr,
 } from '@contrataflow/ui';
+import { actionAllowedBetween } from '@contrataflow/validation';
 import type {
   WorkflowStageDto,
   WorkflowTransitionDto,
@@ -49,8 +50,29 @@ import {
   uniqueKey,
   withForcedComment,
 } from './workflow-editor-model';
-import type { FieldProblem, TransitionDraft } from './workflow-editor-model';
+import type {
+  EditorTransitionAction,
+  FieldProblem,
+  TransitionDraft,
+} from './workflow-editor-model';
 import { createTransition, deleteTransition, updateTransition } from './workflows.api';
+
+/**
+ * Ações oferecidas para a origem e o destino escolhidos (RN-WF-10 + RN-WF2-05 · V-11 da US-123):
+ * ramificação e junção só saem por "Encaminhar" para tarefa/aprovação. Sem par escolhido, todas; a
+ * ação atual fica sempre na lista (a API recusa o que não vale).
+ */
+function allowedActions(
+  draft: TransitionDraft,
+  stages: readonly WorkflowStageDto[],
+): readonly EditorTransitionAction[] {
+  const from = stages.find((stage) => stage.id === draft.fromStageId);
+  const to = stages.find((stage) => stage.id === draft.toStageId);
+  if (!from || !to) return EDITOR_TRANSITION_ACTIONS;
+  return EDITOR_TRANSITION_ACTIONS.filter(
+    (action) => action === draft.action || actionAllowedBetween(action, from.type, to.type),
+  );
+}
 
 /**
  * Aba "Transições" (SCR-034 · US-043 passo 6): `TransitionList` com origem → destino, ação, ação
@@ -417,7 +439,7 @@ function TransitionForm({
             'action',
             <OptionSelect
               value={draft.action}
-              options={EDITOR_TRANSITION_ACTIONS.map((action) => ({
+              options={allowedActions(draft, stages).map((action) => ({
                 value: action,
                 label: t(`actions.${action}`),
               }))}

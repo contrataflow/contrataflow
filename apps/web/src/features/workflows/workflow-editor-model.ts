@@ -1,6 +1,7 @@
 import {
   ADVANCE_ACTIONS,
   COLOR_PATTERN,
+  isParallelStageType,
   WORKFLOW_ITEM_KEY_PATTERN,
   WORKFLOW_KEY_PATTERN,
   workflowStageIssues,
@@ -117,6 +118,29 @@ export function stageDraftOf(stage: WorkflowStageDto): StageDraft {
 const orNull = (value: string): string | null => (value.trim() === '' ? null : value.trim());
 
 /**
+ * US-123 (RN-WF2-01): ao virar ramificação/junção, a etapa perde responsável, prazo, documentos e
+ * aprovador — o painel aplica estes valores na troca de tipo e os oculta.
+ */
+export const PARALLEL_STAGE_RESET: Partial<StageDraft> = {
+  departmentResolution: 'REQUESTING_DEPARTMENT',
+  fixedDepartmentId: '',
+  assignmentPolicy: 'UNASSIGNED',
+  approverType: '',
+  approverUserId: '',
+  approverRoleId: '',
+  approverDepartmentResolution: '',
+  approverFixedDepartmentId: '',
+  approvalDocumentTypeCodes: [],
+  documentTypeCodes: [],
+  slaDays: '',
+};
+
+/** Etapa da mecânica de ramos (sem responsável, prazo nem aprovador). */
+export function isParallelDraft(draft: Pick<StageDraft, 'type'>): boolean {
+  return isParallelStageType(draft.type);
+}
+
+/**
  * Normaliza o rascunho ao que a API grava: campos de aprovador só em `APPROVAL`, unidade fixa só em
  * `FIXED`, unidade do titular aprovador só com resolução `FIXED`, sem prazo na etapa final.
  */
@@ -127,8 +151,9 @@ export function stageFieldsOf(draft: StageDraft, displayOrder: number): Workflow
     approverType === 'DEPARTMENT_HEAD' && draft.approverDepartmentResolution !== ''
       ? draft.approverDepartmentResolution
       : null;
+  const parallel = isParallelStageType(draft.type);
   const slaDays =
-    draft.type === 'END' || draft.slaDays.trim() === '' ? null : Number(draft.slaDays);
+    draft.type === 'END' || parallel || draft.slaDays.trim() === '' ? null : Number(draft.slaDays);
   return {
     key: draft.key.trim(),
     name: draft.name.trim(),
@@ -148,7 +173,7 @@ export function stageFieldsOf(draft: StageDraft, displayOrder: number): Workflow
       headResolution === 'FIXED' ? orNull(draft.approverFixedDepartmentId) : null,
     allowDeputy: draft.allowDeputy,
     approvalDocumentTypeCodes: approval ? draft.approvalDocumentTypeCodes : [],
-    documentTypeCodes: draft.documentTypeCodes,
+    documentTypeCodes: parallel ? [] : draft.documentTypeCodes,
     slaDays,
     slaType: draft.slaType,
     color: orNull(draft.color),
@@ -181,7 +206,7 @@ export function stageDraftProblems(draft: StageDraft): FieldProblem[] {
     ...nameProblems(draft.name),
   ];
   if (draft.instructions.length > 5000) problems.push({ field: 'instructions', code: 'TOO_LONG' });
-  if (draft.type !== 'END' && draft.slaDays.trim() !== '') {
+  if (draft.type !== 'END' && !isParallelStageType(draft.type) && draft.slaDays.trim() !== '') {
     const days = Number(draft.slaDays);
     if (!Number.isInteger(days) || days < 1 || days > 365) {
       problems.push({ field: 'slaDays', code: 'SLA_RANGE' });

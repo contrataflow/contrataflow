@@ -240,7 +240,7 @@ Feature: Modelar etapas paralelas no workflow
 - **Stories:** US-040 (modelo, validação `WF_*`), US-043 (editor e WF-10..WF-15), US-045 (validação/publicação/snapshot), US-046 (diagrama, estendido aqui). Habilita US-124 (runtime), US-125, US-126/US-127 (classificação `PARALLEL_ACTIVE`) e as regras de roteamento do EP-031 (que não se aplicam a etapa `isLegallyRequired`).
 - **Decisões/ADRs:** DEC-194, DEC-014, DEC-084, DEC-108, DEC-196; [ADR-005](../adr/adr-005-workflow-engine.md) (adendo de 2026-11-10).
 - **Configurações:** nenhuma chave nova; a adoção é pela própria versão do tenant.
-- **Lacunas nas fontes canônicas:**
+- **Lacunas nas fontes canônicas** (resolvidas na implementação, card spec-646 — as propostas abaixo foram adotadas e registradas em `docs/mvp-02/entities.md` §5.8, `docs/mvp-02/api.md` §2.2 e `docs/mvp-02/api/20-workflow-v2.md` WF-24; `reason` vai no próprio item de validação, e o WF-24 ganhou `issues` de topo para a junção solta):
   - `entities.md` §5.8 não define como `WorkflowStage.branchKey` é derivado: esta story adota a `key` da primeira etapa do ramo (RN-WF2-07), coerente com o cenário da FT-063 ("ramos `JURIDICO` e `CONTROLE_INTERNO`"). Confirmar no card 9.
   - Compatibilidade ação × tipo dos tipos novos, saída única do join para `TASK`/`APPROVAL` (sem ir direto a `END`), regras de `RETURN` ao redor do bloco e escopo `STAGE_EXIT` no split (RN-WF2-05/06/08) **não constam** de `entities.md`/ADR-005; adotadas aqui como decisão de modelagem a confirmar.
   - `api.md` do MVP 1 §2.3 não lista `WF_PARALLEL_INVALID` nem o membro `reason` dos itens de validação: acrescentar `reason` (aditivo) e o código no catálogo.

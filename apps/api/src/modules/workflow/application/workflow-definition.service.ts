@@ -15,6 +15,8 @@ import type {
 import { WorkflowReferenceService } from './workflow-references.js';
 import { recordDefinitionCache, recordValidation } from './workflow-telemetry.js';
 import { workflowVersionNotFound } from './workflow.errors.js';
+import { analyzeParallelStructure, parallelIssues } from '../domain/parallel-graph.js';
+import type { ParallelStructure } from '../domain/parallel-graph.js';
 import type { WorkflowDefinition, WorkflowVersion } from '../domain/workflow-definition.js';
 import { WorkflowDefinitionValidator } from '../domain/workflow-definition.validator.js';
 import { workflowSnapshotSchema } from '../domain/workflow-snapshot.js';
@@ -32,6 +34,8 @@ export interface ValidatedVersion {
   readonly version: WorkflowVersion;
   readonly definition: WorkflowDefinition;
   readonly result: WorkflowValidationResult;
+  /** Blocos e ramos (US-123): a publicação grava o `branchKey` a partir daqui. */
+  readonly parallel: ParallelStructure;
 }
 
 /**
@@ -58,7 +62,10 @@ export class WorkflowDefinitionService {
     const startedAt = performance.now();
     const definition = await this.workflows.loadDefinition(tx, version.id);
     const references = await this.references.resolve(tx, definition, this.clock());
-    const result = this.validator.validate(definition, references);
+    const parallelStartedAt = performance.now();
+    const parallel = analyzeParallelStructure(definition);
+    this.logParallel(version.id, definition, parallel, performance.now() - parallelStartedAt);
+    const result = this.validator.validate(definition, references, parallel);
     const durationMs = performance.now() - startedAt;
     recordValidation(durationMs, result.valid);
     this.logger.log(
@@ -72,7 +79,48 @@ export class WorkflowDefinitionService {
       },
       'workflow.validation_completed',
     );
-    return { version, definition, result };
+    return { version, definition, result, parallel };
+  }
+
+  /**
+   * US-123 (Logs): `info workflow.parallel_graph_validated` quando a versão tem ramificação ou
+   * junção e `warn workflow.parallel_validation_failed` com os `reason` (sem nomes de etapa).
+   */
+  private logParallel(
+    versionId: string,
+    definition: WorkflowDefinition,
+    parallel: ParallelStructure,
+    durationMs: number,
+  ): void {
+    const usesParallel = definition.stages.some(
+      (stage) => stage.type === 'PARALLEL_SPLIT' || stage.type === 'PARALLEL_JOIN',
+    );
+    if (!usesParallel) return;
+    const issues = parallelIssues(parallel);
+    const correlationId = currentRequestContext()?.correlationId;
+    this.logger.log(
+      {
+        event: 'workflow.parallel_graph_validated',
+        versionId,
+        blocks: parallel.blocks.length,
+        branches: parallel.blocks.reduce((total, block) => total + block.branches.length, 0),
+        errorsCount: issues.length,
+        durationMs: Math.round(durationMs),
+        correlationId,
+      },
+      'workflow.parallel_graph_validated',
+    );
+    if (issues.length > 0) {
+      this.logger.warn(
+        {
+          event: 'workflow.parallel_validation_failed',
+          versionId,
+          reasons: [...new Set(issues.map((issue) => issue.reason))],
+          correlationId,
+        },
+        'workflow.parallel_validation_failed',
+      );
+    }
   }
 
   /** `WorkflowDefinitionValidator.validate(versionId)` numa leitura própria (404 se não existe). */

@@ -106,7 +106,8 @@
     "menu": {
       "more": "Mais",
       "diagram": "Ver o diagrama",
-      "versions": "Versões e publicação"
+      "versions": "Versões e publicação",
+      "addBlock": "Adicionar ramificação"
     },
     "loading": "Carregando o workflow…",
     "notFound": "Workflow não encontrado.",
@@ -230,7 +231,9 @@
       "START": "Início",
       "TASK": "Tarefa",
       "APPROVAL": "Aprovação",
-      "END": "Fim"
+      "END": "Fim",
+      "PARALLEL_SPLIT": "Ramificação",
+      "PARALLEL_JOIN": "Junção"
     },
     "departmentResolutions": {
       "FIXED": "Unidade fixa",
@@ -325,6 +328,63 @@
       "failed": "Não foi possível salvar os aprovadores. Revise os campos destacados.",
       "minimumHint": "Para validar e publicar, informe ao menos dois aprovadores distintos.",
       "mirrorLocked": "O aprovador desta etapa é definido pela lista de aprovadores (seção \"Quem decide\")."
+    },
+    "parallel": {
+      "panelHint": "Ramificação e junção não têm responsável, prazo nem aprovador. Configure esses dados nas etapas dos ramos.",
+      "branchChip": "Ramo: {branch}",
+      "branchChipLabel": "Etapa do ramo {branch}",
+      "structure": {
+        "title": "Ramificações",
+        "hint": "Blocos de etapas simultâneas: cada ramo começa na ramificação e termina na junção.",
+        "loading": "Carregando as ramificações…",
+        "loadFailed": "Não foi possível carregar as ramificações.",
+        "empty": "Nenhuma ramificação nesta versão — adicione uma quando precisar de etapas simultâneas.",
+        "split": "Ramificação",
+        "join": "Junção",
+        "noJoin": "sem junção",
+        "branches": "Ramos",
+        "branch": "Ramo {branch}",
+        "issuesTitle": "Problemas",
+        "noIssues": "Sem problemas.",
+        "goToStage": "ir para a etapa",
+        "goToTransition": "ir para a transição",
+        "remove": "Remover ramificação",
+        "orphanTitle": "Fora de bloco",
+        "retry": "Tentar novamente"
+      },
+      "wizard": {
+        "title": "Adicionar ramificação",
+        "description": "Cria a ramificação, a junção, a primeira etapa de cada ramo e as transições entre elas. Depois, ajuste responsável e prazo nas etapas dos ramos.",
+        "name": "Nome do bloco",
+        "nameHint": "Ex.: Análises. Vira \"Ramificação — Análises\" e \"Junção — Análises\".",
+        "origin": "Etapa de origem",
+        "originHint": "De onde o fluxo sai para os ramos (início ou tarefa).",
+        "destination": "Etapa depois da junção",
+        "destinationHint": "Tarefa ou aprovação que segue quando todos os ramos terminam.",
+        "branches": "Ramos",
+        "branchName": "Primeira etapa do ramo {position}",
+        "addBranch": "Adicionar ramo",
+        "removeBranch": "Remover o ramo {position}",
+        "cancel": "Cancelar",
+        "submit": "Criar ramificação",
+        "creating": "Criando…",
+        "created": "Ramificação \"{name}\" criada.",
+        "failed": "Não foi possível concluir. O que já foi criado continua no rascunho; revise o painel \"Ramificações\".",
+        "required": "Preencha este campo.",
+        "nameLength": "Use de 3 a 120 caracteres.",
+        "duplicated": "Os ramos precisam de nomes diferentes.",
+        "branchesMin": "Informe pelo menos dois ramos."
+      },
+      "remove": {
+        "title": "Remover a ramificação \"{name}\"?",
+        "description": "Serão excluídas as transições do bloco e estas etapas:",
+        "transitions": "{count, plural, one {# transição} other {# transições}}",
+        "cancel": "Cancelar",
+        "confirm": "Remover",
+        "removing": "Removendo…",
+        "removed": "Ramificação removida.",
+        "failed": "Não foi possível remover tudo. Revise as regras ligadas às etapas e tente de novo."
+      }
     }
   },
   "rules": {
@@ -549,7 +609,8 @@
         "transition": "Ir para as transições",
         "rule": "Ir para as regras",
         "stageLine": "Ir para a linha {sequence} da etapa"
-      }
+      },
+      "parallelTag": "Ramificação"
     },
     "publishDialog": {
       "title": "Publicar a versão {number}",

@@ -30,6 +30,7 @@ import {
 } from '@contrataflow/ui';
 import type {
   WorkflowDto,
+  WorkflowParallelBlockDto,
   WorkflowStageDto,
   WorkflowTransitionDto,
   WorkflowVersionDetailDto,
@@ -45,6 +46,13 @@ import { isApiError } from '@/lib/api/api-error';
 import { usePermission } from '@/lib/permissions/use-permission';
 import { useTenantId } from '@/lib/session/session-context';
 
+import {
+  BranchChip,
+  ParallelBlockWizard,
+  ParallelStructurePanel,
+  RemoveBlockConfirmDialog,
+  useVersionBranches,
+} from './parallel-structure';
 import { StagePropertiesPanel } from './stage-properties-panel';
 import { useIsDesktop } from './use-is-desktop';
 import { WorkflowDiagramSection } from './workflow-diagram';
@@ -308,6 +316,11 @@ function DraftEditor({
   const [problem, setProblem] = useState<EditorProblem | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const [moving, setMoving] = useState(false);
+  // US-123: assistente "Adicionar ramificação" e o bloco em remoção.
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [removingBlock, setRemovingBlock] = useState<WorkflowParallelBlockDto | null>(null);
+  const branches = useVersionBranches(version);
+  const stageBranch = branches.data?.stageBranch ?? {};
   const versionKey = workflowKeys.version(tenantId, version.id);
 
   const updateCache = (change: (current: WorkflowVersionDetailDto) => WorkflowVersionDetailDto) => {
@@ -333,6 +346,10 @@ function DraftEditor({
         ? current.transitions.map((item) => (item.id === transition.id ? transition : item))
         : [...current.transitions, transition],
     }));
+  };
+  /** Cada escrita sobe a `version` do rascunho: relê WF-09 (ETag) e, com ele, o WF-24. */
+  const refreshVersion = () => {
+    void queryClient.invalidateQueries({ queryKey: versionKey });
   };
 
   const stages = sortStages(version.stages);
@@ -451,6 +468,16 @@ function DraftEditor({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {readOnly ? null : (
+            <DropdownMenuItem
+              onSelect={() => {
+                setTab('stages');
+                setWizardOpen(true);
+              }}
+            >
+              {t('menu.addBlock')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem asChild>
             <Link href={workflowRulesHref(workflow.id)}>{t('rulesLink')}</Link>
           </DropdownMenuItem>
@@ -547,6 +574,7 @@ function DraftEditor({
             ) : (
               <StageTable
                 stages={stages}
+                stageBranch={stageBranch}
                 selectedId={selectedStage?.id ?? null}
                 readOnly={readOnly}
                 busy={moving}
@@ -554,6 +582,12 @@ function DraftEditor({
                 onMove={(from, to) => void move(from, to)}
               />
             )}
+            <ParallelStructurePanel
+              version={version}
+              readOnly={readOnly}
+              onGoTo={goTo}
+              onRemove={setRemovingBlock}
+            />
           </div>
           {panelOpen && desktop ? (
             <aside className="w-full rounded-card bg-surface p-5 shadow-card md:w-[26rem] md:flex-none">
@@ -611,6 +645,41 @@ function DraftEditor({
           </TabsContent>
         ) : null}
       </Tabs>
+      {readOnly ? null : (
+        <>
+          <ParallelBlockWizard
+            open={wizardOpen}
+            version={version}
+            stages={stages}
+            onClose={() => {
+              setWizardOpen(false);
+              refreshVersion();
+            }}
+            onStageSaved={putStage}
+            onTransitionSaved={putTransition}
+          />
+          <RemoveBlockConfirmDialog
+            block={removingBlock}
+            version={version}
+            onClose={() => {
+              setRemovingBlock(null);
+              refreshVersion();
+            }}
+            onTransitionDeleted={(transitionId) => {
+              updateCache((current) => ({
+                ...current,
+                transitions: current.transitions.filter((item) => item.id !== transitionId),
+              }));
+            }}
+            onStageDeleted={(stageId) => {
+              updateCache((current) => ({
+                ...current,
+                stages: current.stages.filter((item) => item.id !== stageId),
+              }));
+            }}
+          />
+        </>
+      )}
     </EditorFrame>
   );
 }
@@ -658,6 +727,7 @@ function ProblemBanner({
  */
 function StageTable({
   stages,
+  stageBranch,
   selectedId,
   readOnly,
   busy,
@@ -665,6 +735,8 @@ function StageTable({
   onMove,
 }: {
   readonly stages: readonly WorkflowStageDto[];
+  /** WF-24 (US-123): etapa → ramo, para o chip "Ramo: …". */
+  readonly stageBranch: Readonly<Record<string, string>>;
   readonly selectedId: string | null;
   readonly readOnly: boolean;
   readonly busy: boolean;
@@ -758,6 +830,11 @@ function StageTable({
                 >
                   {stage.name}
                 </button>
+                {stageBranch[stage.key] ? (
+                  <span className="ml-2 align-middle">
+                    <BranchChip branchKey={stageBranch[stage.key] ?? ''} />
+                  </span>
+                ) : null}
                 {stage.color ? (
                   <span
                     aria-hidden="true"

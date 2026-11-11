@@ -831,6 +831,8 @@ Sem colunas novas. Regras: no paralelismo cada ramo concede `DEPARTMENT/CURRENT`
 
 Validação do grafo na publicação (`WF_PARALLEL_INVALID`, 422): todo `PARALLEL_SPLIT` com ≥ 2 transições `FORWARD` e exatamente um `PARALLEL_JOIN` alcançável por todos os ramos; sem ramos aninhados; nenhuma transição entre ramos; `RETURN` dentro do ramo só para etapas do mesmo ramo ou anteriores ao split.
 
+**Derivação de `branchKey` e compatibilidade (US-123, lacunas resolvidas):** `branchKey` = `key` da **primeira etapa do ramo** (destino da transição `FORWARD` que sai do `PARALLEL_SPLIT`), para todas as etapas `TASK`/`APPROVAL` do ramo; ramificação, junção e etapas fora de ramos ficam nulas (check `branch_key IS NULL OR type IN ('TASK','APPROVAL')`). É calculado na publicação (gravado com a versão ainda `DRAFT`, coberto pelo gatilho de imutabilidade), entra no `definitionSnapshot` só quando presente (o `definitionHash` das versões sem bloco não muda) e é zerado na cópia (WF-08). Ação × tipo: `FORWARD` sai de `START`/`TASK`/`PARALLEL_SPLIT`/`PARALLEL_JOIN` e chega a `TASK`/`APPROVAL`/`PARALLEL_SPLIT`/`PARALLEL_JOIN`; `APPROVE` também chega à junção; a saída da ramificação e da junção vai só para `TASK`/`APPROVAL`; a junção só recebe de `TASK` (`FORWARD`) ou `APPROVAL` (`APPROVE`) e tem exatamente uma saída; `RETURN`/`REJECT`/`COMPLETE` nunca tocam ramificação/junção. Migração `20261111150000_workflow_parallel_stages` (M2-01 do `stage_type` + `branch_key` da M2-04); os checks comparam `type::text` porque o valor novo do enum só pode ser usado depois do commit.
+
 ### 5.9 Approval (`approvals`) — módulo `approval`
 | Mudança | Detalhe |
 |---|---|

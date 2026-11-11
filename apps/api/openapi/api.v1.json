@@ -1238,7 +1238,9 @@
                   "START",
                   "TASK",
                   "APPROVAL",
-                  "END"
+                  "END",
+                  "PARALLEL_SPLIT",
+                  "PARALLEL_JOIN"
                 ]
               }
             },
@@ -10794,7 +10796,9 @@
               "START",
               "TASK",
               "APPROVAL",
-              "END"
+              "END",
+              "PARALLEL_SPLIT",
+              "PARALLEL_JOIN"
             ]
           },
           "toStageId": {
@@ -16065,7 +16069,9 @@
               "START",
               "TASK",
               "APPROVAL",
-              "END"
+              "END",
+              "PARALLEL_SPLIT",
+              "PARALLEL_JOIN"
             ]
           },
           "groupLabel": {
@@ -16372,7 +16378,9 @@
                       "START",
                       "TASK",
                       "APPROVAL",
-                      "END"
+                      "END",
+                      "PARALLEL_SPLIT",
+                      "PARALLEL_JOIN"
                     ]
                   },
                   "groupLabel": {
@@ -21303,7 +21311,9 @@
               "START",
               "TASK",
               "APPROVAL",
-              "END"
+              "END",
+              "PARALLEL_SPLIT",
+              "PARALLEL_JOIN"
             ]
           },
           "groupLabel": {
@@ -21433,6 +21443,12 @@
               "$ref": "#/components/schemas/ApproverLine"
             }
           },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "version": {
             "type": "integer"
           }
@@ -21461,7 +21477,8 @@
           "slaType",
           "color",
           "decisionPolicy",
-          "approvers"
+          "approvers",
+          "branchKey"
         ]
       },
       "ApproverLine": {
@@ -21795,6 +21812,143 @@
           "rules"
         ]
       },
+      "WorkflowVersionBranches": {
+        "type": "object",
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowParallelBlock"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowBranchIssue"
+            }
+          },
+          "stageBranch": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "blocks",
+          "issues",
+          "stageBranch"
+        ]
+      },
+      "WorkflowParallelBlock": {
+        "type": "object",
+        "properties": {
+          "splitStageKey": {
+            "type": "string"
+          },
+          "joinStageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowBranch"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowBranchIssue"
+            }
+          }
+        },
+        "required": [
+          "splitStageKey",
+          "joinStageKey",
+          "branches",
+          "issues"
+        ]
+      },
+      "WorkflowBranch": {
+        "type": "object",
+        "properties": {
+          "branchKey": {
+            "type": "string"
+          },
+          "entryStageKey": {
+            "type": "string"
+          },
+          "stageKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "exitTransitionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "branchKey",
+          "entryStageKey",
+          "stageKeys",
+          "exitTransitionKey"
+        ]
+      },
+      "WorkflowBranchIssue": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "WF_PARALLEL_INVALID"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "SPLIT_BRANCHES_MIN",
+              "SPLIT_JOIN_MISSING",
+              "JOIN_NOT_COMMON",
+              "JOIN_WITHOUT_SPLIT",
+              "NESTED_SPLIT",
+              "CROSS_BRANCH_TRANSITION",
+              "BRANCH_EMPTY",
+              "BRANCH_ESCAPES",
+              "JOIN_EXIT_INVALID",
+              "RETURN_TARGET_INVALID"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "stageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transitionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "reason",
+          "message",
+          "stageKey",
+          "transitionKey"
+        ]
+      },
       "WorkflowVersionSummary": {
         "type": "object",
         "properties": {
@@ -22001,6 +22155,7 @@
               "WF_RULE_OPERATOR_FORBIDDEN",
               "WF_RULE_SCOPE_INVALID",
               "WF_LIMIT_EXCEEDED",
+              "WF_PARALLEL_INVALID",
               "WF_STAGE_NO_SLA",
               "WF_APPROVER_HEAD_MISSING",
               "WF_STAGE_NO_INSTRUCTIONS",
@@ -22040,6 +22195,21 @@
                 }
               ]
             }
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "SPLIT_BRANCHES_MIN",
+              "SPLIT_JOIN_MISSING",
+              "JOIN_NOT_COMMON",
+              "JOIN_WITHOUT_SPLIT",
+              "NESTED_SPLIT",
+              "CROSS_BRANCH_TRANSITION",
+              "BRANCH_EMPTY",
+              "BRANCH_ESCAPES",
+              "JOIN_EXIT_INVALID",
+              "RETURN_TARGET_INVALID"
+            ]
           }
         },
         "required": [
@@ -64920,7 +65090,9 @@
                       "START",
                       "TASK",
                       "APPROVAL",
-                      "END"
+                      "END",
+                      "PARALLEL_SPLIT",
+                      "PARALLEL_JOIN"
                     ]
                   },
                   "groupLabel": {
@@ -65740,6 +65912,123 @@
         }
       }
     },
+    "/workflow-versions/{versionId}/branches": {
+      "get": {
+        "operationId": "WF-24",
+        "summary": "Obter a estrutura de ramos da versão",
+        "tags": [
+          "Workflows"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "versionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Blocos paralelos (ramificação, junção, ramos com `branchKey` e etapas) e os problemas `WF_PARALLEL_INVALID` com `reason` (US-123 · DEC-194). Rascunho: calculado na hora; publicada: do snapshot. `ETag` = versão.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/WorkflowVersionBranches"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/workflow-versions/{versionId}/publish": {
       "post": {
         "operationId": "WF-21",
@@ -66437,7 +66726,9 @@
                       "START",
                       "TASK",
                       "APPROVAL",
-                      "END"
+                      "END",
+                      "PARALLEL_SPLIT",
+                      "PARALLEL_JOIN"
                     ]
                   },
                   "instructions": {

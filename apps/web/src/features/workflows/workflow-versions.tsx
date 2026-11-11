@@ -284,6 +284,11 @@ function ValidationResultPanel({
             ref={first && index === 0 ? firstRef : undefined}
             tabIndex={first && index === 0 ? -1 : undefined}
           >
+            {issue.reason ? (
+              <span className="mr-1 text-xs font-semibold text-muted-foreground uppercase">
+                {t('validation.parallelTag')}
+              </span>
+            ) : null}
             {issue.message}{' '}
             {target.kind !== 'none' ? (
               <button

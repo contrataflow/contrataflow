@@ -38,6 +38,7 @@ const stage = (
   slaDays: null,
   slaType: 'BUSINESS',
   decisionPolicy: 'ANY',
+  branchKey: null,
   ...extra,
 });
 

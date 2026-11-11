@@ -1430,6 +1430,7 @@ const STAGE_DEFAULTS = {
   color: null,
   decisionPolicy: 'ANY',
   approvers: [],
+  branchKey: null,
 };
 function workflowItemOwner(kind, id) {
   for (const version of workflowVersions.values()) {
@@ -5676,6 +5677,20 @@ createServer(async (request, response) => {
     Object.assign(item, body, { version: item.version + 1 });
     version.version += 1;
     return send(response, 200, { data: item }, { ETag: `"${item.version}"` });
+  }
+  // US-123 · WF-24: estrutura de ramos — o mock não modela blocos paralelos (lista vazia).
+  const branchesRoute = /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})\/branches$/.exec(
+    url.pathname,
+  );
+  if (branchesRoute && request.method === 'GET') {
+    const version = workflowVersions.get(branchesRoute[1]);
+    if (!version) return problem(response, 404, 'NOT_FOUND', String(correlationId));
+    return send(
+      response,
+      200,
+      { data: { blocks: [], issues: [], stageBranch: {} } },
+      { ETag: `"${version.version}"` },
+    );
   }
   const versionRoute =
     /^\/api\/v1\/workflow-versions\/([0-9a-f-]{36})(\/stages|\/transitions)?$/.exec(url.pathname);

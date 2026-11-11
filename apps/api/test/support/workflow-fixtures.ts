@@ -51,7 +51,10 @@ export function stageFields(
   return {
     key,
     name: `Etapa ${key}`,
-    instructions: type === 'END' ? null : `Orientação de ${key}.`,
+    instructions:
+      type === 'END' || type === 'PARALLEL_SPLIT' || type === 'PARALLEL_JOIN'
+        ? null
+        : `Orientação de ${key}.`,
     type,
     groupLabel: null,
     displayOrder: 0,
@@ -205,4 +208,37 @@ export function replaceAt<T>(list: T[], index: number, overrides: Partial<T>): v
   const current = list[index];
   if (current === undefined) throw new Error(`Índice ${index} fora da lista.`);
   list[index] = { ...current, ...overrides };
+}
+
+/**
+ * US-123 — o fluxo com ramos do Gherkin: ABERTURA (START) → ESTUDOS_PRELIMINARES (TASK) →
+ * RAMIFICACAO_ANALISES (PARALLEL_SPLIT) → ramos JURIDICO e CONTROLE_INTERNO (TASK) →
+ * JUNCAO_ANALISES (PARALLEL_JOIN) → AUTORIZACAO_LICITACAO (APPROVAL) → FIM (END).
+ * `branches` acrescenta ramos de uma etapa (`RAMO_3`…) para os casos de 3 e 5 ramos.
+ */
+export function parallelWorkflow(
+  builder = new DefinitionBuilder(),
+  branches: readonly string[] = ['JURIDICO', 'CONTROLE_INTERNO'],
+): DefinitionBuilder {
+  builder
+    .stage('ABERTURA', 'START')
+    .stage('ESTUDOS_PRELIMINARES', 'TASK')
+    .stage('RAMIFICACAO_ANALISES', 'PARALLEL_SPLIT')
+    .stage('JUNCAO_ANALISES', 'PARALLEL_JOIN')
+    .stage('AUTORIZACAO_LICITACAO', 'APPROVAL')
+    .stage('FIM', 'END')
+    .transition('ABERTURA', 'ESTUDOS_PRELIMINARES', 'FORWARD')
+    .transition('ESTUDOS_PRELIMINARES', 'RAMIFICACAO_ANALISES', 'FORWARD')
+    .transition('ESTUDOS_PRELIMINARES', 'ABERTURA', 'RETURN')
+    .transition('JUNCAO_ANALISES', 'AUTORIZACAO_LICITACAO', 'FORWARD')
+    .transition('AUTORIZACAO_LICITACAO', 'FIM', 'APPROVE')
+    .transition('AUTORIZACAO_LICITACAO', 'ESTUDOS_PRELIMINARES', 'RETURN')
+    .transition('AUTORIZACAO_LICITACAO', 'ESTUDOS_PRELIMINARES', 'REJECT');
+  for (const branch of branches) {
+    builder
+      .stage(branch, 'TASK')
+      .transition('RAMIFICACAO_ANALISES', branch, 'FORWARD')
+      .transition(branch, 'JUNCAO_ANALISES', 'FORWARD');
+  }
+  return builder;
 }

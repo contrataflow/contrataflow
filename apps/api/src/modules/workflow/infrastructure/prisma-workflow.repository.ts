@@ -668,6 +668,22 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     await guarded('workflow_stages', () => tx.workflowStage.create({ data: stageCreate(stage) }));
   }
 
+  async setStageBranchKeys(
+    tx: TenantTx,
+    versionId: string,
+    changes: readonly { readonly stageId: string; readonly branchKey: string | null }[],
+  ): Promise<void> {
+    await guarded('workflow_stages', async () => {
+      // Em sequência: o `tx` interativo é uma única conexão (≤ 50 etapas por versão).
+      for (const change of changes) {
+        await tx.workflowStage.updateMany({
+          where: { id: change.stageId, workflowVersionId: versionId },
+          data: { branchKey: change.branchKey },
+        });
+      }
+    });
+  }
+
   async updateStage(tx: TenantTx, stage: WorkflowStage, expectedVersion: number): Promise<void> {
     await guarded('workflow_stages', () =>
       updateVersioned(

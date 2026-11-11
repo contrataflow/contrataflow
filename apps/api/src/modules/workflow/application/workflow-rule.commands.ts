@@ -63,6 +63,14 @@ async function ruleReferenceErrors(
         code: 'NOT_ALLOWED',
         message: 'A etapa final não tem regra de saída.',
       });
+    } else if (stage.type === 'PARALLEL_SPLIT') {
+      // US-123 · RN-WF2-08: a ramificação não tem saída própria (a junção aceita).
+      errors.push({
+        field: 'stageId',
+        code: 'NOT_ALLOWED',
+        message:
+          'A ramificação não tem saída própria; configure a regra na etapa anterior ou na junção.',
+      });
     }
   }
   if (rule.scope === 'TRANSITION' && rule.transitionId) {

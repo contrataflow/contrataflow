@@ -19,6 +19,7 @@ import type {
   WorkflowTransitionDto,
   WorkflowTransitionUpdate,
   WorkflowValidationResult,
+  WorkflowVersionBranchesDto,
   WorkflowVersionDetailDto,
   WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
@@ -43,6 +44,9 @@ export const workflowKeys = {
     tenantKey(tenantId, 'workflows', 'version', versionId),
   versions: (tenantId: string, workflowId: string) =>
     tenantKey(tenantId, 'workflows', 'versions', workflowId),
+  /** WF-24 (US-123): estrutura de ramos da versão (recalculada a cada escrita no rascunho). */
+  branches: (tenantId: string, versionId: string) =>
+    tenantKey(tenantId, 'workflows', 'branches', versionId),
   lookups: (tenantId: string, kind: 'departments' | 'roles' | 'users' | 'documentTypes') =>
     tenantKey(tenantId, 'workflows', 'lookups', kind),
   ruleContextSchema: (tenantId: string) => tenantKey(tenantId, 'workflows', 'rule-context-schema'),
@@ -108,6 +112,16 @@ export function createWorkflowDraft(
   return apiRequest<WorkflowVersionDetailDto>(`/workflows/${workflowId}/versions`, {
     method: 'POST',
     body: {},
+  });
+}
+
+/** WF-24 (US-123): blocos paralelos, ramos e problemas `WF_PARALLEL_INVALID` da versão. */
+export function fetchVersionBranches(
+  versionId: string,
+  signal?: AbortSignal,
+): Promise<ApiResult<WorkflowVersionBranchesDto>> {
+  return apiRequest<WorkflowVersionBranchesDto>(`/workflow-versions/${versionId}/branches`, {
+    signal,
   });
 }
 

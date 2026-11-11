@@ -36,7 +36,9 @@ import { outcomeOf } from './workflow-editor-errors';
 import type { EditorProblem } from './workflow-editor-errors';
 import {
   EMPTY_STAGE,
+  isParallelDraft,
   keyFromName,
+  PARALLEL_STAGE_RESET,
   sortStages,
   STAGE_COLORS,
   stageCreateBody,
@@ -313,6 +315,7 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
     );
 
   const isApproval = draft.type === 'APPROVAL';
+  const parallel = isParallelDraft(draft);
   // US-132 (RN-APV-08): com lista de aprovadores, o aprovador único é o espelho da linha 1.
   const mirrored = stage !== null && stage.approvers.length > 0;
 
@@ -377,10 +380,13 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           value={draft.type}
           options={STAGE_TYPES.map((type) => ({ value: type, label: t(`stageTypes.${type}`) }))}
           onValueChange={(value) => {
-            change({ type: value as StageDraft['type'] }, true);
+            const type = value as StageDraft['type'];
+            // US-123 (RN-WF2-01): ramificação/junção sem responsável, prazo nem aprovador.
+            change(isParallelDraft({ type }) ? { type, ...PARALLEL_STAGE_RESET } : { type }, true);
           }}
         />,
       )}
+      {parallel ? <p className="text-sm text-muted-foreground">{t('parallel.panelHint')}</p> : null}
       {field(
         'instructions',
         <Textarea
@@ -392,36 +398,42 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           onBlur={blurSave}
         />,
       )}
-      {field(
-        'departmentResolution',
-        <OptionSelect
-          value={draft.departmentResolution}
-          options={STAGE_DEPARTMENT_RESOLUTIONS.map((resolution) => ({
-            value: resolution,
-            label: t(`departmentResolutions.${resolution}`),
-          }))}
-          onValueChange={(value) => {
-            change(
-              { departmentResolution: value as StageDraft['departmentResolution'] },
-              value !== 'FIXED' || draft.fixedDepartmentId !== '',
-            );
-          }}
-        />,
-      )}
-      {draft.departmentResolution === 'FIXED' ? departmentSelect('fixedDepartmentId') : null}
-      {field(
-        'assignmentPolicy',
-        <OptionSelect
-          value={draft.assignmentPolicy}
-          options={STAGE_ASSIGNMENT_POLICIES.map((policy) => ({
-            value: policy,
-            label: t(`assignmentPolicies.${policy}`),
-          }))}
-          onValueChange={(value) => {
-            change({ assignmentPolicy: value as StageDraft['assignmentPolicy'] }, true);
-          }}
-        />,
-      )}
+      {parallel
+        ? null
+        : field(
+            'departmentResolution',
+            <OptionSelect
+              value={draft.departmentResolution}
+              options={STAGE_DEPARTMENT_RESOLUTIONS.map((resolution) => ({
+                value: resolution,
+                label: t(`departmentResolutions.${resolution}`),
+              }))}
+              onValueChange={(value) => {
+                change(
+                  { departmentResolution: value as StageDraft['departmentResolution'] },
+                  value !== 'FIXED' || draft.fixedDepartmentId !== '',
+                );
+              }}
+            />,
+          )}
+      {!parallel && draft.departmentResolution === 'FIXED'
+        ? departmentSelect('fixedDepartmentId')
+        : null}
+      {parallel
+        ? null
+        : field(
+            'assignmentPolicy',
+            <OptionSelect
+              value={draft.assignmentPolicy}
+              options={STAGE_ASSIGNMENT_POLICIES.map((policy) => ({
+                value: policy,
+                label: t(`assignmentPolicies.${policy}`),
+              }))}
+              onValueChange={(value) => {
+                change({ assignmentPolicy: value as StageDraft['assignmentPolicy'] }, true);
+              }}
+            />,
+          )}
       {isApproval && mirrored ? (
         <p className="text-sm text-muted-foreground">{t('approvers.mirrorLocked')}</p>
       ) : null}
@@ -539,7 +551,7 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           ) : null}
         </>
       ) : null}
-      {draft.type === 'END' ? null : (
+      {draft.type === 'END' || parallel ? null : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {field(
             'slaDays',
@@ -570,15 +582,17 @@ export function StagePropertiesPanel(props: StagePropertiesPanelProps) {
           )}
         </div>
       )}
-      <CodeChecklist
-        legend={label('documentTypeCodes')}
-        hint={t('hints.documentTypeCodes')}
-        options={activeTypes}
-        selected={draft.documentTypeCodes}
-        onChange={(codes) => {
-          change({ documentTypeCodes: codes }, true);
-        }}
-      />
+      {parallel ? null : (
+        <CodeChecklist
+          legend={label('documentTypeCodes')}
+          hint={t('hints.documentTypeCodes')}
+          options={activeTypes}
+          selected={draft.documentTypeCodes}
+          onChange={(codes) => {
+            change({ documentTypeCodes: codes }, true);
+          }}
+        />
+      )}
       {field(
         'color',
         <OptionSelect

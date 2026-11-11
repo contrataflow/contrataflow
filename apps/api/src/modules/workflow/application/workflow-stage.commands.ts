@@ -155,7 +155,7 @@ export class CreateWorkflowStageCommand {
         entityId: stage.id,
         operation: 'CREATE',
         changes: changedFields(null, stage, STAGE_FIELDS),
-        metadata: { stageKey: stage.key },
+        metadata: { stageKey: stage.key, stageType: stage.type },
         ...(stage.type === 'START' ? { initialStageId: stage.id } : {}),
       };
     });
@@ -233,7 +233,7 @@ export class UpdateWorkflowStageCommand {
         entityType: 'WorkflowStage',
         entityId: current.id,
         operation: 'UPDATE',
-        metadata: { stageKey: current.key },
+        metadata: { stageKey: current.key, stageType: merged.type },
       } as const;
       if (changes.length === 0) {
         return { ...base, result: toStageDto(current), written: false, changes };

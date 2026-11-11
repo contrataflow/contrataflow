@@ -55,6 +55,7 @@ import {
 import { WorkflowFacade } from './application/workflow.facade.js';
 import {
   GetWorkflowQuery,
+  GetVersionBranchesQuery,
   GetWorkflowVersionQuery,
   ListWorkflowsQuery,
   ListWorkflowVersionsQuery,
@@ -115,6 +116,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     GetWorkflowQuery,
     ListWorkflowsQuery,
     ListWorkflowVersionsQuery,
+    GetVersionBranchesQuery,
     GetWorkflowVersionQuery,
     WorkflowApplicabilityService,
     ResolveWorkflowQuery,

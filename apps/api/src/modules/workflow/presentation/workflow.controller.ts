@@ -28,6 +28,7 @@ import {
   workflowTransitionUpdateSchema,
   workflowUpdateSchema,
   workflowValidationResultSchema,
+  workflowVersionBranchesSchema,
   workflowVersionCreateSchema,
   workflowVersionDetailSchema,
   workflowVersionIdParamsSchema,
@@ -58,6 +59,7 @@ import type {
   WorkflowUpdate,
   WorkflowValidationResult,
   WorkflowVersionCreate,
+  WorkflowVersionBranchesDto,
   WorkflowVersionDetailDto,
   WorkflowVersionSummaryDto,
 } from '@contrataflow/validation';
@@ -106,6 +108,7 @@ import {
 } from '../application/workflow.commands.js';
 import {
   GetWorkflowQuery,
+  GetVersionBranchesQuery,
   GetWorkflowVersionQuery,
   ListWorkflowsQuery,
   ListWorkflowVersionsQuery,
@@ -151,6 +154,7 @@ export class WorkflowController {
     private readonly testRuleQuery: TestWorkflowRuleQuery,
     private readonly ruleContextSchema: GetRuleContextSchemaQuery,
     private readonly validateVersionQuery: ValidateWorkflowVersionQuery,
+    private readonly versionBranches: GetVersionBranchesQuery,
     private readonly publishVersionCommand: PublishWorkflowVersionCommand,
     private readonly retireVersionCommand: RetireWorkflowVersionCommand,
   ) {}
@@ -379,6 +383,29 @@ export class WorkflowController {
     const version = await this.getVersion.execute(params.versionId);
     response.setHeader('ETag', `"${version.version}"`);
     return version;
+  }
+
+  @Get('workflow-versions/:versionId/branches')
+  @RequirePermission('WORKFLOW_VIEW')
+  @ApiOperation({
+    operationId: 'WF-24',
+    summary: 'Obter a estrutura de ramos da versão',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Blocos paralelos (ramificação, junção, ramos com `branchKey` e etapas) e os problemas `WF_PARALLEL_INVALID` com `reason` (US-123 · DEC-194). Rascunho: calculado na hora; publicada: do snapshot. `ETag` = versão.',
+        schema: dataEnvelope(workflowVersionBranchesSchema),
+      },
+    },
+  })
+  async getVersionBranches(
+    @ZodParams(workflowVersionIdParamsSchema) params: { versionId: string },
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<WorkflowVersionBranchesDto> {
+    const { etag, branches } = await this.versionBranches.execute(params.versionId);
+    response.setHeader('ETag', `"${etag}"`);
+    return branches;
   }
 
   @Post('workflow-versions/:versionId/validate')

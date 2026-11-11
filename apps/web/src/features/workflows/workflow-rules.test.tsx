@@ -85,6 +85,7 @@ function stage(
     color: null,
     decisionPolicy: 'ANY',
     approvers: [],
+    branchKey: null,
     version: 1,
   } satisfies WorkflowStageDto;
 }

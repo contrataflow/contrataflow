@@ -1,11 +1,19 @@
-import { ADVANCE_ACTIONS, ruleConfigProblems, WORKFLOW_LIMITS } from '@contrataflow/validation';
+import {
+  ADVANCE_ACTIONS,
+  isParallelStageType,
+  ruleConfigProblems,
+  WORKFLOW_LIMITS,
+} from '@contrataflow/validation';
 import type {
+  WfParallelInvalidReason,
   WorkflowValidationErrorCode,
   WorkflowValidationIssue,
   WorkflowValidationResult,
   WorkflowValidationWarningCode,
 } from '@contrataflow/validation';
 
+import { analyzeParallelStructure, parallelIssues } from './parallel-graph.js';
+import type { ParallelStructure } from './parallel-graph.js';
 import { approversOf, decisionConfigurationProblems } from './stage-approvers.js';
 import type { DecisionConfigurationProblem, WorkflowStageApprover } from './stage-approvers.js';
 import {
@@ -59,6 +67,8 @@ interface IssueTarget {
   readonly ruleId?: string | null;
   /** `params` estruturado (US-132: `sequence` da linha, `reason`). */
   readonly params?: Readonly<Record<string, string | number>>;
+  /** Motivo de `WF_PARALLEL_INVALID` (US-123). */
+  readonly reason?: WfParallelInvalidReason;
 }
 
 function issue(
@@ -73,6 +83,7 @@ function issue(
     transitionKey: target.transitionKey ?? null,
     ruleId: target.ruleId ?? null,
     ...(target.params ? { params: { ...target.params } } : {}),
+    ...(target.reason ? { reason: target.reason } : {}),
   };
 }
 
@@ -119,9 +130,14 @@ function adjacency(pairs: Iterable<readonly [string, string]>): Map<string, stri
 }
 
 export class WorkflowDefinitionValidator {
+  /**
+   * @param parallel estrutura de ramos já calculada (o serviço a reaproveita no log); ausente, é
+   *   calculada aqui.
+   */
   validate(
     definition: WorkflowDefinition,
     references: WorkflowReferences,
+    parallel: ParallelStructure = analyzeParallelStructure(definition),
   ): WorkflowValidationResult {
     const errors: WorkflowValidationIssue[] = [];
     const warnings: WorkflowValidationIssue[] = [];
@@ -184,6 +200,16 @@ export class WorkflowDefinitionValidator {
     }
     for (const rule of rules) {
       this.checkRule(rule, definition, stagesById, references, errors, warnings);
+    }
+    // US-123 (RN-WF2-02..06 · RN-WF2-09): todos os problemas de paralelismo de uma vez.
+    for (const problem of parallelIssues(parallel)) {
+      errors.push(
+        issue('WF_PARALLEL_INVALID', problem.message, {
+          stageKey: problem.stageKey,
+          transitionKey: problem.transitionKey,
+          reason: problem.reason,
+        }),
+      );
     }
 
     return { valid: errors.length === 0, errors, warnings };
@@ -332,7 +358,7 @@ export class WorkflowDefinitionValidator {
     if ((stage.type === 'TASK' || stage.type === 'APPROVAL') && stage.slaDays === null) {
       warnings.push(issue('WF_STAGE_NO_SLA', `A etapa ${stage.name} não tem prazo.`, target));
     }
-    if (stage.type !== 'END' && !stage.instructions?.trim()) {
+    if (stage.type !== 'END' && !isParallelStageType(stage.type) && !stage.instructions?.trim()) {
       warnings.push(
         issue(
           'WF_STAGE_NO_INSTRUCTIONS',
@@ -478,6 +504,15 @@ export class WorkflowDefinitionValidator {
       if (!stage) invalid('WF_RULE_SCOPE_INVALID', 'a etapa da regra não existe na versão');
       else if (stage.type === 'END') {
         invalid('WF_RULE_SCOPE_INVALID', 'a etapa final não tem regra de saída');
+      } else if (stage.type === 'PARALLEL_SPLIT') {
+        // RN-WF2-08 (V-12): a junção aceita `STAGE_EXIT` (avalia o processo inteiro — US-124).
+        errors.push(
+          issue(
+            'WF_RULE_SCOPE_INVALID',
+            `A ramificação não tem saída própria; configure a regra ${rule.name} na etapa anterior ou na junção.`,
+            target,
+          ),
+        );
       }
     } else {
       const transition = rule.transitionId

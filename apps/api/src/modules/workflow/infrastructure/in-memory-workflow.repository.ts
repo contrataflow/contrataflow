@@ -371,6 +371,21 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
     return Promise.resolve();
   }
 
+  setStageBranchKeys(
+    _tx: TenantTx,
+    versionId: string,
+    changes: readonly { readonly stageId: string; readonly branchKey: string | null }[],
+  ): Promise<void> {
+    this.assertDraft(versionId, 'workflow_stages');
+    for (const change of changes) {
+      const current = this.visible(this.stages, change.stageId);
+      if (current?.workflowVersionId === versionId) {
+        this.stages.set(change.stageId, { ...current, branchKey: change.branchKey });
+      }
+    }
+    return Promise.resolve();
+  }
+
   updateStage(_tx: TenantTx, stage: WorkflowStage, expectedVersion: number): Promise<void> {
     this.assertDraft(stage.workflowVersionId, 'workflow_stages');
     this.replaceVersioned(this.stages, stage, expectedVersion, 'WorkflowStage');

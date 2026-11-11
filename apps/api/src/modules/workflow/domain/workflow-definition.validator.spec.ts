@@ -2,7 +2,7 @@ import { STAGE_TYPES, TRANSITION_ACTIONS } from '@contrataflow/validation';
 import type { StageType, TransitionAction } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
-import { actionAllowedFrom, actionAllowedTo } from './workflow-definition.js';
+import { actionAllowedBetween, actionAllowedFrom, actionAllowedTo } from './workflow-definition.js';
 import { WorkflowDefinitionValidator } from './workflow-definition.validator.js';
 import type { WorkflowReferences } from './workflow-definition.validator.js';
 import {
@@ -230,18 +230,18 @@ describe('WorkflowDefinitionValidator (US-040 · RN-WF-07..19)', () => {
   });
 });
 
-describe('compatibilidade ação × tipo de etapa (RN-WF-10 — tabela completa)', () => {
+describe('compatibilidade ação × tipo de etapa (RN-WF-10 + RN-WF2-05 — tabela completa)', () => {
   const sources: Record<TransitionAction, readonly StageType[]> = {
-    FORWARD: ['START', 'TASK'],
+    FORWARD: ['START', 'TASK', 'PARALLEL_SPLIT', 'PARALLEL_JOIN'],
     COMPLETE: ['START', 'TASK'],
     APPROVE: ['APPROVAL'],
     RETURN: ['TASK', 'APPROVAL'],
     REJECT: ['APPROVAL'],
   };
   const targets: Record<TransitionAction, readonly StageType[]> = {
-    FORWARD: ['TASK', 'APPROVAL'],
+    FORWARD: ['TASK', 'APPROVAL', 'PARALLEL_SPLIT', 'PARALLEL_JOIN'],
     COMPLETE: ['END'],
-    APPROVE: ['TASK', 'APPROVAL', 'END'],
+    APPROVE: ['TASK', 'APPROVAL', 'END', 'PARALLEL_JOIN'],
     RETURN: ['START', 'TASK'],
     REJECT: ['START', 'TASK'],
   };
@@ -255,5 +255,43 @@ describe('compatibilidade ação × tipo de etapa (RN-WF-10 — tabela completa)
   }
   it('END não tem transição de saída', () => {
     expect(TRANSITION_ACTIONS.some((action) => actionAllowedFrom(action, 'END'))).toBe(false);
+  });
+
+  // RN-WF2-05 (par origem × destino): a tabela inteira de pares permitidos com os tipos novos.
+  const allowedPairs = new Set([
+    'FORWARD:START>TASK',
+    'FORWARD:START>APPROVAL',
+    'FORWARD:START>PARALLEL_SPLIT',
+    'FORWARD:TASK>TASK',
+    'FORWARD:TASK>APPROVAL',
+    'FORWARD:TASK>PARALLEL_SPLIT',
+    'FORWARD:TASK>PARALLEL_JOIN',
+    'FORWARD:PARALLEL_SPLIT>TASK',
+    'FORWARD:PARALLEL_SPLIT>APPROVAL',
+    'FORWARD:PARALLEL_JOIN>TASK',
+    'FORWARD:PARALLEL_JOIN>APPROVAL',
+    'COMPLETE:START>END',
+    'COMPLETE:TASK>END',
+    'APPROVE:APPROVAL>TASK',
+    'APPROVE:APPROVAL>APPROVAL',
+    'APPROVE:APPROVAL>END',
+    'APPROVE:APPROVAL>PARALLEL_JOIN',
+    'RETURN:TASK>START',
+    'RETURN:TASK>TASK',
+    'RETURN:APPROVAL>START',
+    'RETURN:APPROVAL>TASK',
+    'REJECT:APPROVAL>START',
+    'REJECT:APPROVAL>TASK',
+  ]);
+  it('actionAllowedBetween: pares permitidos (RN-WF2-05)', () => {
+    const allowed: string[] = [];
+    for (const action of TRANSITION_ACTIONS) {
+      for (const from of STAGE_TYPES) {
+        for (const to of STAGE_TYPES) {
+          if (actionAllowedBetween(action, from, to)) allowed.push(`${action}:${from}>${to}`);
+        }
+      }
+    }
+    expect(new Set(allowed)).toEqual(allowedPairs);
   });
 });

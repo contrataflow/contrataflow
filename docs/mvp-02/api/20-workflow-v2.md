@@ -130,7 +130,8 @@ Mudanças **aditivas** (campos opcionais, enums ampliados, filtros novos) sobre 
 **Permissão:** `WORKFLOW_VIEW` · **Story:** US-123
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
 - **Request:** — (path `versionId`)
-- **Response:** `200 { data: { blocks: [{ splitStageKey, joinStageKey|null, branches: [{ branchKey, entryStageKey, stageKeys[], exitTransitionKey|null }], issues: [{ code, reason, message, stageKey?, transitionKey? }] }], stageBranch: { [stageKey]: branchKey } } }`; `ETag` = `WorkflowVersion.version`; rascunho calculado na hora, publicada lida do snapshot
+- **Response:** `200 { data: { blocks: [{ splitStageKey, joinStageKey|null, branches: [{ branchKey, entryStageKey, stageKeys[], exitTransitionKey|null }], issues: [{ code, reason, message, stageKey?, transitionKey? }] }], issues: [...], stageBranch: { [stageKey]: branchKey } } }`; `ETag` = `WorkflowVersion.version`; rascunho calculado na hora, publicada lida do snapshot
+- **Notas (US-123):** `issues` de topo (aditivo) traz os problemas sem ramificação de origem (junção solta: `JOIN_WITHOUT_SPLIT` e a sua `JOIN_EXIT_INVALID`); `stageKey`/`transitionKey` são `null` quando ausentes; `stageKeys[]` segue a ordem do caminho a partir da primeira etapa; `exitTransitionKey` é a primeira transição do ramo para a junção do bloco. Leitura: sem auditoria nem evento. Os problemas são os mesmos `WF_PARALLEL_INVALID` de WF-20.
 - **Códigos:** 200, 403, 404, 503
 
 ### WF-25 — POST `/workflows/{id}/migrations`

@@ -86,6 +86,11 @@ const snapshotStageSchema = z.object({
   decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES).optional(),
   approvers: z.array(snapshotApproverSchema).optional(),
   decisionPolicyRules: z.unknown().optional(),
+  /**
+   * US-123 (RN-WF2-07): ramo da etapa, presente só nas etapas de ramos — versões sem bloco paralelo
+   * mantêm o snapshot e o `definitionHash` de antes (DEC-084).
+   */
+  branchKey: z.string().optional(),
 });
 
 const snapshotTransitionSchema = z.object({
@@ -150,7 +155,8 @@ function ruleOrder(rule: WorkflowSnapshotRule): string {
 
 /** Definição de entrada (estrutural: `WorkflowDefinition` satisfaz — sem ciclo de módulos). */
 export interface SnapshotSource {
-  readonly stages: readonly (WorkflowStageFields & StageDecisionFields & { readonly id: string })[];
+  readonly stages: readonly (WorkflowStageFields &
+    StageDecisionFields & { readonly id: string; readonly branchKey?: string | null })[];
   readonly transitions: readonly (WorkflowTransitionFields & { readonly id: string })[];
   readonly rules: readonly (WorkflowRuleFields & {
     readonly id: string;
@@ -211,6 +217,7 @@ export function buildWorkflowSnapshot(definition: SnapshotSource): WorkflowSnaps
       slaType: stage.slaType,
       color: stage.color,
       ...snapshotDecision(stage),
+      ...(stage.branchKey ? { branchKey: stage.branchKey } : {}),
     }))
     .sort(byKey);
 

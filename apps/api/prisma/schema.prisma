@@ -809,6 +809,8 @@ enum StageType {
   TASK
   APPROVAL
   END
+  PARALLEL_SPLIT
+  PARALLEL_JOIN
 
   @@map("stage_type")
 }
@@ -974,6 +976,8 @@ model WorkflowStage {
   decisionPolicy               ApprovalDecisionPolicy @default(ANY) @map("decision_policy")
   /// Alçada da política por faixa (`[{ when: RuleRef, policy }]`) — só a biblioteca de regras (US-198).
   decisionPolicyRules          Json                  @default("[]") @map("decision_policy_rules") @db.JsonB
+  /// US-123 (RN-WF2-07): ramo da etapa (`key` da primeira etapa do ramo), gravado na publicação.
+  branchKey                    String?               @map("branch_key") @db.VarChar(60)
   createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdById                  String?               @map("created_by_id") @db.Uuid

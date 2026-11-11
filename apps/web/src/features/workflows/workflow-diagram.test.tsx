@@ -76,6 +76,7 @@ function stage(
     color: null,
     decisionPolicy: 'ANY',
     approvers: [],
+    branchKey: null,
     ...extra,
   };
 }

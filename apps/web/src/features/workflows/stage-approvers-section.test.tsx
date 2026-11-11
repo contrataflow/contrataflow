@@ -47,6 +47,7 @@ const stage: WorkflowStageDto = {
   color: null,
   decisionPolicy: 'ANY',
   approvers: [],
+  branchKey: null,
   version: 3,
 };
 

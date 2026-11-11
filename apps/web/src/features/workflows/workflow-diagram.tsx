@@ -19,6 +19,7 @@ import { logClientEvent } from '@/lib/client-log';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { OptionSelect } from './option-select';
+import { useVersionBranches, withBranchKeys } from './parallel-structure';
 import { useIsDesktop } from './use-is-desktop';
 import {
   centerOn,
@@ -49,6 +50,8 @@ const STAGE_ICONS: Readonly<Record<WorkflowStageDto['type'], string>> = {
   TASK: '■',
   APPROVAL: '✔',
   END: '◼',
+  PARALLEL_SPLIT: '⑂',
+  PARALLEL_JOIN: '⊕',
 };
 
 type Selection =
@@ -123,7 +126,18 @@ export function WorkflowDiagramSection({
     staleTime: WORKFLOWS_STALE_TIME_MS,
     throwOnError: false,
   });
-  const data = version.data ?? null;
+  // US-123: o ramo de cada etapa (gravado na publicada; calculado pelo WF-24 no rascunho).
+  const branches = useVersionBranches(version.data ?? null);
+  const data = useMemo(
+    () =>
+      version.data
+        ? {
+            ...version.data,
+            stages: withBranchKeys(version.data.stages, branches.data?.stageBranch),
+          }
+        : null,
+    [version.data, branches.data],
+  );
   const { layout, failed } = useDiagramLayout(data);
 
   return (
@@ -542,8 +556,12 @@ function StageNode({
     stage.type === 'APPROVAL' && stage.decisionPolicy !== 'ANY'
       ? tPolicy(stage.decisionPolicy)
       : null;
+  const branch = stage.branchKey
+    ? t('editor.parallel.branchChip', { branch: stage.branchKey })
+    : null;
   const label = [
     t('diagram.node.label', { name: stage.name, type: t(`editor.stageTypes.${stage.type}`) }),
+    branch,
     policy ? t('diagram.node.policy', { policy }) : null,
     stage.groupLabel ? t('diagram.node.group', { group: stage.groupLabel }) : null,
     sla ? t('diagram.node.sla', { sla }) : null,
@@ -588,7 +606,7 @@ function StageNode({
         {stage.name}
       </span>
       <span className="w-full truncate text-xs text-muted-foreground" aria-hidden="true">
-        {[stage.groupLabel, sla].filter(Boolean).join(' · ') || ' '}
+        {[branch, stage.groupLabel, sla].filter(Boolean).join(' · ') || ' '}
       </span>
     </button>
   );
@@ -858,10 +876,15 @@ function DiagramFallbackList({ version }: { readonly version: WorkflowVersionDet
         </h3>
         <ol className="mt-2 list-decimal pl-5 text-sm">
           {stages.map((stage) => (
-            <li key={stage.id}>
+            // US-123 (RN-WF2-12): cada etapa de ramo indentada sob a ramificação, com o ramo em texto.
+            <li key={stage.id} className={stage.branchKey ? 'ml-4' : undefined}>
               {stage.name}{' '}
               <span className="text-muted-foreground">
-                ({t(`editor.stageTypes.${stage.type}`)})
+                ({t(`editor.stageTypes.${stage.type}`)}
+                {stage.branchKey
+                  ? ` · ${t('editor.parallel.branchChip', { branch: stage.branchKey })}`
+                  : ''}
+                )
               </span>
             </li>
           ))}

@@ -92,6 +92,7 @@ export function toStageDto(stage: WorkflowStage): WorkflowStageDto {
     color: stage.color,
     decisionPolicy: decisionPolicyOf(stage),
     approvers: approversOf(stage).map((line) => toApproverLineDto(line)),
+    branchKey: stage.branchKey ?? null,
     version: stage.version,
   };
 }
@@ -182,10 +183,11 @@ export function toVersionDetailFromSnapshot(
     initialStageId: snapshot.initialStageId,
     stages: [...snapshot.stages].sort(byDisplayOrder).map((stage) => {
       // US-132: snapshot do MVP 1 (sem a política) = `ANY` sem linhas; a alçada não vai ao DTO.
-      const { decisionPolicyRules: _rules, approvers, decisionPolicy, ...rest } = stage;
+      const { decisionPolicyRules: _rules, approvers, decisionPolicy, branchKey, ...rest } = stage;
       return {
         ...rest,
         workflowVersionId,
+        branchKey: branchKey ?? null,
         decisionPolicy: decisionPolicy ?? 'ANY',
         approvers: (approvers ?? []).map(({ applicabilityRule: _rule, ...line }) => line),
       };

@@ -1,4 +1,8 @@
-import { WORKFLOW_LIMITS, workflowTransitionIssues } from '@contrataflow/validation';
+import {
+  isParallelStageType,
+  WORKFLOW_LIMITS,
+  workflowTransitionIssues,
+} from '@contrataflow/validation';
 import type {
   FieldError,
   WorkflowTransitionCreate,
@@ -25,6 +29,7 @@ import {
 } from './workflow.errors.js';
 import { toTransitionDto } from './workflow.view.js';
 import {
+  actionAllowedBetween,
   actionAllowedFrom,
   actionAllowedTo,
   forcedRequiresComment,
@@ -78,6 +83,16 @@ function transitionProblems(
       field: 'action',
       code: 'NOT_ALLOWED',
       message: `Esta ação não pode levar a uma etapa ${stageTypeLabel(to.type)}.`,
+    });
+  } else if (!actionAllowedBetween(transition.action, from.type, to.type)) {
+    // US-123 · RN-WF2-05 (V-11): ramificação/junção saem só para TASK/APPROVAL; a junção só recebe
+    // de TASK (FORWARD) ou APPROVAL (APPROVE).
+    errors.push({
+      field: 'toStageId',
+      code: 'NOT_ALLOWED',
+      message: isParallelStageType(from.type)
+        ? `A saída de uma etapa ${stageTypeLabel(from.type)} vai para uma etapa de tarefa ou de aprovação.`
+        : `Esta ação não pode levar a uma etapa ${stageTypeLabel(to.type)} a partir de uma etapa ${stageTypeLabel(from.type)}.`,
     });
   }
   if (errors.length > 0) return errors;
@@ -156,7 +171,7 @@ export class CreateWorkflowTransitionCommand {
         entityId: transition.id,
         operation: 'CREATE',
         changes: changedFields(null, transition, TRANSITION_FIELDS),
-        metadata: { transitionKey: transition.key },
+        metadata: { transitionKey: transition.key, action: transition.action },
       };
     });
   }
@@ -217,7 +232,7 @@ export class UpdateWorkflowTransitionCommand {
           entityType: 'WorkflowTransition',
           entityId: current.id,
           operation: 'UPDATE',
-          metadata: { transitionKey: current.key },
+          metadata: { transitionKey: current.key, action: merged.action },
         } as const;
         if (changes.length === 0) {
           return { ...base, result: toTransitionDto(current), written: false, changes };
