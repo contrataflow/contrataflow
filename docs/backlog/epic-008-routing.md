@@ -32,7 +32,7 @@ Permitir que o processo avance entre etapas do workflow com destinatário, prazo
 - Definição do grafo de workflow — etapas, transições e regras configuráveis — EP-007.
 - Ciclo de vida, versionamento e completude do documento em si — EP-011.
 - Agregação das pendências de cada pessoa em uma única caixa de tarefas — EP-009.
-- Paralelismo de etapas e política de decisão com múltiplos aprovadores/sequenciais (DEC-022, PEND-13) — MVP 2.
+- Paralelismo de etapas e política de decisão com múltiplos aprovadores/sequenciais (DEC-022, PEND-13 → DEC-193) — MVP 2.
 
 ## Personas
 | Persona | Perfil | Interesse no épico |

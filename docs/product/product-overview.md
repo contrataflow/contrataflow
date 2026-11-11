@@ -554,7 +554,7 @@ As metas são iniciais e serão recalibradas após dois ciclos trimestrais com d
 |---|---|---|
 | RES-01 | Conformidade com Lei 14.133/2021, LGPD, LAI e requisitos de acessibilidade (eMAG, WCAG 2.1 AA, Lei 13.146/2015) | Legal |
 | RES-02 | Stack e arquitetura definidas: monólito modular, Authentik, PostgreSQL com RLS, AWS como primeira nuvem | DEC-050, DEC-058, ADRs |
-| RES-03 | O MVP 1 não inclui: entidade PCA, publicação, etapas paralelas, múltiplos aprovadores, edição colaborativa em tempo real, imagens no editor, login gov.br, API pública e reabertura de processo concluído ou cancelado | DEC-029, PEND-16, DEC-014, PEND-13, PEND-12, PEND-08, PEND-18, DEC-053, PEND-03 |
+| RES-03 | O MVP 1 não inclui: entidade PCA, publicação, etapas paralelas, múltiplos aprovadores, edição colaborativa em tempo real, imagens no editor, login gov.br, API pública e reabertura de processo concluído ou cancelado | DEC-029, PEND-16, DEC-014, PEND-13 → DEC-193, PEND-12, PEND-08, PEND-18 → DEC-207, DEC-053, PEND-03 |
 | RES-04 | Edição de documentos *desktop-first*; no celular, leitura, comentários, caixa de tarefas e aprovações | DEC-183 |
 | RES-05 | Clientes compram por processo público, com ciclo orçamentário anual | Mercado |
 | RES-06 | Capacidade de um squad de referência com 6 desenvolvedores: MVP 1 em ≈ 38 semanas (Sprint 0 + 17 + 1 de release) | [Roadmap](roadmap.md#9-horizonte-indicativo-e-marcos); [plano de entrega](../mvp-01/delivery-plan.md#8-cenários-de-capacidade) |

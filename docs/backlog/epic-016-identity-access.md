@@ -29,7 +29,7 @@ Hoje, nos órgãos, o acesso é combinado a cargos informais, planilhas de contr
 
 ## Fora de escopo
 - Federação com identidade do órgão (gov.br, Entra ID) — futuro.
-- Múltiplos aprovadores sequenciais por aprovação (PEND-13, módulo `workflow`).
+- Múltiplos aprovadores sequenciais por aprovação (PEND-13 → DEC-193, módulo `workflow`).
 - API pública exposta à internet (MVP 3 — DEC-053).
 - Contas de serviço (`MembershipType.SERVICE`) — MVP 3.
 - Encerramento remoto de sessões ativas — fora desta entrega (nota de produto; não é um ponto em aberto deste épico).

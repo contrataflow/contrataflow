@@ -1,6 +1,6 @@
 # ContrataFlow — Roadmap dos 5 MVPs
 
-> **Status:** v1.0 · MVP 1 em especificação detalhada ([`mvp-01/`](../mvp-01/overview.md)); MVPs 2 a 5 em **nível de visão**.
+> **Status:** v1.1 (2026-11-11) · MVP 1 especificado em detalhe ([`mvp-01/`](../mvp-01/overview.md)); **MVP 2 especificado** ([`mvp-02/`](../mvp-02/README.md) — versão 1, revisável após o UAT do MVP 1, DEC-192); MVPs 3 a 5 em **nível de visão**.
 > **Precedência:** o [registro de decisões](../architecture/decisions.md) prevalece. Entidades futuras citadas aqui são **nomes propostos** até serem registradas em `decisions.md` no detalhamento de cada MVP — exceto `Pca` e `PcaItem`, já fixados pela DEC-029.
 > **Documentos irmãos:** [visão do produto](product-overview.md) · [personas](personas.md) · [terminologia](terminology.md).
 
@@ -13,7 +13,7 @@
 | MVP | Tema | Objetivo | Pergunta de valor respondida | Horizonte indicativo (squad de referência) |
 |---|---|---|---|---|
 | **1** | Planejamento e Tramitação | Núcleo operacional: processo, documentos de planejamento, workflow, tramitação, aprovações, prazos, auditoria e fundação multi-tenant | "Consigo planejar e aprovar uma contratação inteiramente na plataforma, sabendo sempre onde ela está?" | Sprint 0 + 17 sprints + 1 de release (≈ 38 semanas) |
-| **2** | Governança e Controle | Fase preparatória completa e instrumentos de governança: PCA, dotação, jurídico, controle interno, edital, SLA, indicadores, gargalos, regras condicionais | "A fase preparatória inteira acontece na plataforma, com controle e dados para gestão?" | ≈ 10 sprints |
+| **2** | Governança e Controle | Fase preparatória completa e instrumentos de governança: PCA, dotação, jurídico, controle interno, edital, SLA, indicadores, gargalos, regras condicionais | "A fase preparatória inteira acontece na plataforma, com controle e dados para gestão?" | Sprint 0 + 10 sprints + 1 de release (≈ 24 semanas; 412 pontos P0 + P1 — [plano](../mvp-02/delivery-plan.md)) |
 | **3** | Integrações e Publicação | Publicação oficial (PNCP, diário oficial, portal), assinatura eletrônica, API pública, webhooks e adapters | "O que foi decidido é publicado e assinado sem redigitação, com prova de cada envio?" | ≈ 8 sprints |
 | **4** | Gestão Contratual | Contratos, fiscalização, medições, ocorrências, aditivos, reajustes, vencimentos e renovação | "Os contratos são executados e acompanhados sem surpresas?" | ≈ 10 sprints |
 | **5** | Inteligência e IA | Assistente, validações, saúde do processo, recomendações, similares, benchmark, gargalos e previsão de atraso | "A plataforma me ajuda a errar menos e a antecipar problemas?" | ≈ 8 sprints |
@@ -49,7 +49,9 @@ A dependência MVP 3 → MVP 4 é **legal**, não apenas técnica: a divulgaçã
 
 ## 2. Governança do roadmap: um MVP detalhado por vez
 
-Somente o MVP 1 está especificado em detalhe. Os MVPs 2 a 5 permanecem neste nível de visão e **cada um só é detalhado depois de passar pelo gate abaixo** (ver também [`docs/README.md`](../README.md)).
+Os MVPs 1 e 2 estão especificados em detalhe. Os MVPs 3 a 5 permanecem neste nível de visão e **cada um só é detalhado depois de passar pelo gate abaixo** (ver também [`docs/README.md`](../README.md)).
+
+**Desvio registrado no MVP 2 (DEC-192):** por decisão do usuário (prd-7, 2026-11-10), o MVP 2 foi especificado **antes** de o MVP 1 estar em produção nos pilotos — o gate é recomendação, não bloqueio técnico. Os itens 1 e 7 do gate (dependências em produção e aprendizado incorporado) ficaram para a Sprint 0 do MVP 2, e as definições que dependiam do piloto entraram como padrões configuráveis "a validar com o piloto" ([mvp-02/delivery-plan.md §10](../mvp-02/delivery-plan.md#10-o-que-depende-do-uat-do-mvp-1)).
 
 | # | Verificação do gate | Evidência esperada |
 |---|---|---|
@@ -93,7 +95,7 @@ Entregar o núcleo operacional: um órgão formaliza a demanda, elabora ETP, map
 | Entidade PCA (há apenas referência textual no processo e no DFD) | DEC-029 | MVP 2 |
 | Dotação, análise jurídica, controle interno e edital como módulos | DEC-015 | MVP 2 |
 | Etapas paralelas | DEC-014 | MVP 2 |
-| Múltiplos aprovadores ou aprovação sequencial | PEND-13 | MVP 2 |
+| Múltiplos aprovadores ou aprovação sequencial | PEND-13 → DEC-193 | MVP 2 |
 | Migração de processos em andamento para nova versão de workflow | DEC-014 | MVP 2, com as regras condicionais |
 | Publicação e status `PUBLISHED` alcançável | DEC-013, PEND-16 | MVP 3 |
 | Assinatura eletrônica e renderização `SIGNED`; PDF/A | DEC-017, PEND-09 | MVP 3 |
@@ -271,25 +273,27 @@ Completar a fase preparatória na plataforma e dar à alta administração os in
 
 ### 4.2 Escopo e épicos
 
-Épicos sem ID; a numeração global será atribuída no detalhamento.
+Numeração global atribuída no detalhamento ([mvp-02/epics.md](../mvp-02/epics.md); IDs canônicos em [mvp-02/features.md](../mvp-02/features.md)): **11 épicos · 28 features · 78 stories · 422 pontos** (P0 189 · P1 223 · P2 10).
 
-| Épico | Escopo | Módulo reservado (DEC-040) |
-|---|---|---|
-| PCA | Plano por exercício com itens (exercício, secretaria, objeto, categoria, valor previsto, mês previsto, responsável, status); aprovação; vínculo entre DFD e item do plano; acompanhamento da execução; exportação para divulgação até o MVP 3 | `pca` |
-| Dotação orçamentária | Indicação da classificação orçamentária, fonte de recursos, valor reservado e evidência; verificação de compatibilidade com o valor estimado; regra de saída de etapa | `budget` |
-| Jurídico | Fila priorizada por critérios objetivos; análise com as situações aguardando, em análise, diligência, favorável, favorável com ressalvas e desfavorável; parecer vinculado às versões analisadas; devolução por diligência; hipóteses de dispensa de análise (art. 53, § 5º) | `legal-review` |
-| Controle Interno | Etapa de manifestação com checklist configurável, achados e recomendações; visão de riscos | `internal-control` |
-| Edital | Minuta de edital e de contrato a partir de template, importando itens, lotes, critérios e condições do TR; matriz de alocação de riscos quando aplicável (art. 22) | `tender` |
-| SLA | Políticas de prazo por tipo de contratação, modalidade ou valor; pausas (ex.: diligência); escalonamento; cumprimento por etapa e unidade. Evolui o prazo por etapa do MVP 1 (DEC-031), que continua sendo a base | `sla` |
-| Indicadores | Relatórios (SCR-027) e relatório detalhado (SCR-028): tempo de ciclo, devoluções, cumprimento de prazo, volume e valor por secretaria e modalidade, execução do PCA; exportação | `analytics` |
-| Gargalos | Análise descritiva do tempo por etapa, unidade e responsável; filas e envelhecimento; comparação entre períodos | `analytics` |
-| Regras condicionais | Biblioteca completa de regras reutilizáveis (SCR-035): regras que alteram o roteamento (ex.: "valor acima de X exige Controle Interno"), alçadas por valor, aplicabilidade, simulador e testes. Evolui as regras `CONDITION` do MVP 1 (DEC-016) | `rules` |
+| Épico | Escopo | Módulo (DEC-040) | Stories | Pontos |
+|---|---|---|---|---|
+| EP-021 Workflow v2 | Etapas paralelas (ramificação e junção), migração de processos em andamento entre versões (DT-02), `RuleContext` v2 e a versão 2 do workflow padrão com a fase preparatória completa, oferecida e nunca imposta | `workflow`, `process` | US-123..US-131 | 57 |
+| EP-022 Aprovação múltipla | Políticas `ANY`, `ALL` e `SEQUENTIAL` com aprovadores ordenados, decisão por linha, redirecionamento e segregação de funções (DT-03, PEND-13 → DEC-193); prazo das aprovações avulsas por tipo de documento (DT-17) | `approval`, `workflow` | US-132..US-137 | 33 |
+| EP-023 PCA | Plano por exercício com itens (exercício, secretaria, objeto, categoria, valor previsto, mês previsto, responsável, status); importação por planilha; aprovação; vínculo entre DFD/processo e item do plano com reconciliação das referências do MVP 1; acompanhamento da execução; exportação para divulgação até o MVP 3 | `pca` | US-138..US-145 | 43 |
+| EP-024 Dotação orçamentária | Classificação orçamentária, fonte de recursos, valor reservado e evidência; compatibilidade com o valor estimado; regra de saída da etapa `DOTACAO` | `budget` | US-146..US-148 | 15 |
+| EP-025 Jurídico | Fila priorizada por critérios objetivos; análise com as situações aguardando, em análise, diligência, favorável, favorável com ressalvas e desfavorável; parecer vinculado às versões analisadas; devolução por diligência; dispensa de análise (art. 53, § 5º); rascunho do parecer por IA | `legal-review` | US-149..US-157 | 51 |
+| EP-026 Controle Interno | Manifestação com checklist configurável e versionado, achados e recomendações, visão de riscos e acompanhamento do atendimento | `internal-control` | US-158..US-162 | 25 |
+| EP-027 Edital | Minutas do edital e do contrato a partir de template, importando itens, lotes, critérios e condições do TR; matriz de alocação de riscos quando aplicável (art. 22); rascunho por IA | `tender` | US-163..US-169 | 38 |
+| EP-028 Indicadores e gargalos | Relatórios (SCR-027) e relatório detalhado (SCR-028) em read model próprio: tempo de ciclo, devoluções, cumprimento de prazo, volume e valor por secretaria e modalidade, execução do PCA, exportação; gargalos por etapa, unidade e responsável, filas, envelhecimento e comparação entre períodos. Os épicos "Indicadores" e "Gargalos" desta seção viraram um só, com uma feature para cada | `analytics` | US-170..US-177 | 46 |
+| EP-029 Plataforma e backoffice | Backoffice da plataforma (DT-07, DT-18), login gov.br (PEND-18 → DEC-207) e os débitos DT-13 a DT-16 | `tenancy`, `identity`, `access`, `audit` | US-178..US-188 | 48 |
+| EP-030 SLA | Políticas de prazo por tipo de contratação, modalidade ou valor; pausas (ex.: diligência); escalonamento; regras de notificação condicional. Evolui o prazo por etapa do MVP 1 (DEC-031), que continua sendo a base | `sla`, `notification` | US-189..US-193 | 28 |
+| EP-031 Regras condicionais | Biblioteca de regras reutilizáveis (SCR-035) com versões: roteamento (ex.: "valor acima de X exige Controle Interno"), alçadas por valor, modelos prontos, simulador e casos de teste. Evolui as regras `CONDITION` do MVP 1 (DEC-016) | `rules` | US-194..US-200 | 38 |
 
-**Capacidades habilitadoras** (decididas no gate, com ADR): etapas paralelas (DEC-014, "MVP 2+"); múltiplos aprovadores e aprovação sequencial (PEND-13); migração de processos em andamento para nova versão de workflow (postergada na DEC-014); `RuleContext` v2.
+**Capacidades habilitadoras** (decididas no detalhamento, com ADR): etapas paralelas (DEC-194, ADR-005 revisada); múltiplos aprovadores e aprovação sequencial (PEND-13 → DEC-193); migração de processos em andamento para nova versão de workflow (DEC-195, ADR-016); `RuleContext` v2 (DEC-204, ADR-015). Read model de indicadores: DEC-206, ADR-014; gov.br: DEC-207, ADR-017.
 
 ### 4.3 Telas
 
-SCR-018 PCA · SCR-019 Jurídico · SCR-020 Controle Interno · SCR-021 Edital · SCR-027 Relatórios · SCR-028 Relatório detalhado · SCR-035 Regras (biblioteca completa). A dotação não tem tela dedicada entre as 41: ocorre como etapa no Detalhe do Processo (SCR-006) e na Caixa de tarefas (SCR-013).
+SCR-018 PCA · SCR-019 Jurídico · SCR-020 Controle Interno · SCR-021 Edital · SCR-027 Relatórios · SCR-028 Relatório detalhado · SCR-035 Regras (biblioteca completa). A dotação não tem tela dedicada entre as 41: ocorre como etapa no Detalhe do Processo (SCR-006) e na Caixa de tarefas (SCR-013). Telas complementares fora das 41 (DEC-192): SCR-118 Migração de versão de workflow · SCR-119 Checklists do Controle Interno · SCR-120 Configuração do Jurídico · SCR-121 Políticas de SLA · SCR-122 Regras de notificação · SCR-123 Backoffice da plataforma ([mvp-02/screens.md](../mvp-02/screens.md)).
 
 ### 4.4 Personas atendidas
 
@@ -297,20 +301,26 @@ Planejamento (PCA), Contabilidade (dotação), Jurídico, Controle Interno, Lici
 
 ### 4.5 Entidades introduzidas
 
-- `Pca` e `PcaItem` (fixados pela DEC-029).
-- `BudgetAllocation` e `LegalReview` (nomes indicados pelo cliente; confirmar no gate).
-- A definir no gate: manifestação do Controle Interno, cabeçalho tipado do edital (módulo `tender`), políticas de SLA, biblioteca de regras e modelos de leitura analíticos.
+Fixadas no detalhamento ([mvp-02/entities.md](../mvp-02/entities.md), DEC-193 a DEC-208):
+
+- **PCA** (DEC-197): `Pca`, `PcaItem`, `PcaReconciliationRun`, `PcaReconciliationEntry`; `Process.pcaItemId` e `Dfd.pcaItemId`.
+- **Fase preparatória:** `BudgetAllocation` (DEC-198); `LegalReview`, `LegalReviewDocument`, `LegalReviewDiligence`, `LegalReviewReservation` (DEC-199); `InternalControlChecklist`, `InternalControlReview`, `InternalControlChecklistAnswer`, `InternalControlFinding` (DEC-200); `Tender`, `TenderLot`, `TenderLotItem`, `TenderRiskAllocation` (DEC-201).
+- **Workflow v2 e aprovação:** `ApprovalApprover`, `WorkflowStageApprover` (DEC-193); `ProcessBranch` (DEC-194); `WorkflowMigration`, `WorkflowMigrationItem` (DEC-195).
+- **Governança:** `RuleDefinition`, `RuleDefinitionVersion` (DEC-204); `SlaPolicy`, `SlaPolicyStage`, `NotificationRule`, `NotificationRuleExecution` (DEC-205); fatos `Analytics*` e visões `mv_analytics_*` (DEC-206).
+- **Plataforma:** `UserExternalIdentity` (DEC-207), `SupportAccessGrant` (DEC-208).
 
 ### 4.6 Integrações externas
 
-Nenhuma obrigatória. Importação do PCA por planilha. Consulta a sistemas contábeis fica para os adapters do MVP 3. A divulgação do PCA em sítio oficial (art. 12, § 1º) é feita por exportação até a publicação automatizada do MVP 3.
+Nenhuma obrigatória. Login gov.br (Login Único) federado no Authentik, opcional por tenant e dependente do credenciamento da plataforma (DEC-207). Importação do PCA por planilha. Consulta a sistemas contábeis fica para os adapters do MVP 3. A divulgação do PCA em sítio oficial (art. 12, § 1º) é feita por exportação até a publicação automatizada do MVP 3.
 
 ### 4.7 Critérios de entrada
 
 - Aprendizado do MVP 1 incorporado: uso pelo piloto desde o beta (marcos M3 e M4) e primeiras semanas de produção, com métricas coletadas.
-- Gate (§2) concluído, com ADRs para etapas paralelas (impacto em `currentStageId`, caixa de tarefas e painel situacional), múltiplos aprovadores (PEND-13) e migração de processos entre versões de workflow.
+- Gate (§2) concluído, com ADRs para etapas paralelas (impacto em `currentStageId`, caixa de tarefas e painel situacional), múltiplos aprovadores (PEND-13 → DEC-193) e migração de processos entre versões de workflow.
 - Definições com o piloto: modelo de parecer, critérios de prioridade (art. 53, § 1º, I), hipóteses de dispensa de análise (art. 53, § 5º), checklist do Controle Interno, estrutura e calendário do PCA, classificação orçamentária.
 - Decisão sobre a posição do edital e a ordem entre Jurídico e Controle Interno na nova versão do workflow padrão (lacuna L-04).
+
+**Situação (2026-11-11):** o gate, as ADRs e a L-04 (DEC-196) foram cumpridos na especificação; o aprendizado do piloto e as definições com o piloto ficaram para a Sprint 0 do MVP 2, como desvio consciente (DEC-192) — padrões semeados "a validar com o piloto" ([mvp-02/delivery-plan.md §1](../mvp-02/delivery-plan.md#1-premissas-de-planejamento)).
 
 ### 4.8 Critérios de saída
 
@@ -371,7 +381,7 @@ Licitações (publicações), Administrador do órgão (integrações, contas de
 
 ### 5.6 Integrações externas
 
-PNCP; diários oficiais; portais municipais; provedores de assinatura eletrônica (níveis definidos pela Lei 14.063/2020; ICP-Brasil quando exigido); sistemas contábeis e de protocolo via adapters; login gov.br (PEND-18), a reavaliar.
+PNCP; diários oficiais; portais municipais; provedores de assinatura eletrônica (níveis definidos pela Lei 14.063/2020; ICP-Brasil quando exigido); sistemas contábeis e de protocolo via adapters; login gov.br já no MVP 2 (DEC-207); reavaliar o uso do mesmo credenciamento para a assinatura gov.br.
 
 ### 5.7 Critérios de entrada
 
@@ -636,13 +646,13 @@ Mesmo squad do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md#1-premissa
 
 | MVP | Sprints | Semanas | Marco de saída (relativo a T0) |
 |---|---|---|---|
-| 1 | Sprint 0 + 17 de desenvolvimento + 1 de release | ≈ 38 | T0 + 38 semanas (M5) |
-| 2 | 10 | 20 | T0 + 58 semanas |
-| 3 | 8 | 16 | T0 + 74 semanas |
-| 4 | 10 | 20 | T0 + 94 semanas |
-| 5 | 8 | 16 | T0 + 110 semanas |
+| 1 | Sprint 0 + 18 de desenvolvimento + 1 de release (com o EP-020) | ≈ 40 | T0 + 40 semanas (M5) |
+| 2 | Sprint 0 + 10 de desenvolvimento + 1 de release ([plano do MVP 2](../mvp-02/delivery-plan.md#8-cenários-de-capacidade)) | ≈ 24 | T0 + 64 semanas |
+| 3 | 8 | 16 | T0 + 80 semanas |
+| 4 | 10 | 20 | T0 + 100 semanas |
+| 5 | 8 | 16 | T0 + 116 semanas |
 
-- O MVP 1 está calibrado pelo plano de entrega (584 pontos P0 + P1). As estimativas dos MVPs 2 a 5 são **ordens de grandeza**: o MVP 1 carrega a fundação técnica, a identidade, o tenant e a administração (sprints 1 a 5 do plano de entrega, 178 dos 584 pontos), que os MVPs seguintes reaproveitam. Cada estimativa será recalibrada no gate do respectivo MVP com a velocidade real medida no MVP 1.
+- O MVP 1 está calibrado pelo plano de entrega (630 pontos P0 + P1, com o EP-020) e o MVP 2 pelo seu plano (412 pontos P0 + P1, especificação de 2026-11-11). As estimativas dos MVPs 3 a 5 são **ordens de grandeza**: o MVP 1 carrega a fundação técnica, a identidade, o tenant e a administração (sprints 1 a 5 do plano de entrega, 178 dos 584 pontos), que os MVPs seguintes reaproveitam. Cada estimativa será recalibrada no gate do respectivo MVP com a velocidade real medida no MVP 1.
 - Cada gate de detalhamento (≈ 4 semanas) ocorre em paralelo às duas últimas sprints do MVP anterior, sem ociosidade do time e sem detalhar dois MVPs ao mesmo tempo.
 
 O cronograma abaixo é **ilustrativo**, com T0 hipotético em 02/11/2026 (início da Sprint 0); não representa compromisso de datas.
@@ -667,27 +677,29 @@ gantt
     M5 Release MVP 1                     :milestone, k5, 2027-08-09, 0d
     Piloto - alfa, beta e hypercare      :p1, 2027-03-08, 182d
     section MVP 2
-    Gate e detalhamento                  :g2, 2027-06-28, 28d
-    Construção 10 sprints                :m2, after m1f, 140d
-    Release MVP 2                        :milestone, r2, 2027-12-13, 0d
+    Revisão pós-UAT da especificação     :g2, 2027-07-26, 28d
+    Sprint 0                             :s20, after m1f, 14d
+    Construção 10 sprints                :m2a, after s20, 140d
+    Sprint de release                    :m2, after m2a, 14d
+    Release MVP 2                        :milestone, r2, 2028-01-24, 0d
     section MVP 3
     Credenciamento PNCP e levantamentos  :x3, 2027-08-09, 120d
-    Gate e detalhamento                  :g3, 2027-11-15, 28d
+    Gate e detalhamento                  :g3, 2027-12-27, 28d
     Construção 8 sprints                 :m3, after m2, 112d
-    Release MVP 3                        :milestone, r3, 2028-04-03, 0d
+    Release MVP 3                        :milestone, r3, 2028-05-15, 0d
     section MVP 4
-    Gate e detalhamento                  :g4, 2028-03-06, 28d
+    Gate e detalhamento                  :g4, 2028-04-17, 28d
     Construção 10 sprints                :m4, after m3, 140d
-    Release MVP 4                        :milestone, r4, 2028-08-21, 0d
+    Release MVP 4                        :milestone, r4, 2028-10-02, 0d
     section MVP 5
-    Gate e detalhamento                  :g5, 2028-07-24, 28d
+    Gate e detalhamento                  :g5, 2028-09-04, 28d
     Construção 8 sprints                 :m5, after m4, 112d
-    Release MVP 5                        :milestone, r5, 2028-12-11, 0d
+    Release MVP 5                        :milestone, r5, 2029-01-22, 0d
 ```
 
 ### 9.3 Marcos
 
-M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md#6-marcos-e-entregas-incrementais), que prevalece em caso de divergência; R2 a R5 são os releases dos MVPs seguintes, a detalhar em cada gate. Com o EP-020, o M5 passou da sprint 18 para a 19 (+2 semanas); R2 a R5 deslocam-se na mesma medida se o plano não for recomprimido — revisar no gate de cada MVP.
+M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md#6-marcos-e-entregas-incrementais), que prevalece em caso de divergência; R2 é o release do [plano do MVP 2](../mvp-02/delivery-plan.md#6-marcos-e-entregas-incrementais) (com os marcos intermediários M2.1, M2.2 e M2.3); R3 a R5 são os releases dos MVPs seguintes, a detalhar em cada gate. Com o EP-020, o M5 passou da sprint 18 para a 19 (+2 semanas); com a Sprint 0 e a sprint de release explícitas no plano do MVP 2, o R2 vai a T0 + 64 semanas e R3 a R5 deslocam-se 6 semanas.
 
 | Marco | Quando | Critério | Uso |
 |---|---|---|---|
@@ -696,15 +708,15 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 | M3 — Demanda formalizada | Fim da sprint 11 (T0 + 24 sem.) | DFD fim a fim com aprovação e PDF; comentários; auditoria consultável | Beta fechado com 1 secretaria do piloto |
 | M4 — Planejamento da contratação concluído | Fim da sprint 14 (T0 + 30 sem.) | ETP, pesquisa de preços, riscos, TR e aprovação da autoridade até `COMPLETED` | Beta ampliado no piloto |
 | M5 — Release do MVP 1 | Fim da sprint 19 (T0 + 40 sem.; +2 semanas com o EP-020 — IA para documentos) | Todos os P0 e P1; checklist de release completo; DoD do §3.9 | Produção para os pilotos (até 3 órgãos) |
-| R2 — Release do MVP 2 | T0 + 58 sem. | Critérios do §4.8 | — |
-| R3 — Release do MVP 3 | T0 + 74 sem. | Critérios do §5.8 | — |
-| R4 — Release do MVP 4 | T0 + 94 sem. | Critérios do §6.8 | — |
-| R5 — Release do MVP 5 | T0 + 110 sem. | Critérios do §7.8 | — |
+| R2 — Release do MVP 2 | T0 + 64 sem. | Critérios do §4.8 | Produção para os pilotos |
+| R3 — Release do MVP 3 | T0 + 80 sem. | Critérios do §5.8 | — |
+| R4 — Release do MVP 4 | T0 + 100 sem. | Critérios do §6.8 | — |
+| R5 — Release do MVP 5 | T0 + 116 sem. | Critérios do §7.8 | — |
 
 ### 9.4 Leituras do calendário
 
-- Com T0 em novembro de 2026, o marco M3 (demanda formalizada, beta fechado) coincide com o fim do prazo do art. 176 (abril de 2027); o release do MVP 1 ocorre no fim de julho de 2027 e a publicação automatizada (MVP 3) só chega em abril de 2028, quase um ano depois do prazo. O posicionamento comercial do MVP 1 deve enfatizar planejamento, segregação de funções e rastreabilidade, e a PEND-16 (registro manual de publicação) merece reavaliação.
-- As sprints 1 a 4 atravessam o recesso de fim de ano de 2026, não incluído no plano. O release do MVP 2 cai em dezembro de 2027: a ativação nos clientes deve ser planejada para fevereiro de 2028, depois do encerramento do exercício.
+- Com T0 em novembro de 2026, o marco M3 (demanda formalizada, beta fechado) coincide com o fim do prazo do art. 176 (abril de 2027); o release do MVP 1 ocorre no início de agosto de 2027 e a publicação automatizada (MVP 3) só chega em maio de 2028, mais de um ano depois do prazo. O posicionamento comercial do MVP 1 deve enfatizar planejamento, segregação de funções e rastreabilidade, e a PEND-16 (registro manual de publicação) merece reavaliação.
+- As sprints 1 a 4 atravessam o recesso de fim de ano de 2026, não incluído no plano. O release do MVP 2 cai no fim de janeiro de 2028: a ativação nos clientes fica para fevereiro/março de 2028, depois do encerramento do exercício. O PCA de 2028 terá sido elaborado fora da plataforma (prazo legal no primeiro semestre de 2027): os pilotos o importam por planilha e usam o módulo de ponta a ponta no PCA de 2029.
 - Os MVPs 4 e 5 chegam no período eleitoral e de transição de mandatos municipais (eleições em outubro de 2028; posse em janeiro de 2029); o planejamento comercial deve considerar a troca de patrocinadores.
 - **Cenários de capacidade** ([plano de entrega, §8](../mvp-01/delivery-plan.md#8-cenários-de-capacidade)): com squad enxuto de 4 desenvolvedores, o MVP 1 vai a ≈ 22 sprints (≈ 46 semanas), recomendando-se reduzir o escopo P1; com dois squads (10 a 11 desenvolvedores em trilhas paralelas), a ≈ 10 a 11 sprints (≈ 24 semanas). Para os MVPs 3 a 5, um segundo squad a partir do MVP 2 pode antecipar as entregas em 4 a 6 meses, respeitando o gate sequencial.
 
@@ -725,7 +737,7 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 | L-09 | Resolução do aprovador por perfil em entes com ordenação de despesa descentralizada | Com política `ANY` e perfil `AUTORIDADE_COMPETENTE` no escopo do órgão (DEC-015, DEC-022), qualquer secretário com o perfil poderia decidir processos de outra pasta | Permitir resolver o perfil no escopo da secretaria solicitante; decidir no detalhamento do MVP 1 | Produto |
 | L-10 | Situação exibida do documento durante a aprovação de etapa | Pela DEC-018, o mesmo momento aparece como "Em revisão" (documento que entra na etapa ainda em rascunho) ou "Finalizado" (documento finalizado antes, com `pendingApprovalId`) | Exibir o indicador "Em aprovação" derivado da aprovação pendente no painel e nas listas | Produto e UX |
 | L-11 | Exportação e acesso na saída do cliente | Processos são documentos públicos de guarda obrigatória; a DEC-132 aceita apenas tenants `ACTIVE` | Definir exportação completa e acesso durante `OFFBOARDING` | Produto e jurídico |
-| L-12 | Alerta de possível fracionamento de despesa (art. 75, § 1º) | Causa frequente de responsabilização | Regra no MVP 2 ou recomendação no MVP 5; requer natureza do objeto e unidade gestora bem modeladas | Produto |
+| L-12 | Alerta de possível fracionamento de despesa (art. 75, § 1º) | Causa frequente de responsabilização | Não entrou no MVP 2. Pode ser regra configurada na biblioteca do EP-031 ou recomendação no MVP 5; requer natureza do objeto e unidade gestora bem modeladas — decidir no gate do MVP 3 | Produto |
 | L-13 | Pacote normativo para empresas estatais (Lei 13.303/2016) | Estão no público-alvo, mas fora da Lei 14.133 | Avaliar após o MVP 2 | Comercial e produto |
 | L-14 | Compras compartilhadas entre entes (consórcios) | Canal estratégico para municípios pequenos | Avaliar após o MVP 4 | Produto |
 | L-15 | Integração com sistemas estaduais de prestação de contas aos tribunais | Reduz retrabalho do Controle Interno e da Contabilidade | Avaliar após o MVP 3 | Produto |
@@ -749,7 +761,7 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 
 ### 11.2 Mapa de extensão do modelo
 
-Setas indicam referência (a entidade de origem aponta para a de destino). Entidades dos MVPs 2 a 5 e suas relações são propostas.
+Setas indicam referência (a entidade de origem aponta para a de destino). As entidades do MVP 2 estão fixadas em [mvp-02/entities.md](../mvp-02/entities.md) (o diagrama mostra só as principais); as dos MVPs 3 a 5 e suas relações são propostas. `ApprovalApprover` pertence a `Approval` (fora do diagrama).
 
 ```mermaid
 flowchart LR
@@ -769,6 +781,10 @@ flowchart LR
         PCAI["PcaItem"]
         BUDG["BudgetAllocation"]
         LEGR["LegalReview"]
+        ICR["InternalControlReview"]
+        TEND["Tender"]
+        APPR["ApprovalApprover"]
+        WMIG["WorkflowMigration"]
     end
     subgraph N3["MVP 3"]
         PUBL["Publication"]
@@ -795,6 +811,10 @@ flowchart LR
     BUDG --> PROC
     LEGR --> PROC
     LEGR -->|versões analisadas| DOCV
+    ICR --> PROC
+    TEND --> PROC
+    TEND -->|itens dos lotes| PITEM
+    WMIG -->|processos migrados| PROC
     PUBL --> PROC
     PUBL -->|versão publicada| DOCV
     PUBL --> ORGN
@@ -816,20 +836,23 @@ flowchart LR
 
 ### 11.3 MVP 2
 
-| Mudança | Tipo | Estratégia | Risco |
-|---|---|---|---|
-| Criar `Pca` e `PcaItem` | Esquema | Tabelas novas no módulo `pca` | Baixo |
-| Adicionar `pcaItemId` (FK composta com tenant) em `Process` e `Dfd` | Esquema e dados | Coluna opcional; após o cadastro ou importação do PCA, job tenta resolver `pcaYear` + `pcaItemCode` para o `PcaItem` correspondente; não resolvidos mantêm a referência textual e entram no relatório de reconciliação; campos textuais preservados como histórico (DEC-029) | Médio — códigos digitados livremente |
-| Nova versão do workflow padrão com dotação, jurídico e controle interno entre `APROVACAO_AUTORIDADE` (etapa 6) e `CONCLUSAO` (etapa 7), e posição do edital a decidir (L-04) | Seed e configuração | Nova `WorkflowVersion` publicada para tenants que usam o padrão sem customização; oferta de adoção aos demais; processos em andamento permanecem na versão anterior (DEC-014) | Médio |
-| Etapas `TASK` provisórias criadas por tenants no MVP 1 (contorno do §3.2) | Dados | Mapear para as novas etapas e módulos; documentos de texto livre permanecem como histórico | Médio |
-| Etapas paralelas, se adotadas | Esquema e motor | `Process.currentStageId` deixa de representar todas as etapas ativas: introduzir coleção de etapas ativas e ajustar caixa de tarefas (DEC-026), painel situacional (DEC-180) e `ProcessAccess` | Alto — decidir por ADR |
-| Múltiplos aprovadores e aprovação sequencial (PEND-13) | Esquema | Política de decisão além de `ANY` e ordem de aprovadores em `Approval` | Médio |
-| Migração de processos em andamento para nova versão de workflow | Funcionalidade | Ferramenta com mapeamento de etapas, simulação e auditoria (postergada na DEC-014) | Alto |
-| `RuleContext` v2 | Contrato | Novos namespaces (ex.: `pca.*`, `budget.*`, `legalReview.*`) sem quebrar regras v1 | Baixo |
-| Novos tipos de documento (ex.: edital, parecer) e templates | Seed | Semeadura incremental por tenant | Baixo |
-| Novas permissões (PCA, dotação, jurídico, controle interno, edital, relatórios, regras) | Catálogo | Sincronização por migração; aplicadas aos perfis padrão não customizados e sugeridas aos customizados | Médio |
-| Status do plano e do item do PCA | Nomenclatura | `PcaStatus` já designa a situação do processo em relação ao PCA (DEC-029); usar nomes distintos para os novos status (ex.: `PcaPlanStatus`, `PcaItemStatus`) | Baixo, se decidido no gate |
-| Manifestação do Controle Interno, cabeçalho do edital, políticas de SLA e biblioteca de regras | Esquema | A definir no gate | — |
+Plano de migração fixado em [mvp-02/entities.md §10](../mvp-02/entities.md#10-migrações-expandcontract) (M2-01 a M2-23, com reversibilidade e ordem de aplicação).
+
+| Mudança | Tipo | Estratégia (decisão) | Migração | Risco |
+|---|---|---|---|---|
+| Criar `Pca`, `PcaItem` e a reconciliação | Esquema | Tabelas novas no módulo `pca`; status com nomes distintos (`PcaPlanStatus`, `PcaItemStatus`) porque `PcaStatus` continua designando a situação do processo (DEC-197) | M2-11 | Baixo |
+| Adicionar `pcaItemId` (FK composta com tenant) em `Process` e `Dfd` | Esquema e dados | Coluna opcional com `pcaLinkStatus`; job de reconciliação por `pcaYear` + `pcaItemCode` depois do plano aprovado; não resolvidos ficam `UNRESOLVED` com sugestões e entram no relatório; campos textuais preservados como histórico (DEC-029, DEC-197) | M2-11, M2-12 + job | Médio — códigos digitados livremente |
+| Nova versão do workflow padrão: `DOTACAO` → `MINUTA_EDITAL` → `JURIDICO` → `CONTROLE_INTERNO` → `AUTORIZACAO_LICITACAO` entre `APROVACAO_AUTORIDADE` e `CONCLUSAO` (L-04 resolvida) | Seed e configuração | Publicada automaticamente só para tenants sem customização; oferta de adoção aos demais; processos em andamento ficam na versão anterior até uma migração pedida (DEC-196) | M2-21 (NR para versões publicadas) | Médio |
+| Etapas `TASK` provisórias criadas por tenants no MVP 1 | Dados | Entram no mapa de etapas da migração; documentos de texto livre ficam como histórico (DEC-196) | Migração por tenant (DEC-195) | Médio |
+| Etapas paralelas | Esquema e motor | `PARALLEL_SPLIT`/`PARALLEL_JOIN`, `ProcessBranch`, várias `ProcessStage` ativas, troca dos índices únicos; `currentStageId` mantido por compatibilidade e `activeStages[]` aditivo (DEC-194) | M2-04 a M2-06 | Alto — *down* só antes do primeiro ramo |
+| Múltiplos aprovadores e aprovação sequencial (PEND-13 → DEC-193) | Esquema e dados | `decisionPolicy` e `ApprovalApprover`; backfill de uma linha por aprovação existente; colunas legadas de aprovador único mantidas até o MVP 3 (DT-21) | M2-02, M2-03 (contract M2-22 no MVP 3) | Médio |
+| Migração de processos em andamento para nova versão de workflow | Funcionalidade | Plano, simulação obrigatória, decisões humanas e execução assíncrona auditada; sem reversão automática (DEC-195, ADR-016) | M2-07, M2-08 | Alto |
+| `RuleContext` v2 e biblioteca de regras | Contrato e esquema | Namespaces `pca.*`, `budget.*`, `legalReview.*`, `internalControl.*`, `tender.*`, `sla.*`; regras v1 avaliadas com o contexto v1 (DEC-204) | M2-04, M2-09 | Baixo |
+| Novos tipos de documento (`PARECER_JURIDICO`, `EDITAL`, `MINUTA_CONTRATO`, `MANIFESTACAO_CONTROLE_INTERNO`), templates v2 e checklist | Seed | Semeadura incremental por tenant, idempotente por `TenantSeeder.version` | M2-21 | Baixo |
+| Novas permissões (PCA, dotação, jurídico, controle interno, edital, relatórios, regras, SLA, migração) | Catálogo | Sincronização por migração; aplicadas aos perfis padrão não customizados e sugeridas aos customizados ([mvp-02/permissions.md](../mvp-02/permissions.md)) | Migração de catálogo (DEC-134) | Médio |
+| Dotação, edital, jurídico, controle interno, SLA, notificação condicional | Esquema | Tabelas novas nos módulos `budget`, `tender`, `legal-review`, `internal-control`, `sla`, `notification` (DEC-198 a DEC-201, DEC-205) | M2-10, M2-13 a M2-16, M2-18 | Baixo |
+| Read model de indicadores | Esquema e job | Tabelas de fatos e visões materializadas; carga inicial pelo `REBUILD` por tenant e reconciliação noturna (DEC-206, ADR-014) | M2-19 + job | Médio |
+| gov.br, acesso de suporte, débitos DT-13 e DT-15 | Esquema | `UserExternalIdentity`, `SupportAccessGrant`, `Role.deactivatedAt`, campos de biblioteca nos templates (DEC-207 a DEC-209) | M2-20 | Baixo |
 
 ### 11.4 MVP 3
 

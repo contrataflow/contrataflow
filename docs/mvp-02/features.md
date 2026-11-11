@@ -249,7 +249,7 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 ## Apêndice A — Telas do MVP 2
 
-Telas reservadas do roadmap (§4.3 e §8) e telas complementares `SCR-118+` (fora das 41). Rotas web em pt-BR (DEC-001). Rotas e layout finais ficam em [screens.md](screens.md) (card 9 da especificação); os IDs abaixo são canônicos.
+Telas reservadas do roadmap (§4.3 e §8) e telas complementares `SCR-118+` (fora das 41). Rotas web em pt-BR (DEC-001). Rotas e layout finais estão em [screens.md](screens.md); os IDs abaixo são canônicos.
 
 | ID | Tela | Rota indicativa | Stories principais |
 |---|---|---|---|

@@ -340,4 +340,4 @@ Nenhum critério de aceite do MVP 2 está bloqueado por pendência; os itens aba
 | **PEND-03** — reabertura de processo `COMPLETED` | Só pela continuação na v2 (US-131), com justificativa; reabertura genérica continua fora | US-131 | Produto |
 | **Lacunas nas fontes canônicas** (549 itens em 72 stories, coluna "Lacunas" do §4) | Cada story propõe o detalhe fino (faixas de valores, códigos de erro de campo, nomes de função, caches) e o registra na seção "Dependências" ou "Impacto técnico" | A própria story; decidir no refinamento da sprint e atualizar a story e o `api/*.md` do módulo | Tech lead + produto |
 
-PEND-12 (edição colaborativa em tempo real) e PEND-16 (registro de publicação) estão **fora** do MVP 2 (DEC-210) e não afetam nenhum critério; PEND-13, PEND-18 e PEND-22 foram resolvidas (DEC-193, DEC-207 e DEC-209/DEC-210).
+PEND-12 (edição colaborativa em tempo real) e PEND-16 (registro de publicação) estão **fora** do MVP 2 (DEC-210) e não afetam nenhum critério; PEND-13, PEND-18 e PEND-22 foram resolvidas (DEC-193, DEC-207 e DEC-203).

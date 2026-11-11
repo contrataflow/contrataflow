@@ -593,7 +593,7 @@
 | MVP | Tarefas |
 |---|---|
 | 1 | Decidir aprovações: aprovar, devolver com motivo ou indeferir com justificativa; abrir os documentos na versão exata coberta pela aprovação; acompanhar o dashboard; o substituto decide quando permitido (`allowDeputy`) |
-| 2 | Aprovações com múltiplos aprovadores (PEND-13); aprovar o PCA e o edital |
+| 2 | Aprovações com múltiplos aprovadores (PEND-13 → DEC-193); aprovar o PCA e o edital |
 | 3 | Assinar eletronicamente atos e contratos |
 | 4 | Decidir aditivos e prorrogações |
 | 5 | Ler o resumo assistido do processo antes de decidir |

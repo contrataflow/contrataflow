@@ -29,7 +29,7 @@ Esta story entrega a fundação do EP-020: o módulo `ai` (nível 5, só fachada
 - Produto (DEC-037, prd-3): rascunhos e ajustes de DFD, ETP, mapa de riscos e TR com IA, sempre revisados e aprovados por uma pessoa. Princípio 16: a IA nunca aprova, encaminha, publica nem decide.
 - Arquitetura (DEC-079): módulo `ai` no MVP 1, regra D9 (nunca executa comando de outro contexto; dependency-cruiser `ai-read-only`); chamada de IA nunca dentro de transação nem da requisição HTTP; aplicação do conteúdo é comando do módulo dono (`document`, `risk`) lido pela porta `AiSuggestionSource`.
 - LGPD e sigilo (DEC-140, DEC-030): o provedor é um subprocessador externo; só sai dado do próprio tenant, minimizado, e nunca valor de orçamento sigiloso.
-- O provedor real depende da ADR-013 (PEND-21): até a decisão, só a porta, o `FakeAiProvider`, os testes de contrato e o harness `pnpm ai:eval` (que apoia a escolha). O modelo de custo para o cliente é PEND-22 (padrão: sem cobrança; custo registrado por geração).
+- O provedor real depende da ADR-013 (PEND-21): até a decisão, só a porta, o `FakeAiProvider`, os testes de contrato e o harness `pnpm ai:eval` (que apoia a escolha). O modelo de custo para o cliente é PEND-22 → DEC-203 (padrão: sem cobrança; custo registrado por geração).
 - Depende da projeção da timeline (US-059), do ciclo de vida do documento (US-065), da auditoria transacional (US-073), do worker e filas (US-083) e da autorização (US-097).
 
 ## Objetivo
@@ -288,7 +288,7 @@ Feature: Camada de IA com registro e rastreabilidade das gerações
 
 ## Dependências
 - **Stories:** US-059 (projeção `AI_CONTENT_GENERATED`), US-065 (estado e tipo editáveis do documento), US-073 (auditoria transacional), US-083 (worker, filas, retries), US-097 (autorização). Habilita: US-116 (portão do órgão), US-117 a US-121 (geradores), US-122 (GroundingGuard e `toConfirm`). Indiretas: US-103, US-111.
-- **Decisões/ADRs:** DEC-017, DEC-030, DEC-037, DEC-056, DEC-076, DEC-079, DEC-105, DEC-137, DEC-140, DEC-163, DEC-164, DEC-184; ADR-013 (PEND-21); PEND-22.
+- **Decisões/ADRs:** DEC-017, DEC-030, DEC-037, DEC-056, DEC-076, DEC-079, DEC-105, DEC-137, DEC-140, DEC-163, DEC-164, DEC-184; ADR-013 (PEND-21); PEND-22 → DEC-203.
 - **Configurações:** `AI_PROVIDER`, `AI_MODEL_DRAFT`, `AI_MODEL_SECTION`, `AI_REQUEST_TIMEOUT_MS`, tabela de preços versionada por modelo (plataforma, por ambiente). `AI_TENANT_MAX_MONTHLY_TOKENS`, `AI_TERMS_VERSION` e `ai.*` são da US-116.
 - **Lacunas nas fontes canônicas:**
   1. *(Resolvida em queues.md §4 e §4.5.1, 2026-10-16.)* Fila `ai-generation` e tarefas `ai-proposals-expire` e `ai-generations-timeout` da `maintenance`.

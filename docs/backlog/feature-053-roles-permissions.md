@@ -45,7 +45,7 @@ Entrega o RBAC completo do ContrataFlow: o catálogo global de 68 permissões e 
 
 ## Fora de escopo
 - Permissões por participação no processo além do conjunto fixo já definido em permissions.md §4 (não é editável pelo tenant).
-- Múltiplos aprovadores/decisão sequencial (PEND-13, módulo `workflow`).
+- Múltiplos aprovadores/decisão sequencial (PEND-13 → DEC-193, módulo `workflow`).
 
 ## Regras de negócio da feature
 - **Catálogo e seeder (US-094, RN-IAM-74 a 78):** o seeder `access.defaultRoles` cria os 15 perfis em uma única transação no provisionamento, com `ADMIN_ORGAO` sempre `isProtected = true` e `AUDITOR`/`CONSULTOR_EXTERNO` sempre `allowExternalAssignment = true`; é idempotente (upsert por `(tenantId, key)`), e `GET /permissions` (`ROL-01`) lista o catálogo completo, somente leitura.

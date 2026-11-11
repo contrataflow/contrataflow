@@ -73,7 +73,7 @@ flowchart TB
         PNCP["PNCP<br/>publicação (MVP 3)"]
         DO["Diários Oficiais<br/>publicação (MVP 3)"]
         SIG["Assinatura eletrônica<br/>ICP-Brasil / gov.br (MVP 3)"]
-        GOVBR["Login gov.br<br/>federação via Authentik (PEND-18)"]
+        GOVBR["Login gov.br<br/>federação via Authentik (PEND-18 → DEC-207)"]
         AI["Provedores de IA<br/>OpenAI, Anthropic, Azure OpenAI (MVP 5)"]
     end
 
@@ -1225,7 +1225,7 @@ Caminho: *strangler* — a fachada vira cliente HTTP/gRPC, eventos passam a sair
 
 | MVP | Módulos | Nível no grafo (§3.3) | Impacto arquitetural |
 |---|---|---|---|
-| 2 — Governança e Controle | `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics`, `rules` | `pca`, `budget`, `rules` no nível 2; `legal-review`, `internal-control`, `tender` no nível 4; `sla`, `analytics` no nível 5 | Etapas paralelas e múltiplos aprovadores (PEND-13) mudam `ProcessStage`/`Approval`; `RuleContext` v2; `analytics` lê *views* e, se necessário, réplica de leitura |
+| 2 — Governança e Controle | `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics`, `rules` | `pca`, `budget`, `rules` no nível 2; `legal-review`, `internal-control`, `tender` no nível 4; `sla`, `analytics` no nível 5 | Etapas paralelas e múltiplos aprovadores (PEND-13 → DEC-193) mudam `ProcessStage`/`Approval`; `RuleContext` v2; `analytics` lê *views* e, se necessário, réplica de leitura |
 | 3 — Integrações e Publicação | `publication`, `signature`, `integration`, `public-api`, `webhook` | Nível 4/5 | API pública exposta (CORS, OAuth client credentials, contas `SERVICE`), filas `webhooks`, segredos de integração criptografados (DEC-086), `PncpProvider` (DEC-001); `PUBLISHED` alcançável |
 | 4 — Gestão Contratual | `contract` | Nível 4 (agregado `Contract` próprio, referencia `Process` e `Supplier`) | Novo agregado central da fase contratual; alertas agendados de vencimento |
 | 5 — Inteligência e IA | `ai` | Nível 5 (consome eventos e fachadas de leitura) | Fila `ai`, `pgvector`, camada `AiProvider` (§14.3) |

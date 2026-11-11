@@ -223,7 +223,7 @@
 | Decisão | `ApprovalDecision`; rota `/approvals/{id}/decide` | Aprovar, devolver ou indeferir. | DEC-022 |
 | Aprovador | resolução `USER`, `ROLE` (no escopo) ou `DEPARTMENT_HEAD` | Quem pode decidir; resolvido e gravado no momento da solicitação. | DEC-022 |
 | Substituto | `deputyUserId`; `allowDeputy` | Substituto da unidade, que pode decidir quando permitido. | DEC-022 |
-| Política de decisão | `ANY` | Um aprovador decide. Múltiplos aprovadores e aprovação sequencial: MVP 2. | DEC-022; PEND-13 |
+| Política de decisão | `ANY` | Um aprovador decide. Múltiplos aprovadores e aprovação sequencial: MVP 2. | DEC-022; PEND-13 → DEC-193 |
 | Segregação de funções | `approval.preventSelfApproval` (padrão `true`) | O autor de um documento coberto não pode aprová-lo. | Art. 5º; art. 7º, § 1º; DEC-022 |
 | Aprovação pendente de documento finalizado | `pendingApprovalId` | Indica que um documento `FINALIZED` está sob aprovação de etapa; a situação do documento não muda durante a análise. | DEC-018 |
 | Indeferimento | `REJECT` | Por padrão, o processo volta à etapa de origem como `RETURNED`, o documento fica `REJECTED` e o sistema sugere o cancelamento. | PEND-02 |

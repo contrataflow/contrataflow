@@ -100,7 +100,7 @@ Reduzir o tempo e a dificuldade de elaborar DFD, ETP, mapa de riscos e TR. A pes
 ## Regras configuráveis
 - `ai.enabled` — liga a IA no órgão (padrão desligado; exige aceite dos termos).
 - `ai.termsAcceptedVersion` — versão dos termos aceita.
-- `ai.monthlyTokenLimit` — limite mensal do órgão (padrão 2.000.000 tokens; PEND-22).
+- `ai.monthlyTokenLimit` — limite mensal do órgão (padrão 2.000.000 tokens; PEND-22 → DEC-203).
 - `ai.userDailyRequestLimit` — gerações por usuário por dia (padrão 40).
 - Matriz de perfis — quem tem `AI_GENERATE`.
 - Templates do órgão — seções, orientações, base legal e `aiHints` usados pelos prompts.
@@ -136,7 +136,7 @@ Reduzir o tempo e a dificuldade de elaborar DFD, ETP, mapa de riscos e TR. A pes
 
 ## Pontos em aberto
 - PEND-21 — Provedor e modelo de IA (ADR-013).
-- PEND-22 — Modelo de custo (incluído no plano × por uso) e limites padrão.
+- PEND-22 → DEC-203 — Modelo de custo (incluído no plano × por uso) e limites padrão.
 
 ## Definition of Done do épico
 - [ ] Todas as features concluídas

@@ -515,7 +515,7 @@ Convenções: **raiz** em negrito; "internas" são entidades sem identidade fora
   1. Sujeito coerente com `subjectType`; no máximo uma `PENDING` por etapa e por documento.
   2. Aprovador resolvido e **gravado** na solicitação; para `ROLE`, apenas detentores cuja atribuição cubra a unidade solicitante (DEC-022); muda somente por redirecionamento (DOM-10).
   3. Decide apenas o designado com `APPROVAL_DECIDE` (POL-03); substituto só com `allowDeputy`; segregação de funções (`approval.preventSelfApproval`); nenhuma decisão com processo `SUSPENDED`.
-  4. `decisionComment` ≥ 10 caracteres em `RETURN`/`REJECT`; estados finais imutáveis; `ApprovalDocument` congela as versões exatas cobertas; política `ANY` (PEND-13).
+  4. `decisionComment` ≥ 10 caracteres em `RETURN`/`REJECT`; estados finais imutáveis; `ApprovalDocument` congela as versões exatas cobertas; política `ANY` (PEND-13 → DEC-193).
 
 #### `document`
 - **`DocumentType`**: `code` imutável e único; `STRUCTURED` ⇔ `systemModule`; `requiresApproval` ⇒ `approvalPolicy`; tipos de sistema não excluíveis; tipos estruturados com `allowMultiplePerProcess = false`.

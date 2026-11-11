@@ -323,18 +323,34 @@ Observações:
 
 ## 9. Itens postergados
 
+> Situação atualizada em 2026-11-11, no fechamento da especificação do MVP 2 (prd-7). Datas = commit de entrega (`git log --grep "Refs: US-NNN"`); destino do MVP 2 conforme [mvp-02/delivery-plan.md](../mvp-02/delivery-plan.md).
+
+**Stories P2 do MVP 1 — todas entregues na estabilização:**
+
+| Story | Título | Situação |
+|---|---|---|
+| US-003 | Visões salvas e exportação CSV | Entregue em 2026-10-17 |
+| US-007 | Etiquetas do processo | Entregue em 2026-10-17 |
+| US-018 | Duplicar DFD | Entregue em 2026-10-18 |
+| US-028 | Importar cotações por planilha | Entregue em 2026-10-19 |
+| US-046 | Diagrama do workflow | Entregue em 2026-10-16 |
+| US-058 | Ações em lote na caixa | Entregue em 2026-10-20 |
+| US-070 | Indicador de edição concorrente | Entregue em 2026-10-19 |
+| US-113 | Preferências de notificação | Entregue em 2026-10-16 |
+
+**Demais itens:**
+
 | Item | Motivo | Destino |
 |---|---|---|
-| Stories P2 (US-003, US-007, US-018, US-028, US-046, US-058, US-070, US-113) | Não bloqueiam o planejamento da contratação | Pós-release do MVP 1 (sprints de estabilização) |
-| Migração de processos em andamento para nova versão de workflow | Complexidade e risco (DEC-014) | MVP 2 (junto com regras condicionais) |
-| Etapas paralelas e aprovação com múltiplos aprovadores | PEND-13 | MVP 2 |
-| Edição colaborativa em tempo real | PEND-12 | Avaliar após MVP 2 |
-| Painel de backoffice da plataforma (UI) | Provisionamento por CLI/API atende os pilotos | MVP 2 |
-| Registro manual de publicação / status `PUBLISHED` | PEND-16 | MVP 3 |
+| Migração de processos em andamento para nova versão de workflow | Complexidade e risco (DEC-014) | **Especificado no MVP 2** — DEC-195, US-126..US-128 (DT-02) |
+| Etapas paralelas e aprovação com múltiplos aprovadores | PEND-13 → DEC-193 | **Especificado no MVP 2** — DEC-193, DEC-194, US-123..US-125 e US-132..US-136 (DT-03) |
+| Edição colaborativa em tempo real | PEND-12 | Avaliar após o MVP 2 (DEC-210) |
+| Painel de backoffice da plataforma (UI) | Provisionamento por CLI/API atende os pilotos | **Especificado no MVP 2** — DEC-208, US-178..US-181 (DT-07, DT-18) |
+| Registro manual de publicação / status `PUBLISHED` | PEND-16 | MVP 3 (DEC-210) |
 | Assinatura eletrônica dos documentos | Escopo do MVP 3 | MVP 3 |
 | Importação de catálogo CATMAT/CATSER e consulta ao painel de preços | Integrações externas | MVP 3/MVP 5 |
-| Recalcular prazos em aberto após alteração de feriados | P2 (documentado em US-106) | Pós-release |
-| Conversão DOCX → PDF para pré-visualização | P2 (documentado em US-064) | Pós-release |
-| Geração por IA de parecer jurídico e edital | Os documentos ainda não existem (DEC-037) | MVP 2 |
+| Recalcular prazos em aberto após alteração de feriados | P2 (documentado em US-106) | Continua postergado — sem story no MVP 2 |
+| Conversão DOCX → PDF para pré-visualização | P2 (documentado em US-064) | Continua postergado — sem story no MVP 2 |
+| Geração por IA de parecer jurídico e edital | Os documentos ainda não existem (DEC-037) | **Especificado no MVP 2** — DEC-202, US-157 e US-169 |
 | Validações cruzadas por IA, saúde do processo, recomendações, benchmark e busca semântica | Escopo do MVP 5 (DEC-037) | MVP 5 |
-| Escolha de provedor de IA por órgão | Um provedor por ambiente no MVP 1 (ADR-013) | Avaliar após o MVP 1 |
+| Escolha de provedor de IA por órgão | Um provedor por ambiente no MVP 1 (ADR-013) | Avaliar após o MVP 1 (DT-19) |

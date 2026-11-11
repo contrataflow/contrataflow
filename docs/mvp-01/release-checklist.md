@@ -47,12 +47,13 @@ Consolidado em [delivery-plan.md §9](delivery-plan.md#9-itens-postergados). Res
 
 | Categoria | Itens |
 |---|---|
-| Stories P2 do MVP 1 | US-003, US-007, US-018, US-028, US-046, US-058, US-070, US-113 |
-| Para o MVP 2 | Migração de processos entre versões de workflow; etapas paralelas; múltiplos aprovadores; backoffice de plataforma; login gov.br; PCA, dotação, jurídico, controle interno, edital, SLA avançado, indicadores |
+| Stories P2 do MVP 1 | US-003, US-007, US-018, US-028, US-046, US-058, US-070, US-113 — **todas entregues entre 2026-10-16 e 2026-10-20** (datas em [delivery-plan.md §9](delivery-plan.md#9-itens-postergados)) |
+| Para o MVP 2 | Migração de processos entre versões de workflow; etapas paralelas; múltiplos aprovadores; backoffice de plataforma; login gov.br; PCA, dotação, jurídico, controle interno, edital, SLA avançado, indicadores — **especificados em 2026-11-11** ([mvp-02/](../mvp-02/README.md), US-123..US-200) |
 | Para o MVP 3 | Publicações (PNCP, Diário Oficial), status `PUBLISHED`, assinatura eletrônica, PDF/A, API pública, webhooks, catálogos externos |
 | Para o MVP 4 | Contratos, fiscalização, medições, ocorrências, aditivos, vencimentos |
 | Para o MVP 5 | Assistente de IA, validação automática por IA, busca semântica, benchmark de preços, previsão de atraso |
-| Débitos técnicos | DT-01 a DT-12 ([risks-and-decisions.md §6](risks-and-decisions.md#6-débitos-técnicos-assumidos)) |
+| Ainda postergados (P2 de stories entregues) | Recalcular prazos em aberto após alteração de feriados (US-106); conversão DOCX → PDF para pré-visualização (US-064) |
+| Débitos técnicos | DT-01 a DT-20 ([risks-and-decisions.md §6](risks-and-decisions.md#6-débitos-técnicos-assumidos)); o MVP 2 paga DT-02, DT-03, DT-07 e DT-13 a DT-18 |
 
 ## 3. Checklist de release
 

@@ -26,7 +26,7 @@ Configurar a IA no órgão: ativação, limites e consumo
 A IA é opt-in: nasce desligada em todo órgão. Esta story entrega a seção "Inteligência artificial" em Configurações gerais (SCR-041) com as chaves `ai.*`, o aceite dos termos de uso, o limite mensal de tokens (com reserva por pedido) e o limite diário de pedidos por usuário, a permissão `AI_GENERATE` no catálogo e nos perfis semeados, a política POL-18 completa (`AI-05` informa se o usuário pode gerar; `AI-06` mostra o consumo) e o aviso de 80% e 100% do limite mensal. Implementa o portão do órgão (`AiTenantGate`) que a US-115 deixa como porta obrigatória.
 
 ## Contexto
-- DEC-037 e DEC-079: a IA é governada pelo órgão — liga/desliga a qualquer momento, com limite de uso. PEND-22: padrão adotado é limite técnico de tokens por órgão, sem cobrança; o custo (`costUsd`) é só registrado, por geração.
+- DEC-037 e DEC-079: a IA é governada pelo órgão — liga/desliga a qualquer momento, com limite de uso. PEND-22 → DEC-203: padrão adotado é limite técnico de tokens por órgão, sem cobrança; o custo (`costUsd`) é só registrado, por geração.
 - LGPD (DEC-140): o provedor é subprocessador; os termos informam finalidade, provedor, dados enviados, transferência internacional, não uso para treinamento e responsabilidade humana pelo conteúdo. A versão aceita fica registrada (`ai.termsAcceptedVersion`).
 - Configurações do tenant seguem o registro de US-103 (SET-01/02/03, `SETTINGS_MANAGE`, risco `H`, POL-14); a matriz de perfis é editável em US-095, e o catálogo/perfis padrão nascem em US-094.
 
@@ -237,7 +237,7 @@ Feature: Configurar a IA no órgão: ativação, limites e consumo
 
 ## Dependências
 - **Stories:** US-115 (`AiGeneration`, porta `AiTenantGate`, worker), US-103 (registro de configurações, SET-01/02/03, cache), US-094 (catálogo e perfis padrão), US-111 (central de notificações e tipos). Indiretas: US-095 (matriz de permissões), US-097. Habilita: US-117 a US-121 (disponibilidade e limites antes de gerar).
-- **Decisões/ADRs:** DEC-037, DEC-076, DEC-079, DEC-140, DEC-164; ADR-013 (PEND-21); PEND-22 (modelo de custo e limites padrão); POL-14, POL-18.
+- **Decisões/ADRs:** DEC-037, DEC-076, DEC-079, DEC-140, DEC-164; ADR-013 (PEND-21); PEND-22 → DEC-203 (modelo de custo e limites padrão); POL-14, POL-18.
 - **Configurações:** `ai.enabled`, `ai.termsAcceptedVersion`, `ai.monthlyTokenLimit`, `ai.userDailyRequestLimit` (por tenant, nenhuma pública); `AI_TENANT_MAX_MONTHLY_TOKENS`, `AI_TERMS_VERSION` (plataforma).
 - **Lacunas nas fontes canônicas:**
   1. *(Resolvida na DEC-079 e em api/14-tenant-administration.md, 2026-10-16.)* SET-01 devolve `meta.aiTerms = { currentVersion, provider }`; o texto dos termos fica versionado no repositório com `AI_TERMS_VERSION`.

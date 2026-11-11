@@ -90,23 +90,23 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | ID | Débito | Motivo | Quando pagar |
 |---|---|---|---|
 | DT-01 | Caixa de tarefas como consulta (sem read model) | Simplicidade (DEC-026) | Quando p95 > 500 ms em produção |
-| DT-02 | Sem migração de processos em andamento entre versões de workflow | Complexidade/risco (DEC-014) | MVP 2 |
-| DT-03 | Uma etapa ativa por processo (sem paralelismo) e aprovação `ANY` | Escopo (PEND-13) | MVP 2 |
+| DT-02 | Sem migração de processos em andamento entre versões de workflow | Complexidade/risco (DEC-014) | MVP 2 — US-126..US-128 (DEC-195) |
+| DT-03 | Uma etapa ativa por processo (sem paralelismo) e aprovação `ANY` | Escopo (PEND-13 → DEC-193) | MVP 2 — US-123..US-125, US-132..US-136 (DEC-193, DEC-194) |
 | DT-04 | Busca apenas com PostgreSQL FTS + trigram | Suficiente para MVP 1 (DEC-057) | MVP 5 (semântica) |
 | DT-05 | Selagem de auditoria sem carimbo de tempo externo (TSA/ICP) | Custo × benefício | MVP 3 (assinatura) |
 | DT-06 | PDF comum (não PDF/A) | PEND-09 | MVP 3 |
-| DT-07 | Provisionamento de tenant sem UI de backoffice | Pilotos poucos | MVP 2 |
+| DT-07 | Provisionamento de tenant sem UI de backoffice | Pilotos poucos | MVP 2 — US-178, US-179 (DEC-208) |
 | DT-08 | Tratamento mínimo de *bounces* de e-mail (sem webhook do SES; `emailError` atualizado pelo suporte — US-112) | Volume baixo | Pós-release |
 | DT-09 | Sem chave KMS por tenant | Recurso enterprise | Sob demanda comercial |
 | DT-10 | Feature flags simples por tenant (sem rollout percentual) | DEC-059 | Quando houver dezenas de tenants |
 | DT-11 | Presença de edição e preferências de notificação como P2 | Escopo | Pós-release |
 | DT-12 | Sem importação de CATMAT/CATSER (código digitado) | Integração externa | MVP 3/5 |
-| DT-13 | Sem reativação de perfil desativado (alternativa: duplicar — ROL-07) | Escopo (US-095) | MVP 2 |
-| DT-14 | Quebra do selo de auditoria só por alerta operacional (A21), sem `NotificationType` ao `ADMIN_ORGAO`/`AUDITOR` | Escopo (US-074) | MVP 2 |
-| DT-15 | Atualização da biblioteca padrão de templates por adoção manual (sem diff por `contentHash`) | Escopo (US-110) | MVP 2 |
-| DT-16 | Lote da caixa de tarefas fixo em 2–50 itens (não configurável por tenant) | Simplicidade (US-058) | Avaliar no MVP 2 |
-| DT-17 | `Approval.dueAt` nulo em submissões avulsas de documento | Escopo (US-051) | MVP 2 (prazo por `DocumentType`) |
-| DT-18 | Acesso de suporte da plataforma (DEC-139) sem tela no MVP 1 (operação pela CLI/API de plataforma, auditada) | Pilotos poucos (DT-07) | MVP 2 |
+| DT-13 | Sem reativação de perfil desativado (alternativa: duplicar — ROL-07) | Escopo (US-095) | MVP 2 — US-185 (DEC-209) |
+| DT-14 | Quebra do selo de auditoria só por alerta operacional (A21), sem `NotificationType` ao `ADMIN_ORGAO`/`AUDITOR` | Escopo (US-074) | MVP 2 — US-186 (DEC-209) |
+| DT-15 | Atualização da biblioteca padrão de templates por adoção manual (sem diff por `contentHash`) | Escopo (US-110) | MVP 2 — US-187 (DEC-209) |
+| DT-16 | Lote da caixa de tarefas fixo em 2–50 itens (não configurável por tenant) | Simplicidade (US-058) | MVP 2 — US-188 (DEC-209) |
+| DT-17 | `Approval.dueAt` nulo em submissões avulsas de documento | Escopo (US-051) | MVP 2 — US-137 (prazo por `DocumentType`, DEC-209) |
+| DT-18 | Acesso de suporte da plataforma (DEC-139) sem tela no MVP 1 (operação pela CLI/API de plataforma, auditada) | Pilotos poucos (DT-07) | MVP 2 — US-180 (DEC-208) |
 | DT-19 | Um provedor de IA por ambiente (sem escolha por órgão) | Escopo (ADR-013) | Quando um cliente exigir inferência no Brasil ou outro provedor |
 | DT-20 | Qualidade do texto gerado medida fora do CI (`pnpm ai:eval`, avaliação humana) | Não determinismo do modelo | Automatizar uma avaliação com nota mínima no MVP 5 |
 
@@ -146,7 +146,7 @@ Escala: **Probabilidade** e **Impacto** em Baixa/Média/Alta.
 | A-30 | "A IA preenche o documento inteiro" (prd-3) | Preenche as **seções narrativas** do template do órgão; campos tipados, itens, quantidades, alternativas, decisões e valores continuam com as pessoas e com a pesquisa de preços. No mapa de riscos, inclui riscos e tratamentos estruturados (sem responsável, prazo ou valor) | DEC-037, US-117..US-120 |
 | A-31 | "O órgão pode desligar a IA" | IA **opt-in**: padrão desligado, ligada pelo administrador com aceite dos termos de uso (LGPD e transferência internacional); pode ser desligada a qualquer momento | DEC-037, US-116 |
 | A-32 | "Identificado como gerado por IA até ser revisado" | Proveniência por seção (e por risco) com revisão humana explícita; documento não é finalizado, submetido nem encaminhado com conteúdo não revisado; a marca não é impressa na versão final (fica nos metadados da versão, na auditoria e na timeline) | US-122 |
-| A-33 | "Limite de uso" | Tokens por mês por órgão (com reserva no pedido) e gerações por dia por usuário; custo registrado por geração; cobrança em PEND-22 | US-116, PEND-22 |
+| A-33 | "Limite de uso" | Tokens por mês por órgão (com reserva no pedido) e gerações por dia por usuário; custo registrado por geração; cobrança em PEND-22 → DEC-203 | US-116, PEND-22 → DEC-203 |
 | A-34 | TR: alínea *j* (adequação orçamentária) sem chave canônica | Seção adicional `BUDGET_ADEQUACY` (`REQUIRED_OR_JUSTIFY`) semeada pela biblioteca; dotação estruturada no MVP 2 (`BudgetAllocation`). A biblioteca do TR também passou a semear `DELIVERY` como `REQUIRED_OR_JUSTIFY` e `render` `ITEMS_TABLE`/`ESTIMATED_VALUE` em `SPECIFICATIONS`/`ESTIMATED_VALUE` (versão 2026.10.4) | US-036, US-110 |
 | A-35 | TR: justificativa do valor `MANUAL` | Sem campo próprio: a justificativa e a memória do valor ficam na narrativa da seção `ESTIMATED_VALUE` (cobrada na validação — US-039). `MANUAL` desvincula a pesquisa (`priceResearchId = null`); a pesquisa concluída continua indicada no TRM-03 (`completedPriceResearch`) para o aviso de precedência (DEC-032) | US-036 |
 | A-36 | TR: sigilo do documento | Com orçamento sigiloso o TR nasce `RESTRICTED` (contém o valor estimado), como a pesquisa de preços (DEC-030); a reclassificação quando o sigilo muda é da US-013 | US-036, DEC-030 |
@@ -165,16 +165,16 @@ Lista viva baseada em [decisions.md §10](../architecture/decisions.md#10-decis�
 | PEND-08 | Imagens no editor rico | Não | Sprint 9 |
 | PEND-09 | PDF/A | Não no MVP 1 | MVP 3 |
 | PEND-11 | Comentários restritos por unidade | Não | Sprint 10 |
-| PEND-12 | Edição colaborativa em tempo real | Não | MVP 2 |
-| PEND-13 | Múltiplos aprovadores | Não (`ANY`) | MVP 2 |
+| PEND-12 | Edição colaborativa em tempo real | Não | Avaliar após o MVP 2 (DEC-210) |
+| PEND-13 | Múltiplos aprovadores | Não (`ANY`) | **Resolvida — DEC-193** (MVP 2, 2026-11-10) |
 | PEND-14 | Semântica de origem/código interno | Ver A-01/A-02 | Sprint 5 |
-| PEND-16 | Registro manual de publicação | Não | Sprint 14 |
-| PEND-17 | Planos comerciais e limites | Limites técnicos padrão | Antes do go-live |
-| PEND-18 | Login gov.br | Fora do MVP 1 | MVP 2 |
+| PEND-16 | Registro manual de publicação | Não | MVP 3 (DEC-210) |
+| PEND-17 | Planos comerciais e limites | Limites técnicos padrão | Decisão comercial, fora do MVP 2 (DEC-210) |
+| PEND-18 | Login gov.br | Fora do MVP 1 | **Resolvida — DEC-207** (MVP 2, 2026-11-10) |
 | PEND-19 | Prioridade do processo após aprovação do DFD | `Dfd.priority` prevalece (RN-DFD-66) | Antes da sprint do EP-002 |
 | PEND-20 | Organização e times do GitHub (CODEOWNERS) | Times provisórios de DEC-062 | Antes da US-079 (proteção de branch) |
 | PEND-21 | Provedor e modelo de IA (ADR-013) | Camada agnóstica + `FakeAiProvider`; recomendação Anthropic Claude via Amazon Bedrock (`sa-east-1`) — sem decisão | Início da sprint 16 (US-115) |
-| PEND-22 | Modelo de custo da IA e limites padrão | Sem cobrança; 2.000.000 tokens/mês por órgão; 40 gerações/dia por usuário | Antes do go-live |
+| PEND-22 | Modelo de custo da IA e limites padrão | Sem cobrança; 2.000.000 tokens/mês por órgão; 40 gerações/dia por usuário | **Resolvida — DEC-203** (MVP 2, 2026-11-10) |
 
 **Decididas em 2026-10-07 (sprint 0 — padrão confirmado pelo produto):** PEND-01 → DEC-028 · PEND-04 → DEC-020 · PEND-06 → DEC-141 · PEND-10 → DEC-061 · PEND-15 → DEC-021.
 
@@ -239,10 +239,12 @@ Resumo das decisões estruturais (detalhe em [decisions.md](../architecture/deci
 
 Checklist a executar **antes** de detalhar o MVP 2 (governança da especificação):
 
-- [ ] **Dependências:** MVP 1 em produção nos pilotos; workflow, aprovações, documentos tipados e auditoria estáveis.
-- [ ] **Entidades existentes reutilizadas:** `Document`/`DocumentType` para parecer jurídico e edital; `Approval` para manifestações; `WorkflowStage` para Jurídico/Controle Interno/Dotação; `CatalogItem` para categorias do PCA; `Department` para secretarias do PCA.
-- [ ] **IA:** geração de parecer jurídico e de edital reutiliza a camada do EP-020 (DEC-037, DEC-079) — novos prompts e geradores, mesma rastreabilidade e revisão humana.
-- [ ] **Impactos:** nova versão do workflow padrão (Dotação, Jurídico, Controle Interno entre as etapas 6 e 7 de DEC-015); novos tipos de regra (SLA, notificação); indicadores sobre `ProcessStage`/`ProcessMovement`.
-- [ ] **Mudanças de arquitetura:** read model para indicadores (materialized views ou tabela de fatos); `Approval.decisionPolicy`; possível motor de regras com biblioteca reutilizável.
-- [ ] **Migrações necessárias:** entities.md §9 (PCA e `pcaItemId`, `decisionPolicy`, novas permissões e perfis ampliados — `JURIDICO`, `CONTROLE_INTERNO`, `CONTABILIDADE`).
-- [ ] **Débitos a pagar antes:** DT-02 (migração de versão de workflow) e DT-03 (aprovação múltipla), pois o MVP 2 depende deles.
+> **Executado em 2026-11-10/11 (prd-7), com desvio consciente** (DEC-192): o MVP 2 foi especificado antes de o MVP 1 estar em produção nos pilotos; a especificação é a versão 1, revisável após o UAT. Os demais itens foram cumpridos — ver [mvp-02/README.md](../mvp-02/README.md#checklist-de-validação-gate-do-roadmap-2) e o plano em [mvp-02/delivery-plan.md](../mvp-02/delivery-plan.md#1-premissas-de-planejamento).
+
+- [ ] **Dependências:** MVP 1 em produção nos pilotos (**pendente — desvio consciente, DEC-192**); workflow, aprovações, documentos tipados e auditoria estáveis.
+- [x] **Entidades existentes reutilizadas:** `Document`/`DocumentType` para parecer jurídico e edital; `Approval` para manifestações; `WorkflowStage` para Jurídico/Controle Interno/Dotação; `CatalogItem` para categorias do PCA; `Department` para secretarias do PCA.
+- [x] **IA:** geração de parecer jurídico e de edital reutiliza a camada do EP-020 (DEC-037, DEC-079) — novos prompts e geradores, mesma rastreabilidade e revisão humana.
+- [x] **Impactos:** nova versão do workflow padrão (Dotação, Jurídico, Controle Interno entre as etapas 6 e 7 de DEC-015); novos tipos de regra (SLA, notificação); indicadores sobre `ProcessStage`/`ProcessMovement`.
+- [x] **Mudanças de arquitetura:** read model para indicadores (materialized views ou tabela de fatos); `Approval.decisionPolicy`; possível motor de regras com biblioteca reutilizável.
+- [x] **Migrações necessárias:** entities.md §9 (PCA e `pcaItemId`, `decisionPolicy`, novas permissões e perfis ampliados — `JURIDICO`, `CONTROLE_INTERNO`, `CONTABILIDADE`).
+- [ ] **Débitos a pagar antes:** DT-02 (migração de versão de workflow) e DT-03 (aprovação múltipla), pois o MVP 2 depende deles — especificados como os **primeiros cards** da implementação (DEC-192).

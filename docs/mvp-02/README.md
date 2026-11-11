@@ -1,34 +1,46 @@
 # MVP 2 — Governança e Controle
 
-> **Status: reservado.** Este MVP será especificado em profundidade somente após o fechamento do MVP anterior e a validação de dependências, entidades existentes, impactos, mudanças de arquitetura e migrações necessárias (governança descrita em [../product/roadmap.md](../product/roadmap.md) e [../mvp-01/risks-and-decisions.md §12](../mvp-01/risks-and-decisions.md#12-validação-para-iniciar-o-mvp-2)).
+> **Status: especificado em 2026-11-11 (prd-7), versão 1 revisável após o UAT do MVP 1** (DEC-192).
+> A especificação veio antes de o MVP 1 estar em produção nos pilotos — desvio consciente do gate de [../product/roadmap.md §2](../product/roadmap.md#2-governança-do-roadmap-um-mvp-detalhado-por-vez) e dos critérios de entrada do [§4.7](../product/roadmap.md#47-critérios-de-entrada). O que dependia do piloto entrou como padrão semeado e configurável, "a validar com o piloto" ([overview.md §7](overview.md#7-a-validar-com-o-piloto)); a implementação começa depois do endurecimento das suítes órfãs, com DT-02 e DT-03 como primeiros cards ([delivery-plan.md §11](delivery-plan.md#11-proposta-de-sequência-de-implementação-em-cards)).
 
-## Escopo previsto (do briefing do produto)
+## Resumo
 
-PCA; Dotação orçamentária; Jurídico (status aguardando, em análise, diligência, favorável, favorável com ressalvas, desfavorável; parecer e devolução por diligência); Controle Interno; Edital; SLA; Indicadores; Gargalos; Regras condicionais.
+Completa a **fase preparatória** da Lei 14.133/2021 na plataforma — dotação orçamentária, minuta do edital, análise jurídica (art. 53) e manifestação do controle interno — e entrega os instrumentos de governança: **PCA**, **SLA**, **regras condicionais**, **indicadores e gargalos**. Inclui as capacidades habilitadoras postergadas do MVP 1 (etapas paralelas, aprovação com múltiplos aprovadores, migração de processos entre versões de workflow), o backoffice da plataforma, o login gov.br e os débitos DT-13 a DT-17. A IA gera rascunhos do **parecer jurídico** e da **minuta do edital** sobre a camada do EP-020, sem nunca propor a conclusão do parecer (DEC-202).
 
-**Geração com IA (DEC-037):** quando existirem, o **parecer jurídico** e o **edital** ganham geração assistida por IA — rascunho completo e ajuste por seção — sobre a camada do MVP 1 (EP-020): mesmos princípios (a IA não decide; nada inventado, com [a confirmar]; revisão humana obrigatória; rastreabilidade; limites por órgão), novos geradores e prompts versionados.
+| Número | Valor |
+|---|---|
+| Épicos · features · stories | 11 (EP-021..EP-031) · 28 (FT-063..FT-090) · 78 (US-123..US-200) |
+| Prioridade | P0: 33 stories / 189 pts · P1: 41 / 223 pts · P2: 4 / 10 pts — **422 pts** (release = P0 + P1 = 412 pts) |
+| Plano | Sprint 0 + 10 sprints de desenvolvimento + 1 de release ≈ 24 semanas (squad de referência) |
+| Decisões e ADRs | DEC-192 a DEC-210; ADR-014 a ADR-017; PEND-13, PEND-18 e PEND-22 resolvidas |
+| Módulos (DEC-040) | `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics`, `rules` |
+| Telas | SCR-018, 019, 020, 021, 027, 028, 035 (reservadas) e SCR-118 a SCR-123 (complementares) |
+| Jornadas de aceite | J-12 a J-20 (mais a regressão J-01 a J-11 do MVP 1) |
 
-## Telas previstas
+## Arquivos
 
-PCA (18), Jurídico (19), Controle Interno (20), Edital (21), Relatórios (27), Relatório detalhado (28), Regras — biblioteca completa (35)
+| Documento | Conteúdo |
+|---|---|
+| [overview.md](overview.md) | Visão, escopo, jornada, personas, relação com o MVP 1, premissas, padrões a validar com o piloto, governança da especificação |
+| [epics.md](epics.md) | Os 11 épicos com objetivo, features, pontos, módulos e dependências |
+| [features.md](features.md) | **Documento canônico** de IDs, títulos, prioridades, estimativas, dependências e arquivos das features e stories |
+| [entities.md](entities.md) | Enums, diagramas ER, entidades novas e alteradas, ciclos de vida, estruturas JSON, chaves de configuração, sementes e migrações M2-01..M2-23 |
+| [api.md](api.md) e [api/](api/) | Convenções, erros, catálogo de endpoints e detalhe por endpoint (`11-pca` a `20-workflow-v2`); mudanças aditivas nos contratos do MVP 1 |
+| [screens.md](screens.md) | Navegação, telas novas e ampliações das telas do MVP 1; rastreabilidade tela × story |
+| [permissions.md](permissions.md) | Permissões novas, matriz perfil × permissão, visibilidade, políticas contextuais (POL-19+), backoffice e testes de autorização |
+| [events.md](events.md) | Eventos de domínio, consumidores, timeline, notificações, auditoria e versionamento |
+| [acceptance-criteria.md](acceptance-criteria.md) | Critérios transversais, jornadas J-12..J-20, consolidação por épico e por story, dependências de decisão |
+| [tests.md](tests.md) | Suítes transversais, matriz RBAC, tenant leak, IA, metas de desempenho, carga, dados de teste |
+| [delivery-plan.md](delivery-plan.md) | Estimativas, backlog priorizado, caminho crítico, sequência por sprint, marcos, trilhas, capacidade, postergados, dependências do UAT e a sequência de cards |
+| [risks-and-decisions.md](risks-and-decisions.md) | Riscos (do roadmap e por categoria), débitos DT-21..DT-31, ambiguidades, decisões e lacunas pendentes, regras configuráveis, validação para o MVP 3 |
+| [release-checklist.md](release-checklist.md) | Definition of Done, postergados e checklist de release com o que muda frente ao MVP 1 |
+| [../backlog/](../backlog/README.md) | Cards detalhados (épicos 021–031, features 063–090, stories 123–200) no padrão de 28 seções, verificados por `pnpm docs:check` |
 
-## Impactos já identificados no modelo do MVP 1
+## Checklist de validação (gate do roadmap §2)
 
-- Nova versão do workflow padrão com Dotação, Jurídico e Controle Interno entre as etapas 6 e 7 (DEC-015)
-- Entidades `Pca`, `PcaItem`, `BudgetAllocation`, `LegalReview`, `InternalControlReview`, `Tender`; FK `pcaItemId` em `Process` e `Dfd` com reconciliação das referências do MVP 1 (DEC-029)
-- `Approval.decisionPolicy` (múltiplos aprovadores — PEND-13) e migração de processos entre versões de workflow (DT-02)
-- Read model de indicadores (tempo por etapa/unidade, gargalos) a partir de `ProcessStage`, `ProcessAssignment` e `ProcessMovement`
-- IA: `targetModule` de `AiGeneration` passa a aceitar os tipos de parecer e edital (hoje `DFD`, `ETP`, `RISK_MAP`, `TERM_OF_REFERENCE`); geradores `draft.legal_opinion`/`draft.tender` com entradas em cadeia (TR, pesquisa de preços, riscos); permissões de edição dos novos tipos entram na POL-18
-
-## Arquivos que serão produzidos
-
-Mesma estrutura do MVP 1: `overview.md`, `epics.md`, `features.md`, `entities.md`, `api.md`, `screens.md`, `permissions.md`, `events.md`, `acceptance-criteria.md`, `tests.md`, `delivery-plan.md`, `risks-and-decisions.md`, `release-checklist.md`, além dos cards em `../backlog/` com numeração global contínua (EP/FT/US).
-
-## Checklist de validação antes de detalhar
-
-- [ ] MVP anterior liberado e estável nos pilotos
-- [ ] Dependências funcionais e técnicas confirmadas
-- [ ] Entidades existentes reutilizadas (sem duplicar conceitos — [domains.md](../architecture/domains.md))
-- [ ] Impactos em workflow, permissões, eventos e telas mapeados
-- [ ] Mudanças de arquitetura registradas em ADR
-- [ ] Migrações necessárias planejadas (expand/contract)
+- [ ] MVP anterior liberado e estável nos pilotos — **desvio consciente** (DEC-192): revisão na Sprint 0 do MVP 2 ([delivery-plan.md §10](delivery-plan.md#10-o-que-depende-do-uat-do-mvp-1))
+- [x] Dependências funcionais e técnicas confirmadas ([features.md](features.md), [delivery-plan.md §4](delivery-plan.md#4-dependências-e-caminho-crítico))
+- [x] Entidades existentes reutilizadas, sem duplicar conceitos ([entities.md §11](entities.md#11-rastreabilidade-decisões--entidades), [domains.md](../architecture/domains.md))
+- [x] Impactos em workflow, permissões, eventos e telas mapeados
+- [x] Mudanças de arquitetura registradas em ADR (ADR-014 a ADR-017; ADR-005 revisada)
+- [x] Migrações necessárias planejadas (expand/contract — [entities.md §10](entities.md#10-migrações-expandcontract))

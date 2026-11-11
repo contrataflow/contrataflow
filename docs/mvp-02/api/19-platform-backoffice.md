@@ -2,7 +2,7 @@
 
 > Parte de [api.md §4](../api.md#4-especificação-por-endpoint) do MVP 2. Convenções, erros genéricos e de domínio: [api.md §1–§2](../api.md#1-convenções) (que herda o [api.md do MVP 1](../../mvp-01/api.md)). Épico(s): EP-029. Fonte de cada linha: a seção "API" da story citada — divergência entre este arquivo e a story é bug de especificação.
 
-Backoffice da plataforma (DT-07, DT-18; rotas `/platform/*` com `x-tenant-scope = PLATFORM`, só operador com MFA), acesso de suporte com prazo e auditoria nos dois lados, saúde por tenant, login gov.br via Authentik (PEND-18, ADR-017) com vínculo de identidade, e os débitos DT-13 a DT-16 (reativação de perfil, selo da auditoria, atualização da biblioteca de templates, limite das ações em lote). Telas SCR-119 a SCR-123 e ajustes em SCR-001, SCR-039 e SCR-041.
+Backoffice da plataforma (DT-07, DT-18; rotas `/platform/*` com `x-tenant-scope = PLATFORM`, só operador com MFA), acesso de suporte com prazo e auditoria nos dois lados, saúde por tenant, login gov.br via Authentik (PEND-18 → DEC-207, ADR-017) com vínculo de identidade, e os débitos DT-13 a DT-16 (reativação de perfil, selo da auditoria, atualização da biblioteca de templates, limite das ações em lote). Telas SCR-119 a SCR-123 e ajustes em SCR-001, SCR-039 e SCR-041.
 
 Legenda: **Idem.** = `Idempotency-Key`; **IM** = `If-Match` (com `ETag` na resposta); "—" = não se aplica. Escritas sem `If-Match` criam recurso novo ou são ações idempotentes por chave. Listas paginam com `page`/`pageSize` (≤ 100) e `sort`, salvo indicação na linha.
 

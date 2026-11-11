@@ -30,7 +30,7 @@ Ao final do MVP 2, um órgão público conduz **a fase preparatória inteira** d
 | Área | Épico | Objetivo | Módulo (DEC-040) |
 |---|---|---|---|
 | Capacidades habilitadoras | Workflow v2 | Etapas paralelas (ramificação e junção), migração de processos em andamento entre versões (DT-02), nova versão do workflow padrão com a fase preparatória completa e `RuleContext` v2 | `workflow`, `process` |
-| Capacidades habilitadoras | Aprovação múltipla | Políticas `ANY`, `ALL` e `SEQUENTIAL` com ordem explícita de aprovadores, redirecionamento por linha e segregação de funções (PEND-13, DT-03); prazo das aprovações avulsas por tipo de documento (DT-17) | `approval` |
+| Capacidades habilitadoras | Aprovação múltipla | Políticas `ANY`, `ALL` e `SEQUENTIAL` com ordem explícita de aprovadores, redirecionamento por linha e segregação de funções (PEND-13 → DEC-193, DT-03); prazo das aprovações avulsas por tipo de documento (DT-17) | `approval` |
 | Planejamento anual | PCA | Plano por exercício com itens, importação por planilha, aprovação, vínculo com DFD e processo, reconciliação das referências do MVP 1, acompanhamento da execução e exportação para divulgação | `pca` |
 | Fase preparatória | Dotação orçamentária | Classificação orçamentária, fonte, valor reservado e evidência; compatibilidade com o valor estimado; regra de saída de etapa | `budget` |
 | Fase preparatória | Jurídico | Fila priorizada, análise com as seis situações, diligência, parecer vinculado às versões analisadas, dispensa de análise (art. 53, § 5º) e rascunho de parecer por IA | `legal-review` |
@@ -39,7 +39,7 @@ Ao final do MVP 2, um órgão público conduz **a fase preparatória inteira** d
 | Governança | SLA | Políticas de prazo por tipo de contratação, modalidade ou valor; pausas; escalonamento; cumprimento por etapa e unidade | `sla` |
 | Governança | Regras condicionais | Biblioteca reutilizável (SCR-035): roteamento, alçadas por valor, aplicabilidade, simulador e testes; regras de notificação | `rules` |
 | Governança | Indicadores e gargalos | Relatórios (SCR-027) e relatório detalhado (SCR-028), análise de gargalos, exportação — em read model próprio | `analytics` |
-| Plataforma | Plataforma e backoffice | Backoffice da plataforma (DT-07, DT-18), login gov.br (PEND-18) e os débitos DT-13 a DT-16 (o DT-17 fica na Aprovação múltipla) | `tenancy`, `identity`, `access`, `audit` |
+| Plataforma | Plataforma e backoffice | Backoffice da plataforma (DT-07, DT-18), login gov.br (PEND-18 → DEC-207) e os débitos DT-13 a DT-16 (o DT-17 fica na Aprovação múltipla) | `tenancy`, `identity`, `access`, `audit` |
 
 Telas reservadas do roadmap: SCR-018 PCA · SCR-019 Jurídico · SCR-020 Controle Interno · SCR-021 Edital · SCR-027 Relatórios · SCR-028 Relatório detalhado · SCR-035 Regras. A dotação acontece como etapa no Detalhe do processo (SCR-006) e na Caixa de tarefas (SCR-013). Telas fora das 41 recebem `SCR-118+`.
 
@@ -156,7 +156,7 @@ Definições que o roadmap (§4.7) previa colher com o piloto antes do detalhame
 
 ## 9. Mapa de documentos do MVP 2
 
-Mesma estrutura do MVP 1; os arquivos abaixo são produzidos em sequência pelos cards da especificação (prd-7).
+Mesma estrutura do MVP 1; todos os arquivos abaixo existem (especificação concluída em 2026-11-11, prd-7). Resumo e números em [README.md](README.md).
 
 | Documento | Conteúdo |
 |---|---|

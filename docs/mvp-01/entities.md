@@ -1741,7 +1741,7 @@ Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor m
 | `features.<flag>` | boolean | por flag | DEC-059 |
 | `ai.enabled` | boolean | `false` | Liga a geração assistida por IA no órgão (opt-in — DEC-037, US-116); ligar exige `ai.termsAcceptedVersion` vigente; não pública |
 | `ai.termsAcceptedVersion` | string \| null | `null` | Versão dos termos de uso da IA aceita (`AI_TERMS_VERSION` da plataforma); quem e quando ficam na auditoria `settings.update` |
-| `ai.monthlyTokenLimit` | int | `2000000` | 50.000..`AI_TENANT_MAX_MONTHLY_TOKENS` (plataforma, padrão 20.000.000); mês civil no fuso do tenant (RN-AI-18; PEND-22) |
+| `ai.monthlyTokenLimit` | int | `2000000` | 50.000..`AI_TENANT_MAX_MONTHLY_TOKENS` (plataforma, padrão 20.000.000); mês civil no fuso do tenant (RN-AI-18; PEND-22 → DEC-203) |
 | `ai.userDailyRequestLimit` | int | `40` | 1..500 gerações por usuário por dia (RN-AI-19) |
 
 ---

@@ -58,7 +58,7 @@ A feature também entrega a **governança por órgão**:
 ## Fora de escopo
 - Adaptador do provedor real, que entra quando o usuário decidir a ADR-013.
 - Geradores de cada documento (FT-061) e ajustes por seção (FT-062).
-- Cobrança por uso (PEND-22).
+- Cobrança por uso (PEND-22 → DEC-203).
 - Escolha de provedor por órgão.
 
 ## Regras de negócio da feature
@@ -99,7 +99,7 @@ A feature também entrega a **governança por órgão**:
 
 ## Dependências
 - US-083 (worker e filas), US-065 (documentos), US-073 (auditoria), US-059 (timeline), US-097 (autorização), US-103 (configurações), US-094 (catálogo de permissões), US-111 (notificações).
-- DEC-037, DEC-079, ADR-013 (PEND-21), PEND-22.
+- DEC-037, DEC-079, ADR-013 (PEND-21), PEND-22 → DEC-203.
 
 ## Critérios de aceite da feature
 ```gherkin

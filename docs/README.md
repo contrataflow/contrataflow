@@ -1,7 +1,7 @@
 # ContrataFlow — Documentação de Produto e Engenharia
 
-> **Status:** Especificação da fundação + MVP 1 (Planejamento e Tramitação).
-> MVPs 2 a 5 estão descritos apenas em nível de visão no [roadmap](product/roadmap.md) e serão detalhados um de cada vez, após validação de dependências, entidades existentes, impactos, mudanças de arquitetura e migrações necessárias.
+> **Status:** Especificação da fundação + MVP 1 (Planejamento e Tramitação) + **MVP 2 (Governança e Controle — especificado em 2026-11-11, versão 1 revisável após o UAT do MVP 1, DEC-192)**.
+> MVPs 3 a 5 estão descritos apenas em nível de visão no [roadmap](product/roadmap.md) e serão detalhados um de cada vez, após validação de dependências, entidades existentes, impactos, mudanças de arquitetura e migrações necessárias.
 > **Nenhum código de produção deve ser escrito sem que o card correspondente esteja especificado neste repositório.**
 
 ## 1. Como navegar
@@ -14,7 +14,8 @@
 | [`engineering/`](engineering/) | Versões fixadas da stack e política de atualização; guia de acesso a dados com isolamento por tenant (padrões de código em [`CONTRIBUTING.md`](../CONTRIBUTING.md)) | [versions.md](engineering/versions.md), [data-access.md](engineering/data-access.md) |
 | [`mvp-01/`](mvp-01/) | Especificação completa do MVP 1 | [overview.md](mvp-01/overview.md) |
 | [`backlog/`](backlog/) | Épicos, features e stories (cards) no padrão oficial | [backlog/README.md](backlog/README.md) |
-| `mvp-02/` … `mvp-05/` | Reservadas — serão preenchidas na ordem do roadmap | — |
+| [`mvp-02/`](mvp-02/) | Especificação do MVP 2 (versão 1, revisável após o UAT do MVP 1) | [README.md](mvp-02/README.md) |
+| `mvp-03/` … `mvp-05/` | Reservadas — serão preenchidas na ordem do roadmap | — |
 
 ### Fontes canônicas (em caso de conflito, estas prevalecem)
 
@@ -23,6 +24,8 @@
 3. [`mvp-01/permissions.md`](mvp-01/permissions.md) — catálogo de permissões e perfis padrão.
 4. [`mvp-01/events.md`](mvp-01/events.md) — catálogo de eventos de domínio.
 5. [`mvp-01/api.md`](mvp-01/api.md) — contrato da API REST.
+
+No MVP 2, os documentos equivalentes de [`mvp-02/`](mvp-02/) (`entities.md`, `permissions.md`, `events.md`, `api.md`) **estendem** estas fontes — o MVP 2 não redefine nada do MVP 1, só acrescenta (DEC-192).
 
 Qualquer card, tela ou teste que cite um nome que não exista nessas fontes está **errado** e deve ser corrigido (ou a fonte canônica deve ser atualizada primeiro, com registro em `decisions.md`).
 
@@ -98,7 +101,8 @@ docs/
 │   ├── delivery-plan.md           ← backlog priorizado, dependências, ordem, sequência de implementação
 │   ├── risks-and-decisions.md     ← riscos, débitos, ambiguidades, regras configuráveis, decisões pendentes
 │   └── release-checklist.md       ← DoD, itens postergados, checklist de release
-├── mvp-02/ … mvp-05/              ← reservadas
+├── mvp-02/                        ← mesma estrutura do mvp-01 (api/ com as seções 11..20) + README.md
+├── mvp-03/ … mvp-05/              ← reservadas
 └── backlog/
     ├── README.md                  ← índice navegável de EP/FT/US
     ├── _templates/

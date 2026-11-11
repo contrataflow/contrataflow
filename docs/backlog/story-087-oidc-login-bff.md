@@ -28,7 +28,7 @@ A página de entrada (SCR-001) leva ao BFF (`/api/auth/login`), que inicia o flu
 ## Contexto
 - Nos órgãos, é comum o uso de senhas "do setor" e até de servidores por consultores (dores das personas P01 e P15). O produto exige identidade individual, MFA conforme política (US-090) e trilha de acesso.
 - Decisões: OIDC com Authentik e cliente confidencial no BFF (DEC-130, DEC-053, ADR-003); sessão no Redis com cookie `__Host-cf_session` (DEC-131), sendo o Redis de sessões dependência crítica, em alta disponibilidade e separado do Redis de cache/filas; contexto de requisição e status do tenant (DEC-132); CSRF e cabeçalhos (DEC-135); logs seguros (DEC-138); LGPD (DEC-140); identidade global + vínculo por tenant, com o tenant exibido como **instituição contratante** (DEC-012).
-- Domínio único com seleção de instituição (DEC-141): a página de entrada não tem identidade visual de tenant. Login gov.br fica fora do MVP 1 (PEND-18): o botão "Entrar com gov.br" da tela de login só aparece quando a federação estiver ativa.
+- Domínio único com seleção de instituição (DEC-141): a página de entrada não tem identidade visual de tenant. Login gov.br fica fora do MVP 1 (PEND-18 → DEC-207): o botão "Entrar com gov.br" da tela de login só aparece quando a federação estiver ativa.
 - É a primeira story do EP-016 e estabelece o pipeline autenticado (BFF → API) usado por todas as demais. Complementos: US-088 (logout, expiração e renovação), US-089 (recuperação de senha), US-090 (MFA), US-093 (troca de instituição), US-097 (autorização).
 
 ## Objetivo
@@ -261,7 +261,7 @@ Feature: Login OIDC com Authentik e sessão segura no BFF
 
 ## Dependências
 - **Stories:** US-078 (Authentik e Redis locais, *blueprint*), US-080 (pipeline de guards da API), US-086 (shell, cliente de API, SCR-111). Indiretas: US-081, US-084 (correlationId), US-100 (contexto de tenant e RLS), US-073 (auditoria — até sua entrega, `auth.session_start` é só log estruturado), US-088, US-091, US-093, US-097.
-- **Decisões/ADRs:** DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-135, DEC-137, DEC-138, DEC-140, DEC-141, PEND-18; ADR-003.
+- **Decisões/ADRs:** DEC-012, DEC-053, DEC-130, DEC-131, DEC-132, DEC-135, DEC-137, DEC-138, DEC-140, DEC-141, PEND-18 → DEC-207; ADR-003.
 - **Configurações:** `security.sessionIdleMinutes`, `security.sessionAbsoluteHours`.
 - **Lacunas nas fontes canônicas:**
   1. Não há contrato BFF → API para início de sessão, vínculo do `sub` e registro de `auth.session_start`/`auth.tenant_switch`. Proposta: `POST /internal/session-events` (fora de `/api/v1`, rede privada, credencial de serviço do BFF + access token do usuário), a consolidar em authentication.md e api.md.

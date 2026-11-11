@@ -5,7 +5,7 @@
 | **Status** | **Proposto — pendente de decisão do usuário (PEND-21).** A recomendação abaixo não está aceita; até a decisão, a implementação usa só a porta `AiProvider` e o `FakeAiProvider`. |
 | **Data** | 2026-10-16 |
 | **Decisores** | Usuário (produto), com jurídico/DPO e Tech Lead |
-| **Decisões relacionadas** | DEC-037 (IA no MVP 1), DEC-079 (módulo `ai` e `AiProvider`), DEC-030 (sigilo do orçamento), DEC-058 (AWS como primeira nuvem), DEC-137 (segredos), DEC-140 (LGPD); PEND-21, PEND-22 |
+| **Decisões relacionadas** | DEC-037 (IA no MVP 1), DEC-079 (módulo `ai` e `AiProvider`), DEC-030 (sigilo do orçamento), DEC-058 (AWS como primeira nuvem), DEC-137 (segredos), DEC-140 (LGPD); PEND-21, PEND-22 → DEC-203 |
 | **Documentos** | [decisions.md](../architecture/decisions.md) · stories US-115 (camada) e US-116 (configuração e limites) · [risks-and-decisions.md](../mvp-01/risks-and-decisions.md) §2, §8 e §10 |
 
 ## Contexto
@@ -50,7 +50,7 @@ Premissas de custo: o rascunho completo consome em média 20 mil tokens de entra
 - **A** só com Sonnet: ~US$ 0,76;
 - **C** com GPT-5.5: ~US$ 2,10.
 
-O limite padrão de 2 milhões de tokens por órgão e por mês (PEND-22) custa no máximo ~US$ 8 com Sonnet 5.5.
+O limite padrão de 2 milhões de tokens por órgão e por mês (PEND-22 → DEC-203) custa no máximo ~US$ 8 com Sonnet 5.5.
 
 ## Recomendação (a decidir pelo usuário)
 
@@ -115,7 +115,7 @@ A inferência pode ocorrer fora do Brasil, mas o risco é mitigado por quatro me
 
 ## Referências
 
-- Internas: DEC-030, DEC-037, DEC-058, DEC-079, DEC-137, DEC-140; PEND-21, PEND-22; US-115, US-116.
+- Internas: DEC-030, DEC-037, DEC-058, DEC-079, DEC-137, DEC-140; PEND-21, PEND-22 → DEC-203; US-115, US-116.
 - Amazon Bedrock — fichas dos modelos Claude Sonnet 5.5 e Haiku 5.5 e disponibilidade por região: <https://docs.aws.amazon.com/bedrock/latest/userguide/models-region-compatibility.html>
 - Anthropic — Claude no Amazon Bedrock: <https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock>
 - Microsoft Foundry — disponibilidade de modelos por região: <https://learn.microsoft.com/en-us/azure/foundry/foundry-models/concepts/models-sold-directly-by-azure-region-availability>

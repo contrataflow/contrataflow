@@ -43,7 +43,7 @@ Cobre o ciclo completo de uma aprovação: a solicitação automática e a resol
 
 ## Fora de escopo
 - Encaminhamento e submissão que disparam a solicitação de aprovação — FT-031 e EP-011 (US-065).
-- Política de decisão com múltiplos aprovadores ou aprovação sequencial (DEC-022, PEND-13) — MVP 2.
+- Política de decisão com múltiplos aprovadores ou aprovação sequencial (DEC-022, PEND-13 → DEC-193) — MVP 2.
 
 ## Regras de negócio da feature
 - RN-TRAM-43 a RN-TRAM-53 — US-051.

@@ -367,4 +367,4 @@ Runbooks por cenário e plantão: [`observability.md`](observability.md).
 
 ## Referências
 
-DEC-022 a DEC-024, DEC-030, DEC-034, DEC-054, DEC-056, DEC-060, DEC-080 a DEC-086, DEC-103 a DEC-105, DEC-130 a DEC-140, DEC-161; PEND-07, PEND-08, PEND-18; [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-009; [`../mvp-01/permissions.md`](../mvp-01/permissions.md); [`../mvp-01/api.md`](../mvp-01/api.md); [`../mvp-01/events.md`](../mvp-01/events.md); [`../mvp-01/acceptance-criteria.md`](../mvp-01/acceptance-criteria.md); OWASP ASVS 5.0; RFC 8785; RFC 9457; Resolução CD/ANPD nº 15/2024.
+DEC-022 a DEC-024, DEC-030, DEC-034, DEC-054, DEC-056, DEC-060, DEC-080 a DEC-086, DEC-103 a DEC-105, DEC-130 a DEC-140, DEC-161; PEND-07, PEND-08, PEND-18 → DEC-207; [ADR-002](../adr/adr-002-multi-tenancy.md), [ADR-003](../adr/adr-003-authentication.md), ADR-009; [`../mvp-01/permissions.md`](../mvp-01/permissions.md); [`../mvp-01/api.md`](../mvp-01/api.md); [`../mvp-01/events.md`](../mvp-01/events.md); [`../mvp-01/acceptance-criteria.md`](../mvp-01/acceptance-criteria.md); OWASP ASVS 5.0; RFC 8785; RFC 9457; Resolução CD/ANPD nº 15/2024.

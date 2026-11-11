@@ -10,7 +10,7 @@
 
 ## Contexto
 
-- Servidores públicos já têm conta gov.br, e muitos órgãos preferem que o acesso a sistemas use essa identidade. O login gov.br ficou fora do MVP 1 (PEND-18).
+- Servidores públicos já têm conta gov.br, e muitos órgãos preferem que o acesso a sistemas use essa identidade. O login gov.br ficou fora do MVP 1 (PEND-18 → DEC-207).
 - Toda a autenticação passa pelo Authentik (DEC-130): o ContrataFlow só fala OIDC com ele, e a API valida tokens pelo JWKS do Authentik. Desde a DEC-187, usuário e senha são digitados numa tela do próprio ContrataFlow e o BFF conduz o *flow* pela API do executor — esse caminho não serve para federação, que exige levar o navegador ao provedor externo.
 - Identidade não é acesso: o vínculo com o tenant (`TenantMembership`) é o que dá acesso (DEC-012).
 - O gov.br informa níveis de confiabilidade da conta (bronze, prata, ouro) e o CPF como identificador; integrar exige credenciamento do sistema no Login Único.

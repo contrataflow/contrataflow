@@ -349,4 +349,4 @@
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 
-Totais do MVP 2: 11 épicos · 28 features · 78 stories (78 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (78 escritas) · P0 33 (189 pts) · P1 41 (223 pts) · P2 4 (10 pts) · 422 pontos — release = P0 + P1 = 412 pontos. Especificação versão 1 de 2026-11-11 (prd-7), revisável após o UAT do MVP 1 (DEC-192); sequência de implementação em [`../mvp-02/delivery-plan.md`](../mvp-02/delivery-plan.md#11-proposta-de-sequência-de-implementação-em-cards).

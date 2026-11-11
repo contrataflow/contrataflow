@@ -2,7 +2,7 @@
 
 > Parte de [api.md §4](../api.md#4-especificação-por-endpoint) do MVP 2. Convenções, erros genéricos e de domínio: [api.md §1–§2](../api.md#1-convenções) (que herda o [api.md do MVP 1](../../mvp-01/api.md)). Épico(s): EP-021, EP-022. Fonte de cada linha: a seção "API" da story citada — divergência entre este arquivo e a story é bug de especificação.
 
-Workflow v2 e aprovação múltipla: etapas paralelas (ramos e junção), plano, simulação e execução da migração de processos em andamento entre versões (DT-02, ADR-016 — tela SCR-118), `RuleContext` v2, oferta da versão 2 do workflow padrão (Dotação, Jurídico e Controle Interno), continuação dos processos concluídos na v1, e a política de decisão `ANY`/`ALL`/`SEQUENTIAL` com aprovadores por linha, redirecionamento e prazo das aprovações avulsas (DT-03, DT-17, PEND-13). Telas: SCR-034, SCR-118, SCR-006, SCR-013, SCR-014 e SCR-015.
+Workflow v2 e aprovação múltipla: etapas paralelas (ramos e junção), plano, simulação e execução da migração de processos em andamento entre versões (DT-02, ADR-016 — tela SCR-118), `RuleContext` v2, oferta da versão 2 do workflow padrão (Dotação, Jurídico e Controle Interno), continuação dos processos concluídos na v1, e a política de decisão `ANY`/`ALL`/`SEQUENTIAL` com aprovadores por linha, redirecionamento e prazo das aprovações avulsas (DT-03, DT-17, PEND-13 → DEC-193). Telas: SCR-034, SCR-118, SCR-006, SCR-013, SCR-014 e SCR-015.
 
 Legenda: **Idem.** = `Idempotency-Key`; **IM** = `If-Match` (com `ETag` na resposta); "—" = não se aplica. Escritas sem `If-Match` criam recurso novo ou são ações idempotentes por chave. Listas paginam com `page`/`pageSize` (≤ 100) e `sort`, salvo indicação na linha.
 
