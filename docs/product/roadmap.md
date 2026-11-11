@@ -98,7 +98,7 @@ Entregar o núcleo operacional: um órgão formaliza a demanda, elabora ETP, map
 | Publicação e status `PUBLISHED` alcançável | DEC-013, PEND-16 | MVP 3 |
 | Assinatura eletrônica e renderização `SIGNED`; PDF/A | DEC-017, PEND-09 | MVP 3 |
 | API pública, webhooks e contas de serviço | DEC-053, DEC-012 | MVP 3 |
-| Login gov.br | PEND-18 | Reavaliar no MVP 3 |
+| Login gov.br | PEND-18 (resolvida pela DEC-207) | MVP 2 |
 | Reabertura de processo concluído ou cancelado | PEND-03 | A decidir |
 | Edição colaborativa em tempo real; imagens embutidas no editor; comentários restritos por unidade | PEND-12, PEND-08, PEND-11 | A decidir |
 
@@ -378,7 +378,7 @@ PNCP; diários oficiais; portais municipais; provedores de assinatura eletrônic
 - Credenciamento do ContrataFlow como sistema integrado ao PNCP **iniciado durante o MVP 2** (prazo externo) e ambiente de testes disponível.
 - Canais de diário oficial dos pilotos levantados (formato, API ou envio manual).
 - ADRs: provedor de assinatura e níveis aceitos; autenticação de clientes da API pública, escopos e limites; política de webhooks (assinatura do payload, retentativas, desativação).
-- PEND-09 e PEND-16 decididas; PEND-18 reavaliada.
+- PEND-09 e PEND-16 decididas (o login gov.br entrou no MVP 2 — DEC-207).
 - Catálogo de eventos publicáveis definido, com `eventVersion` como contrato.
 
 ### 5.8 Critérios de saída
@@ -717,10 +717,10 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 | L-01 | Registro do resultado da seleção (adjudicação, homologação, vencedores e preços finais) | Sem ele, o contrato do MVP 4 depende de redigitação; o ciclo do processo termina em `PUBLISHED` (DEC-013) | Incluir no MVP 4 como pré-requisito do contrato: registro manual e importação de dados públicos do PNCP quando viável | Produto |
 | L-02 | Workflow semeado para contratação direta (art. 72) | DEC-015 semeia apenas o fluxo da fase preparatória da licitação; contratações diretas têm instrução própria | Semear "Contratação direta — art. 72" já no MVP 1, como configuração | Produto e jurídico |
 | L-03 | Rótulo da etapa final do workflow do MVP 1 | "Fase preparatória concluída" sem dotação, edital e parecer jurídico (art. 18 e art. 53) pode induzir a erro | **Resolvida (DEC-015):** a etapa final do seed do MVP 1 chama-se "Planejamento da contratação concluído"; "Fase preparatória concluída" só a partir do MVP 2 | Produto |
-| L-04 | Posição do edital na nova versão do workflow (MVP 2) | DEC-015 prevê Dotação, Jurídico e Controle Interno entre as etapas 6 e 7; a minuta do edital normalmente precede a análise jurídica (art. 53) | Decidir no gate do MVP 2 | Produto e jurídico |
+| L-04 | Posição do edital na nova versão do workflow (MVP 2) | DEC-015 prevê Dotação, Jurídico e Controle Interno entre as etapas 6 e 7; a minuta do edital normalmente precede a análise jurídica (art. 53) | **Resolvida (DEC-196, aceita a validar com o jurídico do piloto):** `DOTACAO` → `MINUTA_EDITAL` → `JURIDICO` → `CONTROLE_INTERNO` → `AUTORIZACAO_LICITACAO`; ordem entre Jurídico e Controle Interno configurável por tenant (inverter ou paralelizar) | Produto e jurídico |
 | L-05 | Sistema de registro de preços: atas e adesões | Muito usado por municípios; atas são publicadas no PNCP (art. 174, § 2º, IV) | Avaliar após o MVP 4 | Produto |
 | L-06 | Obras e serviços de engenharia | Exigem anteprojeto, projeto básico ou executivo (art. 6º, XXIV a XXVI) e orçamento por sistemas de referência (art. 23, § 2º); o MVP 1 é desenhado para bens e serviços | No MVP 1, usar documentos de texto livre ou arquivo externo; avaliar módulo próprio | Produto |
-| L-07 | Acesso da consultoria externa ao PCA | DEC-036 cobre apenas participação em processos | Definir no gate do MVP 2 | Produto |
+| L-07 | Acesso da consultoria externa ao PCA | DEC-036 cobre apenas participação em processos | **Resolvida (DEC-197):** sem acesso da consultoria externa ao PCA no MVP 2 | Produto |
 | L-08 | Registro de avisos `WARNING` superados | O Controle Interno precisa saber quando alertas foram ignorados | Registrar ciência (e justificativa opcional) na tramitação e na auditoria já no MVP 1 | Produto |
 | L-09 | Resolução do aprovador por perfil em entes com ordenação de despesa descentralizada | Com política `ANY` e perfil `AUTORIDADE_COMPETENTE` no escopo do órgão (DEC-015, DEC-022), qualquer secretário com o perfil poderia decidir processos de outra pasta | Permitir resolver o perfil no escopo da secretaria solicitante; decidir no detalhamento do MVP 1 | Produto |
 | L-10 | Situação exibida do documento durante a aprovação de etapa | Pela DEC-018, o mesmo momento aparece como "Em revisão" (documento que entra na etapa ainda em rascunho) ou "Finalizado" (documento finalizado antes, com `pendingApprovalId`) | Exibir o indicador "Em aprovação" derivado da aprovação pendente no painel e nas listas | Produto e UX |
@@ -730,7 +730,7 @@ M1 a M5 são os marcos do [plano de entrega do MVP 1](../mvp-01/delivery-plan.md
 | L-14 | Compras compartilhadas entre entes (consórcios) | Canal estratégico para municípios pequenos | Avaliar após o MVP 4 | Produto |
 | L-15 | Integração com sistemas estaduais de prestação de contas aos tribunais | Reduz retrabalho do Controle Interno e da Contabilidade | Avaliar após o MVP 3 | Produto |
 | L-16 | Portal do fornecedor e cotação eletrônica | Acelera a pesquisa de preços | Avaliar após o MVP 5 | Produto |
-| L-17 | Edição colaborativa em tempo real, imagens no editor, login gov.br | Pendências conhecidas (PEND-12, PEND-08, PEND-18) | Reavaliar a cada gate | Produto |
+| L-17 | Edição colaborativa em tempo real, imagens no editor, login gov.br | Pendências conhecidas (PEND-12, PEND-08; PEND-18 resolvida no MVP 2 pela DEC-207) | Reavaliar a cada gate | Produto |
 | L-18 | Telas de fornecedores, catálogos, órgãos, calendário e etiquetas | Não constam entre as 41 telas | Premissa: fornecedores com cadastro rápido em SCR-009; demais em SCR-041 (e tipos de documento em SCR-033) — confirmar em `mvp-01/screens.md` | Produto e UX |
 
 ---

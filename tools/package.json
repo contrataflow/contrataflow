@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "check:versions": "tsx check-versions.ts",
+    "docs:check": "tsx docs/check-backlog.ts",
     "verify:fresh-clone": "tsx verify-fresh-clone.ts",
     "smoke:hello": "tsx smoke-hello.ts",
     "secrets:scan": "tsx scan-secrets.ts",

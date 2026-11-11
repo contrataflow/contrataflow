@@ -5,7 +5,7 @@
 >
 > **Status possíveis:** `Aceita` · `Proposta` (aceita para especificação, validar na implementação) · `Pendente` (requer decisão de produto/jurídico — ver seção 10).
 
-Sumário: [1. Convenções](#1-convenções-gerais) · [2. Produto e domínio](#2-produto-e-domínio) · [3. Módulos](#3-módulos-bounded-contexts-e-propriedade-de-entidades) · [4. Arquitetura](#4-arquitetura-e-stack) · [5. Dados](#5-dados-e-persistência) · [6. API](#6-api) · [7. Segurança e identidade](#7-segurança-identidade-e-acesso) · [8. Eventos e filas](#8-eventos-filas-e-jobs) · [9. UX](#9-ux) · [10. Pendentes](#10-decisões-pendentes) · [11. ADRs](#11-índice-de-adrs)
+Sumário: [1. Convenções](#1-convenções-gerais) · [2. Produto e domínio](#2-produto-e-domínio) · [3. Módulos](#3-módulos-bounded-contexts-e-propriedade-de-entidades) · [4. Arquitetura](#4-arquitetura-e-stack) · [5. Dados](#5-dados-e-persistência) · [6. API](#6-api) · [7. Segurança e identidade](#7-segurança-identidade-e-acesso) · [8. Eventos e filas](#8-eventos-filas-e-jobs) · [9. UX](#9-ux) · [MVP 2](#mvp-2--governança-e-controle) · [10. Pendentes](#10-decisões-pendentes) · [11. ADRs](#11-índice-de-adrs)
 
 ---
 
@@ -109,14 +109,14 @@ Regras:
 - Rascunho sem número (quando a numeração ocorre na autuação — DEC-028) pode ser **descartado** (exclusão lógica), em vez de cancelado.
 - **Aditivo (US-071, 2026-10-17):** em `CANCELED`, `COMPLETED` e `PUBLISHED` os comentários do processo são **somente leitura** — criar, responder, editar e excluir o próprio respondem 409 `INVALID_PROCESS_STATUS`; a moderação (`COMMENT_MODERATE`) continua permitida. Rever quando o MVP 3 tornar `COMPLETED → PUBLISHED` operacional.
 
-### DEC-014 — Motor de workflow próprio, declarativo e versionado · `Aceita` · [ADR-005](../adr/adr-005-workflow-engine.md)
+### DEC-014 — Motor de workflow próprio, declarativo e versionado · `Aceita` · [ADR-005](../adr/adr-005-workflow-engine.md) · revisada no MVP 2 pela DEC-194 (etapas paralelas) e pela DEC-195 (migração entre versões)
 - Definição: `Workflow` → `WorkflowVersion` (DRAFT → PUBLISHED → RETIRED; publicada é **imutável**) → `WorkflowStage` (tipos `START`, `TASK`, `APPROVAL`, `END`) → `WorkflowTransition` (ações `FORWARD`, `RETURN`, `APPROVE`, `REJECT`, `COMPLETE`) → `WorkflowRule`.
 - Execução (runtime, no módulo `process`): `ProcessStage` (instância da etapa), `ProcessAssignment` (histórico de responsabilidade), `ProcessMovement` (registro imutável de tramitação).
 - O processo **fixa a versão do workflow** na criação (`workflowVersionId`). Migração de processos em andamento para nova versão: fora do MVP 1 (postergado).
 - Ações do usuário: **encaminhar** (`FORWARD`), **devolver** (`RETURN`), **aprovar** (`APPROVE`), **rejeitar/indeferir** (`REJECT`), **assumir** (`CLAIM`), **concluir** (`COMPLETE`), **cancelar** (`CANCEL`). Aprovar/rejeitar ocorrem por meio de `Approval`; assumir/cancelar/suspender/retomar/atribuir são ações de ciclo de vida, não transições do grafo.
 - Um único `ProcessStage` ativo por processo no MVP 1 (sem paralelismo). Paralelismo: MVP 2+.
 
-### DEC-015 — Workflow padrão semeado: "Fase preparatória — Lei 14.133/2021" · `Aceita`
+### DEC-015 — Workflow padrão semeado: "Fase preparatória — Lei 14.133/2021" · `Aceita` · versão 2 (fase preparatória completa) na DEC-196
 | # | Chave | Nome | Tipo | Responsável padrão | Saída exige (regras padrão) |
 |---|---|---|---|---|---|
 | 1 | `ABERTURA` | Formalização da demanda | START | Setor solicitante (`REQUESTING_DEPARTMENT`) | DFD existente e completo |
@@ -193,12 +193,12 @@ Devoluções padrão: qualquer etapa pode devolver para etapas anteriores já pe
 ### DEC-021 — Riscos · `Aceita`
 `Risk` (identificação e avaliação: título, descrição, categoria, fase, causa, consequência, probabilidade, impacto, pontuação, nível, responsável, status) + `RiskTreatment` (ações `PREVENTIVE`/`CONTINGENCY`, responsável, prazo, status). Riscos pertencem ao processo; o documento `RISK_MAP` é o artefato formal (versionado/aprovável) cujo snapshot inclui os riscos. Escalas e faixas de nível configuráveis por tenant (`risk.scale`, `risk.levelThresholds`); padrão confirmado em 2026-10-07 (PEND-15 encerrada): 5×5, faixas 1–4 Baixo, 5–9 Médio, 10–16 Alto, 17–25 Extremo.
 
-### DEC-022 — Aprovação genérica · `Aceita`
+### DEC-022 — Aprovação genérica · `Aceita` · múltiplos aprovadores na DEC-193 (MVP 2)
 - `Approval` com `subjectType` `PROCESS_STAGE` (etapa APPROVAL do workflow) ou `DOCUMENT` (submissão avulsa); `ApprovalDocument` lista as **versões exatas** de documentos cobertas.
 - Decisões: `APPROVE` → `ApprovalStatus.APPROVED`; `RETURN` → `RETURNED`; `REJECT` → `REJECTED`. Também `CANCELED` (retirada/cancelamento do processo).
 - Aprovador resolvido **no momento da solicitação** (`USER`, `ROLE`, `DEPARTMENT_HEAD`) e gravado; o substituto (`deputyUserId`) da unidade pode decidir quando `allowDeputy = true`.
 - **Cobertura para `ROLE`:** são aprovadores os detentores do perfil cuja atribuição cubra a **unidade solicitante** do processo — escopo `TENANT`, `ORGANIZATION` = órgão do processo, ou `DEPARTMENT`/`OWN_DEPARTMENTS` contendo `requestingSecretariatId` ou `requestingDepartmentId`. As concessões de visibilidade `CURRENT`/`HISTORICAL` **não** dão competência para aprovar (evita que o secretário de uma pasta pela qual o processo apenas tramitou decida sobre ele).
-- Política de decisão no MVP 1: `ANY` (um aprovador decide). Múltiplos aprovadores/sequenciais: MVP 2 (PEND-13).
+- Política de decisão no MVP 1: `ANY` (um aprovador decide). Múltiplos aprovadores/sequenciais: MVP 2 (PEND-13, resolvida pela DEC-193).
 - **Segregação de funções** (Lei 14.133, art. 7º, § 1º): por padrão o autor de um documento coberto não pode aprová-lo (`approval.preventSelfApproval = true`).
 
 ### DEC-023 — Princípio da custódia · `Aceita`
@@ -239,7 +239,7 @@ Não existe entidade `Task` no MVP 1. A caixa é uma consulta sobre: `ProcessSta
 - `internalCode` ("código interno") é opcional, informado pelo órgão (ex.: nº de protocolo legado/SEI), único por tenant quando preenchido.
 - **Implementação (US-105):** a `NumberingFacade` do `catalog` é o único ponto de geração (`assignProcessNumber`/`assignDocumentNumber`/`next` na transação do recurso numerado; `preview` para o `SET-04`). Máscaras das chaves `numbering.*` aceitam `{seq:1..6}` e só as de documento aceitam `{type}` (a de `DocumentType.numberingMask`, US-061, segue `{seq:1..8}`). O escopo do exercício é o da primeira sequência de processo aberta no ano: mudar `numbering.process.scope` só vale no próximo exercício, sem migrar sequências. Documentos numeram por tipo e ano no tenant (`DOCUMENT:<TYPE>:*:<ano>`) mesmo com escopo `ORGANIZATION` para processos — as máscaras de documento semeadas não têm `{org}` e o `code` do documento é único no tenant. Máscara do documento: a do tipo; sem ela, `numbering.document.<TYPE>.mask` (chave dinâmica do registro); sem nenhuma, `numbering.document.defaultMask`.
 
-### DEC-029 — PCA no MVP 1 · `Aceita`
+### DEC-029 — PCA no MVP 1 · `Aceita` · PCA como módulo na DEC-197 (MVP 2)
 Sem entidade PCA no MVP 1. `Process` e `Dfd` guardam a referência: `pcaStatus` (`PLANNED`, `NOT_PLANNED`, `NOT_APPLICABLE`), `pcaYear`, `pcaItemCode`, `pcaJustification` (obrigatória se `NOT_PLANNED`). O MVP 2 cria `Pca`/`PcaItem` e adiciona `pcaItemId` (FK) com migração que tenta resolver as referências existentes.
 
 ### DEC-030 — Sigilo do orçamento estimado · `Aceita`
@@ -297,7 +297,7 @@ Matriz completa em [`mvp-01/permissions.md`](../mvp-01/permissions.md).
   4. **Isolamento e LGPD:** só dados do próprio tenant entram no contexto; dados pessoais desnecessários ficam de fora (minimização — DEC-140); valores de orçamento sigiloso nunca são enviados ao provedor (DEC-030).
   5. **Governança do órgão:** a IA é **opt-in** — o administrador liga (`ai.enabled`, padrão desligado) aceitando os termos de uso, pode desligá-la a qualquer momento e tem limite de uso mensal (tokens) e diário por usuário; quem pode gerar é definido pela permissão `AI_GENERATE` na matriz de perfis.
 - **Fora de escopo agora:** parecer jurídico e edital ganham geração por IA no MVP 2, quando esses documentos existirem; validações cruzadas entre documentos, saúde do processo, recomendações, benchmark e busca semântica continuam no MVP 5; qualquer IA que decida ou aprove.
-- **Pendentes do usuário:** provedor e modelo (PEND-21, ADR-013) e modelo de custo (PEND-22). Nenhuma decisão de provedor foi tomada na especificação.
+- **Pendentes do usuário:** provedor e modelo (PEND-21, ADR-013) e modelo de custo (PEND-22, resolvida pela DEC-203 no MVP 2). Nenhuma decisão de provedor foi tomada na especificação.
 - Registrado em 2026-10-16 (spec-473, prd-3).
 
 ---
@@ -873,6 +873,155 @@ Fecha o prd-5 (DEC-186 e DEC-188). **Todas** as rotas de `apps/web/src/app` usam
 
 ---
 
+## MVP 2 — Governança e Controle
+
+Decisões canônicas da especificação do MVP 2 (prd-7, spec-612). Escopo canônico: [roadmap.md §4](../product/roadmap.md#4-mvp-2--governança-e-controle); visão geral: [mvp-02/overview.md](../mvp-02/overview.md). As entidades, etapas e enums citados aqui são os nomes que o modelo de domínio do MVP 2 (`docs/mvp-02/entities.md`) adota; permissões aparecem como nomes indicativos e são fixadas em `docs/mvp-02/permissions.md`.
+
+### DEC-192 — Especificação do MVP 2 antes do piloto do MVP 1: versão 1 revisável · `Aceita` · 2026-11-10
+- **Contexto:** o gate de [roadmap.md §2](../product/roadmap.md#2-governança-do-roadmap-um-mvp-detalhado-por-vez) e de [risks-and-decisions.md §12](../mvp-01/risks-and-decisions.md#12-validação-para-iniciar-o-mvp-2) recomenda detalhar o MVP 2 só com o MVP 1 em produção nos pilotos. O usuário decidiu (prd-7, 2026-11-10) começar a especificação antes: o gate é recomendação, não bloqueio técnico.
+- **Decisão:** a especificação do MVP 2 é a **versão 1, revisável depois do UAT do MVP 1**. Os itens do gate que dependem do piloto (aprendizado incorporado, definições com o piloto — roadmap §4.7) entram como **padrões semeados e configuráveis por tenant, "a validar com o piloto"** ([mvp-02/overview.md §7](../mvp-02/overview.md#7-a-validar-com-o-piloto)), e não como pendências.
+- **Implementação:** só começa depois do endurecimento das suítes órfãs (spec-622 e correções) e com **DT-02** (migração de versão de workflow — DEC-195) e **DT-03** (etapas paralelas e aprovação múltipla — DEC-193, DEC-194) como primeiros cards, porque o restante do MVP 2 depende deles.
+- **Escopo canônico:** roadmap §4. Épicos do MVP 2 com numeração global contínua a partir de **EP-021**, **FT-063** e **US-123**; telas reservadas SCR-018, 019, 020, 021, 027, 028 e 035 (`SCR-118+` só para telas fora das 41).
+- **Módulos (DEC-040):** saem da lista de reservados e entram no MVP 2 `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `analytics` e `rules`. Os níveis em `tools/module-levels.json` são definidos com o modelo de domínio.
+- **Continua valendo:** tudo o que o MVP 1 decidiu. O MVP 2 **estende**, não refaz — `Document`/`DocumentType` para parecer, manifestação e edital; `Approval` para decisões; `WorkflowStage` para Dotação, Edital, Jurídico e Controle Interno; `CatalogItem` e `Department` para o PCA. Contrato de API do MVP 1 só muda de forma aditiva (DEC-108).
+- **Fora do MVP 2:** publicação (PNCP, Diário Oficial, status `PUBLISHED` — PEND-16), assinatura eletrônica e API pública (MVP 3); escolha do provedor de IA (ADR-013, PEND-21); edição colaborativa em tempo real (PEND-12).
+
+### DEC-193 — Aprovação com múltiplos aprovadores: `decisionPolicy` `ANY`, `ALL` e `SEQUENTIAL` · `Aceita` · 2026-11-10 · resolve PEND-13 · revisa DEC-022
+- **Modelo:** `Approval.decisionPolicy` (`ApprovalDecisionPolicy`: `ANY` | `ALL` | `SEQUENTIAL`, padrão `ANY`) e uma linha por aprovador em **`ApprovalApprover`** (`sequence`, `approverType`, aprovador resolvido, `allowDeputy`, `status` `WAITING` | `PENDING` | `APPROVED` | `RETURNED` | `REJECTED` | `SKIPPED` | `CANCELED`, decisão, comentário, `decidedAsDeputy`). Na etapa, `WorkflowStage.decisionPolicy` e a lista ordenada **`WorkflowStageApprover`** substituem o aprovador único quando a política não é `ANY`; com `ANY` e um aprovador, o comportamento do MVP 1 continua idêntico (as aprovações existentes migram com uma linha `ApprovalApprover`).
+- **`ANY`:** qualquer aprovador habilitado decide pelo conjunto (MVP 1).
+- **`ALL`:** todas as linhas ficam `PENDING` ao mesmo tempo; a aprovação só é `APPROVED` quando todas aprovam. **A primeira decisão negativa encerra a aprovação** (`RETURNED` ou `REJECTED`, conforme a decisão) e as linhas restantes ficam `SKIPPED`.
+- **`SEQUENTIAL`:** ordem explícita por `sequence`; só a linha corrente está `PENDING` (as seguintes ficam `WAITING`, fora da caixa de tarefas); aprovar passa a vez à próxima linha; decisão negativa encerra como em `ALL`.
+- **Desempate e concorrência:** as decisões sobre a mesma aprovação são serializadas por trava de linha (`SELECT … FOR UPDATE` na `Approval`); vale a primeira que efetivar, e a segunda recebe 409 `APPROVAL_NOT_PENDING` (ou, em `ALL`, a sua linha já `SKIPPED`). Não há quórum nem voto de minerva no MVP 2.
+- **Retirada e redirecionamento:** o gestor com `PROCESS_ASSIGN` no escopo pode retirar a aprovação inteira (`CANCELED`, como na DEC-022) ou **redirecionar uma linha ainda não decidida** para outro aprovador elegível — o redirecionamento do MVP 1 (APV-05, `APPROVER_NOT_ELIGIBLE`) passa a agir por linha. Decisão já registrada é imutável — não se retira voto. Substituto (`deputyUserId`) vale por linha.
+- **Devolução depois de votos favoráveis:** os votos já dados ficam no histórico da aprovação encerrada; reenviar cria nova `Approval` com todas as linhas de novo.
+- **Segregação de funções** (art. 7º, § 1º): `approval.preventSelfApproval` vale para cada linha; se a resolução cair no autor de um documento coberto, a linha vai para o substituto e, sem substituto, a solicitação falha com `SELF_APPROVAL_FORBIDDEN`.
+- **Efeitos:** o processo fica `AWAITING_APPROVAL` até a decisão final; a caixa de tarefas lista a aprovação só para quem tem linha `PENDING`; cada aprovador de linha ganha `ProcessAccess` `APPROVER`. Prazo: `Approval.dueAt` vale para o conjunto; políticas de SLA (DEC-205) podem dar prazo por linha.
+
+### DEC-194 — Etapas paralelas no workflow: ramificação e junção · `Aceita` · 2026-11-10 · revisa DEC-014 · [ADR-005](../adr/adr-005-workflow-engine.md)
+- **Modelo:** dois tipos novos em `StageType` — **`PARALLEL_SPLIT`** (ramificação) e **`PARALLEL_JOIN`** (junção) —, sem responsável nem prazo, atravessados automaticamente pelo motor. Cada transição `FORWARD` que sai de um `PARALLEL_SPLIT` abre um **ramo**; os ramos são sequências de etapas `TASK`/`APPROVAL` que terminam no mesmo `PARALLEL_JOIN`. No MVP 2 não há ramos aninhados (um nível) e todo `PARALLEL_SPLIT` tem exatamente um `PARALLEL_JOIN`; a validação do grafo na publicação recusa o resto (`WF_PARALLEL_INVALID`).
+- **Runtime:** um processo pode ter **uma ou mais `ProcessStage` `ACTIVE`** — a fonte de verdade das etapas ativas passa a ser `ProcessStage` (`status = ACTIVE`), com `ProcessStage.branchKey` e `ProcessStage.splitStageId`. `Process.currentStageId` continua existindo para compatibilidade: aponta para a única etapa ativa ou, durante o paralelismo, para a `ProcessStage` do `PARALLEL_SPLIT`; a API acrescenta `activeStages[]` às respostas (mudança aditiva).
+- **Junção:** o `PARALLEL_JOIN` fecha quando **todos** os ramos chegam a ele; então o processo segue pela transição de saída da junção. Regras de saída da junção avaliam o processo inteiro.
+- **Devolução:** `RETURN` dentro do ramo fica no ramo (etapas anteriores do mesmo ramo). `RETURN` para etapa anterior à ramificação **cancela os demais ramos** (`ProcessStage` `CANCELED`, aprovações pendentes `CANCELED` com motivo "Processo devolvido para etapa anterior à ramificação"), com registro na timeline.
+- **Status macro** (DEC-013) com várias etapas ativas: `RETURNED` se alguma etapa ativa foi aberta por devolução; senão `IN_PROGRESS` se alguma for `TASK`; senão `AWAITING_APPROVAL`. Suspensão pausa todos os ramos.
+- **Caixa de tarefas e painel:** a caixa (DEC-026) já trabalha por `ProcessStage` ativa e `ProcessAssignment`, e passa a mostrar um item por ramo; o painel situacional (DEC-180) mostra os ramos lado a lado ("Onde está?" lista as etapas ativas). Prazo do processo para indicadores e alertas = o menor `dueAt` entre as etapas ativas. Princípio da custódia (DEC-023) vale por ramo: quem está com um ramo não altera o outro.
+- **Uso no MVP 2:** opcional por tenant — o workflow padrão v2 (DEC-196) é sequencial; o tenant pode pôr Jurídico e Controle Interno em paralelo numa versão própria.
+
+### DEC-195 — Migração de processos em andamento entre versões de workflow · `Aceita` · 2026-11-10 · paga DT-02 · revisa DEC-014 · [ADR-016](../adr/adr-016-workflow-version-migration.md)
+- **Modelo:** **`WorkflowMigration`** (plano: versão de origem, versão de destino, mapeamento de etapas `sourceStageKey → targetStageKey`, filtro de processos, status `DRAFT` | `SIMULATED` | `RUNNING` | `COMPLETED` | `CANCELED`) e **`WorkflowMigrationItem`** (um por processo: classificação da simulação, decisão humana, resultado e erro). Permissão indicativa `WORKFLOW_MIGRATE` (administrador do órgão).
+- **Mapeamento:** por padrão, etapas com a mesma `key` e o mesmo `type` nas duas versões se correspondem; o administrador completa ou corrige o mapa. Toda etapa ativa de origem precisa de destino.
+- **Simulação obrigatória** antes de executar: cada processo é classificado como **`AUTOMATIC`** (etapa ativa mapeada para etapa do mesmo tipo; aprovação pendente compatível; regras de saída da etapa de destino não regridem o processo), **`NEEDS_DECISION`** (etapa ativa removida ou de outro tipo; aprovação pendente cuja etapa mudou de aprovadores ou de política; processo em paralelismo; regras novas `BLOCKING` já violadas) ou **`BLOCKED`** (status final `CANCELED`/`PUBLISHED`, processo com trava de edição ou migração em curso). `NEEDS_DECISION` exige que uma pessoa escolha a etapa de destino (ou exclua o processo da migração), com justificativa.
+- **Execução:** assíncrona (fila `maintenance`), um processo por transação e idempotente por item; muda `Process.workflowVersionId`, fecha a etapa ativa (`ProcessStageStatus` novo **`MIGRATED`**) e abre a etapa de destino preservando responsável, unidade e `dueAt` (o prazo não recomeça); aprovações pendentes compatíveis são mantidas, as demais são canceladas e solicitadas de novo. Grava `ProcessMovement` com a ação nova **`MIGRATE`**, entrada na timeline ("Processo migrado da versão N para a versão M do workflow"), auditoria `process.workflow_migrate` e o evento de migração. Sem reversão automática: voltar exige outra migração.
+- **Fase preparatória dos processos concluídos no MVP 1:** processos `COMPLETED` na v1 do workflow padrão ("Planejamento da contratação concluído") podem ser migrados para a v2 entrando em `DOTACAO`, sempre como `NEEDS_DECISION` (decisão humana por processo). É o único caminho em que `COMPLETED` volta a `IN_PROGRESS`; a reabertura genérica de processos (PEND-03) continua fora.
+- **Nunca automática sem pedido:** nenhuma migração roda sozinha; publicar nova versão não migra nada (DEC-014 continua valendo para quem não pedir).
+
+### DEC-196 — Workflow padrão v2: fase preparatória completa · `Aceita` (a validar com o jurídico do piloto) · 2026-11-10 · resolve a lacuna L-04 · complementa DEC-015
+- **Ordem (L-04):** **dotação e minuta do edital antes da análise jurídica**, porque o parecer do art. 53 faz o controle prévio de legalidade da fase preparatória inteira, inclusive da minuta do edital e do contrato (art. 53, *caput* e § 1º); o **Controle Interno vem depois do Jurídico**, porque atua como segunda linha (art. 169, II) sobre a instrução completa — inclusive o parecer e o atendimento das ressalvas —, mantendo a ordem prevista na DEC-015. A ordem entre Jurídico e Controle Interno é **configurável por tenant** (inverter ou paralelizar — DEC-194), e o Controle Interno pode ser condicional (ex.: só acima de um valor — DEC-204).
+- **Nova versão do workflow "Fase preparatória — Lei 14.133/2021"** (v2), entre `APROVACAO_AUTORIDADE` (6) e `CONCLUSAO`:
+
+| # | Chave | Nome | Tipo | Responsável padrão | Saída exige (regras padrão) |
+|---|---|---|---|---|---|
+| 7 | `DOTACAO` | Dotação orçamentária | TASK | Unidade fixa configurada (Contabilidade; `CHOSEN_ON_FORWARD` até o administrador configurar) | `BudgetAllocation` `CONFIRMED` cobrindo o valor estimado (BLOCKING) |
+| 8 | `MINUTA_EDITAL` | Minuta do edital | TASK | Unidade fixa configurada (Licitações) | `Tender` e documento `EDITAL` completos (BLOCKING); minuta do contrato `MINUTA_CONTRATO` existente (WARNING) |
+| 9 | `JURIDICO` | Análise jurídica | TASK | Unidade fixa configurada (Procuradoria/assessoria jurídica) | `LegalReview` concluída (BLOCKING); parecer `UNFAVORABLE` exige motivação da autoridade na etapa 11 (WARNING) |
+| 10 | `CONTROLE_INTERNO` | Controle interno | TASK | Unidade fixa configurada (Controle Interno) | `InternalControlReview` concluída (BLOCKING) |
+| 11 | `AUTORIZACAO_LICITACAO` | Aprovação do edital e autorização da licitação | APPROVAL | Perfil `AUTORIDADE_COMPETENTE` com cobertura da secretaria solicitante (DEC-022) | — (decisão) cobre `EDITAL`, `MINUTA_CONTRATO`, `PARECER_JURIDICO`, `MANIFESTACAO_CONTROLE_INTERNO` |
+| 12 | `CONCLUSAO` | Fase preparatória concluída | END | — | — |
+
+- **Diligência do jurídico:** `JURIDICO` pode devolver (`RETURN`) para qualquer etapa já percorrida (`ESTUDOS_PRELIMINARES`, `PESQUISA_PRECOS`, `TERMO_REFERENCIA`, `DOTACAO`, `MINUTA_EDITAL`); a `LegalReview` fica em `DILIGENCE` e é **retomada** (não recriada) quando o processo volta a `JURIDICO`, com nova rodada sobre as versões novas dos documentos. O prazo da análise jurídica fica pausado durante a diligência (DEC-205). `CONTROLE_INTERNO` pode devolver da mesma forma.
+- **`COMPLETED`:** nos processos da v2, `COMPLETED` passa a significar **fase preparatória concluída** (pronta para a divulgação do edital, que chega no MVP 3); nos da v1 continua significando planejamento concluído — o rótulo vem do nome da etapa `END` da versão do processo, sem novo valor de enum.
+- **Contratação direta (art. 72):** nova versão do segundo workflow semeado com `DOTACAO` e `JURIDICO` antes de `AUTORIZACAO` (art. 72, III e IV); sem `MINUTA_EDITAL`.
+- **Adoção:** a v2 é **oferecida, nunca imposta** (roadmap §4.10): publicada automaticamente só para tenants que usam o padrão sem customização; os demais recebem a oferta de adoção (cópia como nova versão `DRAFT` do próprio workflow). Processos em andamento ficam na versão anterior até uma migração pedida (DEC-195).
+- **Etapas `TASK` provisórias** criadas por tenants no MVP 1 para dotação ou jurídico (contorno do roadmap §3.2) entram no mapeamento da migração; documentos de texto livre ficam como histórico.
+
+### DEC-197 — PCA como módulo · `Aceita` · 2026-11-10 · cumpre DEC-029
+- **Entidades (módulo `pca`):** **`Pca`** (órgão, exercício, versão/revisão, status **`PcaPlanStatus`**: `DRAFT`, `AWAITING_APPROVAL`, `APPROVED`, `SUPERSEDED`) e **`PcaItem`** (código estável no plano, secretaria — `Department` —, objeto, categoria — `CatalogItem` —, valor previsto, mês previsto, responsável, status **`PcaItemStatus`**: `PLANNED`, `IN_PROGRESS`, `CONTRACTED`, `POSTPONED`, `CANCELED`). `PcaStatus` continua designando a situação do processo em relação ao PCA (DEC-029); por isso os novos enums têm nomes distintos.
+- **Aprovação do plano:** pela autoridade competente, por `Approval` com o novo `ApprovalSubjectType` **`PCA`** (`Approval.processId` passa a ser nulo nesse caso). Revisão do plano aprovado gera nova versão (`SUPERSEDED` na anterior), com o histórico preservado.
+- **Vínculo:** `Process.pcaItemId` e `Dfd.pcaItemId` (FK composta com tenant, nulos). Os campos textuais `pcaYear`/`pcaItemCode` continuam como histórico. Depois do cadastro ou da importação do PCA, o job de **reconciliação** tenta resolver `pcaYear` + `pcaItemCode` para o `PcaItem` do plano aprovado do exercício; não resolvidos mantêm a referência textual e entram no **relatório de reconciliação**, com conciliação manual assistida.
+- **Importação e divulgação:** importação por planilha (CSV/XLSX) com validação por linha; exportação para divulgação em sítio oficial (art. 12, § 1º) até a publicação automatizada do MVP 3. Acompanhamento da execução: valor previsto × processos vinculados por item, secretaria e categoria.
+- **Lacuna L-07 (consultoria externa):** `CONSULTOR_EXTERNO` não acessa o PCA no MVP 2 (a participação da DEC-036 continua só por processo).
+
+### DEC-198 — Dotação orçamentária · `Aceita` · 2026-11-10
+- **Entidade (módulo `budget`):** **`BudgetAllocation`** por processo (1:N): exercício, classificação orçamentária (unidade orçamentária, programa de trabalho/ação, natureza da despesa, fonte de recursos — catálogos novos em `CatalogItem`, semeados "a validar com o piloto"), valor reservado, número e data da reserva/pré-empenho, evidência (`Attachment`) e status `DRAFT` | `CONFIRMED` | `CANCELED`.
+- **Quem decide:** a Contabilidade (perfil `CONTABILIDADE`, permissões indicativas `BUDGET_ALLOCATION_MANAGE`/`BUDGET_ALLOCATION_CONFIRM`) indica e confirma; a confirmação é ato humano com evidência.
+- **Compatibilidade:** soma das dotações `CONFIRMED` × valor estimado do processo (DEC-032); a regra padrão da saída de `DOTACAO` exige cobertura total (BLOCKING), configurável para `WARNING`. Orçamento sigiloso (DEC-030): valores mascarados para quem não tem a permissão de sigilo, inclusive nos indicadores.
+- **Sem integração contábil no MVP 2:** dados digitados com evidência anexada; consulta a sistemas contábeis fica para os adapters do MVP 3.
+
+### DEC-199 — Análise jurídica e parecer · `Aceita` · 2026-11-10
+- **Entidades (módulo `legal-review`):** **`LegalReview`** por processo e rodada de análise, com **`LegalReviewStatus`**: `PENDING` (aguardando), `IN_REVIEW` (em análise), `DILIGENCE` (diligência), `FAVORABLE` (favorável), `FAVORABLE_WITH_RESERVATIONS` (favorável com ressalvas), `UNFAVORABLE` (desfavorável) — as seis situações do produto — mais `WAIVED` (dispensa de análise, art. 53, § 5º) e `CANCELED`. **`LegalReviewDocument`** lista as **versões exatas** analisadas (como `ApprovalDocument`).
+- **Parecer:** `Document` do tipo `PARECER_JURIDICO` (`SystemDocumentModule` novo **`LEGAL_OPINION`**), com o ciclo de vida da DEC-018; concluir a análise exige o parecer finalizado e a situação conclusiva escolhida pelo procurador. Ressalvas viram itens rastreáveis que a etapa seguinte vê.
+- **Fila priorizada:** critérios objetivos configuráveis (art. 53, § 1º, I) — prazo, valor, urgência, data de entrada — compõem a ordem da fila (SCR-019); distribuição pelo chefe da assessoria (`PROCESS_ASSIGN` no escopo da unidade jurídica).
+- **Dispensa de análise (art. 53, § 5º):** hipóteses configuradas por tenant (ato da autoridade jurídica máxima); a dispensa é registrada como `LegalReview` `WAIVED` com a hipótese e a justificativa, e satisfaz a regra de saída de `JURIDICO`.
+- **Diligência:** devolve o processo (DEC-196) com o pedido de diligência registrado; a rodada seguinte reaproveita a análise e compara as versões.
+- **Parecer não vinculante:** `UNFAVORABLE` não bloqueia por si; prosseguir exige motivação da autoridade na aprovação seguinte (regra `WARNING` com reconhecimento registrado — ADR-008).
+- **Perfil:** `JURIDICO` ganha as permissões da análise (indicativas `LEGAL_REVIEW_VIEW`, `LEGAL_REVIEW_MANAGE`, `LEGAL_REVIEW_CONCLUDE`); não se cria perfil novo.
+
+### DEC-200 — Manifestação do Controle Interno · `Aceita` · 2026-11-10
+- **Entidades (módulo `internal-control`):** **`InternalControlReview`** por processo e rodada, com `InternalControlReviewStatus` `PENDING`, `IN_REVIEW`, `COMPLIANT`, `COMPLIANT_WITH_RECOMMENDATIONS`, `NON_COMPLIANT`, `CANCELED`; **`InternalControlChecklist`** (modelo de checklist configurável por tenant, versionado) e **`InternalControlFinding`** (achado, recomendação, criticidade, situação do atendimento).
+- **Manifestação:** `Document` do tipo `MANIFESTACAO_CONTROLE_INTERNO` (`SystemDocumentModule` novo **`INTERNAL_CONTROL_REPORT`**). Visão de riscos do processo (mapa de riscos e avisos `WARNING` superados — L-08) na tela SCR-020.
+- **Quem decide:** perfil `CONTROLE_INTERNO` (permissões indicativas `INTERNAL_CONTROL_REVIEW_MANAGE`/`_CONCLUDE`). `NON_COMPLIANT` segue a mesma lógica do parecer desfavorável: não bloqueia por si; exige motivação da autoridade.
+- **Sem IA no MVP 2** para a manifestação (não pedida no prd-7).
+
+### DEC-201 — Minuta do edital (módulo `tender`) · `Aceita` · 2026-11-10
+- **Entidades:** **`Tender`** (1:1 com o processo — cabeçalho tipado do edital: modalidade, critério de julgamento, modo de disputa, regime de execução, exigências de habilitação, prazos e condições) e **`TenderLot`** (lotes com os `ProcessItem`). Documentos `EDITAL` (`SystemDocumentModule` novo **`TENDER`**) e `MINUTA_CONTRATO`, gerados a partir de template e importando itens, lotes, critérios e condições do TR (`importMappings`, como TR ← ETP); matriz de alocação de riscos quando aplicável (art. 22), a partir do mapa de riscos.
+- **Quem elabora:** Licitações (`LICITACOES`, permissões indicativas `TENDER_VIEW`/`TENDER_UPDATE`); quem aprova o edital: a autoridade em `AUTORIZACAO_LICITACAO` (DEC-196).
+- **Só a minuta no MVP 2:** número do edital, publicação, status `PUBLISHED`, impugnações e sessão pública ficam no MVP 3 em diante.
+
+### DEC-202 — IA para o parecer jurídico e a minuta do edital · `Aceita` · 2026-11-10 · cumpre a parte "MVP 2" da DEC-037 · complementa DEC-079
+- **Geradores novos** na camada do EP-020: **`draft.legal_opinion`** e **`draft.tender`**, prompts versionados em `apps/api/src/modules/ai/prompts/<promptKey>/`. `AiGeneration.targetModule` passa a aceitar **`LEGAL_OPINION`** e **`TENDER`**.
+- **Entradas em cadeia:** parecer ← DFD, ETP, mapa de riscos, pesquisa de preços, TR, dotação e minuta do edital (versões vigentes); edital ← TR, pesquisa de preços, mapa de riscos e `Tender`. Mesmo `ContextSanitizer` (LGPD, sigilo do orçamento) e `GroundingGuard`.
+- **Mesmos princípios do EP-020:** a IA não decide (princípio 16); nada inventado, com **[a confirmar]**; revisão humana obrigatória por seção (US-122) antes de finalizar; rastreabilidade em `AiGeneration`; opt-in e limites por órgão (DEC-203). **No parecer, a IA nunca propõe a conclusão** (favorável, com ressalvas, desfavorável): a seção de conclusão sai como [a confirmar] e a situação é escolhida pelo procurador.
+- **Permissões:** gerar exige `AI_GENERATE` mais a permissão de edição do documento-alvo (POL-18 estendida aos tipos novos). Provedor: o mesmo da ADR-013 (PEND-21 continua decisão separada).
+
+### DEC-203 — Custo da IA incluído no plano, com limites por órgão · `Aceita` · 2026-11-10 · resolve PEND-22
+- **Decisão:** no MVP 2 a IA é **incluída no plano**, sem cobrança por uso. Continuam valendo os limites técnicos por órgão (`ai.monthlyTokenLimit` padrão 2.000.000 tokens/mês e `ai.userDailyRequestLimit` padrão 40 — DEC-079) e o registro de custo por geração.
+- **Relatório de consumo:** o relatório por órgão (AI-06) ganha visão mensal por gerador, documento e usuário, inclusive dos geradores novos; a reserva de tokens por pedido do parecer e do edital é calibrada como a dos demais (DEC-079).
+- **Revisão:** cobrança por uso ou pacotes entram com os planos comerciais (PEND-17), fora do MVP 2.
+
+### DEC-204 — Biblioteca de regras e `RuleContext` v2 · `Aceita` · 2026-11-10 · evolui DEC-016 · [ADR-015](../adr/adr-015-rules-engine-sla-notifications.md)
+- **Biblioteca (módulo `rules`):** **`RuleDefinition`** (regra reutilizável do tenant, com nome, descrição e tipo) e **`RuleDefinitionVersion`** (versão publicada imutável, com `contextVersion` e a expressão). Workflows referenciam a regra da biblioteca por versão fixada; `WorkflowRule` continua existindo (regras locais e as do MVP 1).
+- **Tipos novos de regra** (além de `REQUIRED_DOCUMENT`, `REQUIRED_FIELD`, `REQUIRED_APPROVAL`, `CONDITION`): **roteamento** — `WorkflowStage.applicabilityRule` (etapa dispensada automaticamente quando falsa, com registro na timeline — ex.: "valor acima de X exige Controle Interno") e condição em `WorkflowTransition`; **alçada por valor** — resolução do aprovador ou da política de decisão por faixa de valor; **SLA** e **notificação** (DEC-205).
+- **`RuleContext` v2:** superset da v1 com os namespaces `pca.*`, `budget.*`, `legalReview.*`, `internalControl.*`, `tender.*` e `sla.*`. Regras v1 continuam avaliadas com o contexto v1 (cada regra grava a sua `contextVersion`); nada quebra.
+- **Simulador e testes:** "testar regra" (WF-23) estendido a processos hipotéticos e a conjuntos de casos salvos com o resultado esperado; modelos prontos semeados. Mesmo executor JSON Logic com *allowlist* (ADR-008).
+
+### DEC-205 — SLA avançado e regras de notificação · `Aceita` · 2026-11-10 · evolui DEC-031 · [ADR-015](../adr/adr-015-rules-engine-sla-notifications.md)
+- **SLA (módulo `sla`):** **`SlaPolicy`** com aplicabilidade em JSON Logic (tipo de contratação, modalidade, valor) e prazos por etapa (dias úteis ou corridos) que **substituem** `WorkflowStage.slaDays` quando a política casa; **pausas** por condição (diligência do jurídico, suspensão do processo); **escalonamento** em degraus (aviso antes do vencimento, no vencimento e depois dele, para responsável, titular da unidade e gestor). O prazo da DEC-031 continua a base quando nenhuma política se aplica; `ProcessStage.dueAt` continua sendo o campo do prazo.
+- **Notificação condicional:** **`NotificationRule`** (evento de domínio de origem + condição JSON Logic + destinatários por papel, unidade ou responsável + modelo de mensagem), entregue pelo módulo `notification` com o tipo de notificação novo de regra; preferências do usuário (US-113) continuam valendo.
+- **Execução:** assíncrona no worker, consumindo eventos do outbox, idempotente por `eventId` + regra; o job `deadlines` passa a consultar o `sla` para pausas e degraus.
+- **Cumprimento:** indicadores de cumprimento de prazo por etapa e unidade saem do read model de indicadores (DEC-206).
+
+### DEC-206 — Indicadores e gargalos em read model próprio · `Aceita` · 2026-11-10 · [ADR-014](../adr/adr-014-indicators-read-model.md)
+- **Read model (módulo `analytics`):** tabelas de fatos próprias, alimentadas por eventos do outbox (passagens por etapa, movimentações, aprovações, situação do processo e do PCA) e reconstruíveis a partir das tabelas transacionais por job noturno de reconciliação; agregados em visões materializadas atualizadas periodicamente. Relatórios **nunca** consultam `ProcessStage`/`ProcessMovement` diretamente em produção.
+- **Conteúdo:** tempo de ciclo, devoluções, cumprimento de prazo, volume e valor por secretaria e modalidade, execução do PCA (SCR-027, SCR-028); gargalos — tempo por etapa, unidade e responsável, filas e envelhecimento, comparação entre períodos. Exportação CSV/XLSX auditada.
+- **Segurança:** agregados filtrados pelo escopo da permissão de relatório (indicativa `REPORT_VIEW`; tenant, órgão ou unidades); o detalhamento por processo aplica o predicado de visibilidade da DEC-024; valores de orçamento sigiloso mascarados (DEC-030) para quem não tem a permissão de sigilo.
+- **Atualidade:** quase em tempo real (alvo: até 5 minutos de defasagem), com a data da última atualização exibida. O dashboard operacional (DEC-088) continua sobre as views do MVP 1.
+
+### DEC-207 — Login gov.br via Authentik · `Aceita` · 2026-11-10 · resolve PEND-18 · complementa DEC-130 e DEC-187 · [ADR-017](../adr/adr-017-govbr-login.md)
+- **Federação:** o gov.br (Login Único) entra como **fonte OIDC federada no Authentik**; o ContrataFlow continua falando só com o Authentik (DEC-130). Na tela `/entrar`, o botão "Entrar com gov.br" leva o navegador ao fluxo de redirecionamento do Authentik (o login nativo da DEC-187 não conduz federação); o BFF ganha a rota de início dessa entrada e reaproveita o callback, a sessão e a troca de código de sempre.
+- **Vínculo do usuário:** gov.br autentica a pessoa, **não dá acesso**: entrar no tenant continua exigindo `TenantMembership` ativo (convite). O primeiro uso vincula a identidade gov.br a um `User` existente quando (a) a pessoa já autenticada vincula a conta em "Meu perfil", ou (b) o CPF do gov.br confere com o CPF cadastrado no usuário; sem vínculo, a entrada é recusada com orientação. O CPF é guardado como HMAC para comparação e mascarado na exibição (DEC-086, DEC-140).
+- **Níveis de confiança** (bronze, prata, ouro): gravados como atributo da sessão (`govbrTrustLevel`), exibidos na auditoria do login e disponíveis para política futura por tenant; **não bloqueiam** o uso no MVP 2. Contar o nível prata/ouro como segundo fator para a política de MFA (DEC-133) é opção do tenant, desligada por padrão.
+- **Habilitação:** por tenant (`auth.govbrEnabled`, padrão desligado), depois do credenciamento da plataforma no Login Único — dependência externa registrada no plano de entrega.
+
+### DEC-208 — Backoffice da plataforma · `Aceita` · 2026-11-10 · paga DT-07 e DT-18 · complementa DEC-078 e DEC-139
+- **Escopo:** área web própria para operadores da plataforma, separada das telas do órgão: provisionar tenant e órgãos (a mesma operação de plataforma da US-099/DEC-078), acompanhar o ciclo de vida do tenant, conceder e encerrar **acesso de suporte** (DEC-139: vínculo `EXTERNAL` ≤ 72 h, chamado obrigatório, auditoria `actorType = PLATFORM_OPERATOR` visível ao administrador do tenant) e consultar a saúde operacional (filas, limites de IA).
+- **Acesso:** só operadores da plataforma (grupo próprio no Authentik, MFA obrigatório); nenhum dado de tenant por padrão — o backoffice não lê processos nem documentos.
+- **Sem módulo novo de domínio:** reaproveita `tenancy`, `identity`, `access` e `audit`; a CLI de plataforma continua existindo.
+
+### DEC-209 — Débitos DT-13 a DT-17 no MVP 2 · `Aceita` · 2026-11-10
+- **DT-13:** reativação de perfil desativado (hoje só duplicar — ROL-07).
+- **DT-14:** quebra do selo de auditoria gera notificação (`NotificationType` novo) a `ADMIN_ORGAO` e `AUDITOR`, além do alerta operacional A21.
+- **DT-15:** atualização da biblioteca padrão de templates com diferença por `contentHash` e adoção assistida.
+- **DT-16:** limite do lote da caixa de tarefas configurável por tenant (`inbox.bulkMaxItems`, faixa permitida pela plataforma).
+- **DT-17:** `Approval.dueAt` nas submissões avulsas de documento, por prazo configurado no `DocumentType`.
+- Entram como stories do épico de plataforma; nenhum muda contrato de API do MVP 1 de forma incompatível.
+
+### DEC-210 — Destino das pendências e lacunas fora do MVP 2 · `Aceita` · 2026-11-10
+- **PEND-12** (edição colaborativa em tempo real): avaliar depois do MVP 2; presença e bloqueio otimista por seção continuam.
+- **PEND-16** (registro de publicação): MVP 3, com o módulo `publication`.
+- **PEND-17** (planos comerciais e limites por tenant): decisão comercial, fora do MVP 2; os limites técnicos atuais continuam.
+- **L-04** resolvida pela DEC-196; **L-07** resolvida pela DEC-197 (sem acesso da consultoria externa ao PCA no MVP 2).
+
+---
+
 ## 10. Decisões pendentes
 
 Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especificação adota o **padrão indicado** até a decisão.
@@ -886,18 +1035,17 @@ Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especifica�
 | PEND-08 | Imagens embutidas no editor rico | Não permitidas no MVP 1 (usar anexos) | Produto |
 | PEND-09 | PDF/A-2b para arquivamento | PDF comum no MVP 1; PDF/A avaliado no MVP 3 (assinatura) | Produto |
 | PEND-11 | Comentários restritos por unidade | Não no MVP 1 | Produto |
-| PEND-12 | Edição colaborativa em tempo real | Não no MVP 1 (presença + bloqueio otimista por seção) | Produto |
-| PEND-13 | Aprovação com múltiplos aprovadores (todos/sequencial) | Não no MVP 1 (`ANY`) | Produto |
+| PEND-12 | Edição colaborativa em tempo real | Não no MVP 1 (presença + bloqueio otimista por seção); **avaliar após o MVP 2** (DEC-210) | Produto |
 | PEND-14 | Semântica de "origem" e "código interno" | Origem = catálogo `PROCESS_ORIGIN`; canal técnico em `creationChannel`; código interno = nº externo opcional | Produto |
-| PEND-16 | Registro manual de publicação no MVP 1 | Não; `PUBLISHED` só no MVP 3 | Produto |
-| PEND-17 | Planos comerciais e limites por tenant (usuários, storage) | Limites técnicos padrão sem cobrança (storage: proposta de 50 GB por tenant, avisos em 80%/95% — storage.md §8; erro `STORAGE_QUOTA_EXCEEDED`) | Comercial |
-| PEND-18 | Login gov.br via Authentik | Fora do MVP 1 | Produto |
+| PEND-16 | Registro manual de publicação no MVP 1 | Não; `PUBLISHED` só no MVP 3 — **destino: MVP 3** (DEC-210) | Produto |
+| PEND-17 | Planos comerciais e limites por tenant (usuários, storage) | **Comercial, fora do MVP 2** (DEC-210). Limites técnicos padrão sem cobrança (storage: proposta de 50 GB por tenant, avisos em 80%/95% — storage.md §8; erro `STORAGE_QUOTA_EXCEEDED`) | Comercial |
 | PEND-19 | Prioridade do processo após a aprovação do DFD | `Process.priority` passa a `Dfd.priority` na aprovação (RN-DFD-66, US-017); ajustes posteriores por US-005 | Produto |
 | PEND-20 | Organização e times do GitHub (CODEOWNERS, proteção de branch) | Times provisórios de DEC-062 (`@contrataflow/tech-lead`, `security`, `platform`, `frontend`, `design`, `product`, `engineering`) | Tech Lead |
 | PEND-21 | Provedor e modelo de IA para a geração de documentos ([ADR-013](../adr/adr-013-ai-provider.md)) | Camada agnóstica (`AiProvider`) com `FakeAiProvider` em dev/test; a ADR recomenda Anthropic Claude via Amazon Bedrock (região de origem `sa-east-1`), com um modelo intermediário no rascunho completo e um modelo econômico nos ajustes — **sem decisão até o usuário escolher** | Usuário (produto) + jurídico/DPO |
-| PEND-22 | Modelo de custo da IA (incluído no plano × cobrado por uso) e limites padrão por órgão | Sem cobrança; limite técnico `ai.monthlyTokenLimit` = 2.000.000 tokens/mês e `ai.userDailyRequestLimit` = 40; custo registrado por geração para o relatório de consumo (AI-06) | Usuário (produto/comercial) — relaciona-se com a PEND-17 |
 
 **Decididas em 2026-10-07 (sprint 0 — padrão confirmado pelo produto):** PEND-01 → DEC-028 · PEND-04 → DEC-020 · PEND-06 → DEC-141 · PEND-10 → DEC-061 · PEND-15 → DEC-021.
+
+**Resolvidas na especificação do MVP 2 (2026-11-10, prd-7):** PEND-13 → DEC-193 (`decisionPolicy` `ANY`/`ALL`/`SEQUENTIAL`) · PEND-18 → DEC-207 (gov.br federado no Authentik) · PEND-22 → DEC-203 (IA incluída no plano, limites por órgão). Destino registrado na DEC-210: PEND-12 avaliar após o MVP 2 · PEND-16 MVP 3 · PEND-17 comercial, fora do MVP 2.
 
 
 ---
@@ -919,3 +1067,7 @@ Itens que exigem decisão de produto, jurídico ou cliente-piloto. A especifica�
 | [ADR-011](../adr/adr-011-identifiers-numbering.md) | UUIDv7 e numeração de negócio por sequência transacional | Aceito |
 | [ADR-012](../adr/adr-012-prisma-tenant-transaction.md) | Prisma 7 com *driver adapter* e contexto de tenant por transação | Aceito |
 | [ADR-013](../adr/adr-013-ai-provider.md) | Provedor e modelo de IA para a geração de documentos do planejamento | Proposto — pendente de decisão do usuário (PEND-21) |
+| [ADR-014](../adr/adr-014-indicators-read-model.md) | Read model de indicadores e gargalos (MVP 2) | Aceito |
+| [ADR-015](../adr/adr-015-rules-engine-sla-notifications.md) | Biblioteca de regras, `RuleContext` v2, SLA e notificações condicionais (MVP 2) | Aceito |
+| [ADR-016](../adr/adr-016-workflow-version-migration.md) | Migração de processos em andamento entre versões de workflow (MVP 2) | Aceito |
+| [ADR-017](../adr/adr-017-govbr-login.md) | Login gov.br federado no Authentik (MVP 2) | Aceito |

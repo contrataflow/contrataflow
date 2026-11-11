@@ -69,6 +69,13 @@
 - Limites de 50 etapas / 200 transições / 200 regras por versão atingidos em uso real → revisar limites ou a paginação do editor.
 - Regras exigindo mais do que JSON Logic (ex.: chamadas externas) → reavaliar junto com ADR-008.
 
+## Adendo de 2026-11-10 — MVP 2 (paralelismo, aprovação múltipla e migração)
+
+- **Etapas paralelas (DEC-194):** tipos `PARALLEL_SPLIT` e `PARALLEL_JOIN`, um nível de ramos, uma ou mais `ProcessStage` ativas; `Process.currentStageId` mantido por compatibilidade e `activeStages[]` acrescentado à API.
+- **Aprovação múltipla (DEC-193):** `WorkflowStage.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`) com `WorkflowStageApprover`; no runtime, `Approval.decisionPolicy` e `ApprovalApprover`.
+- **Migração entre versões (DEC-195):** a regra "processo preso à versão" continua; a mudança de versão só acontece por migração pedida, simulada e auditada — [ADR-016](adr-016-workflow-version-migration.md).
+- **Regras:** roteamento por `WorkflowStage.applicabilityRule` e `WorkflowTransition.condition`, biblioteca reutilizável e `RuleContext` v2 — [ADR-015](adr-015-rules-engine-sla-notifications.md).
+
 ## Referências
 - DEC-014, DEC-015, DEC-016 — [decisions.md](../architecture/decisions.md).
 - [entities.md](../mvp-01/entities.md) §4 — `Workflow`, `WorkflowVersion`, `WorkflowStage`, `WorkflowTransition`, `WorkflowRule`.
