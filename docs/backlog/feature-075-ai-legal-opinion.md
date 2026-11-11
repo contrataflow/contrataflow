@@ -34,7 +34,7 @@ A IA **nunca propõe a conclusão** do parecer: a seção de conclusão sai semp
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-157 ⏳ | Gerar o rascunho do parecer jurídico com IA | P1 | L | US-115, US-116, US-122, US-154 |
+| US-157 | Gerar o rascunho do parecer jurídico com IA | P1 | L | US-115, US-116, US-122, US-154 |
 
 ## Escopo
 - Gerador e prompt `draft.legal_opinion`, versionado em `apps/api/src/modules/ai/prompts/legal_opinion/`.

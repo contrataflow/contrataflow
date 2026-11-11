@@ -294,20 +294,20 @@
 | US-146 | Indicar a dotação orçamentária do processo | EP-024 | FT-072 | P0 | M | US-001, US-013, US-097, US-104 |
 | US-147 | Confirmar a reserva com evidência e cancelar dotação | EP-024 | FT-072 | P0 | M | US-068, US-146 |
 | US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | EP-024 | FT-072 | P0 | M | US-032, US-129, US-147 |
-| US-149 ⏳ | Abrir a análise jurídica e fila priorizada | EP-025 | FT-073 | P0 | L | US-047, US-097, US-104 |
-| US-150 ⏳ | Distribuir análises na assessoria jurídica | EP-025 | FT-073 | P0 | S | US-050, US-149 |
-| US-151 ⏳ | Configurar critérios da fila e hipóteses de dispensa | EP-025 | FT-073 | P0 | M | US-103, US-104, US-149 |
-| US-152 ⏳ | Conduzir a análise jurídica sobre versões exatas | EP-025 | FT-074 | P0 | M | US-066, US-149 |
-| US-153 ⏳ | Pedir diligência e retomar a análise | EP-025 | FT-074 | P0 | L | US-048, US-066, US-152 |
-| US-154 ⏳ | Elaborar o parecer jurídico e registrar ressalvas | EP-025 | FT-074 | P0 | M | US-065, US-110, US-152 |
-| US-155 ⏳ | Concluir a análise com a situação conclusiva | EP-025 | FT-074 | P0 | M | US-129, US-154 |
-| US-156 ⏳ | Dispensar a análise jurídica por hipótese configurada | EP-025 | FT-074 | P0 | M | US-149, US-151 |
-| US-157 ⏳ | Gerar o rascunho do parecer jurídico com IA | EP-025 | FT-075 | P1 | L | US-115, US-116, US-122, US-154 |
-| US-158 ⏳ | Gerenciar checklists versionados do Controle Interno | EP-026 | FT-076 | P0 | M | US-097, US-103 |
-| US-159 ⏳ | Abrir a manifestação e painel do Controle Interno com visão de riscos | EP-026 | FT-077 | P0 | L | US-033, US-047, US-158 |
-| US-160 ⏳ | Responder o checklist e registrar achados e recomendações | EP-026 | FT-077 | P0 | M | US-159 |
-| US-161 ⏳ | Emitir a manifestação e concluir com a situação | EP-026 | FT-077 | P0 | M | US-065, US-110, US-129, US-160 |
-| US-162 ⏳ | Acompanhar o atendimento dos achados | EP-026 | FT-077 | P1 | S | US-160 |
+| US-149 | Abrir a análise jurídica e fila priorizada | EP-025 | FT-073 | P0 | L | US-047, US-097, US-104 |
+| US-150 | Distribuir análises na assessoria jurídica | EP-025 | FT-073 | P0 | S | US-050, US-149 |
+| US-151 | Configurar critérios da fila e hipóteses de dispensa | EP-025 | FT-073 | P0 | M | US-103, US-104, US-149 |
+| US-152 | Conduzir a análise jurídica sobre versões exatas | EP-025 | FT-074 | P0 | M | US-066, US-149 |
+| US-153 | Pedir diligência e retomar a análise | EP-025 | FT-074 | P0 | L | US-048, US-066, US-152 |
+| US-154 | Elaborar o parecer jurídico e registrar ressalvas | EP-025 | FT-074 | P0 | M | US-065, US-110, US-152 |
+| US-155 | Concluir a análise com a situação conclusiva | EP-025 | FT-074 | P0 | M | US-129, US-154 |
+| US-156 | Dispensar a análise jurídica por hipótese configurada | EP-025 | FT-074 | P0 | M | US-149, US-151 |
+| US-157 | Gerar o rascunho do parecer jurídico com IA | EP-025 | FT-075 | P1 | L | US-115, US-116, US-122, US-154 |
+| US-158 | Gerenciar checklists versionados do Controle Interno | EP-026 | FT-076 | P0 | M | US-097, US-103 |
+| US-159 | Abrir a manifestação e painel do Controle Interno com visão de riscos | EP-026 | FT-077 | P0 | L | US-033, US-047, US-158 |
+| US-160 | Responder o checklist e registrar achados e recomendações | EP-026 | FT-077 | P0 | M | US-159 |
+| US-161 | Emitir a manifestação e concluir com a situação | EP-026 | FT-077 | P0 | M | US-065, US-110, US-129, US-160 |
+| US-162 | Acompanhar o atendimento dos achados | EP-026 | FT-077 | P1 | S | US-160 |
 | US-163 ⏳ | Criar a minuta do edital com cabeçalho tipado | EP-027 | FT-078 | P0 | M | US-039, US-065, US-110 |
 | US-164 ⏳ | Importar itens, critérios e condições do TR para o edital | EP-027 | FT-078 | P0 | M | US-037, US-038, US-163 |
 | US-165 ⏳ | Organizar os lotes do edital | EP-027 | FT-078 | P0 | M | US-006, US-163 |
@@ -349,4 +349,4 @@
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 
-Totais do MVP 2: 11 épicos · 28 features · 78 stories (38 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (52 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.

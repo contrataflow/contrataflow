@@ -35,11 +35,11 @@ O parecer é um documento `PARECER_JURIDICO` elaborado no editor, com ressalvas 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-152 ⏳ | Conduzir a análise jurídica sobre versões exatas | P0 | M | US-066, US-149 |
-| US-153 ⏳ | Pedir diligência e retomar a análise | P0 | L | US-048, US-066, US-152 |
-| US-154 ⏳ | Elaborar o parecer jurídico e registrar ressalvas | P0 | M | US-065, US-110, US-152 |
-| US-155 ⏳ | Concluir a análise com a situação conclusiva | P0 | M | US-129, US-154 |
-| US-156 ⏳ | Dispensar a análise jurídica por hipótese configurada | P0 | M | US-149, US-151 |
+| US-152 | Conduzir a análise jurídica sobre versões exatas | P0 | M | US-066, US-149 |
+| US-153 | Pedir diligência e retomar a análise | P0 | L | US-048, US-066, US-152 |
+| US-154 | Elaborar o parecer jurídico e registrar ressalvas | P0 | M | US-065, US-110, US-152 |
+| US-155 | Concluir a análise com a situação conclusiva | P0 | M | US-129, US-154 |
+| US-156 | Dispensar a análise jurídica por hipótese configurada | P0 | M | US-149, US-151 |
 
 ## Escopo
 - Início da análise (`PENDING` para `IN_REVIEW`); snapshot das versões vigentes em `LegalReviewDocument` (rodada 1); consulta e comparação das versões.

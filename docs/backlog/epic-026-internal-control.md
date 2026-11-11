@@ -50,17 +50,17 @@ Dar ao Controle Interno uma etapa própria e rastreável na fase preparatória: 
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-076 | Checklist do Controle Interno | US-158 ⏳ | P0 |
-| FT-077 | Manifestação do Controle Interno | US-159 ⏳, US-160 ⏳, US-161 ⏳, US-162 ⏳ | P0 |
+| FT-076 | Checklist do Controle Interno | US-158 | P0 |
+| FT-077 | Manifestação do Controle Interno | US-159, US-160, US-161, US-162 | P0 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-158 ⏳ | Gerenciar checklists versionados do Controle Interno | P0 | M | 5 |
-| US-159 ⏳ | Abrir a manifestação e painel do Controle Interno com visão de riscos | P0 | L | 8 |
-| US-160 ⏳ | Responder o checklist e registrar achados e recomendações | P0 | M | 5 |
-| US-161 ⏳ | Emitir a manifestação e concluir com a situação | P0 | M | 5 |
-| US-162 ⏳ | Acompanhar o atendimento dos achados | P1 | S | 2 |
+| US-158 | Gerenciar checklists versionados do Controle Interno | P0 | M | 5 |
+| US-159 | Abrir a manifestação e painel do Controle Interno com visão de riscos | P0 | L | 8 |
+| US-160 | Responder o checklist e registrar achados e recomendações | P0 | M | 5 |
+| US-161 | Emitir a manifestação e concluir com a situação | P0 | M | 5 |
+| US-162 | Acompanhar o atendimento dos achados | P1 | S | 2 |
 | **Total** | | | | **25** |
 
 ## Módulos e entidades

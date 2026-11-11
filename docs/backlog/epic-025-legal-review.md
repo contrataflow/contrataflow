@@ -55,22 +55,22 @@ Levar a análise jurídica do art. 53 da Lei 14.133/2021 para dentro do processo
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-073 | Fila jurídica priorizada | US-149 ⏳, US-150 ⏳, US-151 ⏳ | P0 |
-| FT-074 | Análise, diligência e parecer | US-152 ⏳, US-153 ⏳, US-154 ⏳, US-155 ⏳, US-156 ⏳ | P0 |
-| FT-075 | IA no parecer jurídico | US-157 ⏳ | P1 |
+| FT-073 | Fila jurídica priorizada | US-149, US-150, US-151 | P0 |
+| FT-074 | Análise, diligência e parecer | US-152, US-153, US-154, US-155, US-156 | P0 |
+| FT-075 | IA no parecer jurídico | US-157 | P1 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-149 ⏳ | Abrir a análise jurídica e fila priorizada | P0 | L | 8 |
-| US-150 ⏳ | Distribuir análises na assessoria jurídica | P0 | S | 2 |
-| US-151 ⏳ | Configurar critérios da fila e hipóteses de dispensa | P0 | M | 5 |
-| US-152 ⏳ | Conduzir a análise jurídica sobre versões exatas | P0 | M | 5 |
-| US-153 ⏳ | Pedir diligência e retomar a análise | P0 | L | 8 |
-| US-154 ⏳ | Elaborar o parecer jurídico e registrar ressalvas | P0 | M | 5 |
-| US-155 ⏳ | Concluir a análise com a situação conclusiva | P0 | M | 5 |
-| US-156 ⏳ | Dispensar a análise jurídica por hipótese configurada | P0 | M | 5 |
-| US-157 ⏳ | Gerar o rascunho do parecer jurídico com IA | P1 | L | 8 |
+| US-149 | Abrir a análise jurídica e fila priorizada | P0 | L | 8 |
+| US-150 | Distribuir análises na assessoria jurídica | P0 | S | 2 |
+| US-151 | Configurar critérios da fila e hipóteses de dispensa | P0 | M | 5 |
+| US-152 | Conduzir a análise jurídica sobre versões exatas | P0 | M | 5 |
+| US-153 | Pedir diligência e retomar a análise | P0 | L | 8 |
+| US-154 | Elaborar o parecer jurídico e registrar ressalvas | P0 | M | 5 |
+| US-155 | Concluir a análise com a situação conclusiva | P0 | M | 5 |
+| US-156 | Dispensar a análise jurídica por hipótese configurada | P0 | M | 5 |
+| US-157 | Gerar o rascunho do parecer jurídico com IA | P1 | L | 8 |
 | **Total** | | | | **51** |
 
 ## Módulos e entidades

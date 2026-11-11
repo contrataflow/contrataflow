@@ -39,10 +39,10 @@ Painel da manifestação do Controle Interno sobre o processo (SCR-020), da aber
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-159 ⏳ | Abrir a manifestação e painel do Controle Interno com visão de riscos | P0 | L | US-033, US-047, US-158 |
-| US-160 ⏳ | Responder o checklist e registrar achados e recomendações | P0 | M | US-159 |
-| US-161 ⏳ | Emitir a manifestação e concluir com a situação | P0 | M | US-065, US-110, US-129, US-160 |
-| US-162 ⏳ | Acompanhar o atendimento dos achados | P1 | S | US-160 |
+| US-159 | Abrir a manifestação e painel do Controle Interno com visão de riscos | P0 | L | US-033, US-047, US-158 |
+| US-160 | Responder o checklist e registrar achados e recomendações | P0 | M | US-159 |
+| US-161 | Emitir a manifestação e concluir com a situação | P0 | M | US-065, US-110, US-129, US-160 |
+| US-162 | Acompanhar o atendimento dos achados | P1 | S | US-160 |
 
 ## Escopo
 - Abertura automática, fila do Controle Interno e atribuição do analista; início da análise (`PENDING` → `IN_REVIEW`).

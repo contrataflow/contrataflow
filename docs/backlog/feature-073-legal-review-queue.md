@@ -35,9 +35,9 @@ O chefe da assessoria distribui as análises aos procuradores, individualmente o
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-149 ⏳ | Abrir a análise jurídica e fila priorizada | P0 | L | US-047, US-097, US-104 |
-| US-150 ⏳ | Distribuir análises na assessoria jurídica | P0 | S | US-050, US-149 |
-| US-151 ⏳ | Configurar critérios da fila e hipóteses de dispensa | P0 | M | US-103, US-104, US-149 |
+| US-149 | Abrir a análise jurídica e fila priorizada | P0 | L | US-047, US-097, US-104 |
+| US-150 | Distribuir análises na assessoria jurídica | P0 | S | US-050, US-149 |
+| US-151 | Configurar critérios da fila e hipóteses de dispensa | P0 | M | US-103, US-104, US-149 |
 
 ## Escopo
 - Abertura automática da análise ao entrar em `JURIDICO` (`StageLifecycleListener`): `LegalReview` com `sequence`, `enteredQueueAt` e score.

@@ -34,7 +34,7 @@ A versão nasce em rascunho, é publicada e passa a ser imutável; mudanças vir
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-158 ⏳ | Gerenciar checklists versionados do Controle Interno | P0 | M | US-097, US-103 |
+| US-158 | Gerenciar checklists versionados do Controle Interno | P0 | M | US-097, US-103 |
 
 ## Escopo
 - Listar, criar, duplicar, editar rascunho, publicar e aposentar versões de `InternalControlChecklist`.

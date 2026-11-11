@@ -104,15 +104,15 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-149 | Abrir a análise jurídica e fila priorizada | FT-073 | P0 | L | US-047, US-097, US-104 | `story-149-legal-review-queue.md` ⏳ |
-| US-150 | Distribuir análises na assessoria jurídica | FT-073 | P0 | S | US-050, US-149 | `story-150-legal-review-distribution.md` ⏳ |
-| US-151 | Configurar critérios da fila e hipóteses de dispensa | FT-073 | P0 | M | US-103, US-104, US-149 | `story-151-legal-review-settings.md` ⏳ |
-| US-152 | Conduzir a análise jurídica sobre versões exatas | FT-074 | P0 | M | US-066, US-149 | `story-152-legal-review-analysis.md` ⏳ |
-| US-153 | Pedir diligência e retomar a análise | FT-074 | P0 | L | US-048, US-066, US-152 | `story-153-legal-review-diligence.md` ⏳ |
-| US-154 | Elaborar o parecer jurídico e registrar ressalvas | FT-074 | P0 | M | US-065, US-110, US-152 | `story-154-legal-opinion-authoring.md` ⏳ |
-| US-155 | Concluir a análise com a situação conclusiva | FT-074 | P0 | M | US-129, US-154 | `story-155-legal-review-conclusion.md` ⏳ |
-| US-156 | Dispensar a análise jurídica por hipótese configurada | FT-074 | P0 | M | US-149, US-151 | `story-156-legal-review-waiver.md` ⏳ |
-| US-157 | Gerar o rascunho do parecer jurídico com IA | FT-075 | P1 | L | US-115, US-116, US-122, US-154 | `story-157-ai-draft-legal-opinion.md` ⏳ |
+| US-149 | Abrir a análise jurídica e fila priorizada | FT-073 | P0 | L | US-047, US-097, US-104 | `story-149-legal-review-queue.md` |
+| US-150 | Distribuir análises na assessoria jurídica | FT-073 | P0 | S | US-050, US-149 | `story-150-legal-review-distribution.md` |
+| US-151 | Configurar critérios da fila e hipóteses de dispensa | FT-073 | P0 | M | US-103, US-104, US-149 | `story-151-legal-review-settings.md` |
+| US-152 | Conduzir a análise jurídica sobre versões exatas | FT-074 | P0 | M | US-066, US-149 | `story-152-legal-review-analysis.md` |
+| US-153 | Pedir diligência e retomar a análise | FT-074 | P0 | L | US-048, US-066, US-152 | `story-153-legal-review-diligence.md` |
+| US-154 | Elaborar o parecer jurídico e registrar ressalvas | FT-074 | P0 | M | US-065, US-110, US-152 | `story-154-legal-opinion-authoring.md` |
+| US-155 | Concluir a análise com a situação conclusiva | FT-074 | P0 | M | US-129, US-154 | `story-155-legal-review-conclusion.md` |
+| US-156 | Dispensar a análise jurídica por hipótese configurada | FT-074 | P0 | M | US-149, US-151 | `story-156-legal-review-waiver.md` |
+| US-157 | Gerar o rascunho do parecer jurídico com IA | FT-075 | P1 | L | US-115, US-116, US-122, US-154 | `story-157-ai-draft-legal-opinion.md` |
 
 ## EP-026 — Controle Interno
 
@@ -123,11 +123,11 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-158 | Gerenciar checklists versionados do Controle Interno | FT-076 | P0 | M | US-097, US-103 | `story-158-internal-control-checklists.md` ⏳ |
-| US-159 | Abrir a manifestação e painel do Controle Interno com visão de riscos | FT-077 | P0 | L | US-033, US-047, US-158 | `story-159-internal-control-panel.md` ⏳ |
-| US-160 | Responder o checklist e registrar achados e recomendações | FT-077 | P0 | M | US-159 | `story-160-internal-control-checklist-findings.md` ⏳ |
-| US-161 | Emitir a manifestação e concluir com a situação | FT-077 | P0 | M | US-065, US-110, US-129, US-160 | `story-161-internal-control-conclusion.md` ⏳ |
-| US-162 | Acompanhar o atendimento dos achados | FT-077 | P1 | S | US-160 | `story-162-internal-control-findings-follow-up.md` ⏳ |
+| US-158 | Gerenciar checklists versionados do Controle Interno | FT-076 | P0 | M | US-097, US-103 | `story-158-internal-control-checklists.md` |
+| US-159 | Abrir a manifestação e painel do Controle Interno com visão de riscos | FT-077 | P0 | L | US-033, US-047, US-158 | `story-159-internal-control-panel.md` |
+| US-160 | Responder o checklist e registrar achados e recomendações | FT-077 | P0 | M | US-159 | `story-160-internal-control-checklist-findings.md` |
+| US-161 | Emitir a manifestação e concluir com a situação | FT-077 | P0 | M | US-065, US-110, US-129, US-160 | `story-161-internal-control-conclusion.md` |
+| US-162 | Acompanhar o atendimento dos achados | FT-077 | P1 | S | US-160 | `story-162-internal-control-findings-follow-up.md` |
 
 ## EP-027 — Edital
 
