@@ -100,6 +100,8 @@ Os níveis são os de [architecture.md §3.3](architecture.md#33-nível-3--compo
 
 Total: 23 módulos e **58 entidades** do MVP 1, cada uma com um único dono.
 
+**MVP 2 (especificado em 2026-11-10 — prd-7):** entram os módulos reservados na DEC-040 `pca`, `budget`, `legal-review`, `internal-control`, `tender`, `sla`, `rules` e `analytics`, com **35 entidades novas** e mudanças aditivas em entidades do MVP 1 ([mvp-02/entities.md](../mvp-02/entities.md)); donos, níveis e dependências permitidas na [§11.2](#112-mvp-2--governança-e-controle). O backoffice da plataforma (DEC-208) não cria módulo: fica em `tenancy`, `identity`, `access` e `audit`.
+
 ### 2.2 Fichas dos contextos
 
 Convenções: a fachada é o application service público do módulo; nomes de operação com † são propostas. "Publica" e "Consome" usam os nomes de [events.md](../mvp-01/events.md#4-catálogo-de-eventos). As portas estão consolidadas na [§12.3](#123-portas-de-extensão-inversão-de-dependência).
@@ -737,7 +739,8 @@ Glossário completo, rótulos de enums e guia de linguagem: **[terminology.md](.
 | Risco · tratamento · mapa de riscos | `Risk` · `RiskTreatment` · documento `RISK_MAP` | `risk` |
 | Comentário · menção · anexo | `Comment` · `Mention` · `Attachment` | `collaboration`, `files` |
 | Timeline · notificação · trilha de auditoria · selagem · evento de domínio | `ProcessTimelineEntry` · `Notification` · `AuditLog` · `AuditSeal` · envelope DEC-160/`OutboxEvent` | `timeline`, `notification`, `audit`, `platform` |
-| PCA · item do PCA · dotação · análise jurídica (futuros) | `Pca` · `PcaItem` · `BudgetAllocation` · `LegalReview` | MVP 2 |
+| PCA · item do PCA · dotação · análise jurídica · manifestação do Controle Interno · minuta do edital (MVP 2) | `Pca` · `PcaItem` · `BudgetAllocation` · `LegalReview` · `InternalControlReview` · `Tender` | `pca`, `budget`, `legal-review`, `internal-control`, `tender` |
+| Ramo paralelo · migração de versão · regra da biblioteca · política de prazo · regra de notificação (MVP 2) | `ProcessBranch` · `WorkflowMigration` · `RuleDefinition` · `SlaPolicy` · `NotificationRule` | `process`, `rules`, `sla`, `notification` |
 | Publicação · contrato · análise de IA (futuros) | `Publication` · `Contract` · `AIAnalysis` (DOM-01) | MVPs 3, 4, 5 |
 
 Regras de uso (resumo de terminology.md §16): "encaminhar" é a ação e "tramitação" o histórico; "indeferir" corresponde a `REJECT`; "finalizar" vale para documentos e "concluir" para o processo (exceção: "Concluir pesquisa"); "desconsiderar", nunca "excluir", cotação; "instituição contratante" para o tenant e "órgão/entidade" só para `Organization` (DEC-012); a interface nunca exibe identificadores técnicos (DEC-184).
@@ -822,7 +825,7 @@ erDiagram
     APPROVAL |o..o{ PROCESS_MOVEMENT : "decisão que gerou o movimento"
 ```
 
-Principais de `PROCESS_PARTICIPANT` e `PROCESS_ACCESS`: um `User` **ou** um `Department` (exatamente um). No MVP 2 entram `PCA_ITEM_MVP2`, `BUDGET_ALLOCATION_MVP2`, `LEGAL_REVIEW_MVP2`, `INTERNAL_CONTROL_REVIEW_MVP2` e `TENDER_MVP2` ligados a `PROCESS` ([§7.8](#78-mvp-2--governança-e-controle)).
+Principais de `PROCESS_PARTICIPANT` e `PROCESS_ACCESS`: um `User` **ou** um `Department` (exatamente um). No MVP 2 entram `PCA_ITEM_MVP2`, `BUDGET_ALLOCATION_MVP2`, `LEGAL_REVIEW_MVP2`, `INTERNAL_CONTROL_REVIEW_MVP2` e `TENDER_MVP2` ligados a `PROCESS`, além de `PROCESS_BRANCH_MVP2`, `APPROVAL_APPROVER_MVP2` e `WORKFLOW_MIGRATION_MVP2` ([§7.8](#78-mvp-2--governança-e-controle); detalhe em [mvp-02/entities.md](../mvp-02/entities.md)).
 
 ### 7.4 Workflow (definição)
 
@@ -918,6 +921,8 @@ erDiagram
 
 ### 7.8 MVP 2 — Governança e controle
 
+Visão conceitual; campos, índices e diagramas por área em [mvp-02/entities.md §3](../mvp-02/entities.md#3-diagramas-er-do-mvp-2).
+
 ```mermaid
 erDiagram
     ORGANIZATION ||..o{ PCA_MVP2 : "plano por exercício"
@@ -925,14 +930,23 @@ erDiagram
     DEPARTMENT ||..o{ PCA_ITEM_MVP2 : "secretaria demandante"
     PCA_ITEM_MVP2 |o..o{ PROCESS : "Process.pcaItemId"
     PCA_ITEM_MVP2 |o..o{ DFD : "Dfd.pcaItemId"
+    PCA_MVP2 ||..o{ APPROVAL : "aprovação do plano (subjectType PCA)"
     PROCESS ||..o{ BUDGET_ALLOCATION_MVP2 : "dotação"
+    PROCESS ||..o| TENDER_MVP2 : "minuta do edital"
+    DOCUMENT ||..o| TENDER_MVP2 : "documento EDITAL"
+    TENDER_MVP2 ||--o{ TENDER_LOT_MVP2 : lotes
     PROCESS ||..o{ LEGAL_REVIEW_MVP2 : "análise jurídica"
-    PROCESS_STAGE |o..o{ LEGAL_REVIEW_MVP2 : "etapa de análise"
-    APPROVAL |o..o{ LEGAL_REVIEW_MVP2 : "decisão relacionada"
+    PROCESS_STAGE |o..o{ LEGAL_REVIEW_MVP2 : "passagem por JURIDICO"
     LEGAL_REVIEW_MVP2 |o..o| DOCUMENT : "parecer PARECER_JURIDICO"
-    PROCESS ||..o{ INTERNAL_CONTROL_REVIEW_MVP2 : "análise do controle interno"
-    PROCESS ||..o| TENDER_MVP2 : "edital"
-    DOCUMENT ||..o| TENDER_MVP2 : "documento do edital"
+    LEGAL_REVIEW_MVP2 ||--o{ LEGAL_REVIEW_DOCUMENT_MVP2 : "versões analisadas"
+    PROCESS ||..o{ INTERNAL_CONTROL_REVIEW_MVP2 : "manifestação do controle interno"
+    INTERNAL_CONTROL_REVIEW_MVP2 ||--o{ INTERNAL_CONTROL_FINDING_MVP2 : "achados"
+    APPROVAL ||..o{ APPROVAL_APPROVER_MVP2 : "aprovadores (decisionPolicy)"
+    WORKFLOW_STAGE ||..o{ WORKFLOW_STAGE_APPROVER_MVP2 : "aprovadores da etapa"
+    PROCESS_STAGE ||..o{ PROCESS_BRANCH_MVP2 : "ramos paralelos"
+    WORKFLOW_VERSION ||..o{ WORKFLOW_MIGRATION_MVP2 : "origem/destino"
+    RULE_DEFINITION_MVP2 ||--o{ RULE_DEFINITION_VERSION_MVP2 : versiona
+    SLA_POLICY_MVP2 |o..o{ PROCESS_STAGE : "prazo aplicado"
 ```
 
 ### 7.9 MVP 3 — Integrações, publicação e assinatura
@@ -993,7 +1007,7 @@ erDiagram
 | 7.5 | `DocumentType`, `DocumentTemplate`, `DocumentTemplateVersion`, `Document`, `DocumentVersion`, `DocumentRendition`, `DocumentItem`, `Dfd`, `Etp`, `EtpAlternative`, `TermOfReference` | — |
 | 7.6 | `PriceResearch`, `PriceItem`, `PriceSource`, `Quotation`, `Supplier`, `Risk`, `RiskTreatment` | — |
 | 7.7 | `Comment`, `Mention`, `Attachment`, `ProcessTimelineEntry`, `Notification`, `NotificationPreference`, `AuditLog`, `AuditSeal`, `OutboxEvent` | — |
-| 7.8 | — | `Pca`, `PcaItem`, `BudgetAllocation`, `LegalReview`, `InternalControlReview`, `Tender` |
+| 7.8 | — | `Pca`, `PcaItem`, `BudgetAllocation`, `LegalReview`, `InternalControlReview`, `Tender` (+ 29 entidades acrescentadas na especificação do MVP 2 — [mvp-02/entities.md §11](../mvp-02/entities.md#11-rastreabilidade-decisões--entidades)) |
 | 7.9 | — | `Publication`, `PublicationAttempt`, `SignatureRequest`, `Integration`, `Webhook`, `WebhookDelivery`, `ApiClient` |
 | 7.10 | — | `Contract`, `ContractItem`, `ContractManager`, `ContractInspector`, `ContractMeasurement`, `ContractOccurrence`, `ContractAmendment` |
 | 7.11 | — | `AIAnalysis`, `ValidationResult`, `Embedding` |
@@ -1130,7 +1144,7 @@ Total: **58** entidades do MVP 1 + **23** reservadas = 81.
 | 18 | Visibilidade (`ProcessAccess` `CURRENT`/`HISTORICAL`) | Competência para aprovar | Ver o processo por ele ter passado pela unidade × ter atribuição cujo escopo cobre a unidade solicitante (DEC-022) | `ApproverResolver` nunca usa `ProcessAccess` para resolver aprovador `ROLE` |
 | 19 | `User` | `TenantMembership` | Identidade global (login) × vínculo com um tenant (situação, cargo, lotação, validade) | Nenhum dado de tenant em `User`; perfis e lotações pendem do vínculo |
 | 20 | `PcaStatus` | `PcaPlanStatus` · `PcaItemStatus` (MVP 2) | Situação do processo/DFD em relação ao PCA × ciclo de vida do plano e dos itens | Enums distintos já reservados (entities.md §9) |
-| 21 | `LegalReview` · `InternalControlReview` (MVP 2) | `Approval` | Análise com situações próprias (diligência, favorável com ressalvas) e parecer × ato decisório | Proposta em DOM-17 |
+| 21 | `LegalReview` · `InternalControlReview` (MVP 2) | `Approval` | Análise com situações próprias (diligência, favorável com ressalvas) e parecer × ato decisório | Resolvido (DEC-199/200): a análise não decide o processo; a saída da etapa é regra sobre `legalReview.*`/`internalControl.*` e a aprovação formal continua em `Approval` (`AUTORIZACAO_LICITACAO`) |
 
 ---
 
@@ -1380,18 +1394,22 @@ flowchart BT
 
 ### 11.2 MVP 2 — Governança e controle
 
-| Contexto | Classificação | Nível† | Entidades | Consome do MVP 1 |
-|---|---|---|---|---|
-| `pca` | Core | N2 (abaixo de `process` e `dfd`, que passam a referenciá-lo) | `Pca`, `PcaItem` (status `PcaPlanStatus`, `PcaItemStatus`) | `DepartmentFacade`, `TenancyFacade`; eventos `process.created`, `process.status_changed.*`, `document.approved.dfd` (acompanhamento da execução, assíncrono). Não chama `process` |
-| `budget` | Suporte | N4 | `BudgetAllocation` | `ProcessFacade`, `DocumentFacade` (valor do TR aprovado), `RuleContextContributor` (`budget.*`), `StageLifecycleListener`† |
-| `legal-review` | Core | N4 | `LegalReview` (+ documento `PARECER_JURIDICO`) | `ProcessFacade`, `DocumentFacade` (versões analisadas), `ApprovalFacade`, `StageLifecycleListener`†, `RuleContextContributor` (`legalReview.*`) |
-| `internal-control` | Core | N4 | `InternalControlReview` | Idem `legal-review`; `RiskFacade` (visão de riscos) |
-| `tender` | Core | N4 | `Tender` (cabeçalho tipado do edital — proposta) | `DocumentFacade.getVersionSnapshot` (TR aprovado), `ProcessFacade.getItems`, `TypedDocumentModule`† |
-| `sla` | Suporte | N2 | A definir no gate | `BusinessCalendarFacade`; eventos `process.stage_changed.*`, `process.status_changed.suspended`/`resumed` |
-| `rules` | Core | N2 (abaixo de `workflow`) | A definir no gate | `RuleContext` v2; evolução de `WorkflowRule` |
-| `analytics` | Suporte | N5 | Modelos de leitura | Eventos `process.*`, `approval.*`, `document.*`; views `v_`† |
+Especificado em 2026-11-10 (prd-7, DEC-192 a DEC-210). Entidades, campos e migrações: [mvp-02/entities.md](../mvp-02/entities.md); permissões: [mvp-02/permissions.md](../mvp-02/permissions.md); eventos: [mvp-02/events.md](../mvp-02/events.md). Os níveis abaixo são os do MVP 2; `tools/module-levels.json` é atualizado no primeiro card de implementação de cada módulo (não na especificação).
 
-Pontos de atenção: nova versão do fluxo padrão com **Dotação, Minuta do edital, Jurídico e Controle Interno** entre as etapas 6 e 7, e etapa final renomeada para "Fase preparatória concluída" (DEC-015); o fluxo de contratação direta recebe parecer jurídico e compatibilidade orçamentária (art. 72, III e IV). Etapas paralelas mudam a invariante "uma etapa ativa" (`Process.currentStageId`, caixa de tarefas, painel, `ProcessAccess`) — exigem ADR. Múltiplos aprovadores mudam `ApproverResolver` (lista) e o momento de chamar `ApprovalSubjectHandler` (só quando a política for satisfeita).
+| Contexto | Classificação | Nível e ordem | Entidades donas | Depende de (fachada/porta) | Não pode |
+|---|---|---|---|---|---|
+| `rules` | Core | N2, **antes** de `workflow` | `RuleDefinition`, `RuleDefinitionVersion` | N1 (`access`, `audit`), executor JSON Logic do kernel | Montar `RuleContext` de processos reais (o simulador com processo real fica em `workflow`, WF-23) |
+| `sla` | Suporte | N2, **depois** de `rules` e `workflow` | `SlaPolicy`, `SlaPolicyStage` | `rules` (resolver `RuleRef`), `catalog` (`BusinessCalendarFacade`), `workflow` (implementa `RuleContextContributor` para `sla.*`) | Escrever em `ProcessStage` — quem grava prazo, pausa e degrau é `process`, consultando `SlaFacade` |
+| `pca` | Core | N2, **depois** de `approval` | `Pca`, `PcaItem`, `PcaReconciliationRun`, `PcaReconciliationEntry` | `organization`, `catalog`, `tenancy`, `approval` (implementa `ApprovalSubjectHandler` para `PCA`); declara a porta `PcaLinkTarget`† | Chamar `process` ou `dfd` (a reconciliação usa a porta, implementada por eles); a execução por item chega por eventos |
+| `budget` | Suporte | N4, antes de `etp`/`term` | `BudgetAllocation` | `ProcessFacade`, `files` (evidência), `catalog`, `StageLifecycleListener`†, `RuleContextContributor` (`budget.*`) | Ler tabelas de `process` |
+| `tender` | Core | N4, **depois** de `term` | `Tender`, `TenderLot`, `TenderLotItem`, `TenderRiskAllocation` | `DocumentFacade.getVersionSnapshot` (TR — D11), `ProcessFacade.getItems`, `RiskFacade` (leitura, matriz), `TypedDocumentModule`†, `StageLifecycleListener`†, `RuleContextContributor` (`tender.*`) | Escrever em `term` ou `risk` |
+| `legal-review` | Core | N4, **depois** de `tender` | `LegalReview`, `LegalReviewDocument`, `LegalReviewDiligence`, `LegalReviewReservation` (+ documento `PARECER_JURIDICO` via `TypedDocumentModule`† `LEGAL_OPINION`) | `ProcessFacade` (devolução por diligência), `DocumentFacade` (versões analisadas), `catalog` (hipóteses de dispensa), `StageLifecycleListener`†, `RuleContextContributor` (`legalReview.*`) | Decidir aprovações (a decisão é `Approval`) |
+| `internal-control` | Core | N4, **depois** de `legal-review` | `InternalControlChecklist`, `InternalControlReview`, `InternalControlChecklistAnswer`, `InternalControlFinding` (+ documento `MANIFESTACAO_CONTROLE_INTERNO`) | `legal-review` (leitura: análise e ressalvas), `RiskFacade` (visão de riscos), `DocumentFacade`, `StageLifecycleListener`†, `RuleContextContributor` (`internalControl.*`) | Escrever em `legal-review` ou `risk` |
+| `analytics` | Suporte | N5 | `AnalyticsStageFact`, `AnalyticsProcessFact`, `AnalyticsPcaItemFact`, `AnalyticsProcessedEvent`, `AnalyticsReconciliationRun` (+ visões `mv_analytics_*`) | Eventos do outbox; views `v_`† e fachadas de leitura para a reconciliação noturna; `AuthorizationService` (escopo e visibilidade) | Executar comandos (D9); consultar `ProcessStage`/`ProcessMovement` em relatórios de produção (DEC-206) |
+
+**Entidades novas em módulos existentes:** `process` — `ProcessBranch`, `WorkflowMigration`, `WorkflowMigrationItem` (a migração escreve o runtime do processo — D1); `approval` — `ApprovalApprover`; `workflow` — `WorkflowStageApprover`; `notification` — `NotificationRule`, `NotificationRuleExecution`; `identity` — `UserExternalIdentity` (gov.br, tabela de plataforma); `access` — `SupportAccessGrant` (backoffice).
+
+Pontos de atenção: nova versão do fluxo padrão com **Dotação, Minuta do edital, Jurídico e Controle Interno** entre as etapas 6 e 7, e etapa final renomeada para "Fase preparatória concluída" (DEC-015); o fluxo de contratação direta recebe parecer jurídico e compatibilidade orçamentária (art. 72, III e IV). Etapas paralelas mudam a invariante "uma etapa ativa" (`Process.currentStageId`, caixa de tarefas, painel, `ProcessAccess`) — decidido na DEC-194 (adendo da ADR-005): um tronco ativo + uma etapa por ramo (`ProcessBranch`). Múltiplos aprovadores mudam `ApproverResolver` (lista de `ApprovalApprover`) e o momento de chamar `ApprovalSubjectHandler` (só no encerramento — DEC-193).
 
 ### 11.3 MVP 3 — Integrações e publicação
 
@@ -1423,9 +1441,11 @@ Salvaguarda arquitetural do princípio 16: `ai` só tem acesso a fachadas de **l
 
 | MVP | Migração | Contextos | Dependência introduzida | Impacto no MVP 1 | Validação |
 |---|---|---|---|---|---|
-| 2 | Criar `pcas`, `pca_items`; adicionar `process.pca_item_id` e `dfd.pca_item_id` (nulos); job de reconciliação por `pcaYear` + `pcaItemCode`; enums novos `PcaPlanStatus`/`PcaItemStatus` | `pca`, `process`, `dfd` | `process` → `pca`, `dfd` → `pca` (fachada `PcaFacade.resolveItem`†) | `PcaReference` ganha `pcaItemId` (aditivo); campos textuais mantidos como histórico | `pca` em N2, abaixo dos que o referenciam ✔; FK composta e RLS ✔; reconciliação auditada como ação de plataforma |
-| 2 | Nova versão do fluxo padrão (Dotação, Minuta do edital, Jurídico, Controle Interno) | `workflow`, `budget`, `tender`, `legal-review`, `internal-control` | Módulos novos acoplados às etapas por `StageLifecycleListener`† | Nenhum: processos em andamento seguem a versão fixada (DEC-014) | Versões publicadas imutáveis ✔; adoção oferecida aos tenants customizados |
-| 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`), padrão `ANY` | `approval`, `process`, `document` | — | Compatível | `ApproverResolver` passa a resolver lista; caixa de tarefas considera múltiplos aprovadores ✔ |
+| 2 | Criar `pcas`, `pca_items` e o relatório de reconciliação; adicionar `process.pca_item_id`, `dfd.pca_item_id` e `pca_link_status`; job de reconciliação por `pcaYear` + `pcaItemCode`; enums novos `PcaPlanStatus`/`PcaItemStatus` (M2-11, M2-12) | `pca`, `process`, `dfd` | `process` → `pca`, `dfd` → `pca` (`PcaFacade.resolveItem`†); `pca` declara a porta `PcaLinkTarget`†, implementada por `process` e `dfd` | `PcaReference` ganha `pcaItemId` (aditivo); campos textuais mantidos como histórico | `pca` em N2, abaixo dos que o referenciam ✔; FK composta e RLS ✔; a reconciliação grava pelos donos (D1) e é auditada com `actorType = SYSTEM` |
+| 2 | Workflow padrão v2 (Dotação, Minuta do edital, Jurídico, Controle Interno, Autorização da licitação) publicado sem customização ou oferecido (M2-21) | `workflow`, `budget`, `tender`, `legal-review`, `internal-control` | Módulos novos acoplados às etapas por `StageLifecycleListener`† | Nenhum: processos em andamento seguem a versão fixada até migração pedida (DEC-195) | Versões publicadas imutáveis ✔; adoção oferecida aos tenants customizados ✔ |
+| 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`), `approval_approvers` com backfill; colunas de aprovador da `Approval` espelhadas até o *contract* (M2-02, M2-03, M2-22) | `approval`, `workflow`, `process`, `document`, `pca`, `inbox` | `pca` → `approval` (`ApprovalSubjectHandler`) | Compatível | `ApproverResolver` resolve lista ✔; `v_inbox_pending_approvals` v2 por linha ✔ |
+| 2 | Etapas paralelas e migração de versão: `process_branches`, troca dos únicos de `process_stages`/`process_assignments`, `workflow_migrations`, `workflow_migration_items`; `ProcessStageStatus.MIGRATED`/`SKIPPED`, `MovementAction.MIGRATE`/`SKIP` (M2-01, M2-05 a M2-08) | `process`, `workflow`, `inbox`, `dashboard`, `timeline` | `process` → `workflow` (definição da versão de destino) | Invariante "uma etapa ativa" substituída (DEC-194); `workflowVersionId` muda só por migração (DEC-195) | Consumidores da caixa e do painel ajustados na mesma entrega (DT-03) ✔ |
+| 2 | Biblioteca de regras, SLA, notificação condicional e read model (M2-09, M2-10, M2-18, M2-19) | `rules`, `sla`, `workflow`, `process`, `notification`, `analytics` | `workflow` → `rules`; `sla` → `rules`; `process` → `sla`; `notification` → `workflow` (contexto v2) | Regras v1 continuam com `contextVersion = 1` | Direções descendentes ✔; `analytics` só lê (D9) ✔ |
 | 3 | Habilitar `COMPLETED → PUBLISHED`; usar `RenditionKind.SIGNED`; usar `MembershipType.SERVICE` | `process`, `publication`, `signature`, `document`, `identity`, `public-api` | `publication` → `process`; `signature` → `document`; `public-api` → `identity` | Enums já existem | Direções descendentes ✔; novas operações `markPublished`† e `registerSignedRendition`† nas fachadas |
 | 4 | `Supplier` ganha vínculos com `Contract`; `ProcessItem` → `ContractItem` | `contract`, `supplier`, `process` | `contract` → `supplier`, `process`, `document`, `publication` | Nenhum | `SupplierUsagePort`† passa a ter dois implementadores ✔ |
 | 5 | Extensão `vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` em uso | `ai`, `document` | `ai` → leituras de `document` e módulos tipados | Nenhum | Embeddings com `tenant_id` e RLS; índices por tenant ✔ |
@@ -1460,20 +1480,20 @@ Refinamento proposto de architecture.md §3.3 (DOM-03): dentro de um nível, um 
 |---|---|---|
 | N0 | kernel → `platform` | `platform` usa o kernel |
 | N1 | `tenancy` → `catalog`, `organization` → `identity` → `access`; `audit` independente | `catalog` e `organization` → `tenancy`; `identity` → `organization`; `access` → `identity`, `organization` |
-| N2 | `workflow`, `approval`, `files`, `supplier` → `document` | `document` → `approval` (aprovação avulsa, `ApprovalSubjectHandler`) e `files` (versões `UPLOADED`, logotipo) |
+| N2 | `rules` → `workflow` → `sla`; `approval` → `pca`; `files`, `supplier` → `document` (MVP 2: `rules`, `sla`, `pca`) | `document` → `approval` (aprovação avulsa, `ApprovalSubjectHandler`) e `files` (versões `UPLOADED`, logotipo); `workflow` → `rules`; `sla` → `rules`, `workflow`; `pca` → `approval` |
 | N3 | `process` | — |
-| N4 | `price-research`, `risk`, `dfd`, `collaboration` → `etp`, `term` | `etp`, `term` → `price-research` (somente leitura) |
-| N5 | `timeline`, `inbox`, `dashboard`, `notification` | Nenhuma |
+| N4 | `price-research`, `risk`, `dfd`, `collaboration`, `budget` → `etp`, `term` → `tender` → `legal-review` → `internal-control` (MVP 2: `budget`, `tender`, `legal-review`, `internal-control`) | `etp`, `term` → `price-research` (somente leitura); `tender` → `risk` (leitura); `internal-control` → `legal-review`, `risk` (leitura) |
+| N5 | `timeline`, `inbox`, `dashboard`, `notification`, `analytics` (MVP 2) | Nenhuma |
 
 ### 12.3 Portas de extensão (inversão de dependência)
 
 | Porta | Declarada em | Implementada por | Uso |
 |---|---|---|---|
 | `ProcessAccessPort` | Kernel | `process` | Visibilidade, custódia, participação e tipos de documento permitidos na etapa, sem dependência ascendente (architecture.md) |
-| `ApprovalSubjectHandler` | `approval` | `process` (`PROCESS_STAGE`), `document` (`DOCUMENT`) | `assertDecidable`†, `getCoveredAuthors`†, `onDecision`†, `onCanceled`† na transação da decisão (architecture.md) |
-| `RuleContextContributor` | `workflow` | `process`, `dfd`, `etp`, `term`, `price-research`, `risk` (MVP 2+: `budget`, `legal-review`, `internal-control`; MVP 5: `ai`) | Cada módulo contribui com sua parte do `RuleContext` (architecture.md) |
+| `ApprovalSubjectHandler` | `approval` | `process` (`PROCESS_STAGE`), `document` (`DOCUMENT`), `pca` (`PCA`, MVP 2) | `assertDecidable`†, `getCoveredAuthors`†, `onDecision`†, `onCanceled`† na transação da decisão (architecture.md) |
+| `RuleContextContributor` | `workflow` | `process` (inclui `pca.*` e `stages.*`), `dfd`, `etp`, `term`, `price-research`, `risk` (MVP 2: `budget`, `tender`, `legal-review`, `internal-control`, `sla` — `RuleContext` v2; MVP 5: `ai`) | Cada módulo contribui com sua parte do `RuleContext` (architecture.md) |
 | `NotificationRecipientResolver` | `notification` (architecture.md) | `process`, `approval` | Direção invertida — ver DOM-04 |
-| `TypedDocumentModule`† | `document` | `dfd`, `etp`, `term`, `price-research`, `risk` (MVP 2: `tender`) | `validateCompleteness` (→ `violations[]`), `buildHeaderSnapshot`, `buildCollectionsSnapshot`, `typedSummary`, `onLifecycleTransition`, `duplicateInto` |
+| `TypedDocumentModule`† | `document` | `dfd`, `etp`, `term`, `price-research`, `risk` (MVP 2: `tender` — `TENDER`, `legal-review` — `LEGAL_OPINION`, `internal-control` — `INTERNAL_CONTROL_REPORT`) | `validateCompleteness` (→ `violations[]`), `buildHeaderSnapshot`, `buildCollectionsSnapshot`, `typedSummary`, `onLifecycleTransition`, `duplicateInto` |
 | `ProcessItemUsagePort`† | `process` | `price-research` | Impedir exclusão de item usado na pesquisa |
 | `ProcessDuplicationParticipant`† | `process` | Módulos tipados | Copiar conteúdo estruturado como rascunho (DEC-033, DOM-15) |
 | `SupplierUsagePort`† | `supplier` | `price-research` (MVP 4: `contract`) | Impedir exclusão de fornecedor em uso |
@@ -1482,7 +1502,8 @@ Refinamento proposto de architecture.md §3.3 (DOM-03): dentro de um nível, um 
 | `TenantProvisioningStep`† | `tenancy` | `catalog`, `access`, `workflow`, `document` | Sementes do provisionamento (DOM-13) |
 | `DepartmentHeadEligibilityPort`† | `organization` | `identity` | Elegibilidade de titular e substituto |
 | `LastAdminGuardPort`† | `identity` | `access` | POL-12 ao suspender ou revogar vínculo |
-| `StageLifecycleListener`† (MVP 2) | `process` | `budget`, `legal-review`, `internal-control`, `tender` | Criar e encerrar artefatos atrelados a etapas na mesma transação da tramitação |
+| `StageLifecycleListener`† (MVP 2) | `process` | `budget`, `legal-review`, `internal-control`, `tender` | Criar e encerrar artefatos atrelados a etapas na mesma transação da tramitação (abrir/retomar `LegalReview` e `InternalControlReview`, cancelar no ramo cancelado) |
+| `PcaLinkTarget`† (MVP 2) | `pca` | `process`, `dfd` | Listar referências textuais pendentes e gravar `pcaItemId`/`pcaLinkStatus` na reconciliação do PCA (D1) |
 
 ### 12.4 Como adicionar um módulo (bounded context)
 
@@ -1562,7 +1583,7 @@ Tipos `FREE_TEXT` e `UPLOADED` são **configuração** (US-061, US-107): não ex
 | DOM-14 | Referências ascendentes a anexos (`Organization.logoAttachmentId`, `branding.logoAttachmentId`) e validação de alvo polimórfico de `Attachment` (donos em vários níveis). | entities.md (`Organization`, `Attachment`) | `AttachmentLookupPort`† no kernel e `AttachmentTargetResolver`† em `files` | architecture.md |
 | DOM-15 | A duplicação (DEC-033) copia conteúdo estruturado, mas `process` não pode chamar módulos tipados; não está definido se fontes e cotações (evidências datadas) são copiadas. | DEC-033 | Porta `ProcessDuplicationParticipant`†; copiar itens, parâmetros e seções da pesquisa, mas **não** fontes nem cotações | decisions.md (DEC-033) |
 | DOM-16 | `RuleContext`: a DEC-016 lista `items.*` e não `stage.*`; entities.md §5.4 tem `stage` e não `items` (itens resumidos em `process.itemsCount`/`hasLots`). `REQUIRED_APPROVAL` não tem dados no `RuleContext` v1. | DEC-016, entities.md §5.4 | Alinhar o texto da DEC-016 ao schema de entities.md; fornecer ao motor, fora do JSON Logic, os resultados de aprovação por etapa (`ApprovalFacade.getOutcomes`†) | decisions.md (DEC-016) |
-| DOM-17 | Risco de duplicar "decisão" entre `LegalReview`/`InternalControlReview` (MVP 2) e `Approval`. | entities.md §8 | `LegalReview` = análise com situações próprias e parecer; a decisão formal continua em `Approval`; o avanço é condicionado por regra (`legalReview.outcome` no `RuleContext` v2) | Gate do MVP 2 |
+| DOM-17 | Risco de duplicar "decisão" entre `LegalReview`/`InternalControlReview` (MVP 2) e `Approval`. | entities.md §8 | `LegalReview` = análise com situações próprias e parecer; a decisão formal continua em `Approval`; o avanço é condicionado por regra (`legalReview.status`/`legalReview.concluded` no `RuleContext` v2) | **Resolvida** na especificação do MVP 2 (DEC-199, DEC-200; mvp-02/entities.md §7.2) |
 | DOM-18 | roadmap.md diverge de entities.md §8: liga `Integration` a `TenantMembership` (entities.md: `ApiClient`), acrescenta `Publication` → `Organization` e `ValidationResult` → `DocumentVersion`, omite `SignatureRequest`, `WebhookDelivery`, `ApiClient`, `ContractItem`, `Embedding`, e trata `InternalControlReview`/`Tender` como "a definir". | roadmap.md §4.5, §11.2; entities.md §8 | Alinhar o roadmap a entities.md (ou registrar as mudanças em entities.md) | roadmap.md |
 | DOM-19 | Não está definido quem dispara a rendition `APPROVAL_STAMPED` (sob demanda ou automaticamente após a decisão). | DEC-017, US-067 | Sob demanda e automática para os documentos cobertos após `ApprovalCompleted` (consumidor assíncrono de `document`) | US-067, events.md |
 | DOM-20 | O dono do `BusinessMetricsCollector` não está definido. | events.md §3 | `platform` (observabilidade) | events.md |

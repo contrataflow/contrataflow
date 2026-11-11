@@ -1765,6 +1765,8 @@ Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor m
 ## 8. Entidades de MVPs futuros (reservadas)
 
 > Definição **preliminar**, apenas para garantir que o modelo do MVP 1 as acomode. Serão detalhadas (campos, tipos, índices) na especificação do respectivo MVP.
+>
+> **MVP 2 especificado (2026-11-10, prd-7):** as entidades do MVP 2 abaixo estão detalhadas — com campos, índices, invariantes e migrações — em [mvp-02/entities.md](../mvp-02/entities.md), que também acrescenta as que esta tabela não previa (`LegalReviewDocument`, `InternalControlChecklist`, `InternalControlFinding`, `TenderLot`, `ApprovalApprover`, `WorkflowStageApprover`, `WorkflowMigration`, `RuleDefinition`, `SlaPolicy`, `NotificationRule`, fatos do `analytics` e outras). As linhas do MVP 2 aqui ficam como registro histórico.
 
 | Entidade | MVP | Propósito | Relações previstas com o MVP 1 |
 |---|---|---|---|
@@ -1794,11 +1796,16 @@ Categoria do `toConfirm` gerada pelo *GroundingGuard* e rótulo padrão: valor m
 
 ## 9. Migrações previstas para os próximos MVPs
 
+> As migrações do **MVP 2** estão especificadas, em ordem expand/contract, em [mvp-02/entities.md §10](../mvp-02/entities.md#10-migrações-expandcontract) (M2-01 a M2-23); as linhas abaixo resumem o impacto no modelo do MVP 1 e apontam para o detalhe.
+
 | MVP | Migração | Impacto no MVP 1 |
 |---|---|---|
-| 2 | Criar `pcas`, `pca_items`; adicionar `process.pca_item_id` e `dfd.pca_item_id` (nulos); job de reconciliação tenta resolver `pcaYear` + `pcaItemCode`. Os status do plano e dos itens usarão enums **novos** (`PcaPlanStatus`, `PcaItemStatus`) — `PcaStatus` já designa a situação do processo em relação ao PCA | Campos de referência permanecem (histórico) |
-| 2 | Nova versão do workflow padrão com etapas Dotação, Jurídico e Controle Interno; processos em andamento seguem na v1 (DEC-014) | Nenhum |
-| 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`) com padrão `ANY` | Compatível |
+| 2 | Criar `pcas`, `pca_items` e o relatório de reconciliação; adicionar `process.pca_item_id`, `dfd.pca_item_id` e `pca_link_status` (nulos/padrão); job de reconciliação resolve `pcaYear` + `pcaItemCode` → `pcaItemId` pelo plano aprovado do exercício. Status do plano e dos itens em enums **novos** (`PcaPlanStatus`, `PcaItemStatus`) — `PcaStatus` continua designando a situação do processo em relação ao PCA (DEC-197; M2-11, M2-12) | Campos textuais permanecem (histórico); `PcaReference` ganha `pcaItemId` |
+| 2 | Workflow padrão v2 (`DOTACAO`, `MINUTA_EDITAL`, `JURIDICO`, `CONTROLE_INTERNO`, `AUTORIZACAO_LICITACAO`) publicado só para tenants sem customização, oferecido aos demais; processos em andamento seguem na versão fixada até migração pedida (DEC-195, DEC-196; M2-21) | `Process.workflowVersionId` passa a mudar só por `WorkflowMigrationItem` |
+| 2 | `Approval.decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`, padrão `ANY`) + `approval_approvers` com backfill de uma linha por aprovação; colunas de aprovador da `Approval` mantidas espelhadas até o *contract* do MVP 3 (DEC-193; M2-02, M2-03, M2-22) | Compatível; `v_inbox_pending_approvals` ganha a v2 |
+| 2 | Etapas paralelas: `StageType` `PARALLEL_SPLIT`/`PARALLEL_JOIN`, `process_branches`, `process_stages.branch_key`; troca dos únicos "uma etapa ativa por processo" de `process_stages` e `process_assignments` (DEC-194; M2-05, M2-06) | Invariante "uma etapa ativa" substituída por "um tronco ativo + uma etapa por ramo"; `currentStageId` mantido |
+| 2 | Enums ampliados (`ProcessStageStatus` `MIGRATED`/`SKIPPED`, `MovementAction` `MIGRATE`/`SKIP`, `SystemDocumentModule` `LEGAL_OPINION`/`TENDER`/`INTERNAL_CONTROL_REPORT`, `ApprovalSubjectType` `PCA`, `CatalogType` e `AttachmentTargetType`) — não reversível (M2-01) | Valores novos; os existentes não mudam |
+| 2 | `AiGeneration.targetModule` aceita `LEGAL_OPINION` e `TENDER` (DEC-202; M2-17) | Check ampliado |
 | 3 | Habilitar transição `COMPLETED → PUBLISHED`; `RenditionKind.SIGNED` passa a ser usado; `MembershipType.SERVICE` | Enums já existem |
 | 4 | `Supplier` ganha vínculos com `Contract`; `ProcessItem` → `ContractItem` | Nenhum |
 | 5 | `CREATE EXTENSION vector` já instalada; tabelas de embeddings; `SectionDefinition.aiHints` passa a ser usado (os prompts do MVP 1 já podem lê-lo, se preenchido) | `ai_generations` reaproveitada |
