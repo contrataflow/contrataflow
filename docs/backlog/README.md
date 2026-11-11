@@ -323,17 +323,17 @@
 | US-175 | Indicadores de execução do PCA | EP-028 | FT-081 | P1 | S | US-144, US-172 |
 | US-176 | Análise de gargalos por etapa, unidade e responsável | EP-028 | FT-082 | P1 | L | US-171, US-172 |
 | US-177 | Filas, envelhecimento e comparação entre períodos | EP-028 | FT-082 | P1 | M | US-176 |
-| US-178 ⏳ | Acesso ao backoffice e provisionamento de tenant e órgãos | EP-029 | FT-083 | P1 | L | US-087, US-090, US-099 |
-| US-179 ⏳ | Ciclo de vida do tenant no backoffice | EP-029 | FT-083 | P1 | M | US-178 |
-| US-180 ⏳ | Conceder e encerrar acesso de suporte | EP-029 | FT-083 | P1 | M | US-073, US-178 |
-| US-181 ⏳ | Saúde operacional por tenant no backoffice | EP-029 | FT-083 | P1 | M | US-085, US-116, US-178 |
-| US-182 ⏳ | Entrar com gov.br via Authentik | EP-029 | FT-084 | P1 | L | US-087, US-103 |
-| US-183 ⏳ | Vincular e desvincular a identidade gov.br | EP-029 | FT-084 | P1 | M | US-098, US-182 |
-| US-184 ⏳ | Habilitar o gov.br no órgão e nível de confiança na política de MFA | EP-029 | FT-084 | P1 | S | US-090, US-182 |
-| US-185 ⏳ | Reativar perfil desativado (DT-13) | EP-029 | FT-085 | P2 | S | US-095 |
-| US-186 ⏳ | Notificar a quebra do selo de auditoria (DT-14) | EP-029 | FT-085 | P2 | S | US-074, US-111 |
-| US-187 ⏳ | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | EP-029 | FT-085 | P2 | M | US-108, US-110 |
-| US-188 ⏳ | Limite configurável do lote da caixa de tarefas (DT-16) | EP-029 | FT-085 | P2 | XS | US-058, US-103 |
+| US-178 | Acesso ao backoffice e provisionamento de tenant e órgãos | EP-029 | FT-083 | P1 | L | US-087, US-090, US-099 |
+| US-179 | Ciclo de vida do tenant no backoffice | EP-029 | FT-083 | P1 | M | US-178 |
+| US-180 | Conceder e encerrar acesso de suporte | EP-029 | FT-083 | P1 | M | US-073, US-178 |
+| US-181 | Saúde operacional por tenant no backoffice | EP-029 | FT-083 | P1 | M | US-085, US-116, US-178 |
+| US-182 | Entrar com gov.br via Authentik | EP-029 | FT-084 | P1 | L | US-087, US-103 |
+| US-183 | Vincular e desvincular a identidade gov.br | EP-029 | FT-084 | P1 | M | US-098, US-182 |
+| US-184 | Habilitar o gov.br no órgão e nível de confiança na política de MFA | EP-029 | FT-084 | P1 | S | US-090, US-182 |
+| US-185 | Reativar perfil desativado (DT-13) | EP-029 | FT-085 | P2 | S | US-095 |
+| US-186 | Notificar a quebra do selo de auditoria (DT-14) | EP-029 | FT-085 | P2 | S | US-074, US-111 |
+| US-187 | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | EP-029 | FT-085 | P2 | M | US-108, US-110 |
+| US-188 | Limite configurável do lote da caixa de tarefas (DT-16) | EP-029 | FT-085 | P2 | XS | US-058, US-103 |
 | US-189 | Cadastrar políticas de SLA | EP-030 | FT-086 | P1 | L | US-055, US-106, US-129 |
 | US-190 | Aplicar a política de SLA ao processo e calcular prazos | EP-030 | FT-086 | P1 | M | US-047, US-189 |
 | US-191 | Pausar e retomar prazos | EP-030 | FT-086 | P1 | M | US-008, US-153, US-190 |
@@ -349,4 +349,4 @@
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 
-Totais do MVP 2: 11 épicos · 28 features · 78 stories (67 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (78 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.

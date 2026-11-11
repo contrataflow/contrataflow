@@ -34,9 +34,9 @@ gov.br **autentica a pessoa, não dá acesso**: entrar no tenant continua exigin
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-182 ⏳ | Entrar com gov.br via Authentik | P1 | L | US-087, US-103 |
-| US-183 ⏳ | Vincular e desvincular a identidade gov.br | P1 | M | US-098, US-182 |
-| US-184 ⏳ | Habilitar o gov.br no órgão e nível de confiança na política de MFA | P1 | S | US-090, US-182 |
+| US-182 | Entrar com gov.br via Authentik | P1 | L | US-087, US-103 |
+| US-183 | Vincular e desvincular a identidade gov.br | P1 | M | US-098, US-182 |
+| US-184 | Habilitar o gov.br no órgão e nível de confiança na política de MFA | P1 | S | US-090, US-182 |
 
 ## Escopo
 - Botão "Entrar com gov.br" em `/entrar` (só aparece com a fonte criada e `auth.govbrEnabled` ligado), rota de início no BFF e reaproveitamento do callback e da sessão.

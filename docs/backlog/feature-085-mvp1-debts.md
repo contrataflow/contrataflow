@@ -39,10 +39,10 @@ DT-17 (prazo da aprovação avulsa) **não** faz parte desta feature: fica no EP
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-185 ⏳ | Reativar perfil desativado (DT-13) | P2 | S | US-095 |
-| US-186 ⏳ | Notificar a quebra do selo de auditoria (DT-14) | P2 | S | US-074, US-111 |
-| US-187 ⏳ | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | P2 | M | US-108, US-110 |
-| US-188 ⏳ | Limite configurável do lote da caixa de tarefas (DT-16) | P2 | XS | US-058, US-103 |
+| US-185 | Reativar perfil desativado (DT-13) | P2 | S | US-095 |
+| US-186 | Notificar a quebra do selo de auditoria (DT-14) | P2 | S | US-074, US-111 |
+| US-187 | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | P2 | M | US-108, US-110 |
+| US-188 | Limite configurável do lote da caixa de tarefas (DT-16) | P2 | XS | US-058, US-103 |
 
 ## Escopo
 - DT-13: caso de uso de reativação (`Role.isActive` volta a `true`; `deactivatedAt`/`deactivatedById` limpos ou preservados no histórico), com auditoria e invalidação do cache de permissões.

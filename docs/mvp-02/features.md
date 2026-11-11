@@ -175,17 +175,17 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-178 | Acesso ao backoffice e provisionamento de tenant e órgãos | FT-083 | P1 | L | US-087, US-090, US-099 | `story-178-backoffice-tenant-provisioning.md` ⏳ |
-| US-179 | Ciclo de vida do tenant no backoffice | FT-083 | P1 | M | US-178 | `story-179-backoffice-tenant-lifecycle.md` ⏳ |
-| US-180 | Conceder e encerrar acesso de suporte | FT-083 | P1 | M | US-073, US-178 | `story-180-support-access-grants.md` ⏳ |
-| US-181 | Saúde operacional por tenant no backoffice | FT-083 | P1 | M | US-085, US-116, US-178 | `story-181-platform-health.md` ⏳ |
-| US-182 | Entrar com gov.br via Authentik | FT-084 | P1 | L | US-087, US-103 | `story-182-govbr-login.md` ⏳ |
-| US-183 | Vincular e desvincular a identidade gov.br | FT-084 | P1 | M | US-098, US-182 | `story-183-govbr-identity-link.md` ⏳ |
-| US-184 | Habilitar o gov.br no órgão e nível de confiança na política de MFA | FT-084 | P1 | S | US-090, US-182 | `story-184-govbr-tenant-settings.md` ⏳ |
-| US-185 | Reativar perfil desativado (DT-13) | FT-085 | P2 | S | US-095 | `story-185-role-reactivation.md` ⏳ |
-| US-186 | Notificar a quebra do selo de auditoria (DT-14) | FT-085 | P2 | S | US-074, US-111 | `story-186-audit-seal-break-notification.md` ⏳ |
-| US-187 | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | FT-085 | P2 | M | US-108, US-110 | `story-187-template-library-update.md` ⏳ |
-| US-188 | Limite configurável do lote da caixa de tarefas (DT-16) | FT-085 | P2 | XS | US-058, US-103 | `story-188-inbox-bulk-limit-setting.md` ⏳ |
+| US-178 | Acesso ao backoffice e provisionamento de tenant e órgãos | FT-083 | P1 | L | US-087, US-090, US-099 | `story-178-backoffice-tenant-provisioning.md` |
+| US-179 | Ciclo de vida do tenant no backoffice | FT-083 | P1 | M | US-178 | `story-179-backoffice-tenant-lifecycle.md` |
+| US-180 | Conceder e encerrar acesso de suporte | FT-083 | P1 | M | US-073, US-178 | `story-180-support-access-grants.md` |
+| US-181 | Saúde operacional por tenant no backoffice | FT-083 | P1 | M | US-085, US-116, US-178 | `story-181-platform-health.md` |
+| US-182 | Entrar com gov.br via Authentik | FT-084 | P1 | L | US-087, US-103 | `story-182-govbr-login.md` |
+| US-183 | Vincular e desvincular a identidade gov.br | FT-084 | P1 | M | US-098, US-182 | `story-183-govbr-identity-link.md` |
+| US-184 | Habilitar o gov.br no órgão e nível de confiança na política de MFA | FT-084 | P1 | S | US-090, US-182 | `story-184-govbr-tenant-settings.md` |
+| US-185 | Reativar perfil desativado (DT-13) | FT-085 | P2 | S | US-095 | `story-185-role-reactivation.md` |
+| US-186 | Notificar a quebra do selo de auditoria (DT-14) | FT-085 | P2 | S | US-074, US-111 | `story-186-audit-seal-break-notification.md` |
+| US-187 | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | FT-085 | P2 | M | US-108, US-110 | `story-187-template-library-update.md` |
+| US-188 | Limite configurável do lote da caixa de tarefas (DT-16) | FT-085 | P2 | XS | US-058, US-103 | `story-188-inbox-bulk-limit-setting.md` |
 
 ## EP-030 — SLA
 

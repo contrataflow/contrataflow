@@ -58,17 +58,17 @@ Tirar a operação da plataforma da linha de comando e da API crua: uma área we
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-178 ⏳ | Acesso ao backoffice e provisionamento de tenant e órgãos | P1 | L | 8 |
-| US-179 ⏳ | Ciclo de vida do tenant no backoffice | P1 | M | 5 |
-| US-180 ⏳ | Conceder e encerrar acesso de suporte | P1 | M | 5 |
-| US-181 ⏳ | Saúde operacional por tenant no backoffice | P1 | M | 5 |
-| US-182 ⏳ | Entrar com gov.br via Authentik | P1 | L | 8 |
-| US-183 ⏳ | Vincular e desvincular a identidade gov.br | P1 | M | 5 |
-| US-184 ⏳ | Habilitar o gov.br no órgão e nível de confiança na política de MFA | P1 | S | 2 |
-| US-185 ⏳ | Reativar perfil desativado (DT-13) | P2 | S | 2 |
-| US-186 ⏳ | Notificar a quebra do selo de auditoria (DT-14) | P2 | S | 2 |
-| US-187 ⏳ | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | P2 | M | 5 |
-| US-188 ⏳ | Limite configurável do lote da caixa de tarefas (DT-16) | P2 | XS | 1 |
+| US-178 | Acesso ao backoffice e provisionamento de tenant e órgãos | P1 | L | 8 |
+| US-179 | Ciclo de vida do tenant no backoffice | P1 | M | 5 |
+| US-180 | Conceder e encerrar acesso de suporte | P1 | M | 5 |
+| US-181 | Saúde operacional por tenant no backoffice | P1 | M | 5 |
+| US-182 | Entrar com gov.br via Authentik | P1 | L | 8 |
+| US-183 | Vincular e desvincular a identidade gov.br | P1 | M | 5 |
+| US-184 | Habilitar o gov.br no órgão e nível de confiança na política de MFA | P1 | S | 2 |
+| US-185 | Reativar perfil desativado (DT-13) | P2 | S | 2 |
+| US-186 | Notificar a quebra do selo de auditoria (DT-14) | P2 | S | 2 |
+| US-187 | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | P2 | M | 5 |
+| US-188 | Limite configurável do lote da caixa de tarefas (DT-16) | P2 | XS | 1 |
 | **Total** | | | | **48** |
 
 ## Módulos e entidades

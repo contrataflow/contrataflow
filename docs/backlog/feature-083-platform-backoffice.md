@@ -33,10 +33,10 @@ O operador entra pelo grupo próprio no Authentik, sempre com MFA. Dali ele prov
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-178 ⏳ | Acesso ao backoffice e provisionamento de tenant e órgãos | P1 | L | US-087, US-090, US-099 |
-| US-179 ⏳ | Ciclo de vida do tenant no backoffice | P1 | M | US-178 |
-| US-180 ⏳ | Conceder e encerrar acesso de suporte | P1 | M | US-073, US-178 |
-| US-181 ⏳ | Saúde operacional por tenant no backoffice | P1 | M | US-085, US-116, US-178 |
+| US-178 | Acesso ao backoffice e provisionamento de tenant e órgãos | P1 | L | US-087, US-090, US-099 |
+| US-179 | Ciclo de vida do tenant no backoffice | P1 | M | US-178 |
+| US-180 | Conceder e encerrar acesso de suporte | P1 | M | US-073, US-178 |
+| US-181 | Saúde operacional por tenant no backoffice | P1 | M | US-085, US-116, US-178 |
 
 ## Escopo
 - Acesso: operador com MFA sempre; rota e menu inexistentes para quem não é operador; auditoria `backoffice.access`.
