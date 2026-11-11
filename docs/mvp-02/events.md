@@ -74,7 +74,9 @@ Síncronos (mesma transação): `TimelineProjector` e `ProcessAccessProjector` p
 | `PcaStatusChanged` | `pca.status_changed.<status>` | Envio, decisão, retirada, substituição | `pcaId`, `organizationId`, `year`, `versionNumber`, `fromStatus`, `toStatus`, `approvalId?` | N R X |
 | ↳ `PcaApproved` | `pca.status_changed.approved` | especialização | — | — |
 | `PcaReconciliationCompleted` | `pca.reconciliation_completed` | Job de reconciliação | `pcaId`, `runId`, `trigger`, `linkedCount`, `unresolvedCount`, `ambiguousCount` | N |
-| `PcaReferenceConciliated` | `pca.reference_conciliated` | Conciliação manual | `runId`, `entryId`, `targetType`, `targetId`, `pcaItemId` | — |
+| `PcaReferenceConciliated` | `pca.reference_conciliated` | Conciliação manual | `runId`, `entryId`, `targetType`, `targetId`, `action` (`LINK`/`NO_ITEM`), `pcaItemId?` | — |
+| `DfdPcaItemLinked` | `dfd.pca_item_linked` | Vínculo do DFD a item do PCA (US-142/US-143) | `dfdId`, `processId`, `pcaItemId`, `via` | `PcaExecutionTracker` |
+| `DfdPcaItemUnlinked` | `dfd.pca_item_unlinked` | Desvínculo/troca do item no DFD (US-142) | `dfdId`, `processId`, `pcaItemId` | `PcaExecutionTracker` |
 
 ### 4.3 Aprovação (módulo `approval`)
 | Evento | Routing key | Produtor | Payload | Cons. |
@@ -254,7 +256,7 @@ Escritas pelo `AuditService` na mesma transação (DEC-161); mesmas regras de co
 
 | Área | Ações |
 |---|---|
-| PCA | `pca.create`, `pca.update`, `pca.revise`, `pca.import`, `pca.item_create`, `pca.item_update`, `pca.item_delete`, `pca.item_status_change` (DATA_CHANGE); `pca.submit`, `pca.withdraw` (WORKFLOW); `pca.reconcile`, `pca.conciliate` (DATA_CHANGE); `pca.export` (EXPORT); `process.pca_link`, `process.pca_unlink`, `dfd.pca_link` (DATA_CHANGE — `actorType = SYSTEM` na reconciliação) |
+| PCA | `pca.create`, `pca.update`, `pca.revise`, `pca.import`, `pca.item_create`, `pca.item_update`, `pca.item_delete`, `pca.item_status_change` (DATA_CHANGE); `pca.submit`, `pca.withdraw` (WORKFLOW); `pca.reconcile`, `pca.conciliate`, `pca.delete`, `pca.discard_revision` (DATA_CHANGE); `pca.export` (EXPORT); `process.pca_link`, `process.pca_unlink`, `dfd.pca_link`, `dfd.pca_unlink` (DATA_CHANGE — `actorType = SYSTEM` na reconciliação) |
 | Dotação | `budget_allocation.create`, `budget_allocation.update` (DATA_CHANGE); `budget_allocation.confirm`, `budget_allocation.cancel` (WORKFLOW) |
 | Jurídico | `legal_review.assign`, `legal_review.start`, `legal_review.diligence_request`, `legal_review.resume`, `legal_review.conclude`, `legal_review.waive`, `legal_review.cancel` (WORKFLOW); `legal_review.reservation_create`, `legal_review.reservation_resolve` (DATA_CHANGE); `legal_review.configure` (CONFIGURATION) |
 | Controle Interno | `internal_control_review.start`, `internal_control_review.conclude`, `internal_control_review.cancel` (WORKFLOW); `internal_control_review.answer_update`, `internal_control_review.finding_create`, `internal_control_review.finding_update`, `internal_control_review.finding_resolve` (DATA_CHANGE); `internal_control_checklist.create`, `internal_control_checklist.publish`, `internal_control_checklist.retire` (CONFIGURATION) |

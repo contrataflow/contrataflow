@@ -54,22 +54,22 @@ Dar ao órgão o plano de contratações anual (PCA) dentro da plataforma: elabo
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-068 | Elaboração do PCA | US-138 ⏳, US-139 ⏳ | P1 |
-| FT-069 | Aprovação e revisão do PCA | US-140 ⏳, US-141 ⏳ | P1 |
-| FT-070 | Vínculo e reconciliação | US-142 ⏳, US-143 ⏳ | P1 |
-| FT-071 | Acompanhamento e divulgação | US-144 ⏳, US-145 ⏳ | P1 |
+| FT-068 | Elaboração do PCA | US-138, US-139 | P1 |
+| FT-069 | Aprovação e revisão do PCA | US-140, US-141 | P1 |
+| FT-070 | Vínculo e reconciliação | US-142, US-143 | P1 |
+| FT-071 | Acompanhamento e divulgação | US-144, US-145 | P1 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-138 ⏳ | Criar o plano anual e manter os itens do PCA | P1 | L | 8 |
-| US-139 ⏳ | Importar itens do PCA por planilha | P1 | M | 5 |
-| US-140 ⏳ | Enviar o PCA para aprovação e decidir | P1 | M | 5 |
-| US-141 ⏳ | Revisar o PCA aprovado com nova versão | P1 | M | 5 |
-| US-142 ⏳ | Vincular DFD e processo a item do PCA | P1 | M | 5 |
-| US-143 ⏳ | Reconciliar as referências textuais ao PCA e conciliar manualmente | P1 | L | 8 |
-| US-144 ⏳ | Acompanhar a execução do PCA | P1 | M | 5 |
-| US-145 ⏳ | Exportar o PCA para divulgação | P1 | S | 2 |
+| US-138 | Criar o plano anual e manter os itens do PCA | P1 | L | 8 |
+| US-139 | Importar itens do PCA por planilha | P1 | M | 5 |
+| US-140 | Enviar o PCA para aprovação e decidir | P1 | M | 5 |
+| US-141 | Revisar o PCA aprovado com nova versão | P1 | M | 5 |
+| US-142 | Vincular DFD e processo a item do PCA | P1 | M | 5 |
+| US-143 | Reconciliar as referências textuais ao PCA e conciliar manualmente | P1 | L | 8 |
+| US-144 | Acompanhar a execução do PCA | P1 | M | 5 |
+| US-145 | Exportar o PCA para divulgação | P1 | S | 2 |
 | **Total** | | | | **43** |
 
 ## Módulos e entidades

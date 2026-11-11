@@ -49,14 +49,14 @@ Registrar na plataforma a indicação da dotação orçamentária do processo e 
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-072 | Dotação orçamentária | US-146 ⏳, US-147 ⏳, US-148 ⏳ | P0 |
+| FT-072 | Dotação orçamentária | US-146, US-147, US-148 | P0 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-146 ⏳ | Indicar a dotação orçamentária do processo | P0 | M | 5 |
-| US-147 ⏳ | Confirmar a reserva com evidência e cancelar dotação | P0 | M | 5 |
-| US-148 ⏳ | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | P0 | M | 5 |
+| US-146 | Indicar a dotação orçamentária do processo | P0 | M | 5 |
+| US-147 | Confirmar a reserva com evidência e cancelar dotação | P0 | M | 5 |
+| US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | P0 | M | 5 |
 | **Total** | | | | **15** |
 
 ## Módulos e entidades

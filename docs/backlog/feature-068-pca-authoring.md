@@ -34,8 +34,8 @@ A pessoa pode digitar os itens ou importá-los de uma planilha CSV/XLSX (US-139)
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-138 ⏳ | Criar o plano anual e manter os itens do PCA | P1 | L | US-097, US-102, US-104 |
-| US-139 ⏳ | Importar itens do PCA por planilha | P1 | M | US-068, US-083, US-138 |
+| US-138 | Criar o plano anual e manter os itens do PCA | P1 | L | US-097, US-102, US-104 |
+| US-139 | Importar itens do PCA por planilha | P1 | M | US-068, US-083, US-138 |
 
 ## Escopo
 - Criar o plano (órgão, exercício, título); um plano em elaboração por exercício.

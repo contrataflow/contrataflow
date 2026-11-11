@@ -34,8 +34,8 @@ A feature também exporta o plano aprovado para divulgação em sítio oficial (
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-144 ⏳ | Acompanhar a execução do PCA | P1 | M | US-142 |
-| US-145 ⏳ | Exportar o PCA para divulgação | P1 | S | US-083, US-140 |
+| US-144 | Acompanhar a execução do PCA | P1 | M | US-142 |
+| US-145 | Exportar o PCA para divulgação | P1 | S | US-083, US-140 |
 
 ## Escopo
 - Visão de execução por item, secretaria e categoria: valor previsto, processos vinculados (`linkedProcessesCount`), situação e saldo previsto não vinculado.

@@ -34,8 +34,8 @@ Depois de aprovado o plano não aceita alteração de itens. Para mudar, o plane
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-140 ⏳ | Enviar o PCA para aprovação e decidir | P1 | M | US-051, US-052, US-138 |
-| US-141 ⏳ | Revisar o PCA aprovado com nova versão | P1 | M | US-140 |
+| US-140 | Enviar o PCA para aprovação e decidir | P1 | M | US-051, US-052, US-138 |
+| US-141 | Revisar o PCA aprovado com nova versão | P1 | M | US-140 |
 
 ## Escopo
 - Envio do plano (exige ao menos um item e nenhum item com dado obrigatório faltando) e retirada da aprovação.

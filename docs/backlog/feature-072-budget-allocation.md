@@ -35,9 +35,9 @@ A Contabilidade confirma a reserva informando o número e a data da reserva ou p
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-146 ⏳ | Indicar a dotação orçamentária do processo | P0 | M | US-001, US-013, US-097, US-104 |
-| US-147 ⏳ | Confirmar a reserva com evidência e cancelar dotação | P0 | M | US-068, US-146 |
-| US-148 ⏳ | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | P0 | M | US-032, US-129, US-147 |
+| US-146 | Indicar a dotação orçamentária do processo | P0 | M | US-001, US-013, US-097, US-104 |
+| US-147 | Confirmar a reserva com evidência e cancelar dotação | P0 | M | US-068, US-146 |
+| US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | P0 | M | US-032, US-129, US-147 |
 
 ## Escopo
 - Indicação, edição e exclusão lógica de dotação em `DRAFT`, com seleção nos catálogos `BUDGET_UNIT`, `BUDGET_ACTION`, `EXPENSE_NATURE` e `FUNDING_SOURCE`.

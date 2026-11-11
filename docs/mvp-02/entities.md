@@ -27,6 +27,8 @@ Regras adicionais do MVP 2:
 | `PcaPlanStatus` | `DRAFT`, `AWAITING_APPROVAL`, `APPROVED`, `SUPERSEDED` | Novo | DEC-197 |
 | `PcaItemStatus` | `PLANNED`, `IN_PROGRESS`, `CONTRACTED`, `POSTPONED`, `CANCELED` | Novo | DEC-197 |
 | `PcaLinkStatus` | `NOT_APPLICABLE`, `PENDING`, `LINKED`, `UNRESOLVED`, `AMBIGUOUS` | Novo — situação do vínculo textual × FK em `Process`/`Dfd` | DEC-197 |
+| `PcaImportStatus` | `QUEUED`, `VALIDATING`, `PREVIEW_READY`, `APPLYING`, `COMPLETED`, `FAILED`, `EXPIRED` | Novo | US-139 |
+| `PcaExportFormat` / `PcaExportStatus` | `CSV`, `PDF` / `PENDING`, `PROCESSING`, `READY`, `FAILED` | Novo | US-145 |
 | `PcaReconciliationOutcome` | `LINKED`, `UNRESOLVED`, `AMBIGUOUS`, `MANUAL`, `SKIPPED` | Novo | DEC-197 |
 | `PcaReconciliationRunStatus` | `RUNNING`, `COMPLETED`, `FAILED` | Novo | DEC-197 |
 | `BudgetAllocationStatus` | `DRAFT`, `CONFIRMED`, `CANCELED` | Novo | DEC-198 |
@@ -240,10 +242,19 @@ Uma linha por referência textual examinada (processo ou DFD). É o **relatório
 | `resolvedItemId` | uuid | sim | — | FK → `pca_items`; obrigatório em `LINKED`/`MANUAL` |
 | `candidateItemIds` | uuid[] | não | `{}` | Candidatos (`AMBIGUOUS`, ou sugestões por similaridade em `UNRESOLVED`) |
 | `resolvedById` / `resolvedAt` | uuid / timestamptz | sim | — | Conciliação manual |
+| `reasonCode` | varchar(40) | sim | — | `NO_MATCH`, `NO_CODE`, `ITEM_CANCELED`, `MULTIPLE_MATCH`, `NO_COUNTERPART`, `MARKED_WITHOUT_ITEM`, `TARGET_CHANGED`, `PROCESSING_ERROR` (US-143) |
+| `resolutionNote` | varchar(500) | sim | — | Justificativa/nota da conciliação manual (US-143) |
 | `createdAt`, `updatedAt` | timestamptz | não | `now()` | |
 
 - **Unique:** `(tenant_id, run_id, target_type, target_id)`.
-- **Índices:** `(tenant_id, outcome) WHERE outcome IN ('UNRESOLVED','AMBIGUOUS')`; `(tenant_id, process_id)`.
+- **Índices:** `(tenant_id, outcome) WHERE outcome IN ('UNRESOLVED','AMBIGUOUS')`; `(tenant_id, process_id)`; `(tenant_id, target_type, target_id, created_at DESC)`; `(tenant_id, run_id, outcome)`. Índice novo em `dfds (tenant_id, pca_item_id)` (US-143).
+- **Semântica de `SKIPPED`:** referência examinada e deliberadamente não vinculada; "sem item no PCA" = entrada `SKIPPED` (`reasonCode = MARKED_WITHOUT_ITEM`) mais alvo com `pcaLinkStatus = NOT_APPLICABLE` e `pcaStatus = PLANNED`. Na reconciliação o texto original (`pcaYear`/`pcaItemCode`) é preservado (exceção ao espelho de §5.1, US-143).
+
+#### PcaImport (`pca_imports`) — módulo `pca` (US-139)
+Importação de planilha em duas fases (prévia e confirmação). Campos: `pcaId`, `attachmentId`, `requestedById`, `status` (`PcaImportStatus`: `QUEUED`, `VALIDATING`, `PREVIEW_READY`, `APPLYING`, `COMPLETED`, `FAILED`, `EXPIRED`), `fileFormat`, contagens (`rowsRead`, `rowsValid`, `rowsRejected`, `toCreate`, `toUpdate`, `unchanged`, `created`, `updated`), `rejections` (jsonb), `sample` (jsonb), `planVersionAtPreview`, `previewExpiresAt` (15 min), `errorCode`, `version` e carimbos. Único parcial por plano enquanto `QUEUED`/`VALIDATING`/`APPLYING`. Fila `pca-import` (jobs `validate` e `apply`).
+
+#### PcaExport (`pca_exports`) — módulo `pca` (US-145)
+Pedido assíncrono de exportação para divulgação. Campos: `pcaId`, `format` (`PcaExportFormat`: `CSV`, `PDF`), `status` (`PcaExportStatus`: `PENDING`, `PROCESSING`, `READY`, `FAILED`), `requestedById/At`, `startedAt`, `finishedAt`, `attachmentId`, `fileName`, `sizeBytes`, `sha256`, `versionNumber`, `itemsCount`, `maskedItemsCount`, `attempts`, `errorCode` (`PLAN_CHANGED`, `RENDER_FAILED`, `STORAGE_UNAVAILABLE`, `TIMEOUT`, `ENQUEUE_FAILED`), `errorMessage`. Único parcial: uma exportação ativa por (plano, formato).
 - **Check:** `outcome NOT IN ('LINKED','MANUAL') OR resolved_item_id IS NOT NULL`; `target_type IN ('PROCESS','DFD')`.
 
 ### 4.2 Dotação orçamentária (módulo `budget`)
@@ -1024,6 +1035,9 @@ Variáveis de modelo: `{{process.code}}`, `{{process.title}}`, `{{stage.name}}`,
 |---|---|---|---|
 | `pca.elaborationDeadline` | `{ month: 1..12, day: 1..31 }` | `{ month: 6, day: 30 }` do exercício anterior | Calendário do plano — "a validar com o piloto" |
 | `pca.requireLinkForPlanned` | boolean | `false` | `true` = DFD com `pcaStatus = PLANNED` só conclui com `pcaItemId` (com plano aprovado do exercício) |
+| `pca.import.maxRows` | int | `1000` | 50..5000 — linhas máximas por planilha (US-139) |
+| `pca.approverRoleKey` | string | `AUTORIDADE_COMPETENTE` | Perfil aprovador do PCA (POL-22, US-140) |
+| `pca.itemBalanceSeverity` | `"OFF"` \| `"WARNING"` \| `"BLOCKING"` | `"WARNING"` | Severidade do saldo previsto do item ao vincular (US-142; a validar com o piloto) |
 | `budget.coverageRuleSeverity` | `"BLOCKING"` \| `"WARNING"` | `"BLOCKING"` | Severidade da regra padrão de cobertura (DEC-198) |
 | `legalReview.queueCriteria` | `LegalQueueCriteria` | §7.5 | |
 | `legalReview.diligenceDueBusinessDays` | int | `10` | 1..60 — prazo sugerido para atender diligência |

@@ -283,17 +283,17 @@
 | US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | EP-022 | FT-066 | P0 | M | US-053, US-134 |
 | US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | EP-022 | FT-066 | P0 | M | US-056, US-057, US-134 |
 | US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | EP-022 | FT-067 | P1 | S | US-051, US-055, US-061 |
-| US-138 ⏳ | Criar o plano anual e manter os itens do PCA | EP-023 | FT-068 | P1 | L | US-097, US-102, US-104 |
-| US-139 ⏳ | Importar itens do PCA por planilha | EP-023 | FT-068 | P1 | M | US-068, US-083, US-138 |
-| US-140 ⏳ | Enviar o PCA para aprovação e decidir | EP-023 | FT-069 | P1 | M | US-051, US-052, US-138 |
-| US-141 ⏳ | Revisar o PCA aprovado com nova versão | EP-023 | FT-069 | P1 | M | US-140 |
-| US-142 ⏳ | Vincular DFD e processo a item do PCA | EP-023 | FT-070 | P1 | M | US-005, US-014, US-140 |
-| US-143 ⏳ | Reconciliar as referências textuais ao PCA e conciliar manualmente | EP-023 | FT-070 | P1 | L | US-083, US-142 |
-| US-144 ⏳ | Acompanhar a execução do PCA | EP-023 | FT-071 | P1 | M | US-142 |
-| US-145 ⏳ | Exportar o PCA para divulgação | EP-023 | FT-071 | P1 | S | US-083, US-140 |
-| US-146 ⏳ | Indicar a dotação orçamentária do processo | EP-024 | FT-072 | P0 | M | US-001, US-013, US-097, US-104 |
-| US-147 ⏳ | Confirmar a reserva com evidência e cancelar dotação | EP-024 | FT-072 | P0 | M | US-068, US-146 |
-| US-148 ⏳ | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | EP-024 | FT-072 | P0 | M | US-032, US-129, US-147 |
+| US-138 | Criar o plano anual e manter os itens do PCA | EP-023 | FT-068 | P1 | L | US-097, US-102, US-104 |
+| US-139 | Importar itens do PCA por planilha | EP-023 | FT-068 | P1 | M | US-068, US-083, US-138 |
+| US-140 | Enviar o PCA para aprovação e decidir | EP-023 | FT-069 | P1 | M | US-051, US-052, US-138 |
+| US-141 | Revisar o PCA aprovado com nova versão | EP-023 | FT-069 | P1 | M | US-140 |
+| US-142 | Vincular DFD e processo a item do PCA | EP-023 | FT-070 | P1 | M | US-005, US-014, US-140 |
+| US-143 | Reconciliar as referências textuais ao PCA e conciliar manualmente | EP-023 | FT-070 | P1 | L | US-083, US-142 |
+| US-144 | Acompanhar a execução do PCA | EP-023 | FT-071 | P1 | M | US-142 |
+| US-145 | Exportar o PCA para divulgação | EP-023 | FT-071 | P1 | S | US-083, US-140 |
+| US-146 | Indicar a dotação orçamentária do processo | EP-024 | FT-072 | P0 | M | US-001, US-013, US-097, US-104 |
+| US-147 | Confirmar a reserva com evidência e cancelar dotação | EP-024 | FT-072 | P0 | M | US-068, US-146 |
+| US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | EP-024 | FT-072 | P0 | M | US-032, US-129, US-147 |
 | US-149 ⏳ | Abrir a análise jurídica e fila priorizada | EP-025 | FT-073 | P0 | L | US-047, US-097, US-104 |
 | US-150 ⏳ | Distribuir análises na assessoria jurídica | EP-025 | FT-073 | P0 | S | US-050, US-149 |
 | US-151 ⏳ | Configurar critérios da fila e hipóteses de dispensa | EP-025 | FT-073 | P0 | M | US-103, US-104, US-149 |
@@ -349,4 +349,4 @@
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 
-Totais do MVP 2: 11 épicos · 28 features · 78 stories (0 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (38 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.

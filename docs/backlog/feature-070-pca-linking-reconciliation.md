@@ -34,8 +34,8 @@ Os processos e DFDs do MVP 1 só têm a referência textual (`pcaYear` + `pcaIte
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-142 ⏳ | Vincular DFD e processo a item do PCA | P1 | M | US-005, US-014, US-140 |
-| US-143 ⏳ | Reconciliar as referências textuais ao PCA e conciliar manualmente | P1 | L | US-083, US-142 |
+| US-142 | Vincular DFD e processo a item do PCA | P1 | M | US-005, US-014, US-140 |
+| US-143 | Reconciliar as referências textuais ao PCA e conciliar manualmente | P1 | L | US-083, US-142 |
 
 ## Escopo
 - Seletor `/pca-items/lookup` (código, objeto e secretaria dos itens do plano aprovado do órgão do processo).

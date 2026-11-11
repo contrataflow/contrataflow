@@ -73,14 +73,14 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-138 | Criar o plano anual e manter os itens do PCA | FT-068 | P1 | L | US-097, US-102, US-104 | `story-138-pca-plan-items.md` ⏳ |
-| US-139 | Importar itens do PCA por planilha | FT-068 | P1 | M | US-068, US-083, US-138 | `story-139-pca-spreadsheet-import.md` ⏳ |
-| US-140 | Enviar o PCA para aprovação e decidir | FT-069 | P1 | M | US-051, US-052, US-138 | `story-140-pca-approval.md` ⏳ |
-| US-141 | Revisar o PCA aprovado com nova versão | FT-069 | P1 | M | US-140 | `story-141-pca-revision.md` ⏳ |
-| US-142 | Vincular DFD e processo a item do PCA | FT-070 | P1 | M | US-005, US-014, US-140 | `story-142-pca-item-linking.md` ⏳ |
-| US-143 | Reconciliar as referências textuais ao PCA e conciliar manualmente | FT-070 | P1 | L | US-083, US-142 | `story-143-pca-reconciliation.md` ⏳ |
-| US-144 | Acompanhar a execução do PCA | FT-071 | P1 | M | US-142 | `story-144-pca-execution-tracking.md` ⏳ |
-| US-145 | Exportar o PCA para divulgação | FT-071 | P1 | S | US-083, US-140 | `story-145-pca-disclosure-export.md` ⏳ |
+| US-138 | Criar o plano anual e manter os itens do PCA | FT-068 | P1 | L | US-097, US-102, US-104 | `story-138-pca-plan-items.md` |
+| US-139 | Importar itens do PCA por planilha | FT-068 | P1 | M | US-068, US-083, US-138 | `story-139-pca-spreadsheet-import.md` |
+| US-140 | Enviar o PCA para aprovação e decidir | FT-069 | P1 | M | US-051, US-052, US-138 | `story-140-pca-approval.md` |
+| US-141 | Revisar o PCA aprovado com nova versão | FT-069 | P1 | M | US-140 | `story-141-pca-revision.md` |
+| US-142 | Vincular DFD e processo a item do PCA | FT-070 | P1 | M | US-005, US-014, US-140 | `story-142-pca-item-linking.md` |
+| US-143 | Reconciliar as referências textuais ao PCA e conciliar manualmente | FT-070 | P1 | L | US-083, US-142 | `story-143-pca-reconciliation.md` |
+| US-144 | Acompanhar a execução do PCA | FT-071 | P1 | M | US-142 | `story-144-pca-execution-tracking.md` |
+| US-145 | Exportar o PCA para divulgação | FT-071 | P1 | S | US-083, US-140 | `story-145-pca-disclosure-export.md` |
 
 ## EP-024 — Dotação orçamentária
 
@@ -90,9 +90,9 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-146 | Indicar a dotação orçamentária do processo | FT-072 | P0 | M | US-001, US-013, US-097, US-104 | `story-146-budget-allocation-entry.md` ⏳ |
-| US-147 | Confirmar a reserva com evidência e cancelar dotação | FT-072 | P0 | M | US-068, US-146 | `story-147-budget-allocation-confirmation.md` ⏳ |
-| US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | FT-072 | P0 | M | US-032, US-129, US-147 | `story-148-budget-compatibility-exit-rule.md` ⏳ |
+| US-146 | Indicar a dotação orçamentária do processo | FT-072 | P0 | M | US-001, US-013, US-097, US-104 | `story-146-budget-allocation-entry.md` |
+| US-147 | Confirmar a reserva com evidência e cancelar dotação | FT-072 | P0 | M | US-068, US-146 | `story-147-budget-allocation-confirmation.md` |
+| US-148 | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | FT-072 | P0 | M | US-032, US-129, US-147 | `story-148-budget-compatibility-exit-rule.md` |
 
 ## EP-025 — Jurídico
 
