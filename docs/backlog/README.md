@@ -1,6 +1,6 @@
 # Backlog — Índice
 
-> Índice navegável dos cards. Fonte canônica de IDs, prioridades, estimativas e dependências: [`../mvp-01/features.md`](../mvp-01/features.md). Modelos: [`_templates/`](_templates/). Exemplo de referência: [US-001](story-001-create-process.md).
+> Índice navegável dos cards. Fonte canônica de IDs, prioridades, estimativas e dependências: [`../mvp-01/features.md`](../mvp-01/features.md) (MVP 1, EP-001..EP-020) e [`../mvp-02/features.md`](../mvp-02/features.md) (MVP 2, EP-021..EP-031). Modelos: [`_templates/`](_templates/). Exemplo de referência: [US-001](story-001-create-process.md).
 > Cada story segue o padrão de card de 28 seções com critérios de aceite em Gherkin (8 categorias de cenário). ⏳ = card ainda não escrito.
 
 ## Convenções
@@ -33,7 +33,19 @@
 | [EP-018](epic-018-document-templates.md) | Templates de documentos | `TPL` | 4 | 23 |
 | [EP-019](epic-019-notifications.md) | Notificações | `NTF` | 4 | 17 |
 | [EP-020](epic-020-ai-document-generation.md) | IA para documentos do planejamento | `AI` | 8 | 46 |
-| **Total** | | | **122** | **661** |
+| **Total MVP 1** | | | **122** | **661** |
+| [EP-021](epic-021-workflow-v2.md) | Workflow v2 | `WF2` | 9 | 57 |
+| [EP-022](epic-022-multi-approval.md) | Aprovação múltipla | `APV` | 6 | 33 |
+| [EP-023](epic-023-pca.md) | PCA | `PCA` | 8 | 43 |
+| [EP-024](epic-024-budget-allocation.md) | Dotação orçamentária | `BUD` | 3 | 15 |
+| [EP-025](epic-025-legal-review.md) | Jurídico | `LGL` | 9 | 51 |
+| [EP-026](epic-026-internal-control.md) | Controle Interno | `ICT` | 5 | 25 |
+| [EP-027](epic-027-tender.md) | Edital | `TND` | 7 | 38 |
+| [EP-028](epic-028-analytics.md) | Indicadores e gargalos | `ANL` | 8 | 46 |
+| [EP-029](epic-029-platform-backoffice.md) | Plataforma e backoffice | `PLAT` | 11 | 48 |
+| [EP-030](epic-030-sla.md) | SLA | `SLA` | 5 | 28 |
+| [EP-031](epic-031-conditional-rules.md) | Regras condicionais | `RULE` | 7 | 38 |
+| **Total MVP 2** | | | **78** | **422** |
 
 ## Features
 
@@ -101,6 +113,34 @@
 | [FT-060](feature-060-ai-layer-governance.md) | Camada de IA e governança | EP-020 | US-115, US-116 |
 | [FT-061](feature-061-ai-document-drafts.md) | Rascunhos com IA | EP-020 | US-117, US-118, US-119, US-120 |
 | [FT-062](feature-062-ai-section-adjust-review.md) | Ajuste por seção e revisão | EP-020 | US-121, US-122 |
+| [FT-063](feature-063-parallel-stages.md) | Etapas paralelas | EP-021 | US-123, US-124, US-125 |
+| [FT-064](feature-064-workflow-version-migration.md) | Migração entre versões de workflow | EP-021 | US-126, US-127, US-128 |
+| [FT-065](feature-065-default-workflow-v2.md) | Workflow padrão v2 e `RuleContext` v2 | EP-021 | US-129, US-130, US-131 |
+| [FT-066](feature-066-approval-decision-policies.md) | Políticas de decisão com múltiplos aprovadores | EP-022 | US-132, US-133, US-134, US-135, US-136 |
+| [FT-067](feature-067-approval-due-date-by-document-type.md) | Prazo das aprovações avulsas | EP-022 | US-137 |
+| [FT-068](feature-068-pca-authoring.md) | Elaboração do PCA | EP-023 | US-138, US-139 |
+| [FT-069](feature-069-pca-approval-revision.md) | Aprovação e revisão do PCA | EP-023 | US-140, US-141 |
+| [FT-070](feature-070-pca-linking-reconciliation.md) | Vínculo e reconciliação | EP-023 | US-142, US-143 |
+| [FT-071](feature-071-pca-tracking-disclosure.md) | Acompanhamento e divulgação | EP-023 | US-144, US-145 |
+| [FT-072](feature-072-budget-allocation.md) | Dotação orçamentária | EP-024 | US-146, US-147, US-148 |
+| [FT-073](feature-073-legal-review-queue.md) | Fila jurídica priorizada | EP-025 | US-149, US-150, US-151 |
+| [FT-074](feature-074-legal-review-opinion.md) | Análise, diligência e parecer | EP-025 | US-152, US-153, US-154, US-155, US-156 |
+| [FT-075](feature-075-ai-legal-opinion.md) | IA no parecer jurídico | EP-025 | US-157 |
+| [FT-076](feature-076-internal-control-checklist.md) | Checklist do Controle Interno | EP-026 | US-158 |
+| [FT-077](feature-077-internal-control-review.md) | Manifestação do Controle Interno | EP-026 | US-159, US-160, US-161, US-162 |
+| [FT-078](feature-078-tender-draft.md) | Minuta do edital e do contrato | EP-027 | US-163, US-164, US-165, US-166, US-167, US-168 |
+| [FT-079](feature-079-ai-tender-draft.md) | IA no edital | EP-027 | US-169 |
+| [FT-080](feature-080-analytics-read-model.md) | Read model de indicadores | EP-028 | US-170, US-171 |
+| [FT-081](feature-081-indicators-reports.md) | Indicadores e relatórios | EP-028 | US-172, US-173, US-174, US-175 |
+| [FT-082](feature-082-bottlenecks.md) | Gargalos | EP-028 | US-176, US-177 |
+| [FT-083](feature-083-platform-backoffice.md) | Backoffice da plataforma | EP-029 | US-178, US-179, US-180, US-181 |
+| [FT-084](feature-084-govbr-login.md) | Login gov.br | EP-029 | US-182, US-183, US-184 |
+| [FT-085](feature-085-mvp1-debts.md) | Débitos técnicos do MVP 1 | EP-029 | US-185, US-186, US-187, US-188 |
+| [FT-086](feature-086-sla-policies.md) | Políticas de SLA | EP-030 | US-189, US-190, US-191, US-192 |
+| [FT-087](feature-087-notification-rules.md) | Regras de notificação | EP-030 | US-193 |
+| [FT-088](feature-088-rule-library.md) | Biblioteca de regras | EP-031 | US-194, US-195, US-196 |
+| [FT-089](feature-089-conditional-routing-thresholds.md) | Roteamento condicional e alçadas | EP-031 | US-197, US-198 |
+| [FT-090](feature-090-rule-simulator-tests.md) | Simulador e testes de regras | EP-031 | US-199, US-200 |
 
 ## Stories
 
@@ -228,5 +268,85 @@
 | [US-120](story-120-ai-draft-tr.md) | Gerar o rascunho do TR com IA a partir do ETP | EP-020 | FT-061 | P1 | M | US-036, US-038, US-117 |
 | [US-121](story-121-ai-section-adjust.md) | Ajustar seção com IA: reescrever, completar e resumir | EP-020 | FT-062 | P1 | M | US-020, US-035, US-036, US-117 |
 | [US-122](story-122-ai-review-markers.md) | Marcar conteúdo gerado por IA e pendências "[a confirmar]" e exigir revisão humana | EP-020 | FT-062 | P1 | M | US-065, US-067, US-115 |
+| US-123 ⏳ | Modelar etapas paralelas no workflow (ramificação e junção) | EP-021 | FT-063 | P0 | L | US-040, US-043, US-045 |
+| US-124 ⏳ | Executar ramos paralelos no processo | EP-021 | FT-063 | P0 | L | US-041, US-047, US-048, US-123 |
+| US-125 ⏳ | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | EP-021 | FT-063 | P0 | M | US-004, US-055, US-056, US-124 |
+| US-126 ⏳ | Planejar a migração de processos: mapeamento de etapas e filtro | EP-021 | FT-064 | P0 | M | US-045 |
+| US-127 ⏳ | Simular a migração e decidir os processos que exigem decisão | EP-021 | FT-064 | P0 | L | US-041, US-124, US-126 |
+| US-128 ⏳ | Executar a migração de forma assíncrona, idempotente e auditada | EP-021 | FT-064 | P0 | L | US-054, US-059, US-073, US-083, US-127 |
+| US-129 ⏳ | `RuleContext` v2: contrato versionado e provedores por módulo | EP-021 | FT-065 | P0 | M | US-041, US-044 |
+| US-130 ⏳ | Workflow padrão v2 da fase preparatória e oferta de adoção | EP-021 | FT-065 | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 |
+| US-131 ⏳ | Levar à fase preparatória processos concluídos na v1 | EP-021 | FT-065 | P1 | M | US-128, US-130 |
+| US-132 ⏳ | Configurar política de decisão e aprovadores ordenados na etapa | EP-022 | FT-066 | P0 | M | US-040, US-043, US-045 |
+| US-133 ⏳ | Solicitar aprovação com múltiplos aprovadores | EP-022 | FT-066 | P0 | L | US-051, US-132 |
+| US-134 ⏳ | Decidir aprovação múltipla: votos, encerramento e concorrência | EP-022 | FT-066 | P0 | L | US-052, US-133 |
+| US-135 ⏳ | Redirecionar linha de aprovação e retirar aprovação múltipla | EP-022 | FT-066 | P0 | M | US-053, US-134 |
+| US-136 ⏳ | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | EP-022 | FT-066 | P0 | M | US-056, US-057, US-134 |
+| US-137 ⏳ | Prazo da aprovação avulsa por tipo de documento (DT-17) | EP-022 | FT-067 | P1 | S | US-051, US-055, US-061 |
+| US-138 ⏳ | Criar o plano anual e manter os itens do PCA | EP-023 | FT-068 | P1 | L | US-097, US-102, US-104 |
+| US-139 ⏳ | Importar itens do PCA por planilha | EP-023 | FT-068 | P1 | M | US-068, US-083, US-138 |
+| US-140 ⏳ | Enviar o PCA para aprovação e decidir | EP-023 | FT-069 | P1 | M | US-051, US-052, US-138 |
+| US-141 ⏳ | Revisar o PCA aprovado com nova versão | EP-023 | FT-069 | P1 | M | US-140 |
+| US-142 ⏳ | Vincular DFD e processo a item do PCA | EP-023 | FT-070 | P1 | M | US-005, US-014, US-140 |
+| US-143 ⏳ | Reconciliar as referências textuais ao PCA e conciliar manualmente | EP-023 | FT-070 | P1 | L | US-083, US-142 |
+| US-144 ⏳ | Acompanhar a execução do PCA | EP-023 | FT-071 | P1 | M | US-142 |
+| US-145 ⏳ | Exportar o PCA para divulgação | EP-023 | FT-071 | P1 | S | US-083, US-140 |
+| US-146 ⏳ | Indicar a dotação orçamentária do processo | EP-024 | FT-072 | P0 | M | US-001, US-013, US-097, US-104 |
+| US-147 ⏳ | Confirmar a reserva com evidência e cancelar dotação | EP-024 | FT-072 | P0 | M | US-068, US-146 |
+| US-148 ⏳ | Compatibilidade da dotação com o valor estimado e regra de saída da etapa | EP-024 | FT-072 | P0 | M | US-032, US-129, US-147 |
+| US-149 ⏳ | Abrir a análise jurídica e fila priorizada | EP-025 | FT-073 | P0 | L | US-047, US-097, US-104 |
+| US-150 ⏳ | Distribuir análises na assessoria jurídica | EP-025 | FT-073 | P0 | S | US-050, US-149 |
+| US-151 ⏳ | Configurar critérios da fila e hipóteses de dispensa | EP-025 | FT-073 | P0 | M | US-103, US-104, US-149 |
+| US-152 ⏳ | Conduzir a análise jurídica sobre versões exatas | EP-025 | FT-074 | P0 | M | US-066, US-149 |
+| US-153 ⏳ | Pedir diligência e retomar a análise | EP-025 | FT-074 | P0 | L | US-048, US-066, US-152 |
+| US-154 ⏳ | Elaborar o parecer jurídico e registrar ressalvas | EP-025 | FT-074 | P0 | M | US-065, US-110, US-152 |
+| US-155 ⏳ | Concluir a análise com a situação conclusiva | EP-025 | FT-074 | P0 | M | US-129, US-154 |
+| US-156 ⏳ | Dispensar a análise jurídica por hipótese configurada | EP-025 | FT-074 | P0 | M | US-149, US-151 |
+| US-157 ⏳ | Gerar o rascunho do parecer jurídico com IA | EP-025 | FT-075 | P1 | L | US-115, US-116, US-122, US-154 |
+| US-158 ⏳ | Gerenciar checklists versionados do Controle Interno | EP-026 | FT-076 | P0 | M | US-097, US-103 |
+| US-159 ⏳ | Abrir a manifestação e painel do Controle Interno com visão de riscos | EP-026 | FT-077 | P0 | L | US-033, US-047, US-158 |
+| US-160 ⏳ | Responder o checklist e registrar achados e recomendações | EP-026 | FT-077 | P0 | M | US-159 |
+| US-161 ⏳ | Emitir a manifestação e concluir com a situação | EP-026 | FT-077 | P0 | M | US-065, US-110, US-129, US-160 |
+| US-162 ⏳ | Acompanhar o atendimento dos achados | EP-026 | FT-077 | P1 | S | US-160 |
+| US-163 ⏳ | Criar a minuta do edital com cabeçalho tipado | EP-027 | FT-078 | P0 | M | US-039, US-065, US-110 |
+| US-164 ⏳ | Importar itens, critérios e condições do TR para o edital | EP-027 | FT-078 | P0 | M | US-037, US-038, US-163 |
+| US-165 ⏳ | Organizar os lotes do edital | EP-027 | FT-078 | P0 | M | US-006, US-163 |
+| US-166 ⏳ | Matriz de alocação de riscos do edital | EP-027 | FT-078 | P1 | M | US-035, US-163 |
+| US-167 ⏳ | Elaborar a minuta do contrato | EP-027 | FT-078 | P0 | M | US-038, US-163 |
+| US-168 ⏳ | Concluir a minuta do edital | EP-027 | FT-078 | P0 | M | US-129, US-164, US-165, US-167 |
+| US-169 ⏳ | Gerar o rascunho do edital com IA | EP-027 | FT-079 | P1 | L | US-115, US-116, US-122, US-164 |
+| US-170 ⏳ | Alimentar o read model de indicadores pelos eventos | EP-028 | FT-080 | P1 | L | US-059, US-082, US-083 |
+| US-171 ⏳ | Reconstruir e reconciliar o read model | EP-028 | FT-080 | P1 | M | US-170 |
+| US-172 ⏳ | Relatórios de indicadores | EP-028 | FT-081 | P1 | L | US-013, US-097, US-171 |
+| US-173 ⏳ | Relatório detalhado com detalhamento por processo | EP-028 | FT-081 | P1 | M | US-172 |
+| US-174 ⏳ | Exportar relatórios | EP-028 | FT-081 | P1 | M | US-073, US-083, US-172 |
+| US-175 ⏳ | Indicadores de execução do PCA | EP-028 | FT-081 | P1 | S | US-144, US-172 |
+| US-176 ⏳ | Análise de gargalos por etapa, unidade e responsável | EP-028 | FT-082 | P1 | L | US-171, US-172 |
+| US-177 ⏳ | Filas, envelhecimento e comparação entre períodos | EP-028 | FT-082 | P1 | M | US-176 |
+| US-178 ⏳ | Acesso ao backoffice e provisionamento de tenant e órgãos | EP-029 | FT-083 | P1 | L | US-087, US-090, US-099 |
+| US-179 ⏳ | Ciclo de vida do tenant no backoffice | EP-029 | FT-083 | P1 | M | US-178 |
+| US-180 ⏳ | Conceder e encerrar acesso de suporte | EP-029 | FT-083 | P1 | M | US-073, US-178 |
+| US-181 ⏳ | Saúde operacional por tenant no backoffice | EP-029 | FT-083 | P1 | M | US-085, US-116, US-178 |
+| US-182 ⏳ | Entrar com gov.br via Authentik | EP-029 | FT-084 | P1 | L | US-087, US-103 |
+| US-183 ⏳ | Vincular e desvincular a identidade gov.br | EP-029 | FT-084 | P1 | M | US-098, US-182 |
+| US-184 ⏳ | Habilitar o gov.br no órgão e nível de confiança na política de MFA | EP-029 | FT-084 | P1 | S | US-090, US-182 |
+| US-185 ⏳ | Reativar perfil desativado (DT-13) | EP-029 | FT-085 | P2 | S | US-095 |
+| US-186 ⏳ | Notificar a quebra do selo de auditoria (DT-14) | EP-029 | FT-085 | P2 | S | US-074, US-111 |
+| US-187 ⏳ | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | EP-029 | FT-085 | P2 | M | US-108, US-110 |
+| US-188 ⏳ | Limite configurável do lote da caixa de tarefas (DT-16) | EP-029 | FT-085 | P2 | XS | US-058, US-103 |
+| US-189 ⏳ | Cadastrar políticas de SLA | EP-030 | FT-086 | P1 | L | US-055, US-106, US-129 |
+| US-190 ⏳ | Aplicar a política de SLA ao processo e calcular prazos | EP-030 | FT-086 | P1 | M | US-047, US-189 |
+| US-191 ⏳ | Pausar e retomar prazos | EP-030 | FT-086 | P1 | M | US-008, US-153, US-190 |
+| US-192 ⏳ | Escalonar prazos em degraus | EP-030 | FT-086 | P1 | M | US-114, US-190 |
+| US-193 ⏳ | Regras de notificação condicional | EP-030 | FT-087 | P1 | M | US-083, US-111, US-112, US-129 |
+| US-194 ⏳ | Biblioteca de regras reutilizáveis com versões | EP-031 | FT-088 | P1 | L | US-044, US-129 |
+| US-195 ⏳ | Usar regras da biblioteca nos workflows por versão fixada | EP-031 | FT-088 | P1 | M | US-045, US-194 |
+| US-196 ⏳ | Modelos prontos de regras | EP-031 | FT-088 | P1 | S | US-194 |
+| US-197 ⏳ | Roteamento condicional: etapa dispensada e transição condicional | EP-031 | FT-089 | P1 | L | US-041, US-047, US-195 |
+| US-198 ⏳ | Alçadas por valor | EP-031 | FT-089 | P1 | M | US-133, US-195 |
+| US-199 ⏳ | Simular regras com processo hipotético | EP-031 | FT-090 | P1 | M | US-194 |
+| US-200 ⏳ | Casos de teste de regra e bloqueio da publicação | EP-031 | FT-090 | P1 | M | US-199 |
 
-Totais: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
+Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
+
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (0 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
