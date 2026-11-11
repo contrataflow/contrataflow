@@ -34,9 +34,9 @@ A caixa de tarefas mostra um item por ramo, o painel situacional lista as etapas
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-123 ⏳ | Modelar etapas paralelas no workflow (ramificação e junção) | P0 | L | US-040, US-043, US-045 |
-| US-124 ⏳ | Executar ramos paralelos no processo | P0 | L | US-041, US-047, US-048, US-123 |
-| US-125 ⏳ | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | P0 | M | US-004, US-055, US-056, US-124 |
+| US-123 | Modelar etapas paralelas no workflow (ramificação e junção) | P0 | L | US-040, US-043, US-045 |
+| US-124 | Executar ramos paralelos no processo | P0 | L | US-041, US-047, US-048, US-123 |
+| US-125 | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | P0 | M | US-004, US-055, US-056, US-124 |
 
 ## Escopo
 - Tipos `PARALLEL_SPLIT` e `PARALLEL_JOIN` (sem responsável, prazo nem aprovador), `WorkflowStage.branchKey` calculado na publicação e validação do grafo.

@@ -56,13 +56,13 @@ Permitir que o administrador do órgão escreva uma regra uma vez, teste e reuti
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-194 ⏳ | Biblioteca de regras reutilizáveis com versões | P1 | L | 8 |
-| US-195 ⏳ | Usar regras da biblioteca nos workflows por versão fixada | P1 | M | 5 |
-| US-196 ⏳ | Modelos prontos de regras | P1 | S | 2 |
-| US-197 ⏳ | Roteamento condicional: etapa dispensada e transição condicional | P1 | L | 8 |
-| US-198 ⏳ | Alçadas por valor | P1 | M | 5 |
-| US-199 ⏳ | Simular regras com processo hipotético | P1 | M | 5 |
-| US-200 ⏳ | Casos de teste de regra e bloqueio da publicação | P1 | M | 5 |
+| US-194 | Biblioteca de regras reutilizáveis com versões | P1 | L | 8 |
+| US-195 | Usar regras da biblioteca nos workflows por versão fixada | P1 | M | 5 |
+| US-196 | Modelos prontos de regras | P1 | S | 2 |
+| US-197 | Roteamento condicional: etapa dispensada e transição condicional | P1 | L | 8 |
+| US-198 | Alçadas por valor | P1 | M | 5 |
+| US-199 | Simular regras com processo hipotético | P1 | M | 5 |
+| US-200 | Casos de teste de regra e bloqueio da publicação | P1 | M | 5 |
 | **Total** | | | | **38** |
 
 ## Módulos e entidades

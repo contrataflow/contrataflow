@@ -34,7 +34,7 @@ O prazo aparece na solicitação e na lista de aprovações, alimenta a caixa de
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-137 ⏳ | Prazo da aprovação avulsa por tipo de documento (DT-17) | P1 | S | US-051, US-055, US-061 |
+| US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | P1 | S | US-051, US-055, US-061 |
 
 ## Escopo
 - Cálculo de `Approval.dueAt` na submissão avulsa quando o tipo de documento define `approvalPolicy.slaDays`.

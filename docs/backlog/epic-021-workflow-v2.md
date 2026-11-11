@@ -55,15 +55,15 @@ Evoluir o motor de workflow do MVP 1 para sustentar a fase preparatória complet
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-123 ⏳ | Modelar etapas paralelas no workflow (ramificação e junção) | P0 | L | 8 |
-| US-124 ⏳ | Executar ramos paralelos no processo | P0 | L | 8 |
-| US-125 ⏳ | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | P0 | M | 5 |
-| US-126 ⏳ | Planejar a migração de processos: mapeamento de etapas e filtro | P0 | M | 5 |
-| US-127 ⏳ | Simular a migração e decidir os processos que exigem decisão | P0 | L | 8 |
-| US-128 ⏳ | Executar a migração de forma assíncrona, idempotente e auditada | P0 | L | 8 |
-| US-129 ⏳ | `RuleContext` v2: contrato versionado e provedores por módulo | P0 | M | 5 |
-| US-130 ⏳ | Workflow padrão v2 da fase preparatória e oferta de adoção | P0 | M | 5 |
-| US-131 ⏳ | Levar à fase preparatória processos concluídos na v1 | P1 | M | 5 |
+| US-123 | Modelar etapas paralelas no workflow (ramificação e junção) | P0 | L | 8 |
+| US-124 | Executar ramos paralelos no processo | P0 | L | 8 |
+| US-125 | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | P0 | M | 5 |
+| US-126 | Planejar a migração de processos: mapeamento de etapas e filtro | P0 | M | 5 |
+| US-127 | Simular a migração e decidir os processos que exigem decisão | P0 | L | 8 |
+| US-128 | Executar a migração de forma assíncrona, idempotente e auditada | P0 | L | 8 |
+| US-129 | `RuleContext` v2: contrato versionado e provedores por módulo | P0 | M | 5 |
+| US-130 | Workflow padrão v2 da fase preparatória e oferta de adoção | P0 | M | 5 |
+| US-131 | Levar à fase preparatória processos concluídos na v1 | P1 | M | 5 |
 | **Total** | | | | **57** |
 
 ## Módulos e entidades

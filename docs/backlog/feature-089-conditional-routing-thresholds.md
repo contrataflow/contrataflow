@@ -38,8 +38,8 @@ Tudo usa o mesmo executor JSON Logic e regras da biblioteca por versão fixada (
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-197 ⏳ | Roteamento condicional: etapa dispensada e transição condicional | P1 | L | US-041, US-047, US-195 |
-| US-198 ⏳ | Alçadas por valor | P1 | M | US-133, US-195 |
+| US-197 | Roteamento condicional: etapa dispensada e transição condicional | P1 | L | US-041, US-047, US-195 |
+| US-198 | Alçadas por valor | P1 | M | US-133, US-195 |
 
 ## Escopo
 - Aplicabilidade de etapa: configuração no editor de workflow (SCR-034); avaliação na entrada da etapa; `ProcessStageStatus.SKIPPED`, `MovementAction.SKIP`, evento, timeline e auditoria; o processo segue para a próxima etapa aplicável.

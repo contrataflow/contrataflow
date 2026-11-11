@@ -54,11 +54,11 @@ Dar ao gestor prazos que refletem o tipo de contratação, a modalidade e o valo
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-189 ⏳ | Cadastrar políticas de SLA | P1 | L | 8 |
-| US-190 ⏳ | Aplicar a política de SLA ao processo e calcular prazos | P1 | M | 5 |
-| US-191 ⏳ | Pausar e retomar prazos | P1 | M | 5 |
-| US-192 ⏳ | Escalonar prazos em degraus | P1 | M | 5 |
-| US-193 ⏳ | Regras de notificação condicional | P1 | M | 5 |
+| US-189 | Cadastrar políticas de SLA | P1 | L | 8 |
+| US-190 | Aplicar a política de SLA ao processo e calcular prazos | P1 | M | 5 |
+| US-191 | Pausar e retomar prazos | P1 | M | 5 |
+| US-192 | Escalonar prazos em degraus | P1 | M | 5 |
+| US-193 | Regras de notificação condicional | P1 | M | 5 |
 | **Total** | | | | **28** |
 
 ## Módulos e entidades

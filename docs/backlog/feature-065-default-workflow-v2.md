@@ -34,9 +34,9 @@ A v2 é **oferecida, nunca imposta**: publicada automaticamente só para tenants
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-129 ⏳ | `RuleContext` v2: contrato versionado e provedores por módulo | P0 | M | US-041, US-044 |
-| US-130 ⏳ | Workflow padrão v2 da fase preparatória e oferta de adoção | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 |
-| US-131 ⏳ | Levar à fase preparatória processos concluídos na v1 | P1 | M | US-128, US-130 |
+| US-129 | `RuleContext` v2: contrato versionado e provedores por módulo | P0 | M | US-041, US-044 |
+| US-130 | Workflow padrão v2 da fase preparatória e oferta de adoção | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 |
+| US-131 | Levar à fase preparatória processos concluídos na v1 | P1 | M | US-128, US-130 |
 
 ## Escopo
 - `ruleContextV2Schema`, `RuleContextContributor` por módulo, `contextVersion` gravada por regra e avaliação de regras v1 com o contexto v1.

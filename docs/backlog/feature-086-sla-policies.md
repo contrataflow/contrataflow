@@ -35,10 +35,10 @@ Durante a etapa, o módulo `sla` pausa o prazo quando há condição de pausa (d
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-189 ⏳ | Cadastrar políticas de SLA | P1 | L | US-055, US-106, US-129 |
-| US-190 ⏳ | Aplicar a política de SLA ao processo e calcular prazos | P1 | M | US-047, US-189 |
-| US-191 ⏳ | Pausar e retomar prazos | P1 | M | US-008, US-153, US-190 |
-| US-192 ⏳ | Escalonar prazos em degraus | P1 | M | US-114, US-190 |
+| US-189 | Cadastrar políticas de SLA | P1 | L | US-055, US-106, US-129 |
+| US-190 | Aplicar a política de SLA ao processo e calcular prazos | P1 | M | US-047, US-189 |
+| US-191 | Pausar e retomar prazos | P1 | M | US-008, US-153, US-190 |
+| US-192 | Escalonar prazos em degraus | P1 | M | US-114, US-190 |
 
 ## Escopo
 - Cadastro (SCR-121): chave imutável, nome, aplicabilidade (`RuleRef` inline ou da biblioteca), `priority`, restrição opcional a um workflow, prazos por etapa por chave estável (`SlaPolicyStage`), prazo por linha de aprovador (`approverDays`), pausas e degraus; ativar e desativar.

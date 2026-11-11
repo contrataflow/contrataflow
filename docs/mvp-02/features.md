@@ -36,15 +36,15 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-123 | Modelar etapas paralelas no workflow (ramificação e junção) | FT-063 | P0 | L | US-040, US-043, US-045 | `story-123-parallel-stages-model.md` ⏳ |
-| US-124 | Executar ramos paralelos no processo | FT-063 | P0 | L | US-041, US-047, US-048, US-123 | `story-124-parallel-branches-runtime.md` ⏳ |
-| US-125 | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | FT-063 | P0 | M | US-004, US-055, US-056, US-124 | `story-125-parallel-branches-inbox-cockpit.md` ⏳ |
-| US-126 | Planejar a migração de processos: mapeamento de etapas e filtro | FT-064 | P0 | M | US-045 | `story-126-workflow-migration-plan.md` ⏳ |
-| US-127 | Simular a migração e decidir os processos que exigem decisão | FT-064 | P0 | L | US-041, US-124, US-126 | `story-127-workflow-migration-simulation.md` ⏳ |
-| US-128 | Executar a migração de forma assíncrona, idempotente e auditada | FT-064 | P0 | L | US-054, US-059, US-073, US-083, US-127 | `story-128-workflow-migration-execution.md` ⏳ |
-| US-129 | `RuleContext` v2: contrato versionado e provedores por módulo | FT-065 | P0 | M | US-041, US-044 | `story-129-rule-context-v2.md` ⏳ |
-| US-130 | Workflow padrão v2 da fase preparatória e oferta de adoção | FT-065 | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 | `story-130-default-workflow-v2.md` ⏳ |
-| US-131 | Levar à fase preparatória processos concluídos na v1 | FT-065 | P1 | M | US-128, US-130 | `story-131-completed-processes-to-v2.md` ⏳ |
+| US-123 | Modelar etapas paralelas no workflow (ramificação e junção) | FT-063 | P0 | L | US-040, US-043, US-045 | `story-123-parallel-stages-model.md` |
+| US-124 | Executar ramos paralelos no processo | FT-063 | P0 | L | US-041, US-047, US-048, US-123 | `story-124-parallel-branches-runtime.md` |
+| US-125 | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | FT-063 | P0 | M | US-004, US-055, US-056, US-124 | `story-125-parallel-branches-inbox-cockpit.md` |
+| US-126 | Planejar a migração de processos: mapeamento de etapas e filtro | FT-064 | P0 | M | US-045 | `story-126-workflow-migration-plan.md` |
+| US-127 | Simular a migração e decidir os processos que exigem decisão | FT-064 | P0 | L | US-041, US-124, US-126 | `story-127-workflow-migration-simulation.md` |
+| US-128 | Executar a migração de forma assíncrona, idempotente e auditada | FT-064 | P0 | L | US-054, US-059, US-073, US-083, US-127 | `story-128-workflow-migration-execution.md` |
+| US-129 | `RuleContext` v2: contrato versionado e provedores por módulo | FT-065 | P0 | M | US-041, US-044 | `story-129-rule-context-v2.md` |
+| US-130 | Workflow padrão v2 da fase preparatória e oferta de adoção | FT-065 | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 | `story-130-default-workflow-v2.md` |
+| US-131 | Levar à fase preparatória processos concluídos na v1 | FT-065 | P1 | M | US-128, US-130 | `story-131-completed-processes-to-v2.md` |
 
 ## EP-022 — Aprovação múltipla
 
@@ -55,12 +55,12 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-132 | Configurar política de decisão e aprovadores ordenados na etapa | FT-066 | P0 | M | US-040, US-043, US-045 | `story-132-stage-decision-policy.md` ⏳ |
-| US-133 | Solicitar aprovação com múltiplos aprovadores | FT-066 | P0 | L | US-051, US-132 | `story-133-multi-approver-request.md` ⏳ |
-| US-134 | Decidir aprovação múltipla: votos, encerramento e concorrência | FT-066 | P0 | L | US-052, US-133 | `story-134-multi-approver-decision.md` ⏳ |
-| US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | FT-066 | P0 | M | US-053, US-134 | `story-135-approval-line-redirect.md` ⏳ |
-| US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | FT-066 | P0 | M | US-056, US-057, US-134 | `story-136-multi-approval-inbox-views.md` ⏳ |
-| US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | FT-067 | P1 | S | US-051, US-055, US-061 | `story-137-approval-due-date-by-document-type.md` ⏳ |
+| US-132 | Configurar política de decisão e aprovadores ordenados na etapa | FT-066 | P0 | M | US-040, US-043, US-045 | `story-132-stage-decision-policy.md` |
+| US-133 | Solicitar aprovação com múltiplos aprovadores | FT-066 | P0 | L | US-051, US-132 | `story-133-multi-approver-request.md` |
+| US-134 | Decidir aprovação múltipla: votos, encerramento e concorrência | FT-066 | P0 | L | US-052, US-133 | `story-134-multi-approver-decision.md` |
+| US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | FT-066 | P0 | M | US-053, US-134 | `story-135-approval-line-redirect.md` |
+| US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | FT-066 | P0 | M | US-056, US-057, US-134 | `story-136-multi-approval-inbox-views.md` |
+| US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | FT-067 | P1 | S | US-051, US-055, US-061 | `story-137-approval-due-date-by-document-type.md` |
 
 ## EP-023 — PCA
 
@@ -196,11 +196,11 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-189 | Cadastrar políticas de SLA | FT-086 | P1 | L | US-055, US-106, US-129 | `story-189-sla-policies.md` ⏳ |
-| US-190 | Aplicar a política de SLA ao processo e calcular prazos | FT-086 | P1 | M | US-047, US-189 | `story-190-sla-policy-application.md` ⏳ |
-| US-191 | Pausar e retomar prazos | FT-086 | P1 | M | US-008, US-153, US-190 | `story-191-sla-pauses.md` ⏳ |
-| US-192 | Escalonar prazos em degraus | FT-086 | P1 | M | US-114, US-190 | `story-192-sla-escalation.md` ⏳ |
-| US-193 | Regras de notificação condicional | FT-087 | P1 | M | US-083, US-111, US-112, US-129 | `story-193-notification-rules.md` ⏳ |
+| US-189 | Cadastrar políticas de SLA | FT-086 | P1 | L | US-055, US-106, US-129 | `story-189-sla-policies.md` |
+| US-190 | Aplicar a política de SLA ao processo e calcular prazos | FT-086 | P1 | M | US-047, US-189 | `story-190-sla-policy-application.md` |
+| US-191 | Pausar e retomar prazos | FT-086 | P1 | M | US-008, US-153, US-190 | `story-191-sla-pauses.md` |
+| US-192 | Escalonar prazos em degraus | FT-086 | P1 | M | US-114, US-190 | `story-192-sla-escalation.md` |
+| US-193 | Regras de notificação condicional | FT-087 | P1 | M | US-083, US-111, US-112, US-129 | `story-193-notification-rules.md` |
 
 ## EP-031 — Regras condicionais
 
@@ -212,13 +212,13 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-194 | Biblioteca de regras reutilizáveis com versões | FT-088 | P1 | L | US-044, US-129 | `story-194-rule-library.md` ⏳ |
-| US-195 | Usar regras da biblioteca nos workflows por versão fixada | FT-088 | P1 | M | US-045, US-194 | `story-195-library-rules-in-workflows.md` ⏳ |
-| US-196 | Modelos prontos de regras | FT-088 | P1 | S | US-194 | `story-196-rule-templates.md` ⏳ |
-| US-197 | Roteamento condicional: etapa dispensada e transição condicional | FT-089 | P1 | L | US-041, US-047, US-195 | `story-197-conditional-routing.md` ⏳ |
-| US-198 | Alçadas por valor | FT-089 | P1 | M | US-133, US-195 | `story-198-value-thresholds.md` ⏳ |
-| US-199 | Simular regras com processo hipotético | FT-090 | P1 | M | US-194 | `story-199-rule-simulator.md` ⏳ |
-| US-200 | Casos de teste de regra e bloqueio da publicação | FT-090 | P1 | M | US-199 | `story-200-rule-test-cases.md` ⏳ |
+| US-194 | Biblioteca de regras reutilizáveis com versões | FT-088 | P1 | L | US-044, US-129 | `story-194-rule-library.md` |
+| US-195 | Usar regras da biblioteca nos workflows por versão fixada | FT-088 | P1 | M | US-045, US-194 | `story-195-library-rules-in-workflows.md` |
+| US-196 | Modelos prontos de regras | FT-088 | P1 | S | US-194 | `story-196-rule-templates.md` |
+| US-197 | Roteamento condicional: etapa dispensada e transição condicional | FT-089 | P1 | L | US-041, US-047, US-195 | `story-197-conditional-routing.md` |
+| US-198 | Alçadas por valor | FT-089 | P1 | M | US-133, US-195 | `story-198-value-thresholds.md` |
+| US-199 | Simular regras com processo hipotético | FT-090 | P1 | M | US-194 | `story-199-rule-simulator.md` |
+| US-200 | Casos de teste de regra e bloqueio da publicação | FT-090 | P1 | M | US-199 | `story-200-rule-test-cases.md` |
 
 ---
 

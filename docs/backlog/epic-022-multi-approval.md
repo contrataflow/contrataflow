@@ -53,12 +53,12 @@ Permitir que uma aprovação seja decidida por mais de uma pessoa, com política
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-132 ⏳ | Configurar política de decisão e aprovadores ordenados na etapa | P0 | M | 5 |
-| US-133 ⏳ | Solicitar aprovação com múltiplos aprovadores | P0 | L | 8 |
-| US-134 ⏳ | Decidir aprovação múltipla: votos, encerramento e concorrência | P0 | L | 8 |
-| US-135 ⏳ | Redirecionar linha de aprovação e retirar aprovação múltipla | P0 | M | 5 |
-| US-136 ⏳ | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | P0 | M | 5 |
-| US-137 ⏳ | Prazo da aprovação avulsa por tipo de documento (DT-17) | P1 | S | 2 |
+| US-132 | Configurar política de decisão e aprovadores ordenados na etapa | P0 | M | 5 |
+| US-133 | Solicitar aprovação com múltiplos aprovadores | P0 | L | 8 |
+| US-134 | Decidir aprovação múltipla: votos, encerramento e concorrência | P0 | L | 8 |
+| US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | P0 | M | 5 |
+| US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | P0 | M | 5 |
+| US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | P1 | S | 2 |
 | **Total** | | | | **33** |
 
 ## Módulos e entidades

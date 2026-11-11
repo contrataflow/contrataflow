@@ -268,21 +268,21 @@
 | [US-120](story-120-ai-draft-tr.md) | Gerar o rascunho do TR com IA a partir do ETP | EP-020 | FT-061 | P1 | M | US-036, US-038, US-117 |
 | [US-121](story-121-ai-section-adjust.md) | Ajustar seção com IA: reescrever, completar e resumir | EP-020 | FT-062 | P1 | M | US-020, US-035, US-036, US-117 |
 | [US-122](story-122-ai-review-markers.md) | Marcar conteúdo gerado por IA e pendências "[a confirmar]" e exigir revisão humana | EP-020 | FT-062 | P1 | M | US-065, US-067, US-115 |
-| US-123 ⏳ | Modelar etapas paralelas no workflow (ramificação e junção) | EP-021 | FT-063 | P0 | L | US-040, US-043, US-045 |
-| US-124 ⏳ | Executar ramos paralelos no processo | EP-021 | FT-063 | P0 | L | US-041, US-047, US-048, US-123 |
-| US-125 ⏳ | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | EP-021 | FT-063 | P0 | M | US-004, US-055, US-056, US-124 |
-| US-126 ⏳ | Planejar a migração de processos: mapeamento de etapas e filtro | EP-021 | FT-064 | P0 | M | US-045 |
-| US-127 ⏳ | Simular a migração e decidir os processos que exigem decisão | EP-021 | FT-064 | P0 | L | US-041, US-124, US-126 |
-| US-128 ⏳ | Executar a migração de forma assíncrona, idempotente e auditada | EP-021 | FT-064 | P0 | L | US-054, US-059, US-073, US-083, US-127 |
-| US-129 ⏳ | `RuleContext` v2: contrato versionado e provedores por módulo | EP-021 | FT-065 | P0 | M | US-041, US-044 |
-| US-130 ⏳ | Workflow padrão v2 da fase preparatória e oferta de adoção | EP-021 | FT-065 | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 |
-| US-131 ⏳ | Levar à fase preparatória processos concluídos na v1 | EP-021 | FT-065 | P1 | M | US-128, US-130 |
-| US-132 ⏳ | Configurar política de decisão e aprovadores ordenados na etapa | EP-022 | FT-066 | P0 | M | US-040, US-043, US-045 |
-| US-133 ⏳ | Solicitar aprovação com múltiplos aprovadores | EP-022 | FT-066 | P0 | L | US-051, US-132 |
-| US-134 ⏳ | Decidir aprovação múltipla: votos, encerramento e concorrência | EP-022 | FT-066 | P0 | L | US-052, US-133 |
-| US-135 ⏳ | Redirecionar linha de aprovação e retirar aprovação múltipla | EP-022 | FT-066 | P0 | M | US-053, US-134 |
-| US-136 ⏳ | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | EP-022 | FT-066 | P0 | M | US-056, US-057, US-134 |
-| US-137 ⏳ | Prazo da aprovação avulsa por tipo de documento (DT-17) | EP-022 | FT-067 | P1 | S | US-051, US-055, US-061 |
+| US-123 | Modelar etapas paralelas no workflow (ramificação e junção) | EP-021 | FT-063 | P0 | L | US-040, US-043, US-045 |
+| US-124 | Executar ramos paralelos no processo | EP-021 | FT-063 | P0 | L | US-041, US-047, US-048, US-123 |
+| US-125 | Ramos paralelos na caixa de tarefas, no painel situacional e nos prazos | EP-021 | FT-063 | P0 | M | US-004, US-055, US-056, US-124 |
+| US-126 | Planejar a migração de processos: mapeamento de etapas e filtro | EP-021 | FT-064 | P0 | M | US-045 |
+| US-127 | Simular a migração e decidir os processos que exigem decisão | EP-021 | FT-064 | P0 | L | US-041, US-124, US-126 |
+| US-128 | Executar a migração de forma assíncrona, idempotente e auditada | EP-021 | FT-064 | P0 | L | US-054, US-059, US-073, US-083, US-127 |
+| US-129 | `RuleContext` v2: contrato versionado e provedores por módulo | EP-021 | FT-065 | P0 | M | US-041, US-044 |
+| US-130 | Workflow padrão v2 da fase preparatória e oferta de adoção | EP-021 | FT-065 | P0 | M | US-042, US-045, US-129, US-148, US-155, US-161, US-168 |
+| US-131 | Levar à fase preparatória processos concluídos na v1 | EP-021 | FT-065 | P1 | M | US-128, US-130 |
+| US-132 | Configurar política de decisão e aprovadores ordenados na etapa | EP-022 | FT-066 | P0 | M | US-040, US-043, US-045 |
+| US-133 | Solicitar aprovação com múltiplos aprovadores | EP-022 | FT-066 | P0 | L | US-051, US-132 |
+| US-134 | Decidir aprovação múltipla: votos, encerramento e concorrência | EP-022 | FT-066 | P0 | L | US-052, US-133 |
+| US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | EP-022 | FT-066 | P0 | M | US-053, US-134 |
+| US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | EP-022 | FT-066 | P0 | M | US-056, US-057, US-134 |
+| US-137 | Prazo da aprovação avulsa por tipo de documento (DT-17) | EP-022 | FT-067 | P1 | S | US-051, US-055, US-061 |
 | US-138 ⏳ | Criar o plano anual e manter os itens do PCA | EP-023 | FT-068 | P1 | L | US-097, US-102, US-104 |
 | US-139 ⏳ | Importar itens do PCA por planilha | EP-023 | FT-068 | P1 | M | US-068, US-083, US-138 |
 | US-140 ⏳ | Enviar o PCA para aprovação e decidir | EP-023 | FT-069 | P1 | M | US-051, US-052, US-138 |
@@ -334,18 +334,18 @@
 | US-186 ⏳ | Notificar a quebra do selo de auditoria (DT-14) | EP-029 | FT-085 | P2 | S | US-074, US-111 |
 | US-187 ⏳ | Atualizar a biblioteca padrão de templates com adoção assistida (DT-15) | EP-029 | FT-085 | P2 | M | US-108, US-110 |
 | US-188 ⏳ | Limite configurável do lote da caixa de tarefas (DT-16) | EP-029 | FT-085 | P2 | XS | US-058, US-103 |
-| US-189 ⏳ | Cadastrar políticas de SLA | EP-030 | FT-086 | P1 | L | US-055, US-106, US-129 |
-| US-190 ⏳ | Aplicar a política de SLA ao processo e calcular prazos | EP-030 | FT-086 | P1 | M | US-047, US-189 |
-| US-191 ⏳ | Pausar e retomar prazos | EP-030 | FT-086 | P1 | M | US-008, US-153, US-190 |
-| US-192 ⏳ | Escalonar prazos em degraus | EP-030 | FT-086 | P1 | M | US-114, US-190 |
-| US-193 ⏳ | Regras de notificação condicional | EP-030 | FT-087 | P1 | M | US-083, US-111, US-112, US-129 |
-| US-194 ⏳ | Biblioteca de regras reutilizáveis com versões | EP-031 | FT-088 | P1 | L | US-044, US-129 |
-| US-195 ⏳ | Usar regras da biblioteca nos workflows por versão fixada | EP-031 | FT-088 | P1 | M | US-045, US-194 |
-| US-196 ⏳ | Modelos prontos de regras | EP-031 | FT-088 | P1 | S | US-194 |
-| US-197 ⏳ | Roteamento condicional: etapa dispensada e transição condicional | EP-031 | FT-089 | P1 | L | US-041, US-047, US-195 |
-| US-198 ⏳ | Alçadas por valor | EP-031 | FT-089 | P1 | M | US-133, US-195 |
-| US-199 ⏳ | Simular regras com processo hipotético | EP-031 | FT-090 | P1 | M | US-194 |
-| US-200 ⏳ | Casos de teste de regra e bloqueio da publicação | EP-031 | FT-090 | P1 | M | US-199 |
+| US-189 | Cadastrar políticas de SLA | EP-030 | FT-086 | P1 | L | US-055, US-106, US-129 |
+| US-190 | Aplicar a política de SLA ao processo e calcular prazos | EP-030 | FT-086 | P1 | M | US-047, US-189 |
+| US-191 | Pausar e retomar prazos | EP-030 | FT-086 | P1 | M | US-008, US-153, US-190 |
+| US-192 | Escalonar prazos em degraus | EP-030 | FT-086 | P1 | M | US-114, US-190 |
+| US-193 | Regras de notificação condicional | EP-030 | FT-087 | P1 | M | US-083, US-111, US-112, US-129 |
+| US-194 | Biblioteca de regras reutilizáveis com versões | EP-031 | FT-088 | P1 | L | US-044, US-129 |
+| US-195 | Usar regras da biblioteca nos workflows por versão fixada | EP-031 | FT-088 | P1 | M | US-045, US-194 |
+| US-196 | Modelos prontos de regras | EP-031 | FT-088 | P1 | S | US-194 |
+| US-197 | Roteamento condicional: etapa dispensada e transição condicional | EP-031 | FT-089 | P1 | L | US-041, US-047, US-195 |
+| US-198 | Alçadas por valor | EP-031 | FT-089 | P1 | M | US-133, US-195 |
+| US-199 | Simular regras com processo hipotético | EP-031 | FT-090 | P1 | M | US-194 |
+| US-200 | Casos de teste de regra e bloqueio da publicação | EP-031 | FT-090 | P1 | M | US-199 |
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 

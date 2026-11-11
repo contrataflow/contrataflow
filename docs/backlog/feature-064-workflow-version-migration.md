@@ -34,9 +34,9 @@ A migração é sempre pedida por uma pessoa com `WORKFLOW_MIGRATE`; publicar no
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-126 ⏳ | Planejar a migração de processos: mapeamento de etapas e filtro | P0 | M | US-045 |
-| US-127 ⏳ | Simular a migração e decidir os processos que exigem decisão | P0 | L | US-041, US-124, US-126 |
-| US-128 ⏳ | Executar a migração de forma assíncrona, idempotente e auditada | P0 | L | US-054, US-059, US-073, US-083, US-127 |
+| US-126 | Planejar a migração de processos: mapeamento de etapas e filtro | P0 | M | US-045 |
+| US-127 | Simular a migração e decidir os processos que exigem decisão | P0 | L | US-041, US-124, US-126 |
+| US-128 | Executar a migração de forma assíncrona, idempotente e auditada | P0 | L | US-054, US-059, US-073, US-083, US-127 |
 
 ## Escopo
 - Plano `WorkflowMigration` (`DRAFT` → `SIMULATED` → `RUNNING` → `COMPLETED` ou `CANCELED`), mapa gerado por `key` + `type` e completável, filtro `MigrationFilter` (até 1.000 ids).

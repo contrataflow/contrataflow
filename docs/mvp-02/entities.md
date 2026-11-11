@@ -574,6 +574,7 @@ Um por processo do filtro (DEC-195).
 | `proposedTargetStageKey` | varchar(60) | sim | — | Pelo mapa |
 | `decision` | MigrationItemDecision | não | `PENDING` | `AUTOMATIC` nasce `MIGRATE` |
 | `targetStageKey` | varchar(60) | sim | — | Escolhido pela pessoa em `NEEDS_DECISION` |
+| `targetDepartmentId` | uuid | sim | — | FK → `departments`; unidade da etapa de destino quando ela nasce `CHOSEN_ON_FORWARD` (ex.: `DOTACAO` na continuação v1 → v2, US-131) |
 | `decisionJustification` | text | sim | — | Obrigatória em decisão humana (≥ 20) |
 | `decidedById` / `decidedAt` | uuid / timestamptz | sim | — | |
 | `result` | MigrationItemResult | não | `PENDING` | |
@@ -599,6 +600,7 @@ Regra reutilizável do tenant (DEC-204, SCR-035).
 | `kind` | RuleDefinitionKind | não | — | Onde pode ser usada |
 | `tags` | varchar(40)[] | não | `{}` | |
 | `isSystem` | boolean | não | `false` | Modelo semeado (não excluível; pode ser copiado) |
+| `templateKey` | varchar(60) | sim | — | Chave do modelo semeado de que a regra foi copiada (US-196); a cópia é independente do original |
 | `isActive` | boolean | não | `true` | Inativa não é oferecida a novos usos; usos publicados continuam |
 | `currentPublishedVersionId` | uuid | sim | — | FK → `rule_definition_versions` |
 
@@ -818,6 +820,7 @@ Validação do grafo na publicação (`WF_PARALLEL_INVALID`, 422): todo `PARALLE
 | Mudança | Detalhe |
 |---|---|
 | `+ decisionPolicy` | ApprovalDecisionPolicy, não, padrão `ANY` (copiada da etapa ou da `approvalPolicy` do tipo de documento) |
+| `+ thresholdResolution` | jsonb, nulo — resolução da alçada por valor no momento da solicitação (faixa aplicada, valor avaliado, `RuleRef` e versão; US-198); `ApprovalRequested` leva `thresholdResolution?` |
 | `processId` | Passa a **nulo** quando `subjectType = PCA` |
 | `+ pcaId` | uuid, nulo — FK → `pcas`; obrigatório se `PCA` |
 | `subjectType` | + `PCA` |

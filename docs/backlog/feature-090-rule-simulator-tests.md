@@ -36,8 +36,8 @@ Regras de roteamento e de alçada exigem pelo menos um caso verde. O contexto hi
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-199 ⏳ | Simular regras com processo hipotético | P1 | M | US-194 |
-| US-200 ⏳ | Casos de teste de regra e bloqueio da publicação | P1 | M | US-199 |
+| US-199 | Simular regras com processo hipotético | P1 | M | US-194 |
+| US-200 | Casos de teste de regra e bloqueio da publicação | P1 | M | US-199 |
 
 ## Escopo
 - Simulador na SCR-035: formulário de contexto hipotético por namespace, escolha de processo real visível, avaliação da expressão do rascunho ou de qualquer versão, trilha da avaliação (o que valeu em cada nó) e resultado.

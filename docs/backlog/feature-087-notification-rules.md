@@ -34,7 +34,7 @@ A avaliação é **assíncrona e idempotente** no worker (`NotificationRuleDispa
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-193 ⏳ | Regras de notificação condicional | P1 | M | US-083, US-111, US-112, US-129 |
+| US-193 | Regras de notificação condicional | P1 | M | US-083, US-111, US-112, US-129 |
 
 ## Escopo
 - Cadastro (SCR-122): nome, evento de origem (só os marcados "notificável por regra"), condição (`RuleRef`), destinatários (`NotificationRecipientSpec`), título e corpo com variáveis da *allowlist*, prioridade, e-mail, limite diário por destinatário; ativar e desativar.

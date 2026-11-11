@@ -35,11 +35,11 @@ O administrador configura a política e a lista ordenada de aprovadores (`Workfl
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-132 ⏳ | Configurar política de decisão e aprovadores ordenados na etapa | P0 | M | US-040, US-043, US-045 |
-| US-133 ⏳ | Solicitar aprovação com múltiplos aprovadores | P0 | L | US-051, US-132 |
-| US-134 ⏳ | Decidir aprovação múltipla: votos, encerramento e concorrência | P0 | L | US-052, US-133 |
-| US-135 ⏳ | Redirecionar linha de aprovação e retirar aprovação múltipla | P0 | M | US-053, US-134 |
-| US-136 ⏳ | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | P0 | M | US-056, US-057, US-134 |
+| US-132 | Configurar política de decisão e aprovadores ordenados na etapa | P0 | M | US-040, US-043, US-045 |
+| US-133 | Solicitar aprovação com múltiplos aprovadores | P0 | L | US-051, US-132 |
+| US-134 | Decidir aprovação múltipla: votos, encerramento e concorrência | P0 | L | US-052, US-133 |
+| US-135 | Redirecionar linha de aprovação e retirar aprovação múltipla | P0 | M | US-053, US-134 |
+| US-136 | Aprovação múltipla na caixa de tarefas, na lista e no detalhe da aprovação | P0 | M | US-056, US-057, US-134 |
 
 ## Escopo
 - `WorkflowStage.decisionPolicy`, `WorkflowStageApprover` (1..20 linhas), validação `WF_APPROVERS_INVALID` na publicação.

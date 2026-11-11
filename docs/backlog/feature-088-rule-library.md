@@ -33,9 +33,9 @@ Os workflows usam a regra da biblioteca por **versão fixada** na publicação (
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-194 ⏳ | Biblioteca de regras reutilizáveis com versões | P1 | L | US-044, US-129 |
-| US-195 ⏳ | Usar regras da biblioteca nos workflows por versão fixada | P1 | M | US-045, US-194 |
-| US-196 ⏳ | Modelos prontos de regras | P1 | S | US-194 |
+| US-194 | Biblioteca de regras reutilizáveis com versões | P1 | L | US-044, US-129 |
+| US-195 | Usar regras da biblioteca nos workflows por versão fixada | P1 | M | US-045, US-194 |
+| US-196 | Modelos prontos de regras | P1 | S | US-194 |
 
 ## Escopo
 - Cadastro (SCR-035): chave imutável, nome, descrição, tipo, etiquetas, ativa ou inativa; listagem e busca por tipo e etiqueta.
