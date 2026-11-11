@@ -14,6 +14,7 @@ import type { TimelineFeedSearch } from '../../src/modules/timeline/domain/timel
 import { PrismaTimelineEntryStore } from '../../src/modules/timeline/infrastructure/prisma-timeline-entry.store.js';
 import { asTenant, startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const A = '0192d060-0000-7000-8000-00000000111a';
 const PROCESS = '0192d060-0000-7000-8000-0000000111b1';
@@ -25,11 +26,6 @@ const WARMUP = 10;
 const SAMPLES = 100;
 const P95_BUDGET_MS = 300;
 const TYPES = ['PROCESS_FORWARDED', 'APPROVAL_DECIDED', 'COMMENT_ADDED', 'PROCESS_UPDATED'];
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] timeline do processo com 5 mil entradas (US-060)', () => {
   let db: TestDatabase;
@@ -102,15 +98,20 @@ describe('[Desempenho] timeline do processo com 5 mil entradas (US-060)', () => 
         occurredTo: new Date(now),
       }),
     ];
+    const labels = ['sem filtro', 'com restritos', 'página do meio', 'filtros combinados'];
 
-    for (const operation of operations) {
+    for (const [index, operation] of operations.entries()) {
       const samples: number[] = [];
       for (let i = 0; i < WARMUP + SAMPLES; i += 1) {
         const started = performance.now();
         await asTenant(A, operation);
         if (i >= WARMUP) samples.push(performance.now() - started);
       }
-      const value = p95(samples);
+      const value = reportPerf(
+        `US-060 PRC-12 timeline · ${labels[index] ?? String(index)}`,
+        samples,
+        P95_BUDGET_MS,
+      );
       expect(value, `p95 = ${value.toFixed(1)} ms`).toBeLessThan(P95_BUDGET_MS);
     }
   });

@@ -124,7 +124,14 @@ export interface TaskBulkDatabase {
 const words = (count: number) =>
   Array.from({ length: count }, () => randomUUID().replaceAll('-', '').slice(0, 10)).join(' ');
 
-export async function startTaskBulkDatabase(): Promise<TaskBulkDatabase> {
+export interface TaskBulkOptions {
+  /** Teto de escritas por minuto do throttler (padrão da aplicação); a suíte de desempenho sobe o limite. */
+  readonly rateLimitWritePerMin?: number;
+}
+
+export async function startTaskBulkDatabase(
+  options: TaskBulkOptions = {},
+): Promise<TaskBulkDatabase> {
   const db = await startTestDatabase();
   await db.admin(FIXTURE_SQL);
   const membership = new RoleInjectingMembershipPort();
@@ -133,6 +140,9 @@ export async function startTaskBulkDatabase(): Promise<TaskBulkDatabase> {
     DATABASE_URL: db.url('cf_app'),
     DATABASE_URL_PLATFORM: db.url('cf_platform'),
     DATABASE_POOL_SIZE: '10',
+    ...(options.rateLimitWritePerMin === undefined
+      ? {}
+      : { RATE_LIMIT_WRITE_PER_MIN: String(options.rateLimitWritePerMin) }),
   });
   const api = await createTestApi({
     config,

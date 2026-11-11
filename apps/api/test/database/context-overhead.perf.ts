@@ -9,6 +9,7 @@ import { TenantTransaction } from '#shared/database/database.module.js';
 import type { TenantPrismaClient } from '#shared/database/prisma-client.js';
 import { isolationMetrics } from '#shared/tenancy/isolation.js';
 
+import { reportPerf } from '../support/perf-report.js';
 import { asTenant, startTestDatabase } from './support/postgres.js';
 import type { TestDatabase } from './support/postgres.js';
 
@@ -47,7 +48,13 @@ describe('[Desempenho] sobrecarga do contexto de tenant por transação (US-100)
       .map(([seconds]) => seconds)
       .sort((x, y) => x - y);
     expect(samples).toHaveLength(SAMPLES);
-    const p95 = samples[Math.ceil(SAMPLES * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
+    // As amostras vêm do histograma em segundos; o resumo sai em milissegundos.
+    const p95 =
+      reportPerf(
+        'US-100 sobrecarga do contexto (set_config)',
+        samples.map((seconds) => seconds * 1000),
+        2,
+      ) / 1000;
     expect(p95, `p95 = ${(p95 * 1000).toFixed(3)} ms`).toBeLessThanOrEqual(0.002);
   });
 });

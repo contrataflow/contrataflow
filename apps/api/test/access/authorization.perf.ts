@@ -18,6 +18,7 @@ import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake
 
 import { createTestApi, testConfig } from '../support/api-test-app.js';
 import type { TestApi } from '../support/api-test-app.js';
+import { reportPerf } from '../support/perf-report.js';
 import { assignRole, seedDefaultRolesOf } from '../support/structure-fixtures.js';
 
 const REDIS_IMAGE =
@@ -28,11 +29,6 @@ const MEMBERSHIP = FAKE_MEMBERSHIPS.find((m) => m.userId === ANA.id && m.tenantI
 const WARMUP = 50;
 const SAMPLES = 1_000;
 const P95_BUDGET_MS = 5;
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] AuthorizationService com cache quente (US-097 · RN-IAM-108)', () => {
   let redis: StartedTestContainer;
@@ -93,6 +89,8 @@ describe('[Desempenho] AuthorizationService com cache quente (US-097 · RN-IAM-1
     for (let index = 0; index < WARMUP; index += 1) await check();
     const samples: number[] = [];
     for (let index = 0; index < SAMPLES; index += 1) samples.push(await check());
-    expect(p95(samples)).toBeLessThan(P95_BUDGET_MS);
+    expect(
+      reportPerf('US-097 verificação de permissão (cache quente)', samples, P95_BUDGET_MS),
+    ).toBeLessThan(P95_BUDGET_MS);
   });
 });

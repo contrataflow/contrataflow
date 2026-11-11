@@ -16,6 +16,7 @@ import {
   createQuotation,
   quotationFactsByItem,
 } from '../../src/modules/price-research/domain/price-source.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const NOW = new Date('2026-10-06T12:00:00.000Z');
 const ITEMS = 20;
@@ -37,11 +38,6 @@ const PARAMETERS = parametersSnapshot(
     ['priceResearch.roundingMode', 'HALF_UP'],
   ]),
 );
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] destaque e alertas com 50 fontes por item (US-030)', () => {
   const items = Array.from({ length: ITEMS }, (_, index) =>
@@ -109,6 +105,12 @@ describe('[Desempenho] destaque e alertas com 50 fontes por item (US-030)', () =
       samples.push(performance.now() - startedAt);
       expect(result.changedItems).toHaveLength(ITEMS);
     }
-    expect(p95(samples)).toBeLessThan(P95_BUDGET_MS);
+    expect(
+      reportPerf(
+        `US-030 alertas de preço (${String(ITEMS)} itens × ${String(SOURCES)} fontes)`,
+        samples,
+        P95_BUDGET_MS,
+      ),
+    ).toBeLessThan(P95_BUDGET_MS);
   });
 });

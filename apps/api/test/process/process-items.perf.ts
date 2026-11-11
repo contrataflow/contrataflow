@@ -12,6 +12,7 @@ import type { TenantPrismaClient } from '#shared/database/prisma-client.js';
 import { PrismaProcessItemRepository } from '../../src/modules/process/infrastructure/process-item.repositories.js';
 import { asTenant, startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const A = '0192d006-0000-7000-8000-00000000111a';
 const PROCESS = '0192d006-0000-7000-8000-0000000111b1';
@@ -24,22 +25,32 @@ const WARMUP = 5;
 const SAMPLES = 50;
 const P95_BUDGET_MS = 400;
 
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
-
 describe('[Desempenho] itens do processo com 1.000 itens (US-006)', () => {
   let db: TestDatabase;
   let app: TenantPrismaClient;
 
   beforeAll(async () => {
     db = await startTestDatabase();
-    // Só os itens são medidos: as FKs para processos, catálogo e usuários ficam desligadas na carga.
+    // Só os itens são medidos: as FKs ficam desligadas na carga. O processo medido, a unidade e o
+    // usuário existem de verdade — a renumeração em duas fases reescreve a linha criada na própria
+    // transação e o PostgreSQL volta a conferir as FKs (`process_items_process_fkey` e as de autoria).
     await db.admin(`
       INSERT INTO tenants (id, slug, name, type, status, state_code)
         VALUES ('${A}', 'prefeitura-a-us006', 'Prefeitura A', 'MUNICIPALITY', 'ACTIVE', 'SC');
       SET session_replication_role = replica;
+      INSERT INTO users (id, external_subject, email, email_verified, name)
+        VALUES ('${USER}', 'sub-us006-perf', 'perf@us006.test', true, 'Perf US-006');
+      INSERT INTO catalog_items (id, tenant_id, catalog_type, code, label, is_system, sort_order,
+                                 metadata)
+        VALUES ('${UNIT}', '${A}', 'UNIT_OF_MEASURE', 'UNIDADE', 'Unidade', true, 1, '{}');
+      INSERT INTO processes (id, tenant_id, organization_id, year, number, code, title, object,
+                             contracting_type_id, requesting_secretariat_id,
+                             requesting_department_id, current_department_id, workflow_version_id,
+                             status, origin_id, pca_status, created_by_id)
+        VALUES ('${PROCESS}', '${A}', gen_random_uuid(), 2026, 1, '00001/2026',
+                'Processo de teste', 'Objeto do processo de teste', gen_random_uuid(),
+                gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(),
+                'IN_PROGRESS', gen_random_uuid(), 'NOT_APPLICABLE', '${USER}');
       INSERT INTO process_items (id, tenant_id, process_id, sequence, lot_number, lot_name, kind,
                                  description, unit_of_measure_id, created_by_id, updated_by_id)
       SELECT gen_random_uuid(), '${A}', '${PROCESS}', g, 1 + g % 10, 'Lote ' || (1 + g % 10),
@@ -62,20 +73,20 @@ describe('[Desempenho] itens do processo com 1.000 itens (US-006)', () => {
     await db.stop();
   });
 
-  const measure = async (operation: () => Promise<unknown>) => {
+  const measure = async (scenario: string, operation: () => Promise<unknown>) => {
     const samples: number[] = [];
     for (let i = 0; i < WARMUP + SAMPLES; i += 1) {
       const started = performance.now();
       await asTenant(A, operation);
       if (i >= WARMUP) samples.push(performance.now() - started);
     }
-    return p95(samples);
+    return reportPerf(scenario, samples, P95_BUDGET_MS);
   };
 
   it(`PRC-13 (lista + contagem) fica em p95 < ${String(P95_BUDGET_MS)} ms`, async () => {
     const transaction = new TenantTransaction(app);
     const repository = new PrismaProcessItemRepository();
-    const value = await measure(() =>
+    const value = await measure('US-006 PRC-13 lista + contagem (1.000 itens)', () =>
       transaction.snapshot(async (tx) => {
         const items = await repository.listActive(tx, PROCESS);
         const stats = await repository.stats(tx, PROCESS);
@@ -89,7 +100,7 @@ describe('[Desempenho] itens do processo com 1.000 itens (US-006)', () => {
   it(`PRC-17 (renumeração em duas fases de 1.000 itens) fica em p95 < ${String(P95_BUDGET_MS)} ms`, async () => {
     const transaction = new TenantTransaction(app);
     const repository = new PrismaProcessItemRepository();
-    const value = await measure(() =>
+    const value = await measure('US-006 PRC-17 renumeração (1.000 itens)', () =>
       transaction.run(async (tx) => {
         const items = await repository.listActive(tx, PROCESS);
         // Inverte a ordem: todo número muda (o pior caso do índice único parcial).

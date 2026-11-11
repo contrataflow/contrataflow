@@ -16,6 +16,7 @@ import { dashboardWindowOf, NO_SCOPE } from '../../src/modules/dashboard/domain/
 import { PrismaDashboardReader } from '../../src/modules/dashboard/infrastructure/dashboard.readers.js';
 import { asTenant, startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const A = '0192d076-0000-7000-8000-00000000111a';
 const ORG = '0192d076-0000-7000-8000-0000000111a0';
@@ -36,11 +37,6 @@ const SAMPLES = 50;
 const P95_BUDGET_MS = 1_000;
 const NOW = new Date();
 
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
-
 const sqlArray = (ids: readonly string[]) => `ARRAY['${ids.join("','")}']::uuid[]`;
 
 describe('[Desempenho] dashboard com 10 mil processos ativos (US-076)', () => {
@@ -58,16 +54,17 @@ describe('[Desempenho] dashboard com 10 mil processos ativos (US-076)', () => {
                              contracting_type_id, requesting_secretariat_id,
                              requesting_department_id, current_department_id, workflow_version_id,
                              current_workflow_stage_id, current_stage_due_at, overdue_since,
-                             opened_at, status, estimated_value, estimated_value_source,
+                             opened_at, status, status_before_suspension, estimated_value, estimated_value_source,
                              is_budget_confidential, origin_id, pca_status, created_by_id)
       SELECT gen_random_uuid(), '${A}', '${ORG}', 2026, g, lpad(g::text, 5, '0') || '/2026',
-             'Processo ' || g, 'Objeto ' || g, gen_random_uuid(),
+             'Processo ' || g, 'Objeto do processo ' || g, gen_random_uuid(),
              (${sqlArray(SECRETARIATS)})[1 + g % 10], (${sqlArray(SECRETARIATS)})[1 + g % 10],
              (${sqlArray(SECRETARIATS)})[1 + g % 10], gen_random_uuid(),
              (${sqlArray(STAGES)})[1 + g % 8], now() + ((g % 20) || ' days')::interval,
              CASE WHEN g % 7 = 0 THEN now() - interval '3 days' END,
              now() - ((g % 360) || ' days')::interval,
              (ARRAY['IN_PROGRESS','AWAITING_APPROVAL','RETURNED','SUSPENDED','COMPLETED'])[1 + g % 5]::process_status,
+             CASE WHEN g % 5 = 3 THEN 'IN_PROGRESS' END::process_status,
              (g * 10)::numeric(18, 2), 'MANUAL', g % 9 = 0, gen_random_uuid(), 'NOT_APPLICABLE',
              '${USER}'
         FROM generate_series(1, ${String(PROCESSES)}) AS g;
@@ -142,14 +139,29 @@ describe('[Desempenho] dashboard com 10 mil processos ativos (US-076)', () => {
         () => transaction.read((tx) => reader.valueBySecretariat(tx, search)),
         () => transaction.read((tx) => reader.recentActivity(tx, search, 20)),
       ];
-      for (const operation of operations) {
+      const labels = [
+        'resumo',
+        'por status',
+        'por etapa',
+        'atrasados por secretaria',
+        'a vencer por secretaria',
+        'tempo médio por etapa',
+        'abertos por mês',
+        'valor por secretaria',
+        'atividade recente',
+      ];
+      for (const [index, operation] of operations.entries()) {
         const samples: number[] = [];
         for (let i = 0; i < WARMUP + SAMPLES; i += 1) {
           const started = performance.now();
           await asTenant(A, operation);
           if (i >= WARMUP) samples.push(performance.now() - started);
         }
-        const value = p95(samples);
+        const value = reportPerf(
+          `US-076 painel ${tenantWide ? 'TENANT' : 'lotações'} · ${labels[index] ?? String(index)}`,
+          samples,
+          P95_BUDGET_MS,
+        );
         expect(value, `p95 = ${value.toFixed(1)} ms`).toBeLessThan(P95_BUDGET_MS);
       }
     }

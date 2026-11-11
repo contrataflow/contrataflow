@@ -11,6 +11,7 @@ import type { TenantPrismaClient } from '#shared/database/prisma-client.js';
 import { PrismaNotificationRepository } from '../../src/modules/notification/infrastructure/prisma-notification.repository.js';
 import { asTenant, startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const A = '0192d000-0000-7000-8000-00000000111a';
 const CARLA = '0192d000-0000-7000-8000-0000000111a1';
@@ -19,11 +20,6 @@ const ROWS_PER_USER = 10_000;
 const WARMUP = 10;
 const SAMPLES = 100;
 const P95_BUDGET_MS = 300;
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] central de notificações com 10k linhas por usuário (US-111)', () => {
   let db: TestDatabase;
@@ -84,15 +80,20 @@ describe('[Desempenho] central de notificações com 10k linhas por usuário (US
       page(false, new Date(now.getTime() - 5_000 * 60_000)),
       () => transaction.read((tx) => repository.countUnread(tx, CARLA, now)),
     ];
+    const labels = ['NTF-01 todas', 'NTF-01 não lidas', 'NTF-01 página do meio', 'NTF-02 contagem'];
 
-    for (const operation of operations) {
+    for (const [index, operation] of operations.entries()) {
       const samples: number[] = [];
       for (let i = 0; i < WARMUP + SAMPLES; i += 1) {
         const started = performance.now();
         await asTenant(A, operation);
         if (i >= WARMUP) samples.push(performance.now() - started);
       }
-      const value = p95(samples);
+      const value = reportPerf(
+        `US-111 notificações (10k linhas) · ${labels[index] ?? String(index)}`,
+        samples,
+        P95_BUDGET_MS,
+      );
       expect(value, `p95 = ${value.toFixed(1)} ms`).toBeLessThan(P95_BUDGET_MS);
     }
   });

@@ -22,6 +22,7 @@ import type {
   PriceSource,
   Quotation,
 } from '../../src/modules/price-research/domain/price-source.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const NOW = new Date('2026-10-06T12:00:00.000Z');
 const ITEMS = COMPARATIVE_MAP_LIMITS.maxExportItems;
@@ -30,11 +31,6 @@ const WARMUP = 3;
 const SAMPLES = 20;
 /** Fatia do p95 de 2 s reservada à montagem e à escrita do arquivo. */
 const P95_BUDGET_MS = 1000;
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 const research = {
   id: 'r',
@@ -135,7 +131,13 @@ describe('[Desempenho] exportação XLSX do mapa comparativo no teto de 500 × 5
         samples.push(performance.now() - startedAt);
         expect(file.length).toBeGreaterThan(0);
       }
-      expect(p95(samples)).toBeLessThan(P95_BUDGET_MS);
+      expect(
+        reportPerf(
+          `US-031 exportação do mapa comparativo (${String(ITEMS)}×${String(SOURCES)}${masked ? ', mascarado' : ''})`,
+          samples,
+          P95_BUDGET_MS,
+        ),
+      ).toBeLessThan(P95_BUDGET_MS);
     });
   }
 });

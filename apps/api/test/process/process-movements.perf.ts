@@ -14,6 +14,7 @@ import type { MovementFeedSearch } from '../../src/modules/process/domain/proces
 import { PrismaProcessRepository } from '../../src/modules/process/infrastructure/prisma-process.repository.js';
 import { asTenant, startTestDatabase } from '../database/support/postgres.js';
 import type { TestDatabase } from '../database/support/postgres.js';
+import { reportPerf } from '../support/perf-report.js';
 
 const A = '0192d054-0000-7000-8000-00000000111a';
 const PROCESS = '0192d054-0000-7000-8000-0000000111b1';
@@ -24,11 +25,6 @@ const MOVEMENTS_PER_OTHER = 100;
 const WARMUP = 10;
 const SAMPLES = 100;
 const P95_BUDGET_MS = 1_000;
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] histórico de tramitações com 1.000 tramitações (US-054)', () => {
   let db: TestDatabase;
@@ -96,15 +92,20 @@ describe('[Desempenho] histórico de tramitações com 1.000 tramitações (US-0
         occurredTo: new Date(now),
       }),
     ];
+    const labels = ['sem filtro', 'página do meio', 'filtros combinados'];
 
-    for (const operation of operations) {
+    for (const [index, operation] of operations.entries()) {
       const samples: number[] = [];
       for (let i = 0; i < WARMUP + SAMPLES; i += 1) {
         const started = performance.now();
         await asTenant(A, operation);
         if (i >= WARMUP) samples.push(performance.now() - started);
       }
-      const value = p95(samples);
+      const value = reportPerf(
+        `US-054 PRC-11 tramitações (1.000) · ${labels[index] ?? String(index)}`,
+        samples,
+        P95_BUDGET_MS,
+      );
       expect(value, `p95 = ${value.toFixed(1)} ms`).toBeLessThan(P95_BUDGET_MS);
     }
   });

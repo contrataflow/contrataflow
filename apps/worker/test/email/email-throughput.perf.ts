@@ -26,9 +26,9 @@ const TOTAL = 200;
 const RATE_PER_SECOND = 10;
 const HEADROOM = 2;
 
-function p95(samples: number[]): number {
+function percentile(samples: number[], q: number): number {
   const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
+  return sorted[Math.max(Math.ceil(sorted.length * q) - 1, 0)] ?? Number.POSITIVE_INFINITY;
 }
 
 describe('[Desempenho] vazão do EmailSender (US-112)', () => {
@@ -116,8 +116,14 @@ describe('[Desempenho] vazão do EmailSender (US-112)', () => {
       `SELECT count(*) AS count FROM notifications WHERE email_status = 'SENT'`,
     );
     expect(Number(sent[0]?.count)).toBe(TOTAL);
+    // Resumo do cenário (só console): vazão e latência por envio.
+    const p95Latency = percentile(latencies, 0.95);
+    process.stdout.write(
+      `[PERF] US-112 vazão do EmailSender | n=${String(latencies.length)} | vazão=${perSecond.toFixed(1)}/s | meta ≥ ${String(RATE_PER_SECOND * HEADROOM)}/s | p50=${percentile(latencies, 0.5).toFixed(1)} ms | p95=${p95Latency.toFixed(1)} ms | meta p95 < 1000 ms
+`,
+    );
     expect(perSecond).toBeGreaterThanOrEqual(RATE_PER_SECOND * HEADROOM);
     // Cada envio cabe com folga no timeout da fila (30 s) e não segura o `limiter`.
-    expect(p95(latencies)).toBeLessThan(1_000);
+    expect(p95Latency).toBeLessThan(1_000);
   });
 });

@@ -6,6 +6,7 @@
 import { Logger } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { reportPerf } from '../support/perf-report.js';
 import { startTaskBulkDatabase } from '../support/task-bulk-fixtures.js';
 import type { TaskBulkDatabase } from '../support/task-bulk-fixtures.js';
 
@@ -13,11 +14,6 @@ const BATCH = 50;
 const WARMUP = 1;
 const SAMPLES = 10;
 const P95_BUDGET_MS = 5_000;
-
-function p95(samples: number[]): number {
-  const sorted = [...samples].sort((x, y) => x - y);
-  return sorted[Math.ceil(sorted.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-}
 
 describe('[Desempenho] assumir em lote 50 processos (US-058)', () => {
   let fixture: TaskBulkDatabase;
@@ -31,7 +27,9 @@ describe('[Desempenho] assumir em lote 50 processos (US-058)', () => {
   beforeAll(async () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    fixture = await startTaskBulkDatabase();
+    // 11 lotes × 50 criações de processo passam do teto de escrita por minuto do throttler (120);
+    // o que se mede é o lote, não o limite de taxa, então a suíte sobe o teto.
+    fixture = await startTaskBulkDatabase({ rateLimitWritePerMin: 100_000 });
   }, 300_000);
 
   afterAll(async () => {
@@ -50,6 +48,8 @@ describe('[Desempenho] assumir em lote 50 processos (US-058)', () => {
       expect((response.body as { meta: { successCount: number } }).meta.successCount).toBe(BATCH);
       if (run >= WARMUP) samples.push(elapsed);
     }
-    expect(p95(samples)).toBeLessThan(P95_BUDGET_MS);
+    expect(
+      reportPerf(`US-058 TSK-03 assumir em lote (${String(BATCH)} itens)`, samples, P95_BUDGET_MS),
+    ).toBeLessThan(P95_BUDGET_MS);
   }, 900_000);
 });
