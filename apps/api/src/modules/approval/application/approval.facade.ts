@@ -6,15 +6,26 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApprovalCancellationService } from './approval-cancellation.service.js';
 import type { CanceledApproval } from './approval-cancellation.service.js';
 import { ApprovalRequestService } from './approval-request.service.js';
-import type { StageApprovalRequest } from './approval-request.service.js';
+import type {
+  ApprovalPlan,
+  OpenedApproval,
+  StageApprovalRequest,
+} from './approval-request.service.js';
 import { ApproverResolver } from './approver-resolver.js';
 import type { StageApprover } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalRepository, ApprovalSummaryRow, DocumentDecisionRow } from './ports.js';
+import type { ApprovalConfigSource } from '../domain/approval-lines.js';
 import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
 export type { CanceledApproval } from './approval-cancellation.service.js';
-export type { StageApprovalRequest, StageCoverage } from './approval-request.service.js';
+export type {
+  ApprovalPlan,
+  OpenedApproval,
+  StageApprovalRequest,
+  StageCoverage,
+} from './approval-request.service.js';
+export type { ApprovalConfigSource } from '../domain/approval-lines.js';
 export type { StageApprover } from './approver-resolver.js';
 export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
 
@@ -75,24 +86,27 @@ export class ApprovalFacade {
   }
 
   /**
-   * RN-TRAM-47..49: o aprovador da etapa `APPROVAL` resolvido NA solicitação, no `tx` do
-   * encaminhamento. @throws ApiError 422 `APPROVER_UNRESOLVED`
+   * RN-TRAM-47..49 · RN-APV-16..19 (US-051/US-133): a política e as linhas da etapa `APPROVAL`
+   * copiadas e resolvidas NA solicitação, no `tx` do encaminhamento, ANTES de qualquer escrita.
+   * @throws ApiError 422 `APPROVER_UNRESOLVED` (`meta.sequence` da linha)
    */
-  resolveStageApproverIn(
+  resolveStageApprovalIn(
     tx: TenantTx,
-    config: StageApproverConfig,
+    stage: ApprovalConfigSource,
     process: RequestingUnitsOf,
     now: Date,
-  ): Promise<StageApprover> {
-    return this.resolver.resolve(tx, config, process, now, 'PROCESS_STAGE');
+  ): Promise<ApprovalPlan> {
+    return this.requests.plan(tx, stage, process, now, 'PROCESS_STAGE');
   }
 
   /**
-   * RN-TRAM-43..53 (US-051 · disparo A): abre a `Approval` `PENDING` da etapa com a cobertura,
-   * `approval.request` e `ApprovalRequested`, no `tx` de quem encaminha (falha desfaz tudo).
-   * @throws ApiError 409 `APPROVAL_NOT_PENDING`
+   * RN-TRAM-43..53 · RN-APV-16..32 (US-051/US-133 · disparo A): abre a `Approval` `PENDING` da
+   * etapa com a política, as linhas, a cobertura, `approval.request` e `ApprovalRequested`, no `tx`
+   * de quem encaminha (falha desfaz tudo).
+   * @throws ApiError 403 `SELF_APPROVAL_FORBIDDEN`, 422 `APPROVER_DUPLICATED`, 409
+   * `APPROVAL_NOT_PENDING`
    */
-  requestForStageIn(tx: TenantTx, request: StageApprovalRequest): Promise<void> {
+  requestForStageIn(tx: TenantTx, request: StageApprovalRequest): Promise<OpenedApproval> {
     return this.requests.requestForStageEntry(tx, request);
   }
 

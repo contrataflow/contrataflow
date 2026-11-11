@@ -182,7 +182,13 @@ export class ReassignApprovalCommand extends TransactionalCommandHandler<
 
     // RN-TRAM-70 — só o aprovador muda (a trava garante a versão; o WHERE é a rede).
     const reassigned = reassignApproval(approval, resolved, now);
-    if (!(await this.approvals.recordReassignment(tx, reassigned, approval.version, userId))) {
+    const recorded = await this.approvals.recordReassignment(
+      tx,
+      reassigned,
+      approval.version,
+      userId,
+    );
+    if (!recorded.recorded) {
       throw withdrawalVersionConflict(input.expectedVersion, reassigned.version);
     }
     await this.outbox.record(
@@ -202,6 +208,10 @@ export class ReassignApprovalCommand extends TransactionalCommandHandler<
           toApproverDepartmentId: reassigned.approverDepartmentId,
           allowDeputy: reassigned.allowDeputy,
           hasReason: true,
+          // US-133: a linha que recebeu o novo aprovador (origem das concessões `APPROVER`).
+          ...(recorded.approvalApproverId === null
+            ? {}
+            : { approvalApproverId: recorded.approvalApproverId }),
         },
       }),
     );

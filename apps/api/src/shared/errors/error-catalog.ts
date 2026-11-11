@@ -146,6 +146,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Política de aprovação inválida',
     detail: 'Informe ao menos dois aprovadores para esta política.',
   },
+  APPROVER_DUPLICATED: {
+    status: 422,
+    title: 'Aprovador repetido',
+    detail: 'A mesma pessoa não pode aprovar em duas linhas. Fale com o administrador do órgão.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

@@ -222,7 +222,7 @@ export class DocumentController {
     responses: {
       200: {
         description:
-          'Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId` (US-051: aprovador resolvido pela política do tipo — sem aprovador, 422 `APPROVER_UNRESOLVED`; pendência concorrente, 409 `APPROVAL_NOT_PENDING`; ambos desfazem a submissão).',
+          'Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId` (US-051: aprovador resolvido pela política do tipo — sem aprovador, 422 `APPROVER_UNRESOLVED`; pendência concorrente, 409 `APPROVAL_NOT_PENDING`; ambos desfazem a submissão). US-133: com `approvalPolicy.approvers[]`, a aprovação nasce com a política do tipo e uma linha por aprovador (no APV-02); linha sem aprovador, pessoa repetida (422 `APPROVER_DUPLICATED`) ou autor sem substituto (403 `SELF_APPROVAL_FORBIDDEN`) desfazem a submissão.',
         schema: DOCUMENT_RESPONSE,
       },
     },

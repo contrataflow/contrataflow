@@ -11,6 +11,28 @@ const text = (value: unknown): string | null =>
   typeof value === 'string' && value !== '' ? value : null;
 
 /**
+ * Perfis a avisar: os das linhas `ROLE` `PENDING` do `ApprovalRequested` (US-133 · RN-APV-27); sem
+ * a lista, o perfil único do MVP 1 (`approverRoleId`) ou o novo do redirecionamento.
+ */
+function rolesOf(payload: Payload): string[] {
+  if (Array.isArray(payload.approvers)) {
+    const roles = payload.approvers
+      .filter(
+        (line): line is Payload =>
+          typeof line === 'object' &&
+          line !== null &&
+          (line as Payload).approverType === 'ROLE' &&
+          (line as Payload).status === 'PENDING',
+      )
+      .map((line) => text(line.approverRoleId))
+      .filter((roleId): roleId is string => roleId !== null);
+    return [...new Set(roles)];
+  }
+  const single = text(payload.approverRoleId) ?? text(payload.toApproverRoleId);
+  return single === null ? [] : [single];
+}
+
+/**
  * Detentores do perfil aprovador (`ROLE_HOLDERS` — US-051 · DEC-022 · RN-TRAM-47), destinatários de
  * `APPROVAL_REQUESTED` (e de `APPROVAL_REASSIGNED` para um perfil): quem tem atribuição VIGENTE do
  * perfil ATIVO, com vínculo `ACTIVE` não vencido, cujo escopo cubra a unidade solicitante do
@@ -29,8 +51,8 @@ export class RoleHoldersLookup implements RecipientLookupSource {
     client: SqlClient,
     event: DomainEventEnvelope<Payload>,
   ): Promise<readonly string[]> {
-    const roleId = text(event.payload.approverRoleId) ?? text(event.payload.toApproverRoleId);
-    if (roleId === null || event.processId === null) return [];
+    const roleIds = rolesOf(event.payload);
+    if (roleIds.length === 0 || event.processId === null) return [];
     const { rows } = await client.query<{ user_id: string }>(
       `WITH target AS (
          SELECT p.tenant_id, p.organization_id,
@@ -40,7 +62,7 @@ export class RoleHoldersLookup implements RecipientLookupSource {
        )
        SELECT DISTINCT m.user_id
          FROM target t
-         JOIN role_assignments ra ON ra.tenant_id = t.tenant_id AND ra.role_id = $2
+         JOIN role_assignments ra ON ra.tenant_id = t.tenant_id AND ra.role_id = ANY($2::uuid[])
          JOIN roles r ON r.tenant_id = ra.tenant_id AND r.id = ra.role_id AND r.is_active
          JOIN tenant_memberships m ON m.tenant_id = ra.tenant_id AND m.id = ra.membership_id
          JOIN users u ON u.id = m.user_id AND u.status = 'ACTIVE'
@@ -69,7 +91,7 @@ export class RoleHoldersLookup implements RecipientLookupSource {
                              OR (ra.include_subtree AND unit.path LIKE root.path || '%')))))
         ORDER BY m.user_id
         LIMIT $4`,
-      [event.processId, roleId, this.now(), NOTIFICATION_MAX_UNIT_RECIPIENTS + 1],
+      [event.processId, roleIds, this.now(), NOTIFICATION_MAX_UNIT_RECIPIENTS + 1],
     );
     if (rows.length <= NOTIFICATION_MAX_UNIT_RECIPIENTS) return rows.map((row) => row.user_id);
     const heads = await client.query<{

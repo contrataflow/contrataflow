@@ -23,7 +23,7 @@ Campos opcionais novos — **mesma `eventVersion`** (regra do MVP 1, §8):
 | `ProcessStageChanged` | `branchKey?`, `splitProcessStageId?`, `activeStageIds[]` (após o fato); `cause` aceita `MIGRATE` e `SKIP` só nos eventos próprios (abaixo) — **não** neste | Paralelismo (DEC-194) |
 | `ProcessCreated` | `pcaItemId?` | PCA (DEC-197) |
 | `ProcessStageDueSoon` / `ProcessStageOverdue` | `branchKey?`, `slaPolicyKey?`, `escalationLevel?` | SLA (DEC-205) |
-| `ApprovalRequested` | `decisionPolicy`, `approvers[]` (`{ approvalApproverId, sequence, approverType, approverUserId?, approverRoleId?, approverDepartmentId?, status }`), `pcaId?`, `thresholdResolution?`; `subjectType` aceita `PCA` | Aprovação múltipla e PCA (DEC-193, DEC-197) |
+| `ApprovalRequested` | `decisionPolicy`, `approvers[]` (`{ approvalApproverId, sequence, approverType, approverUserId?, approverRoleId?, approverDepartmentId?, allowDeputy, status }` — `allowDeputy` acrescentado na US-133: o substituto é avisado e recebe `APPROVER` por linha), `pcaId?`, `thresholdResolution?`; `subjectType` aceita `PCA`. Os dois campos da US-133 são opcionais no esquema (eventos do MVP 1 no outbox) e sempre gravados nas solicitações novas | Aprovação múltipla e PCA (DEC-193, DEC-197) |
 | `ApprovalCompleted` / `ApprovalReturned` / `ApprovalRejected` | `decisionPolicy`, `decidingApprovalApproverId`, `votes[]` (`{ sequence, decision, decidedById, decidedAsDeputy }`), `pcaId?` | Idem |
 | `ApprovalCanceled` | `reason` aceita `BRANCH_CANCELED`, `MIGRATION` | Paralelismo e migração |
 | `ApprovalReassigned` | `approvalApproverId?`, `sequence?` | Redirecionamento por linha |

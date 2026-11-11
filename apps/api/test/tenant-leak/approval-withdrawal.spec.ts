@@ -167,8 +167,11 @@ describe('Feature: Retirar ou redirecionar aprovação sobre PostgreSQL (US-053)
   const approverGrants = async (processId: string, approvalId: string) =>
     (
       await db.admin<{ user_id: string }>(
+        // Origem: a aprovação (MVP 1) ou uma linha dela (US-133 · RN-APV-25).
         `SELECT user_id FROM process_access WHERE process_id = $1 AND reason = 'APPROVER'
-            AND source_id = $2 AND revoked_at IS NULL ORDER BY user_id`,
+            AND (source_id = $2
+                 OR source_id IN (SELECT id FROM approval_approvers WHERE approval_id = $2))
+            AND revoked_at IS NULL ORDER BY user_id`,
         [processId, approvalId],
       )
     ).map((row) => row.user_id);

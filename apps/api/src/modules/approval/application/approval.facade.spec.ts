@@ -39,11 +39,13 @@ const DECISION_STUBS = {
   lockForUpdate: () => Promise.resolve(null),
   recordDecision: () => Promise.resolve(false),
   recordWithdrawal: () => Promise.resolve(false),
-  recordReassignment: () => Promise.resolve(false),
+  recordReassignment: () => Promise.resolve({ recorded: false, approvalApproverId: null }),
   latestDecisionForDocument: () => Promise.resolve(null),
+  findLines: () => Promise.resolve([]),
 } satisfies Pick<
   ApprovalRepository,
   | 'findById'
+  | 'findLines'
   | 'lockForUpdate'
   | 'recordDecision'
   | 'recordWithdrawal'

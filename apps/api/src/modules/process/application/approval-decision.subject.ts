@@ -43,7 +43,7 @@ import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { ApprovalFacade } from '../../approval/application/approval.facade.js';
-import type { StageApprover, StageCoverage } from '../../approval/application/approval.facade.js';
+import type { ApprovalPlan, StageCoverage } from '../../approval/application/approval.facade.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
@@ -111,8 +111,8 @@ export interface StageDecisionPlan {
   readonly toUserId: string | null;
   readonly dueAt: Date | null;
   readonly statusTo: ProcessStatus;
-  /** Aprovador da próxima etapa `APPROVAL` (encadeamento); `null` nos demais destinos. */
-  readonly approver: StageApprover | null;
+  /** Política e linhas da próxima etapa `APPROVAL` (encadeamento — US-133); `null` nos demais. */
+  readonly approver: ApprovalPlan | null;
 }
 
 @Injectable()
@@ -433,8 +433,9 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
         processId: process.id,
         processStageId: transitionPlan.entered.id,
         stageName: toStage.name,
-        approver: plan.approver,
+        plan: plan.approver,
         coverage,
+        authorIds: () => this.documents.coverageAuthorsIn(tx, coverage),
         requestedById: input.decidedById,
         requestedAt: now,
         requestComment: null,
@@ -447,7 +448,8 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
           chainedApprovalId,
           processId: process.id,
           nextStageKey: toStage.key,
-          approverType: plan.approver.approverType,
+          decisionPolicy: plan.approver.config.decisionPolicy,
+          linesCount: plan.approver.resolved.lines.length,
           correlationId: context.correlationId,
         },
         'approval.chained',
@@ -726,13 +728,15 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     toStage: WorkflowSnapshotStage,
     process: Process,
     now: Date,
-  ): Promise<StageApprover> {
+  ): Promise<ApprovalPlan> {
     try {
-      return await this.approvals.resolveStageApproverIn(tx, toStage, process, now);
+      return await this.approvals.resolveStageApprovalIn(tx, toStage, process, now);
     } catch (error) {
       if (error instanceof ApiError && error.code === 'APPROVER_UNRESOLVED') {
         throw new ApiError('APPROVER_UNRESOLVED', {
           detail: APPROVAL_DECISION_MESSAGES.approverUnresolved,
+          // US-133: a linha da próxima etapa que ficou sem aprovador (`meta.sequence`).
+          extensions: error.extensions,
         });
       }
       throw error;

@@ -684,6 +684,23 @@ export class DocumentFacade {
     return this.outcomes.coverage(tx, coverage);
   }
 
+  /**
+   * US-133 (RN-APV-20 · RN-TRAM-62): os autores dos documentos cobertos — criador do documento e
+   * da versão analisada — para a segregação por linha na solicitação. Leitura enxuta, no `tx` do
+   * chamador (depois da submissão: a versão `SUBMISSION` já tem o autor).
+   */
+  coverageAuthorsIn(
+    tx: TenantTx,
+    coverage: readonly { readonly documentId: string; readonly documentVersionId: string }[],
+  ): Promise<string[]> {
+    if (coverage.length === 0) return Promise.resolve([]);
+    return this.documents.authorsOf(
+      tx,
+      coverage.map((item) => item.documentId),
+      coverage.map((item) => item.documentVersionId),
+    );
+  }
+
   /** Gancho interno `onDocumentApproved` (US-052): integrações futuras, no `tx` da decisão. */
   onDocumentApproved(listener: DocumentApprovedListener): void {
     this.outcomes.onDocumentApproved(listener);

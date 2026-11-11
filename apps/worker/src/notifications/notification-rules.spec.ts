@@ -208,6 +208,70 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     expect(byRole.link).toBe(`/processos/${PROCESS}`);
   });
 
+  it('US-133 APPROVAL_REQUESTED com linhas: só as PENDING (titular + substituto, usuário, perfil uma vez); WAITING não; linha desviada ao substituto', () => {
+    const DEPUTY = '0192f051-0000-7000-8000-0000000000e9';
+    const lines = (status2: string) => [
+      {
+        approvalApproverId: APPROVAL,
+        sequence: 1,
+        approverType: 'DEPARTMENT_HEAD',
+        approverUserId: USER,
+        approverDepartmentId: DEPARTMENT,
+        allowDeputy: true,
+        status: 'PENDING',
+      },
+      { sequence: 2, approverType: 'USER', approverUserId: DEPUTY, status: status2 },
+      { sequence: 3, approverType: 'ROLE', approverRoleId: DEPARTMENT, status: status2 },
+      { sequence: 4, approverType: 'ROLE', approverRoleId: USER, status: status2 },
+    ];
+    const sequential = notify(
+      planNotification(
+        envelope('ApprovalRequested', {
+          approvalId: APPROVAL,
+          approverType: 'DEPARTMENT_HEAD',
+          decisionPolicy: 'SEQUENTIAL',
+          approvers: lines('WAITING'),
+        }),
+      ),
+    );
+    expect(sequential.recipients).toEqual([
+      { kind: 'DEPARTMENT_HEADS', departmentId: DEPARTMENT, includeDeputy: true },
+    ]);
+    const all = notify(
+      planNotification(
+        envelope('ApprovalRequested', {
+          approvalId: APPROVAL,
+          decisionPolicy: 'ALL',
+          approvers: lines('PENDING'),
+        }),
+      ),
+    );
+    expect(all.recipients).toEqual([
+      { kind: 'DEPARTMENT_HEADS', departmentId: DEPARTMENT, includeDeputy: true },
+      { kind: 'USER', userId: DEPUTY },
+      { kind: 'LOOKUP', lookup: 'ROLE_HOLDERS' },
+    ]);
+    const diverted = notify(
+      planNotification(
+        envelope('ApprovalRequested', {
+          approvalId: APPROVAL,
+          decisionPolicy: 'ALL',
+          approvers: [
+            {
+              sequence: 1,
+              approverType: 'DEPARTMENT_HEAD',
+              approverUserId: DEPUTY,
+              approverDepartmentId: DEPARTMENT,
+              allowDeputy: false,
+              status: 'PENDING',
+            },
+          ],
+        }),
+      ),
+    );
+    expect(diverted.recipients).toEqual([{ kind: 'USER', userId: DEPUTY }]);
+  });
+
   it.each([
     ['ApprovalCompleted', 'Aprovação concluída'],
     ['ApprovalReturned', 'Aprovação devolvida'],

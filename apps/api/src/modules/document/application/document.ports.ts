@@ -93,6 +93,15 @@ export interface DocumentRepository {
   nextVersionNumber(tx: TenantTx, documentId: string): Promise<number>;
   insertVersion(tx: TenantTx, version: DocumentVersionRecord): Promise<void>;
   findVersion(tx: TenantTx, versionId: string): Promise<DocumentVersionRecord | null>;
+  /**
+   * US-133 (RN-APV-20): quem criou cada documento e cada versão informados, numa leitura enxuta (só
+   * os ids de autor — sem conteúdo). Ids de fora do tenant não voltam.
+   */
+  authorsOf(
+    tx: TenantTx,
+    documentIds: readonly string[],
+    versionIds: readonly string[],
+  ): Promise<string[]>;
   /** Versões do documento por `versionNumber` desc (DOC-15 · RN-DOC-59), por página. */
   listVersions(
     tx: TenantTx,

@@ -929,15 +929,22 @@ function ProblemAlert({
           </ul>
         </Alert>
       );
-    case 'approver':
+    case 'approver': {
+      // US-133: o título pela recusa (linha sem aprovador, pessoa repetida, autor sem substituto);
+      // o `detail` da API traz a linha ("linha 2") — nunca o nome de quem seria o aprovador.
+      const title =
+        problem.reason === 'APPROVER_DUPLICATED'
+          ? t('approverDuplicated')
+          : problem.reason === 'SELF_APPROVAL_FORBIDDEN'
+            ? t('approverSelfApproval')
+            : t('approverUnresolved');
       return (
-        <Alert tone="error" title={t('approverUnresolved')}>
+        <Alert tone="error" title={title}>
           {/* US-051 (V-02): o `detail` padrão da API repete o título — só o diferente aparece. */}
-          {problem.detail === null || problem.detail === t('approverUnresolved') ? null : (
-            <p>{problem.detail}</p>
-          )}
+          {problem.detail === null || problem.detail === title ? null : <p>{problem.detail}</p>}
         </Alert>
       );
+    }
     case 'idempotencyReused':
       return (
         <Alert tone="error" title={t('idempotencyReused')}>

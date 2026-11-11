@@ -559,7 +559,9 @@ describe('Feature: Solicitar aprovação sobre PostgreSQL (US-051)', () => {
       const results = await Promise.allSettled(
         Array.from({ length: 5 }, () =>
           asTenant(A, () =>
-            client.$tenantTransaction((tx) => repository.insert(tx, approval(randomUUID()), [])),
+            client.$tenantTransaction((tx) =>
+              repository.insert(tx, approval(randomUUID()), [], []),
+            ),
           ),
         ),
       );

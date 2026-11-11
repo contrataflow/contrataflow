@@ -56,7 +56,11 @@ import { StageTransitionService } from './stage-transition.service.js';
 import { accessTargetOf } from './update-process.command.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { ApprovalFacade } from '../../approval/application/approval.facade.js';
-import type { StageApprover, StageCoverage } from '../../approval/application/approval.facade.js';
+import type {
+  ApprovalPlan,
+  OpenedApproval,
+  StageCoverage,
+} from '../../approval/application/approval.facade.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { NumberingFacade } from '../../catalog/application/numbering.facade.js';
 import { DocumentFacade } from '../../document/application/document.facade.js';
@@ -280,12 +284,13 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     }
     const chosen = body.documentIds ?? changedDuringPass(before, active.enteredAt);
 
-    // 11.13 (preparo) — destino APPROVAL: aprovador ANTES de qualquer escrita; os documentos
-    // cobertos são validados e submetidos (DRAFT/RETURNED → IN_REVIEW com versão SUBMISSION).
+    // 11.13 (preparo) — destino APPROVAL: política e linhas resolvidas ANTES de qualquer escrita
+    // (US-133 · RN-APV-16/19); os documentos cobertos são validados e submetidos (DRAFT/RETURNED →
+    // IN_REVIEW com versão SUBMISSION).
     const approvalId = toApproval ? newId() : null;
-    const approver: StageApprover | null = toApproval
+    const approvalPlan: ApprovalPlan | null = toApproval
       ? await withSpan('process.forward.approval', {}, () =>
-          this.approvals.resolveStageApproverIn(tx, toStage, process, now),
+          this.approvals.resolveStageApprovalIn(tx, toStage, process, now),
         )
       : null;
     const covered = toApproval ? coveredDocuments(before, toStage.approvalDocumentTypeCodes) : [];
@@ -386,15 +391,18 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       requestedApprovalId: approvalId,
     });
 
-    // 11.13 — aprovação da etapa (a passagem já existe: FK).
-    if (approver !== null && approvalId !== null) {
-      await this.approvals.requestForStageIn(tx, {
+    // 11.13 — aprovação da etapa (a passagem já existe: FK), com a segregação por linha (os
+    // autores dos cobertos só são lidos quando ela vale — RN-APV-20).
+    let opened: OpenedApproval | null = null;
+    if (approvalPlan !== null && approvalId !== null) {
+      opened = await this.approvals.requestForStageIn(tx, {
         approvalId,
         processId: process.id,
         processStageId: plan.entered.id,
         stageName: toStage.name,
-        approver,
+        plan: approvalPlan,
         coverage,
+        authorIds: () => this.documents.coverageAuthorsIn(tx, coverage),
         requestedById: userId,
         requestedAt: now,
         requestComment: comment,
@@ -452,9 +460,7 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       dto: {
         ...dto,
         movement: { id: plan.movement.id, sequence: plan.movement.sequence },
-        ...(approver === null || approvalId === null
-          ? {}
-          : { approval: { id: approvalId, approverLabel: approver.label } }),
+        ...(opened === null ? {} : { approval: opened }),
         numberAssigned: numbering !== null,
         statusFrom: process.status,
       },

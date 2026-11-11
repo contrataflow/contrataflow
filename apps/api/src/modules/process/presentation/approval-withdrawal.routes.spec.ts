@@ -237,11 +237,21 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
     options: { subject?: string; tenant?: string; key?: string; version?: number } = {},
   ) => post(`/api/v1/documents/${id}/withdraw`, body, options, 'sub-ana');
   /** Concessões `APPROVER` ativas da aprovação (troca limpa no redirecionamento — RN-TRAM-70). */
-  const approverGrantsOf = (processId: string, approvalId: string) =>
-    repository()
+  /** `APPROVER` com origem na aprovação (MVP 1) ou numa linha dela (US-133 · RN-APV-25). */
+  const approverGrantsOf = (processId: string, approvalId: string) => {
+    const sources = new Set([
+      approvalId,
+      ...approvalRepositoryOf(api)
+        .linesOf(approvalId)
+        .map((line) => line.id),
+    ]);
+    return repository()
       .accessOf(processId)
-      .filter((row) => row.reason === 'APPROVER' && row.sourceId === approvalId)
+      .filter(
+        (row) => row.reason === 'APPROVER' && row.sourceId !== null && sources.has(row.sourceId),
+      )
       .map((row) => row.userId);
+  };
   const toDiego = {
     approverType: 'USER',
     targetApproverUserId: FAKE_USERS.fabio.id,
@@ -698,6 +708,16 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
           fromApproverUserId: FAKE_USERS.lucia.id,
           toApproverUserId: FAKE_USERS.fabio.id,
           hasReason: true,
+          // US-133: a linha redirecionada (no lugar — mesma linha sequence 1).
+          approvalApproverId: approvalRepositoryOf(api).linesOf(approvalId)[0]?.id,
+        }),
+      ]);
+      expect(approvalRepositoryOf(api).linesOf(approvalId)).toEqual([
+        expect.objectContaining({
+          sequence: 1,
+          status: 'PENDING',
+          approverType: 'USER',
+          approverUserId: FAKE_USERS.fabio.id,
         }),
       ]);
       expect(JSON.stringify(eventsOf(processId, 'ApprovalReassigned'))).not.toContain(LEAVE);

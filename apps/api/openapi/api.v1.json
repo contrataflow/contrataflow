@@ -1062,6 +1062,20 @@
               "$ref": "#/components/schemas/ApprovalDocument"
             }
           },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalApprover"
+            }
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -1087,6 +1101,8 @@
           "decisionComment",
           "decidedAsDeputy",
           "documents",
+          "decisionPolicy",
+          "approvers",
           "version"
         ]
       },
@@ -1148,6 +1164,156 @@
           "typeCode",
           "typeName",
           "status"
+        ]
+      },
+      "ApprovalApprover": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "SKIPPED",
+              "CANCELED"
+            ]
+          },
+          "approverType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ROLE",
+              "DEPARTMENT_HEAD"
+            ]
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "roleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "departmentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "allowDeputy": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "activatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "APPROVE",
+              "RETURN",
+              "REJECT",
+              null
+            ]
+          },
+          "decidedBy": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "decidedAsDeputy": {
+            "type": "boolean"
+          },
+          "skippedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "NEGATIVE_DECISION",
+              "ANY_DECIDED",
+              "REASSIGNED",
+              "WITHDRAWN",
+              null
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "status",
+          "approverType",
+          "userId",
+          "roleId",
+          "departmentId",
+          "allowDeputy",
+          "label",
+          "activatedAt",
+          "dueAt",
+          "decision",
+          "decidedBy",
+          "decidedAt",
+          "decidedAsDeputy",
+          "skippedReason"
         ]
       },
       "ApprovalMeta": {
@@ -1570,6 +1736,20 @@
               "$ref": "#/components/schemas/ApprovalDocument"
             }
           },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalApprover"
+            }
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -1637,6 +1817,8 @@
           "decisionComment",
           "decidedAsDeputy",
           "documents",
+          "decisionPolicy",
+          "approvers",
           "version",
           "processStage",
           "processStatus",
@@ -1911,6 +2093,20 @@
               "$ref": "#/components/schemas/ApprovalDocument"
             }
           },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalApprover"
+            }
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -1971,6 +2167,8 @@
           "decisionComment",
           "decidedAsDeputy",
           "documents",
+          "decisionPolicy",
+          "approvers",
           "version",
           "processStage",
           "processStatus"
@@ -13337,20 +13535,7 @@
             ]
           },
           "approval": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "format": "uuid"
-              },
-              "approverLabel": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "approverLabel"
-            ]
+            "$ref": "#/components/schemas/OpenedApproval"
           },
           "numberAssigned": {
             "type": "boolean"
@@ -13411,6 +13596,83 @@
           "movement",
           "numberAssigned",
           "statusFrom"
+        ]
+      },
+      "OpenedApproval": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "approverLabel": {
+            "type": "string"
+          },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "approvers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpenedApprovalLine"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "id",
+          "approverLabel",
+          "decisionPolicy",
+          "approvers"
+        ]
+      },
+      "OpenedApprovalLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "SKIPPED",
+              "CANCELED"
+            ]
+          },
+          "approverType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ROLE",
+              "DEPARTMENT_HEAD"
+            ]
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence",
+          "status",
+          "approverType",
+          "label"
         ]
       },
       "ForwardProcessRequest": {
@@ -35070,7 +35332,7 @@
         },
         "responses": {
           "200": {
-            "description": "Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId` (US-051: aprovador resolvido pela política do tipo — sem aprovador, 422 `APPROVER_UNRESOLVED`; pendência concorrente, 409 `APPROVAL_NOT_PENDING`; ambos desfazem a submissão).",
+            "description": "Documento em `IN_REVIEW` com a versão `SUBMISSION` e a aprovação avulsa em `pendingApprovalId` (US-051: aprovador resolvido pela política do tipo — sem aprovador, 422 `APPROVER_UNRESOLVED`; pendência concorrente, 409 `APPROVAL_NOT_PENDING`; ambos desfazem a submissão). US-133: com `approvalPolicy.approvers[]`, a aprovação nasce com a política do tipo e uma linha por aprovador (no APV-02); linha sem aprovador, pessoa repetida (422 `APPROVER_DUPLICATED`) ou autor sem substituto (403 `SELF_APPROVAL_FORBIDDEN`) desfazem a submissão.",
             "content": {
               "application/json": {
                 "schema": {
@@ -50033,7 +50295,7 @@
         },
         "responses": {
           "200": {
-            "description": "Processo na nova etapa (`ETag` = nova versão) com a tramitação `FORWARD` (`movement`), a aprovação aberta no destino `APPROVAL` (`approval`) e a autuação (`numberAssigned`). Uma transação: trava do processo, `expectedStageId` diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_FORWARD` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) e o motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`). Unidade (`DEPARTMENT_REQUIRED`), pessoa (`ASSIGNEE_NOT_ELIGIBLE`), prazo (`DUE_DATE_OVERRIDE_NOT_ALLOWED`), documentos cobertos (`DOCUMENT_INCOMPLETE`) e aprovador (`APPROVER_UNRESOLVED`) desfazem tudo.",
+            "description": "Processo na nova etapa (`ETag` = nova versão) com a tramitação `FORWARD` (`movement`), a aprovação aberta no destino `APPROVAL` (`approval`) e a autuação (`numberAssigned`). Uma transação: trava do processo, `expectedStageId` diferente da etapa atual = 409 `STAGE_CHANGED` (antes do `If-Match`: 412 `VERSION_CONFLICT`), `PROCESS_FORWARD` cobrindo o processo + custódia (POL-01: 403 `NOT_PROCESS_CUSTODIAN`), status `DRAFT`/`IN_PROGRESS`/`RETURNED` (409 `INVALID_PROCESS_STATUS`) e o motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`). Unidade (`DEPARTMENT_REQUIRED`), pessoa (`ASSIGNEE_NOT_ELIGIBLE`), prazo (`DUE_DATE_OVERRIDE_NOT_ALLOWED`), documentos cobertos (`DOCUMENT_INCOMPLETE`) e aprovador (`APPROVER_UNRESOLVED`) desfazem tudo. US-133: a aprovação nasce com a política da etapa e uma linha por aprovador (`approval.decisionPolicy`, `approval.approvers[]`); linha sem aprovador = 422 `APPROVER_UNRESOLVED` (`meta.sequence`), mesma pessoa em duas linhas = 422 `APPROVER_DUPLICATED` (`meta.sequences`) e autor de documento coberto sem substituto = 403 `SELF_APPROVAL_FORBIDDEN` (`meta.sequence`) — todos desfazem tudo.",
             "content": {
               "application/json": {
                 "schema": {

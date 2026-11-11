@@ -189,5 +189,32 @@
       "notFound": "Não encontramos a aprovação solicitada.",
       "denied": "Você não pode retirar ou redirecionar esta aprovação."
     }
+  },
+  "lines": {
+    "heading": "Aprovadores",
+    "line": "Linha {line}",
+    "lineLabel": "Aprovador {line} de {total}: {approver}",
+    "decidedBy": "Decidido por {name}",
+    "decidedByDeputy": "Decidido por {name}, como substituto",
+    "activatedAt": "Aguardando desde {date}",
+    "policy": {
+      "ANY": "Qualquer um aprova",
+      "ALL": "Todos aprovam",
+      "SEQUENTIAL": "Aprovam em sequência"
+    },
+    "help": {
+      "ANY": "A primeira decisão encerra a aprovação.",
+      "ALL": "Cada aprovador decide; uma devolução ou um indeferimento encerra a aprovação.",
+      "SEQUENTIAL": "Cada aprovador decide na ordem da lista; o próximo só é chamado depois da decisão do anterior."
+    },
+    "status": {
+      "WAITING": "Aguardando a vez",
+      "PENDING": "Aguardando decisão",
+      "APPROVED": "Aprovou",
+      "RETURNED": "Devolveu",
+      "REJECTED": "Indeferiu",
+      "SKIPPED": "Dispensada",
+      "CANCELED": "Cancelada"
+    }
   }
 }

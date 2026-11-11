@@ -1,4 +1,8 @@
-import type { ApprovalPolicy, ApproverType } from '@contrataflow/validation';
+import type {
+  ApprovalDecisionPolicy,
+  ApprovalPolicy,
+  ApproverType,
+} from '@contrataflow/validation';
 
 /*
  * `Approval` (entities.md §4.6 · DEC-022) e a solicitação de aprovação da US-051 (RN-TRAM-43..52):
@@ -30,6 +34,11 @@ export interface Approval {
   readonly status: ApprovalStatus;
   readonly createdAt: Date;
   readonly createdById: string;
+  /**
+   * US-133 (DEC-193): política copiada na solicitação. Ausente = `ANY` (aprovações do MVP 1 e
+   * cargas de teste); o repositório sempre preenche.
+   */
+  readonly decisionPolicy?: ApprovalDecisionPolicy;
 }
 
 /** Documento coberto e a versão exata analisada (`ApprovalDocument`). */

@@ -10,6 +10,7 @@
 export const TENANT_SCOPED_MODELS = [
   'AiGeneration',
   'Approval',
+  'ApprovalApprover',
   'ApprovalDocument',
   'Attachment',
   'AuditLog',

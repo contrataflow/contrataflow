@@ -492,6 +492,20 @@ describe('Feature: Solicitar aprovação e resolver o aprovador (US-051)', () =>
             approverDepartmentId: UNITS_A.obras,
             allowDeputy: true,
             dueAt: entered?.dueAt?.toISOString(),
+            // US-133 (aditivo): ANY com a linha única do MVP 1.
+            decisionPolicy: 'ANY',
+            approvers: [
+              {
+                approvalApproverId: approvalRepositoryOf(api).linesOf(approvalId)[0]?.id,
+                sequence: 1,
+                approverType: 'DEPARTMENT_HEAD',
+                approverUserId: FAKE_USERS.marta.id,
+                approverRoleId: null,
+                approverDepartmentId: UNITS_A.obras,
+                allowDeputy: true,
+                status: 'PENDING',
+              },
+            ],
           },
         }),
       ]);
@@ -800,7 +814,7 @@ describe('Feature: Solicitar aprovação e resolver o aprovador (US-051)', () =>
       if (!approval) throw new Error('aprovação ausente');
       await expect(
         runSimulatedTransaction((tx) =>
-          approvalRepositoryOf(api).insert(tx, { ...approval, id: newId() }, []),
+          approvalRepositoryOf(api).insert(tx, { ...approval, id: newId() }, [], []),
         ),
       ).rejects.toThrow('Já existe uma aprovação pendente');
     });

@@ -45,13 +45,44 @@ describe('RoleHoldersLookup (US-051 · ROLE_HOLDERS)', () => {
     await expect(lookup.resolve(client, event({ approverRoleId: ROLE }))).resolves.toEqual(
       holders(2).map((row) => row.user_id),
     );
-    expect(params).toEqual([[PROCESS, ROLE, NOW, 51]]);
+    expect(params).toEqual([[PROCESS, [ROLE], NOW, 51]]);
   });
 
   it('reatribuição para um perfil usa toApproverRoleId', async () => {
     const { client, params } = clientWith([holders(1)]);
     await lookup.resolve(client, event({ approverRoleId: null, toApproverRoleId: ROLE }));
-    expect(params[0]?.[1]).toBe(ROLE);
+    expect(params[0]?.[1]).toEqual([ROLE]);
+  });
+
+  it('US-133: os perfis das linhas ROLE PENDING (sem repetir); linhas WAITING e de outro tipo não contam', async () => {
+    const ROLE_2 = '0192f051-0000-7000-8000-0000000000b3';
+    const ROLE_WAITING = '0192f051-0000-7000-8000-0000000000b4';
+    const { client, params } = clientWith([holders(1)]);
+    await lookup.resolve(
+      client,
+      event({
+        approverRoleId: ROLE,
+        approvers: [
+          { approverType: 'ROLE', approverRoleId: ROLE, status: 'PENDING' },
+          { approverType: 'USER', approverUserId: HEAD, status: 'PENDING' },
+          { approverType: 'ROLE', approverRoleId: ROLE_2, status: 'PENDING' },
+          { approverType: 'ROLE', approverRoleId: ROLE, status: 'PENDING' },
+          { approverType: 'ROLE', approverRoleId: ROLE_WAITING, status: 'WAITING' },
+        ],
+      }),
+    );
+    expect(params[0]?.[1]).toEqual([ROLE, ROLE_2]);
+    const none = clientWith([]);
+    await expect(
+      lookup.resolve(
+        none.client,
+        event({
+          approverRoleId: ROLE,
+          approvers: [{ approverType: 'ROLE', approverRoleId: ROLE, status: 'WAITING' }],
+        }),
+      ),
+    ).resolves.toEqual([]);
+    expect(none.params).toEqual([]);
   });
 
   it('acima de 50 detentores: a unidade atual pelo titular e pelo substituto', async () => {

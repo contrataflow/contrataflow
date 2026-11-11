@@ -1664,6 +1664,19 @@ enum ApprovalStatus {
   @@map("approval_status")
 }
 
+/// entities.md MVP 2 §2 — `ApprovalApproverStatus` (US-133 · DEC-193).
+enum ApprovalApproverStatus {
+  WAITING
+  PENDING
+  APPROVED
+  RETURNED
+  REJECTED
+  SKIPPED
+  CANCELED
+
+  @@map("approval_approver_status")
+}
+
 /// entities.md §2 — `ApprovalDecision`.
 enum ApprovalDecision {
   APPROVE
@@ -1787,6 +1800,8 @@ model Approval {
   createdById          String?             @map("created_by_id") @db.Uuid
   updatedById          String?             @map("updated_by_id") @db.Uuid
   version              Int                 @default(1)
+  /// US-133 (M2-02): política copiada da etapa ou da `approvalPolicy` na solicitação.
+  decisionPolicy       ApprovalDecisionPolicy @default(ANY) @map("decision_policy")
 
   @@unique([tenantId, id], map: "approvals_tenant_id_id_key")
   // Parciais na migração (`WHERE status = 'PENDING'`).
@@ -1798,6 +1813,46 @@ model Approval {
   @@index([tenantId, processId, createdAt(sort: Desc)], map: "approvals_process_idx")
   @@index([tenantId, decidedById, decidedAt(sort: Desc)], map: "approvals_decided_by_idx")
   @@map("approvals")
+}
+
+/// entities.md MVP 2 §4.6 `ApprovalApprover` (US-133 · DEC-193 · M2-02): uma linha por aprovador da
+/// `Approval`, fonte de verdade de quem decide; as colunas de aprovador da `Approval` espelham a
+/// linha 1 (`ANY`/`ALL`) ou a corrente (`SEQUENTIAL`) na fase expand.
+model ApprovalApprover {
+  id                   String                 @id @db.Uuid
+  tenantId             String                 @map("tenant_id") @db.Uuid
+  approvalId           String                 @map("approval_id") @db.Uuid
+  sequence             Int                    @db.SmallInt
+  approverType         ApproverType           @map("approver_type")
+  approverUserId       String?                @map("approver_user_id") @db.Uuid
+  approverRoleId       String?                @map("approver_role_id") @db.Uuid
+  approverDepartmentId String?                @map("approver_department_id") @db.Uuid
+  allowDeputy          Boolean                @map("allow_deputy")
+  status               ApprovalApproverStatus
+  activatedAt          DateTime?              @map("activated_at") @db.Timestamptz(6)
+  dueAt                DateTime?              @map("due_at") @db.Timestamptz(6)
+  decision             ApprovalDecision?
+  decidedById          String?                @map("decided_by_id") @db.Uuid
+  decidedAt            DateTime?              @map("decided_at") @db.Timestamptz(6)
+  decisionComment      String?                @map("decision_comment")
+  decidedAsDeputy      Boolean                @default(false) @map("decided_as_deputy")
+  reassignedFromId     String?                @map("reassigned_from_id") @db.Uuid
+  skippedReason        String?                @map("skipped_reason") @db.VarChar(40)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?                @map("created_by_id") @db.Uuid
+  updatedById          String?                @map("updated_by_id") @db.Uuid
+  version              Int                    @default(1)
+
+  @@unique([tenantId, id], map: "approval_approvers_tenant_id_id_key")
+  // Único e parcial na migração (`WHERE status <> 'CANCELED'`).
+  @@index([tenantId, approvalId, sequence], map: "approval_approvers_sequence_key")
+  @@index([tenantId, approvalId], map: "approval_approvers_approval_idx")
+  // Parciais na migração (`WHERE status = 'PENDING'`) — caixa de tarefas (US-136).
+  @@index([tenantId, approverUserId], map: "approval_approvers_pending_user_idx")
+  @@index([tenantId, approverDepartmentId], map: "approval_approvers_pending_department_idx")
+  @@index([tenantId, approverRoleId], map: "approval_approvers_pending_role_idx")
+  @@map("approval_approvers")
 }
 
 /// entities.md §4.6 `ApprovalDocument`: documentos cobertos pela aprovação e a versão exata analisada.

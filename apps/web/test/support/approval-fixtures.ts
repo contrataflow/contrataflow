@@ -69,6 +69,28 @@ export function approvalDto(extra: Partial<ApprovalDto> = {}): ApprovalDto {
     decidedAt: null,
     decisionComment: null,
     decidedAsDeputy: false,
+    // US-133 (aditivo): ANY com a linha única do MVP 1.
+    decisionPolicy: 'ANY',
+    approvers: [
+      {
+        id: ID(1150),
+        sequence: 1,
+        status: 'PENDING',
+        approverType: 'USER',
+        userId: CARLA.id,
+        roleId: null,
+        departmentId: null,
+        allowDeputy: false,
+        label: CARLA.name,
+        activatedAt: '2026-10-14T15:00:00.000Z',
+        dueAt: null,
+        decision: null,
+        decidedBy: null,
+        decidedAt: null,
+        decidedAsDeputy: false,
+        skippedReason: null,
+      },
+    ],
     documents: [
       {
         documentId: DOC_ETP,

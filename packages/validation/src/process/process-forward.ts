@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 import { PROCESS_STATUSES } from './process-actions.js';
 import { processSchema } from './process.js';
-import { DOCUMENT_STATUSES } from '../document/document-type.js';
+import { APPROVAL_APPROVER_STATUSES, APPROVAL_LINES_MAX } from '../approval/approval-approvers.js';
+import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
+import { APPROVER_TYPES, DOCUMENT_STATUSES } from '../document/document-type.js';
 
 /*
  * Encaminhamento do processo (US-047 · PRC-19 · api/02-processes.md): o corpo de
@@ -261,12 +263,38 @@ export const movementMetadataSchema = z
   .meta({ id: 'MovementMetadata' });
 export type MovementMetadata = z.infer<typeof movementMetadataSchema>;
 
+/** Linha criada na solicitação (US-133): ordem, estado inicial, tipo e rótulo do aprovador. */
+export const openedApprovalLineSchema = z
+  .object({
+    id: z.uuid(),
+    sequence: z.int().min(1).max(APPROVAL_LINES_MAX),
+    status: z.enum(APPROVAL_APPROVER_STATUSES),
+    approverType: z.enum(APPROVER_TYPES),
+    label: z.string(),
+  })
+  .meta({ id: 'OpenedApprovalLine' });
+
+/** Aprovação aberta pela ação de origem (PRC-19 — US-051/US-133). */
+export const openedApprovalSchema = z
+  .object({
+    id: z.uuid(),
+    approverLabel: z.string(),
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
+    approvers: z.array(openedApprovalLineSchema).min(1),
+  })
+  .meta({ id: 'OpenedApproval' });
+export type OpenedApprovalDto = z.infer<typeof openedApprovalSchema>;
+
 /** PRC-19 — `data` da resposta: o processo atualizado, a tramitação e a aprovação aberta. */
 export const forwardedProcessSchema = processSchema
   .extend({
     movement: z.object({ id: z.uuid(), sequence: z.int().min(1) }),
-    /** Aprovação aberta pelo destino `APPROVAL` (US-051); ausente nos demais destinos. */
-    approval: z.object({ id: z.uuid(), approverLabel: z.string() }).optional(),
+    /**
+     * Aprovação aberta pelo destino `APPROVAL` (US-051); ausente nos demais destinos. US-133
+     * (aditivo): a política e as linhas criadas; `approverLabel` é o rótulo composto pela política
+     * ("A ou B", "A e B", "A, depois B" — RN-APV-28).
+     */
+    approval: openedApprovalSchema.optional(),
     /** Autuação no 1º encaminhamento (FA-07): o código atribuído agora. */
     numberAssigned: z.boolean(),
     statusFrom: z.enum(PROCESS_STATUSES),

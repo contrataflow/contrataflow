@@ -158,7 +158,20 @@ function mockApi(options: ApiOptions = {}) {
             data: {
               ...processDto({ status: 'AWAITING_APPROVAL', version: 2 }),
               movement: { id: ID(990), sequence: 2 },
-              approval: { id: ID(991), approverLabel: APPROVER },
+              approval: {
+                id: ID(991),
+                approverLabel: APPROVER,
+                decisionPolicy: 'ANY',
+                approvers: [
+                  {
+                    id: ID(992),
+                    sequence: 1,
+                    status: 'PENDING',
+                    approverType: 'DEPARTMENT_HEAD',
+                    label: APPROVER,
+                  },
+                ],
+              },
               numberAssigned: false,
               statusFrom: 'DRAFT',
             } satisfies ForwardedProcessDto,

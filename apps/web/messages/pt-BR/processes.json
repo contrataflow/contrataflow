@@ -555,6 +555,8 @@
       "completeDocument": "Complete o {document} antes de enviar.",
       "openDocument": "Abrir documento",
       "approverUnresolved": "Não há aprovador configurado para esta etapa. Fale com o administrador do órgão.",
+      "approverDuplicated": "A mesma pessoa aparece em duas linhas de aprovação desta etapa.",
+      "approverSelfApproval": "Um aprovador desta etapa é autor de um dos documentos e não tem substituto.",
       "idempotencyReused": "Esta solicitação já foi enviada com outros dados.",
       "inProgress": "Estamos concluindo o encaminhamento.",
       "unavailable": "Não foi possível encaminhar agora. Tente novamente em instantes.",

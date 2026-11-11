@@ -215,7 +215,7 @@ participants-expire.ts`, tarefa do `tenant-housekeeping`): revoga, `ProcessAcces
 ACKNOWLEDGED`) → comentário → unidade (`DEPARTMENT_REQUIRED`, unidade inválida = 422, unidade
   configurada inativa = `TRANSITION_NOT_AVAILABLE`) e responsável (`ASSIGNEE_NOT_ELIGIBLE`; candidato
   da política inelegível = fila) → prazo (SLA pelo calendário; sobrescrita) → documentos (padrão =
-  alterados na passagem) → destino `APPROVAL`: aprovador (`ApprovalFacade.resolveStageApproverIn`) e
+  alterados na passagem) → destino `APPROVAL`: política e linhas (`ApprovalFacade.resolveStageApprovalIn` — US-133) e
   submissão dos cobertos (`DocumentFacade.enterApprovalStageIn`) → número (autuação, por último) →
   `StageTransitionService` → `ApprovalFacade.requestForStageIn` → `process.number_assign`/
   `ProcessNumberAssigned` → `process.forward`. Regras puras em `domain/process-forward.ts`.

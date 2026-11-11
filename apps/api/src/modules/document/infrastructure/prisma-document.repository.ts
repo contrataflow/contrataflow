@@ -324,6 +324,28 @@ export class PrismaDocumentRepository implements DocumentRepository {
     return row === null ? null : toVersion(row);
   }
 
+  async authorsOf(
+    tx: TenantTx,
+    documentIds: readonly string[],
+    versionIds: readonly string[],
+  ): Promise<string[]> {
+    const documents =
+      documentIds.length === 0
+        ? []
+        : await tx.document.findMany({
+            where: { id: { in: [...documentIds] } },
+            select: { createdById: true },
+          });
+    const versions =
+      versionIds.length === 0
+        ? []
+        : await tx.documentVersion.findMany({
+            where: { id: { in: [...versionIds] } },
+            select: { createdById: true },
+          });
+    return [...new Set([...documents, ...versions].map((row) => row.createdById))];
+  }
+
   countByType(tx: TenantTx, documentTypeId: string): Promise<number> {
     return tx.document.count({ where: { documentTypeId, deletedAt: null } });
   }

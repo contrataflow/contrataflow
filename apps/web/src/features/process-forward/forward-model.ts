@@ -541,7 +541,15 @@ export type ForwardProblem =
   | { readonly kind: 'dueNotAllowed' }
   | { readonly kind: 'assigneeNotEligible' }
   | { readonly kind: 'documents'; readonly items: readonly IncompleteDocument[] }
-  | { readonly kind: 'approver'; readonly detail: string | null }
+  | {
+      readonly kind: 'approver';
+      readonly detail: string | null;
+      /**
+       * US-133: a recusa da solicitação por linha — sem aprovador (V-02), pessoa repetida (V-04) ou
+       * autor sem substituto (V-03). Ausente = `APPROVER_UNRESOLVED` (US-051).
+       */
+      readonly reason?: 'APPROVER_DUPLICATED' | 'SELF_APPROVAL_FORBIDDEN';
+    }
   | { readonly kind: 'idempotencyReused' }
   | { readonly kind: 'inProgress' }
   | { readonly kind: 'unavailable'; readonly correlationId: string }
@@ -592,6 +600,14 @@ export function describeForwardError(error: unknown): ForwardProblem {
   if ((status === 412 && code === 'VERSION_CONFLICT') || status === 428) {
     return { kind: 'versionConflict' };
   }
+  // US-133 (V-03): a linha cujo aprovador é autor de documento coberto e não tem substituto.
+  if (status === 403 && code === 'SELF_APPROVAL_FORBIDDEN') {
+    return {
+      kind: 'approver',
+      detail: error.problem?.detail ?? null,
+      reason: 'SELF_APPROVAL_FORBIDDEN',
+    };
+  }
   if (status === 403) return { kind: 'custody' };
   if (status === 404) return { kind: 'notFound' };
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') {
@@ -628,6 +644,13 @@ export function describeForwardError(error: unknown): ForwardProblem {
     if (code === 'APPROVER_UNRESOLVED') {
       const detail = error.problem?.detail ?? null;
       return { kind: 'approver', detail: detail === code ? null : detail };
+    }
+    if (code === 'APPROVER_DUPLICATED') {
+      return {
+        kind: 'approver',
+        detail: error.problem?.detail ?? null,
+        reason: 'APPROVER_DUPLICATED',
+      };
     }
     if (code === 'IDEMPOTENCY_KEY_REUSED') return { kind: 'idempotencyReused' };
     if (code === 'VALIDATION_ERROR') {

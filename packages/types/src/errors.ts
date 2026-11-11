@@ -36,6 +36,8 @@ export const ERROR_CODES = [
   'APPROVER_NOT_ELIGIBLE',
   // US-132: política de aprovação do tipo de documento inválida (api.md MVP 2 §2.2 · RN-APV-11).
   'DOCUMENT_APPROVAL_POLICY_INVALID',
+  // US-133: a mesma pessoa resolvida em duas linhas da aprovação (api.md MVP 2 §2.2 · RN-APV-21).
+  'APPROVER_DUPLICATED',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',

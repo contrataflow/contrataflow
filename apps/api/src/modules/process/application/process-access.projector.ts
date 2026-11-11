@@ -34,8 +34,10 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * novo responsável (RN-TRAM-17); `process.assigned` `CLAIM` (US-049) ou `MANUAL` (US-050) →
  * `RESPONSIBLE` do novo responsável; `approval.requested` (US-051) → `APPROVER` para o aprovador designado e, com
  * `allowDeputy`, o substituto da unidade (RN-TRAM-53 — o perfil `ROLE` decide pela unidade, que já
- * tem o `CURRENT`); `approval.reassigned` (US-053 · RN-TRAM-70) → revoga os `APPROVER` da aprovação
- * e concede ao novo aprovador (e ao substituto, com `allowDeputy`).
+ * tem o `CURRENT`); US-133 (RN-APV-25): com `approvers[]`, um `APPROVER` por aprovador de linha —
+ * inclusive `WAITING` — com `sourceId` = id da linha; `approval.reassigned` (US-053 · RN-TRAM-70)
+ * → revoga os `APPROVER` da aprovação (e da linha redirecionada) e concede ao novo aprovador (e ao
+ * substituto, com `allowDeputy`).
  */
 @Injectable()
 export class ProcessAccessProjector implements SyncEventHandler {
@@ -110,7 +112,24 @@ export class ProcessAccessProjector implements SyncEventHandler {
       case ApprovalRequested.eventType: {
         const payload = ApprovalRequested.payloadSchema.parse(event.payload);
         if (event.processId === null) return;
-        await this.grantApprover(tx, event.processId, payload, at);
+        if (payload.approvers === undefined) {
+          // Evento do MVP 1 ainda no outbox: o aprovador único, origem = a aprovação.
+          await this.grantApprover(tx, event.processId, payload, at);
+          return;
+        }
+        for (const line of payload.approvers) {
+          await this.grantApprover(
+            tx,
+            event.processId,
+            {
+              approvalId: line.approvalApproverId,
+              approverUserId: line.approverUserId,
+              approverDepartmentId: line.approverDepartmentId,
+              allowDeputy: line.allowDeputy,
+            },
+            at,
+          );
+        }
         return;
       }
       case ApprovalReassigned.eventType: {
@@ -118,12 +137,17 @@ export class ProcessAccessProjector implements SyncEventHandler {
         // desta aprovação; o novo aprovador ganha.
         const payload = ApprovalReassigned.payloadSchema.parse(event.payload);
         if (event.processId === null) return;
-        await this.processes.revokeApproverAccess(tx, payload.approvalId, at);
+        const lineId = payload.approvalApproverId ?? null;
+        await this.processes.revokeApproverAccess(
+          tx,
+          lineId === null ? [payload.approvalId] : [payload.approvalId, lineId],
+          at,
+        );
         await this.grantApprover(
           tx,
           event.processId,
           {
-            approvalId: payload.approvalId,
+            approvalId: lineId ?? payload.approvalId,
             approverUserId: payload.toApproverUserId,
             approverDepartmentId: payload.toApproverDepartmentId,
             allowDeputy: payload.allowDeputy,
@@ -139,7 +163,8 @@ export class ProcessAccessProjector implements SyncEventHandler {
 
   /**
    * RN-TRAM-53: o aprovador designado e, com `allowDeputy`, o substituto da unidade (lido no mesmo
-   * `tx` — RLS do tenant). `ROLE` decide pela unidade, que já tem o `CURRENT`.
+   * `tx` — RLS do tenant). `ROLE` decide pela unidade, que já tem o `CURRENT`. `approvalId` é a
+   * origem da concessão (`sourceId`): a aprovação (MVP 1) ou a linha (US-133).
    */
   private async grantApprover(
     tx: TenantTx,

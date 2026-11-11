@@ -767,9 +767,10 @@ export class PrismaProcessRepository implements ProcessRepository {
     );
   }
 
-  async revokeApproverAccess(tx: TenantTx, approvalId: string, at: Date): Promise<void> {
+  async revokeApproverAccess(tx: TenantTx, sourceIds: readonly string[], at: Date): Promise<void> {
+    if (sourceIds.length === 0) return;
     await tx.processAccess.updateMany({
-      where: { reason: 'APPROVER', sourceId: approvalId, revokedAt: null },
+      where: { reason: 'APPROVER', sourceId: { in: [...sourceIds] }, revokedAt: null },
       data: { revokedAt: at },
     });
   }

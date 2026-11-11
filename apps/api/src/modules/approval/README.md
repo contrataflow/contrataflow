@@ -8,7 +8,7 @@ Sem comando nem transação própria: roda no `tx` da ação de origem e qualque
 
 - **Disparo A — etapa** (`subjectType = PROCESS_STAGE`): o encaminhamento (PRC-19, US-047) entra
   numa etapa `APPROVAL`. Pela `ApprovalFacade`: `previewStageApproverIn` (PRC-08 `approverPreview`),
-  `resolveStageApproverIn` (ANTES de qualquer escrita) e `requestForStageIn` (depois da nova
+  `resolveStageApprovalIn` (US-133; ANTES de qualquer escrita) e `requestForStageIn` (depois da nova
   passagem — FK). A submissão dos documentos cobertos (`DRAFT`/`RETURNED` → `IN_REVIEW`, versão
   `SUBMISSION`; `FINALIZED`/`APPROVED` só ganham `pendingApprovalId`) é de quem encaminha
   (`DocumentFacade.enterApprovalStageIn` — `document` está no mesmo nível).
@@ -41,6 +41,42 @@ registrada no `timeline`) e `ProcessAccess` `APPROVER` do aprovador e, com `allo
 substituto da unidade (`ProcessAccessProjector`). No worker: `APPROVAL_REQUESTED` obrigatória em
 app — `ROLE_HOLDERS` (`RoleHoldersLookup`) para perfil, até 50; acima, titular e substituto da
 unidade atual.
+
+## Aprovação com múltiplos aprovadores — solicitação (US-133)
+
+DEC-193: toda `Approval` tem `decisionPolicy` (`ANY`/`ALL`/`SEQUENTIAL`) e uma linha
+`ApprovalApprover` por aprovador (`approval_approvers`, migração `20261112090000_approval_approvers`;
+backfill M2-03 em `20261112091000_approval_approvers_backfill`).
+
+- **Domínio puro:** `domain/approval-lines.ts` — `approvalConfigOf` (cópia da etapa do snapshot ou
+  da `approvalPolicy`; sem lista = uma linha do aprovador único; V-06/V-07 →
+  `ApprovalConfigInvalidError`), `guardSelfApproval` (`SelfApprovalGuard` — RN-APV-20: só em
+  `ALL`/`SEQUENTIAL` ou mais de uma linha; titular autor → substituto ativo, `allowDeputy = false`;
+  senão `SelfApprovalAtRequestError`), `assertDistinctApprovers` (RN-APV-21, `ROLE` fora),
+  `openApprovalLines` (estado inicial — RN-APV-18), `mirroredLineOf`/`mirrorOf` (espelho nas
+  colunas da `Approval` — RN-APV-24), `backfillLineOf` (o mesmo mapeamento da M2-03) e a
+  sincronização provisória com as ações do MVP 1 (`linesAfterDecision`, `linesAfterCancellation`,
+  `lineAfterReassignment`) — substituídas pela US-134/US-135.
+- **Aplicação:** `ApprovalRequestService.plan` (configuração + `ApproverResolver.resolveLines`, em
+  lote: uma leitura por unidade, uma dos vínculos, uma por perfil; 422 com `meta.sequence`) ANTES
+  das escritas; `requestForStageEntry`/`requestForDocumentSubmission` aplicam segregação e pessoa
+  única (403 `SELF_APPROVAL_FORBIDDEN`/422 `APPROVER_DUPLICATED`, desfazem a origem), gravam
+  aprovação + linhas + cobertura, `approval.request` (`decisionPolicy`, `approversCount`, `lines[]`
+  com `selfApprovalAvoided` — sem nomes) e UM `ApprovalRequested` com `decisionPolicy` e
+  `approvers[]`. Devolvem o resumo `OpenedApproval` (PRC-19 `approval`; `approverLabel` composto —
+  `composeApproverLabel`). Autores dos cobertos: `DocumentFacade.coverageAuthorsIn` (leitura enxuta),
+  só lidos quando a segregação vale.
+- **Fachada:** `resolveStageApprovalIn` (substitui `resolveStageApproverIn`) e `requestForStageIn`
+  (agora com `plan` e `authorIds`); `ApprovalRepository.findLines`; `insert` recebe as linhas.
+- **Efeitos:** `ProcessAccessProjector` concede `APPROVER` por linha (inclusive `WAITING`) com
+  `sourceId` = id da linha; o redirecionamento revoga pela aprovação e pela linha. Timeline
+  `APPROVAL_REQUESTED` com o rótulo composto. Worker: só linhas `PENDING` são avisadas (titular +
+  substituto, usuário, detentores de cada perfil — `RoleHoldersLookup` aceita vários perfis).
+- **APV-02:** `decisionPolicy` e `approvers[]` (aditivos) pelo `ApprovalPresenter`.
+- **Testes:** `domain/approval-lines.spec.ts`, `application/approval-request.service.spec.ts`,
+  `process/presentation/multi-approver-request.routes.spec.ts` (8 categorias, memória — sem
+  rollback) e `test/tenant-leak/approval-approvers.spec.ts` (PostgreSQL: rollback de pessoa
+  repetida/autor/falha na 2ª linha, RLS, índice único, corrida, backfill de 2.350).
 
 ## Decidir aprovação (US-052)
 

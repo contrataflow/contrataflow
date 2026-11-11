@@ -34,6 +34,11 @@ export interface DocumentApprovalRequest {
   readonly organizationId: string;
   readonly requestingSecretariatId: string;
   readonly requestingDepartmentId: string;
+  /**
+   * US-133 (RN-APV-20): autores da versão analisada — o criador do documento e quem submeteu
+   * (segregação por linha em `ALL`/`SEQUENTIAL`). Ausente = só quem submeteu.
+   */
+  readonly authorIds?: readonly string[];
 }
 
 export interface DocumentApprovalRequester {

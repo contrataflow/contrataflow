@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
+import {
+  APPROVAL_APPROVER_STATUSES,
+  APPROVAL_LINES_MAX,
+  APPROVAL_SKIPPED_REASONS,
+} from './approval-approvers.js';
 import { APPROVAL_SUBJECT_TYPES } from './events.js';
 import { isoDateTimeSchema } from '../common/dates.js';
+import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
 import { APPROVER_TYPES, DOCUMENT_STATUSES } from '../document/document-type.js';
 import {
   APPROVAL_STATUSES,
@@ -139,6 +145,35 @@ export const approvalDocumentSchema = z
   .meta({ id: 'ApprovalDocument' });
 export type ApprovalDocumentDto = z.infer<typeof approvalDocumentSchema>;
 
+/**
+ * Linha `ApprovalApprover` (US-133 · DEC-193) como APV-02 a devolve: ordem, estado, aprovador
+ * resolvido com o rótulo e a decisão da linha, quando houver.
+ */
+export const approvalApproverSchema = z
+  .object({
+    id: z.uuid(),
+    sequence: z.int().min(1).max(APPROVAL_LINES_MAX),
+    status: z.enum(APPROVAL_APPROVER_STATUSES),
+    approverType: z.enum(APPROVER_TYPES),
+    userId: z.uuid().nullable(),
+    roleId: z.uuid().nullable(),
+    departmentId: z.uuid().nullable(),
+    allowDeputy: z.boolean(),
+    /** "Marta Ribeiro (titular da Secretaria de Obras)", o perfil ou a pessoa. */
+    label: z.string(),
+    /** Quando passou a `PENDING` (`null` em `WAITING`). */
+    activatedAt: isoDateTimeSchema.nullable(),
+    /** Prazo próprio da linha (SLA — EP-030); `null` = vale o `dueAt` da aprovação. */
+    dueAt: isoDateTimeSchema.nullable(),
+    decision: z.enum(APPROVAL_DECISIONS).nullable(),
+    decidedBy: personSchema.nullable(),
+    decidedAt: isoDateTimeSchema.nullable(),
+    decidedAsDeputy: z.boolean(),
+    skippedReason: z.enum(APPROVAL_SKIPPED_REASONS).nullable(),
+  })
+  .meta({ id: 'ApprovalApprover' });
+export type ApprovalApproverDto = z.infer<typeof approvalApproverSchema>;
+
 /** `Approval` (entities.md §4.6) como APV-02/APV-03 a devolvem. */
 export const approvalSchema = z
   .object({
@@ -168,6 +203,10 @@ export const approvalSchema = z
     decisionComment: z.string().nullable(),
     decidedAsDeputy: z.boolean(),
     documents: z.array(approvalDocumentSchema),
+    /** US-133 (aditivo): a política copiada na solicitação (`ANY` nas aprovações do MVP 1). */
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
+    /** US-133 (aditivo): as linhas em ordem de `sequence` (uma nas aprovações do MVP 1). */
+    approvers: z.array(approvalApproverSchema),
     version: z.int().min(1),
   })
   .meta({ id: 'Approval' });

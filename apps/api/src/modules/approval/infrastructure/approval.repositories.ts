@@ -1,10 +1,12 @@
-import type { ApprovalCancelReason } from '@contrataflow/validation';
+import { APPROVAL_SKIPPED_REASONS } from '@contrataflow/validation';
+import type { ApprovalCancelReason, ApprovalSkippedReason } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
 import { runSimulatedTransaction } from '#shared/database/active-transaction.js';
 import { TenantTransaction } from '#shared/database/database.module.js';
 import { isUniqueViolation } from '#shared/database/errors.js';
+import { newId } from '#shared/database/ids.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { PendingApprovalExistsError } from '../application/ports.js';
@@ -14,12 +16,87 @@ import type {
   DocumentDecisionRow,
   ApprovalTransactions,
   ApprovalWithCoverage,
+  ReassignmentRecord,
 } from '../application/ports.js';
 import { recordOf } from '../domain/approval-decision.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
+import {
+  backfillLineOf,
+  lineAfterReassignment,
+  linesAfterCancellation,
+  linesAfterDecision,
+} from '../domain/approval-lines.js';
+import type { ApprovalApprover } from '../domain/approval-lines.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
 type ApprovalRow = NonNullable<Awaited<ReturnType<TenantTx['approval']['findFirst']>>>;
+type ApprovalApproverRow = NonNullable<
+  Awaited<ReturnType<TenantTx['approvalApprover']['findFirst']>>
+>;
+
+const SKIPPED_REASONS: ReadonlyMap<string, ApprovalSkippedReason> = new Map(
+  APPROVAL_SKIPPED_REASONS.map((reason) => [reason, reason]),
+);
+
+const skippedReasonOf = (value: string | null): ApprovalSkippedReason | null =>
+  value === null ? null : (SKIPPED_REASONS.get(value) ?? null);
+
+function lineOf(row: ApprovalApproverRow): ApprovalApprover {
+  return {
+    id: row.id,
+    approvalId: row.approvalId,
+    sequence: row.sequence,
+    approverType: row.approverType,
+    approverUserId: row.approverUserId,
+    approverRoleId: row.approverRoleId,
+    approverDepartmentId: row.approverDepartmentId,
+    allowDeputy: row.allowDeputy,
+    status: row.status,
+    activatedAt: row.activatedAt,
+    dueAt: row.dueAt,
+    decision: row.decision,
+    decidedById: row.decidedById,
+    decidedAt: row.decidedAt,
+    decisionComment: row.decisionComment,
+    decidedAsDeputy: row.decidedAsDeputy,
+    reassignedFromId: row.reassignedFromId,
+    skippedReason: skippedReasonOf(row.skippedReason),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    createdById: row.createdById,
+    version: row.version,
+  };
+}
+
+/** A linha como o Prisma a grava (`tenantId` vem da aprovação; o id é da aplicação). */
+function lineData(tenantId: string, line: ApprovalApprover) {
+  return {
+    id: line.id,
+    tenantId,
+    approvalId: line.approvalId,
+    sequence: line.sequence,
+    approverType: line.approverType,
+    approverUserId: line.approverUserId,
+    approverRoleId: line.approverRoleId,
+    approverDepartmentId: line.approverDepartmentId,
+    allowDeputy: line.allowDeputy,
+    status: line.status,
+    activatedAt: line.activatedAt,
+    dueAt: line.dueAt,
+    decision: line.decision,
+    decidedById: line.decidedById,
+    decidedAt: line.decidedAt,
+    decisionComment: line.decisionComment,
+    decidedAsDeputy: line.decidedAsDeputy,
+    reassignedFromId: line.reassignedFromId,
+    skippedReason: line.skippedReason,
+    createdAt: line.createdAt,
+    updatedAt: line.updatedAt,
+    createdById: line.createdById,
+    updatedById: line.createdById,
+    version: line.version,
+  };
+}
 
 function approvalOf(row: ApprovalRow): ApprovalRecord {
   return {
@@ -52,6 +129,7 @@ function approvalOf(row: ApprovalRow): ApprovalRecord {
     cancellationReason: row.cancellationReason,
     updatedAt: row.updatedAt,
     version: row.version,
+    decisionPolicy: row.decisionPolicy,
   };
 }
 
@@ -92,6 +170,7 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     tx: TenantTx,
     approval: Approval,
     coverage: readonly ApprovalCoverage[],
+    lines: readonly ApprovalApprover[],
   ): Promise<void> {
     try {
       await tx.approval.create({
@@ -113,6 +192,7 @@ export class PrismaApprovalRepository implements ApprovalRepository {
           allowDeputy: approval.allowDeputy,
           dueAt: approval.dueAt,
           status: approval.status,
+          decisionPolicy: approval.decisionPolicy ?? 'ANY',
           createdAt: approval.createdAt,
           updatedAt: approval.createdAt,
           createdById: approval.createdById,
@@ -122,6 +202,12 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     } catch (error) {
       if (isUniqueViolation(error)) throw new PendingApprovalExistsError(subjectIdOf(approval));
       throw error;
+    }
+    // US-133 (RN-APV-17/29): as linhas no mesmo `tx` — falha em qualquer uma desfaz a origem.
+    if (lines.length > 0) {
+      await tx.approvalApprover.createMany({
+        data: lines.map((line) => lineData(approval.tenantId, line)),
+      });
     }
     if (coverage.length === 0) return;
     await tx.approvalDocument.createMany({
@@ -149,7 +235,54 @@ export class PrismaApprovalRepository implements ApprovalRepository {
       select: { id: true, documentId: true, documentVersionId: true },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
-    return { approval: approvalOf(row), coverage };
+    return { approval: approvalOf(row), coverage, lines: await this.linesOf(tx, approvalId) };
+  }
+
+  findLines(tx: TenantTx, approvalId: string): Promise<ApprovalApprover[]> {
+    return this.linesOf(tx, approvalId);
+  }
+
+  private async linesOf(tx: TenantTx, approvalId: string): Promise<ApprovalApprover[]> {
+    const rows = await tx.approvalApprover.findMany({
+      where: { approvalId },
+      orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map(lineOf);
+  }
+
+  /** Grava as linhas que mudaram (cada uma na versão lida — a trava da aprovação serializa). */
+  private async saveChangedLines(
+    tx: TenantTx,
+    before: readonly ApprovalApprover[],
+    after: readonly ApprovalApprover[],
+    userId: string | null,
+  ): Promise<void> {
+    const previous = new Map(before.map((line) => [line.id, line]));
+    for (const line of after) {
+      const old = previous.get(line.id);
+      if (old === undefined || old.version === line.version) continue;
+      await tx.approvalApprover.updateMany({
+        where: { id: line.id, version: old.version },
+        data: {
+          approverType: line.approverType,
+          approverUserId: line.approverUserId,
+          approverRoleId: line.approverRoleId,
+          approverDepartmentId: line.approverDepartmentId,
+          allowDeputy: line.allowDeputy,
+          status: line.status,
+          activatedAt: line.activatedAt,
+          decision: line.decision,
+          decidedById: line.decidedById,
+          decidedAt: line.decidedAt,
+          decisionComment: line.decisionComment,
+          decidedAsDeputy: line.decidedAsDeputy,
+          skippedReason: line.skippedReason,
+          updatedAt: line.updatedAt,
+          updatedById: userId,
+          version: line.version,
+        },
+      });
+    }
   }
 
   async lockForUpdate(tx: TenantTx, approvalId: string): Promise<ApprovalRecord | null> {
@@ -183,7 +316,10 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         version: decided.version,
       },
     });
-    return updated.count === 1;
+    if (updated.count !== 1) return false;
+    const lines = await this.linesOf(tx, decided.id);
+    await this.saveChangedLines(tx, lines, linesAfterDecision(lines, decided), decided.decidedById);
+    return true;
   }
 
   async recordWithdrawal(
@@ -203,7 +339,15 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         version: canceled.version,
       },
     });
-    return updated.count === 1;
+    if (updated.count !== 1) return false;
+    const lines = await this.linesOf(tx, canceled.id);
+    await this.saveChangedLines(
+      tx,
+      lines,
+      linesAfterCancellation(lines, canceled.updatedAt),
+      canceled.canceledById,
+    );
+    return true;
   }
 
   async recordReassignment(
@@ -211,7 +355,7 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     reassigned: ApprovalRecord,
     expectedVersion: number,
     userId: string,
-  ): Promise<boolean> {
+  ): Promise<ReassignmentRecord> {
     const updated = await tx.approval.updateMany({
       where: { id: reassigned.id, status: 'PENDING', version: expectedVersion },
       data: {
@@ -225,7 +369,11 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         version: reassigned.version,
       },
     });
-    return updated.count === 1;
+    if (updated.count !== 1) return { recorded: false, approvalApproverId: null };
+    const lines = await this.linesOf(tx, reassigned.id);
+    const line = lineAfterReassignment(reassigned.decisionPolicy ?? 'ANY', lines, reassigned);
+    if (line !== null) await this.saveChangedLines(tx, lines, [line], userId);
+    return { recorded: true, approvalApproverId: line?.id ?? null };
   }
 
   async updatePendingDueAt(
@@ -263,6 +411,17 @@ export class PrismaApprovalRepository implements ApprovalRepository {
         canceledAt: at,
         canceledById: userId,
         cancellationReason: reason,
+        updatedAt: at,
+        updatedById: userId,
+        version: { increment: 1 },
+      },
+    });
+    // US-133: as linhas não decididas das aprovações canceladas (`WITHDRAWN` — lacuna 3).
+    await tx.approvalApprover.updateMany({
+      where: { approvalId: { in: ids }, status: { in: ['PENDING', 'WAITING'] } },
+      data: {
+        status: 'CANCELED',
+        skippedReason: 'WITHDRAWN',
         updatedAt: at,
         updatedById: userId,
         version: { increment: 1 },
@@ -387,8 +546,14 @@ function asRecord(approval: Approval | ApprovalRecord): ApprovalRecord {
 export class InMemoryApprovalRepository implements ApprovalRepository {
   private readonly rows = new Map<string, ApprovalRecord>();
   private readonly coverage = new Map<string, readonly ApprovalCoverage[]>();
+  private readonly lines = new Map<string, readonly ApprovalApprover[]>();
 
-  insert(_tx: TenantTx, approval: Approval, coverage: readonly ApprovalCoverage[]): Promise<void> {
+  insert(
+    _tx: TenantTx,
+    approval: Approval,
+    coverage: readonly ApprovalCoverage[],
+    lines: readonly ApprovalApprover[],
+  ): Promise<void> {
     const pending = [...this.rows.values()].some(
       (row) =>
         row.tenantId === approval.tenantId &&
@@ -399,6 +564,10 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     if (pending) return Promise.reject(new PendingApprovalExistsError(subjectIdOf(approval)));
     this.rows.set(approval.id, recordOf(approval));
     this.coverage.set(approval.id, coverage);
+    this.lines.set(
+      approval.id,
+      [...lines].sort((a, b) => a.sequence - b.sequence),
+    );
     return Promise.resolve();
   }
 
@@ -406,11 +575,19 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     const tenantId = currentRequestContext()?.tenantId;
     const approval = this.rows.get(approvalId);
     if (approval === undefined || approval.tenantId !== tenantId) return Promise.resolve(null);
-    return Promise.resolve({ approval, coverage: this.coverage.get(approvalId) ?? [] });
+    return Promise.resolve({
+      approval,
+      coverage: this.coverage.get(approvalId) ?? [],
+      lines: this.linesOf(approvalId),
+    });
   }
 
   async lockForUpdate(tx: TenantTx, approvalId: string): Promise<ApprovalRecord | null> {
     return (await this.findById(tx, approvalId))?.approval ?? null;
+  }
+
+  async findLines(tx: TenantTx, approvalId: string): Promise<ApprovalApprover[]> {
+    return [...((await this.findById(tx, approvalId))?.lines ?? [])];
   }
 
   recordDecision(
@@ -429,6 +606,12 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
       return Promise.resolve(false);
     }
     this.rows.set(decided.id, decided);
+    const lines = this.linesOf(decided.id);
+    if (decided.status === 'CANCELED') {
+      this.lines.set(decided.id, linesAfterCancellation(lines, decided.updatedAt));
+    } else if (decided.status !== 'PENDING') {
+      this.lines.set(decided.id, linesAfterDecision(lines, decided));
+    }
     return Promise.resolve(true);
   }
 
@@ -440,12 +623,23 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     return this.recordDecision(tx, canceled, expectedVersion);
   }
 
-  recordReassignment(
+  async recordReassignment(
     tx: TenantTx,
     reassigned: ApprovalRecord,
     expectedVersion: number,
-  ): Promise<boolean> {
-    return this.recordDecision(tx, reassigned, expectedVersion);
+  ): Promise<ReassignmentRecord> {
+    const lines = this.linesOf(reassigned.id);
+    if (!(await this.recordDecision(tx, reassigned, expectedVersion))) {
+      return { recorded: false, approvalApproverId: null };
+    }
+    const line = lineAfterReassignment(reassigned.decisionPolicy ?? 'ANY', lines, reassigned);
+    if (line !== null) {
+      this.lines.set(
+        reassigned.id,
+        lines.map((candidate) => (candidate.id === line.id ? line : candidate)),
+      );
+    }
+    return { recorded: true, approvalApproverId: line?.id ?? null };
   }
 
   listPendingByProcess(_tx: TenantTx, processId: string): Promise<Approval[]> {
@@ -468,6 +662,7 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     for (const row of pending) {
       const record = asRecord(row);
       this.rows.set(row.id, { ...record, status: 'CANCELED', version: record.version + 1 });
+      this.lines.set(row.id, linesAfterCancellation(this.linesOf(row.id), record.updatedAt));
     }
     return pending.map((row) => ({
       approvalId: row.id,
@@ -551,10 +746,24 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     );
   }
 
-  /** Carga de teste: aprovação já aberta (com os documentos cobertos, quando houver). */
-  seed(approval: Approval | ApprovalRecord, coverage: readonly ApprovalCoverage[] = []): void {
-    this.rows.set(approval.id, asRecord(approval));
+  /**
+   * Carga de teste: aprovação já aberta (com os documentos cobertos, quando houver). Sem linhas,
+   * ganha a do backfill (M2-03 — `backfillLineOf`), como toda aprovação do MVP 1.
+   */
+  seed(
+    approval: Approval | ApprovalRecord,
+    coverage: readonly ApprovalCoverage[] = [],
+    lines?: readonly ApprovalApprover[],
+  ): void {
+    const record = asRecord(approval);
+    this.rows.set(approval.id, record);
     if (coverage.length > 0) this.coverage.set(approval.id, coverage);
+    this.lines.set(approval.id, lines ?? [backfillLineOf(record, newId())]);
+  }
+
+  /** Inspeção de testes: as linhas da aprovação em ordem de `sequence`. */
+  linesOf(approvalId: string): readonly ApprovalApprover[] {
+    return [...(this.lines.get(approvalId) ?? [])].sort((a, b) => a.sequence - b.sequence);
   }
 
   /** Inspeção de testes: aprovações do tenant do contexto (ou todas, fora de contexto). */

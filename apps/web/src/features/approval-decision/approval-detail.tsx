@@ -14,6 +14,7 @@ import { useShellSession } from '@/lib/session/session-context';
 
 import { ApprovalDecisionPanel } from './approval-decision-panel';
 import { useApproval } from './approval-decision.api';
+import { ApprovalLinesList } from './approval-lines-list';
 import { ApprovalPendingActions } from './approval-pending-actions';
 import type { PendingActionNotice } from './approval-pending-actions';
 import { ApprovalStatusBadge } from './approval-status-badge';
@@ -34,7 +35,8 @@ export interface ApprovalDetailProps {
  * decisão (Aprovar / Devolver / Indeferir). "Retirar"/"Redirecionar" (US-053) ficam no menu "Mais".
  * Sem `DECIDE` em `meta.allowedActions` o cartão não aparece: a tela explica por que a pessoa não
  * pode decidir, e a decisão registrada entra no histórico. Skeleton na carga; 404 e erro de carga
- * com "Tentar novamente"; 409/412 recarregam os dados.
+ * com "Tentar novamente"; 409/412 recarregam os dados. US-133: com política diferente de `ANY` ou
+ * mais de uma linha, a política e as linhas (`ApprovalLinesList`) antes dos documentos.
  */
 export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
   const t = useTranslations('approvals.detail');
@@ -138,6 +140,9 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
       }
       asideLabel={t('decisionAside')}
     >
+      {approval.decisionPolicy !== 'ANY' || approval.approvers.length > 1 ? (
+        <ApprovalLinesList policy={approval.decisionPolicy} approvers={approval.approvers} />
+      ) : null}
       <DocumentCoverageList processId={approval.process.id} documents={approval.documents} />
       <ApprovalHistory approval={approval} />
     </DetailPage>

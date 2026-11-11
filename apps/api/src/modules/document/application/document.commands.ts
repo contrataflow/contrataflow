@@ -506,6 +506,8 @@ export class SubmitDocumentCommand extends ConcludeDocumentCommand {
       organizationId: context.process.organizationId,
       requestingSecretariatId: context.process.requestingSecretariatId,
       requestingDepartmentId: context.process.requestingDepartmentId,
+      // US-133 (RN-TRAM-62): o criador do documento e o da versão analisada.
+      authorIds: [...new Set([document.createdById, version.createdById])],
     });
   }
 }

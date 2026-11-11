@@ -209,6 +209,22 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     );
   }
 
+  async authorsOf(
+    tx: TenantTx,
+    documentIds: readonly string[],
+    versionIds: readonly string[],
+  ): Promise<string[]> {
+    const authors = new Set<string>();
+    for (const id of documentIds) {
+      const document = await this.findById(tx, id);
+      if (document !== null) authors.add(document.createdById);
+    }
+    for (const version of this.versionsInTenant()) {
+      if (versionIds.includes(version.id)) authors.add(version.createdById);
+    }
+    return [...authors];
+  }
+
   countByType(_tx: TenantTx, documentTypeId: string): Promise<number> {
     return Promise.resolve(
       this.inTenant().filter(

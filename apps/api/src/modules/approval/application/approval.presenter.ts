@@ -1,20 +1,24 @@
-import type { ApprovalDto } from '@contrataflow/validation';
-import { Injectable } from '@nestjs/common';
+import type { ApprovalApproverDto, ApprovalDto } from '@contrataflow/validation';
+import { Inject, Injectable } from '@nestjs/common';
 
 import type { DecisionSubjectView } from '#shared/approval/approval-subject.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 
 import { ApproverResolver } from './approver-resolver.js';
+import { APPROVAL_REPOSITORY } from './ports.js';
+import type { ApprovalRepository } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
 
 /**
  * `Approval` de APV-02/APV-03 (US-052): os nomes de quem solicitou e decidiu, o rótulo do aprovador
- * (o mesmo da solicitação — US-051) e os documentos cobertos lidos pelo dono do sujeito.
+ * (o mesmo da solicitação — US-051) e os documentos cobertos lidos pelo dono do sujeito. US-133
+ * (aditivo): a política e as linhas (`approvers[]`) como estão no `tx` — sempre depois da escrita.
  */
 @Injectable()
 export class ApprovalPresenter {
   constructor(
+    @Inject(APPROVAL_REPOSITORY) private readonly approvals: ApprovalRepository,
     private readonly identity: IdentityFacade,
     private readonly resolver: ApproverResolver,
   ) {}
@@ -24,11 +28,35 @@ export class ApprovalPresenter {
     approval: ApprovalRecord,
     subject: DecisionSubjectView,
   ): Promise<ApprovalDto> {
-    const userIds = [approval.requestedById, approval.decidedById].filter(
-      (id): id is string => id !== null,
-    );
-    const names = await this.identity.userDisplayNames(tx, userIds);
+    const lines = await this.approvals.findLines(tx, approval.id);
+    const userIds = [
+      approval.requestedById,
+      approval.decidedById,
+      ...lines.map((line) => line.decidedById),
+    ].filter((id): id is string => id !== null);
+    const names = await this.identity.userDisplayNames(tx, [...new Set(userIds)]);
     const person = (id: string) => ({ id, name: names.get(id) ?? null });
+    const approvers: ApprovalApproverDto[] = [];
+    for (const line of lines) {
+      approvers.push({
+        id: line.id,
+        sequence: line.sequence,
+        status: line.status,
+        approverType: line.approverType,
+        userId: line.approverUserId,
+        roleId: line.approverRoleId,
+        departmentId: line.approverDepartmentId,
+        allowDeputy: line.allowDeputy,
+        label: await this.resolver.labelOf(tx, line),
+        activatedAt: line.activatedAt?.toISOString() ?? null,
+        dueAt: line.dueAt?.toISOString() ?? null,
+        decision: line.decision,
+        decidedBy: line.decidedById === null ? null : person(line.decidedById),
+        decidedAt: line.decidedAt?.toISOString() ?? null,
+        decidedAsDeputy: line.decidedAsDeputy,
+        skippedReason: line.skippedReason,
+      });
+    }
     return {
       id: approval.id,
       subjectType: approval.subjectType,
@@ -55,6 +83,8 @@ export class ApprovalPresenter {
       decisionComment: approval.decisionComment,
       decidedAsDeputy: approval.decidedAsDeputy,
       documents: [...subject.documents],
+      decisionPolicy: approval.decisionPolicy ?? 'ANY',
+      approvers,
       version: approval.version,
     };
   }

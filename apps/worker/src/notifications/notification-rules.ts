@@ -63,6 +63,25 @@ type Payload = Readonly<Record<string, unknown>>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Quem decide a linha (ou o aprovador único do MVP 1): pessoa, titular (+ substituto) ou perfil. */
+function approverRecipient(line: Payload): RecipientSpec {
+  switch (text(line, 'approverType')) {
+    case 'ROLE':
+      return { kind: 'LOOKUP', lookup: 'ROLE_HOLDERS' };
+    case 'DEPARTMENT_HEAD':
+      // Linha desviada do titular autor (RN-APV-20): `allowDeputy` falso e o substituto gravado.
+      return line.allowDeputy === false && id(line, 'approverUserId') !== null
+        ? { kind: 'USER', userId: id(line, 'approverUserId') }
+        : {
+            kind: 'DEPARTMENT_HEADS',
+            departmentId: id(line, 'approverDepartmentId'),
+            includeDeputy: line.allowDeputy === true,
+          };
+    default:
+      return { kind: 'USER', userId: id(line, 'approverUserId') };
+  }
+}
+
 function id(payload: Payload, key: string): string | null {
   const value = payload[key];
   return typeof value === 'string' && UUID.test(value) ? value : null;
@@ -195,19 +214,19 @@ const RULES: Readonly<Record<string, Rule>> = {
   },
   ApprovalRequested: (event) => {
     const { payload } = event;
-    const approverType = text(payload, 'approverType');
-    const recipients: RecipientSpec[] =
-      approverType === 'ROLE'
-        ? [{ kind: 'LOOKUP', lookup: 'ROLE_HOLDERS' }]
-        : approverType === 'DEPARTMENT_HEAD'
-          ? [
-              {
-                kind: 'DEPARTMENT_HEADS',
-                departmentId: id(payload, 'approverDepartmentId'),
-                includeDeputy: payload.allowDeputy === true,
-              },
-            ]
-          : [{ kind: 'USER', userId: id(payload, 'approverUserId') }];
+    // US-133 (RN-APV-27): com `approvers[]`, só as linhas `PENDING` (em `SEQUENTIAL`, a primeira);
+    // `WAITING` é avisada na ativação (US-134). Sem a lista (MVP 1), o aprovador único.
+    const lines = Array.isArray(payload.approvers)
+      ? payload.approvers
+          .filter((line): line is Payload => typeof line === 'object' && line !== null)
+          .filter((line) => line.status === 'PENDING')
+      : [payload];
+    const recipients: RecipientSpec[] = [];
+    for (const line of lines) {
+      const spec = approverRecipient(line);
+      if (spec.kind === 'LOOKUP' && recipients.some((known) => known.kind === 'LOOKUP')) continue;
+      recipients.push(spec);
+    }
     const approvalId = id(payload, 'approvalId');
     return plan('APPROVAL_REQUESTED', event, {
       recipients,

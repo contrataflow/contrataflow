@@ -534,7 +534,20 @@ describe('resumo (passo 9) e toast (passo 12)', () => {
         department: 'Departamento de Compras',
       },
     });
-    const approval = { id: ID(960), approverLabel: 'Carlos Lima' };
+    const approval = {
+      id: ID(960),
+      approverLabel: 'Carlos Lima',
+      decisionPolicy: 'ANY' as const,
+      approvers: [
+        {
+          id: ID(961),
+          sequence: 1,
+          status: 'PENDING' as const,
+          approverType: 'USER' as const,
+          label: 'Carlos Lima',
+        },
+      ],
+    };
     expect(forwardedToast(forwardedDto({ approval }))).toEqual({
       key: 'toast.approval',
       values: { approver: 'Carlos Lima' },
@@ -683,6 +696,16 @@ describe('erros da API (tabela "Casos de erro")', () => {
       kind: 'approver',
       detail: null,
     });
+    // US-133: recusas por linha (pessoa repetida — 422; autor sem substituto — 403, não custódia).
+    expect(describeForwardError(apiError(422, 'APPROVER_DUPLICATED'))).toMatchObject({
+      kind: 'approver',
+      reason: 'APPROVER_DUPLICATED',
+    });
+    expect(describeForwardError(apiError(403, 'SELF_APPROVAL_FORBIDDEN'))).toMatchObject({
+      kind: 'approver',
+      reason: 'SELF_APPROVAL_FORBIDDEN',
+    });
+    expect(describeForwardError(apiError(403, 'PERMISSION_DENIED')).kind).toBe('custody');
     expect(describeForwardError(apiError(422, 'IDEMPOTENCY_KEY_REUSED')).kind).toBe(
       'idempotencyReused',
     );

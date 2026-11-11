@@ -266,7 +266,7 @@ Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approv
 ### APV-02 — GET `/approvals/{id}` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
 - **US-125:** request — → response detalhe com `branchKey`, `branchLabel`, `siblings[]` · códigos 200, 403, 404
-- **US-133:** request — → response `200 { data: Approval }` com `decisionPolicy` e `approvers[]` (`id`, `sequence`, `status`, `approverType`, `label`, `activatedAt`, `dueAt`, …) · `ETag` · códigos 200, 403, 404
+- **US-133:** request — → response `200 { data: Approval }` com `decisionPolicy` e `approvers[]` (`id`, `sequence`, `status`, `approverType`, `userId`, `roleId`, `departmentId`, `allowDeputy`, `label`, `activatedAt`, `dueAt`, `decision`, `decidedBy`, `decidedAt`, `decidedAsDeputy`, `skippedReason`) · `ETag` · códigos 200, 403, 404. Aprovações do MVP 1 vêm com `ANY` e a linha do backfill
 - **US-134:** request — → response `200 { data: Approval }` com `decisionPolicy`, `approvers[]` (`id`, `sequence`, `status`, `label`, `decision?`, `decidedBy?`, `decidedAt?`, `decidedAsDeputy`, `version`) e `meta` (`myLine`, `allowedActions`, `decisionOptions[]` com `closesApproval`, `decisionBlocker`) · `ETag` · códigos 200, 403, 404
 - **US-136:** request path `id` → response `data` do MVP 1 + `decisionPolicy`, `approvers[]`; `meta` + `myApproverLineId`, `lineActions`, `waitingFor`; `decisionBlocker` + `LINE_NOT_PENDING`; `ETag` · códigos 200, 401, 403, 404, 429, 503
 - **US-137:** request path `id` → response `dueAt` preenchido; sem campo novo · códigos 200, 401, 403, 404, 429, 503
@@ -289,7 +289,7 @@ Contrato original: [mvp-01/api/14-tenant-administration.md](../../mvp-01/api/14-
 
 ### DOC-09 — POST `/documents/{id}/submit` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/03-documents.md](../../mvp-01/api/03-documents.md). Mudanças do MVP 2, todas aditivas:
-- **US-133:** request como na US-065 → response idem para aprovação avulsa · códigos 200, 403, 404, 409, 422, 503
+- **US-133:** request como na US-065 → response `200 { data: Document }` com `pendingApprovalId` (a política e as linhas da avulsa ficam no APV-02; o resumo `approval { … }` nesta resposta fica pendente) · erros por linha como no PRC-19 · códigos 200, 403, 404, 409, 422, 503
 - **US-137:** request `{ acknowledgedWarnings?, expectedDraftRevision? }` + `If-Match` + `Idempotency-Key` (MVP 1) → response `200 { data: Document }` + `pendingApprovalId` e, aditivo, `pendingApprovalDueAt` · códigos 200, 403, 404, 409, 412, 422, 503
 
 ### DTY-01 — GET `/document-types` (ampliação do MVP 1)
@@ -336,7 +336,7 @@ Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md
 ### PRC-19 — POST `/processes/{id}/forward` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:
 - **US-124:** request MVP 1 + `processStageId?` (obrigatório com várias etapas ativas); `Idempotency-Key` e `If-Match` obrigatórios → response `200 { data: Process }` + `activeStages[]`; `movement { id, sequence, branchKey? }` · códigos 200, 403, 404, 409 (`STAGE_CHANGED`, `INVALID_PROCESS_STATUS`), 412, 422
-- **US-133:** request como na US-047 → response `200 { data: Process, … }` com `approval { id, decisionPolicy, approvers[] }` quando o destino é `APPROVAL` (aditivo) · códigos 200, 403, 404, 409, 412, 422, 503
+- **US-133:** request como na US-047 → response `200 { data: Process, … }` com `approval { id, approverLabel, decisionPolicy, approvers[] { id, sequence, status, approverType, label } }` quando o destino é `APPROVAL` (aditivo; `approverLabel` composto pela política — "A ou B", "A e B", "A, depois B") · erros: 422 `APPROVER_UNRESOLVED` (`meta.sequence`, `meta.approverLabel` ou `meta.reason` = `POLICY_INVALID`/`LIMIT_EXCEEDED`), 403 `SELF_APPROVAL_FORBIDDEN` (`meta.sequence`), 422 `APPROVER_DUPLICATED` (`meta.sequences`) · códigos 200, 403, 404, 409, 412, 422, 503
 
 ### PRC-20 — POST `/processes/{id}/return` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:

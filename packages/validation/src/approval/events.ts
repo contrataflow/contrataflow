@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { APPROVAL_APPROVER_STATUSES, APPROVAL_LINES_MAX } from './approval-approvers.js';
+import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
 import { APPROVER_TYPES } from '../document/document-type.js';
 import { defineDomainEvent } from '../events/define.js';
 
@@ -16,6 +18,28 @@ const uuid = z.uuid();
 export const APPROVAL_SUBJECT_TYPES = ['PROCESS_STAGE', 'DOCUMENT'] as const;
 export type ApprovalSubjectType = (typeof APPROVAL_SUBJECT_TYPES)[number];
 
+/**
+ * Linha `ApprovalApprover` no `ApprovalRequested` (US-133 · RN-APV-26): ids e estado, nunca nomes.
+ * `allowDeputy` (aditivo ao events.md) diz se o substituto da unidade também é avisado e ganha o
+ * `APPROVER` (RN-APV-25/27).
+ */
+export const approvalRequestedLineSchema = z.strictObject({
+  approvalApproverId: uuid,
+  sequence: z.int().min(1).max(APPROVAL_LINES_MAX),
+  approverType: z.enum(APPROVER_TYPES),
+  approverUserId: uuid.nullable(),
+  approverRoleId: uuid.nullable(),
+  approverDepartmentId: uuid.nullable(),
+  allowDeputy: z.boolean(),
+  status: z.enum(APPROVAL_APPROVER_STATUSES),
+});
+export type ApprovalRequestedLine = z.infer<typeof approvalRequestedLineSchema>;
+
+/*
+ * US-133: `decisionPolicy` e `approvers[]` são aditivos e opcionais no esquema — os eventos do MVP 1
+ * ainda no outbox não os têm (o aprovador único continua nas colunas espelhadas da linha 1/corrente,
+ * RN-APV-24). Toda solicitação nova grava os dois.
+ */
 export const ApprovalRequested = defineDomainEvent({
   eventType: 'ApprovalRequested',
   eventVersion: 1,
@@ -33,6 +57,8 @@ export const ApprovalRequested = defineDomainEvent({
     approverDepartmentId: uuid.nullable(),
     allowDeputy: z.boolean(),
     dueAt: z.iso.datetime({ offset: true }).nullable(),
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES).optional(),
+    approvers: z.array(approvalRequestedLineSchema).min(1).max(APPROVAL_LINES_MAX).optional(),
   }),
   routingKey: 'approval.requested',
 });
@@ -82,6 +108,11 @@ export const ApprovalReassigned = defineDomainEvent({
     toApproverDepartmentId: uuid.nullable(),
     allowDeputy: z.boolean(),
     hasReason: z.boolean(),
+    /**
+     * US-133 (aditivo): a linha `ApprovalApprover` redirecionada — origem (`sourceId`) das
+     * concessões `APPROVER` a revogar e a conceder (RN-APV-25). Ausente nos eventos do MVP 1.
+     */
+    approvalApproverId: uuid.optional(),
   }),
   routingKey: 'approval.reassigned',
 });

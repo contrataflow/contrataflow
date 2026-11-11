@@ -680,6 +680,47 @@ describe('SCR-015 · Detalhe da aprovação (US-052)', () => {
     expect(gets(api)).toHaveLength(2);
   });
 
+  it('US-133: aprovação SEQUENTIAL lista a política e as linhas em ordem, com estado por texto ("Aguardando a vez"); ANY de uma linha não mostra a lista', async () => {
+    const [first] = approvalDto().approvers;
+    if (!first) throw new Error('linha ausente');
+    const sequential = approvalDto({
+      decisionPolicy: 'SEQUENTIAL',
+      approvers: [
+        first,
+        {
+          ...first,
+          id: '0192a000-0000-7000-8000-000000001151',
+          sequence: 2,
+          status: 'WAITING',
+          userId: '0192a000-0000-7000-8000-000000000072',
+          label: 'Marcos Prado',
+          activatedAt: null,
+        },
+      ],
+    });
+    const { unmount } = renderDetail(withMeta(approvalMeta(), sequential));
+    const lines = await screen.findByRole('region', { name: 'Aprovadores' });
+    expect(within(lines).getByText('Aprovam em sequência')).toBeTruthy();
+    const items = within(lines).getAllByRole('listitem');
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual([
+      `Aprovador 1 de 2: ${CARLA.name}`,
+      'Aprovador 2 de 2: Marcos Prado',
+    ]);
+    const [current, waiting] = items;
+    if (!current || !waiting) throw new Error('linhas ausentes');
+    expect(within(current).getByText('Aguardando decisão')).toBeTruthy();
+    expect(within(waiting).getByText('Aguardando a vez')).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+    unmount();
+
+    renderDetail();
+    await screen.findByRole('heading', {
+      level: 1,
+      name: 'Aprovação do ETP e do Termo de Referência',
+    });
+    expect(screen.queryByRole('region', { name: 'Aprovadores' })).toBeNull();
+  });
+
   it('[Acessibilidade] axe sem violações sérias: carregado, com avisos/erros e sem permissão', async () => {
     const user = userEvent.setup();
     const { unmount } = renderDetail(

@@ -3,6 +3,7 @@ import type {
   TimelineEntryType,
   TimelineVisibility,
 } from '@contrataflow/types';
+import { composeApproverLabel } from '@contrataflow/validation';
 import { z } from 'zod';
 
 import {
@@ -640,37 +641,66 @@ function documentLifecycle(eventType: string, type: TimelineEntryType): Timeline
 
 // --- Aprovações (events.md §4.2) ---------------------------------------------------------------
 
+const approverRefsSchema = {
+  approverType: z.enum(['USER', 'ROLE', 'DEPARTMENT_HEAD']),
+  approverUserId: uuid.nullish(),
+  approverRoleId: uuid.nullish(),
+  approverDepartmentId: uuid.nullish(),
+};
+
 const approvalRequested = defineMapping({
   eventType: 'ApprovalRequested',
   entryTypes: ['APPROVAL_REQUESTED'],
   payload: z.looseObject({
     approvalId: uuid,
     subjectType: z.enum(['PROCESS_STAGE', 'DOCUMENT']),
-    approverType: z.enum(['USER', 'ROLE', 'DEPARTMENT_HEAD']),
-    approverUserId: uuid.nullish(),
-    approverRoleId: uuid.nullish(),
-    approverDepartmentId: uuid.nullish(),
+    ...approverRefsSchema,
     dueAt: isoDateTime.nullish(),
+    // US-133: a política e as linhas (ausentes nos eventos do MVP 1).
+    decisionPolicy: z.enum(['ANY', 'ALL', 'SEQUENTIAL']).optional(),
+    approvers: z
+      .array(z.looseObject({ sequence: z.int().min(1), ...approverRefsSchema }))
+      .optional(),
   }),
-  plan: (payload) => ({
-    refs: [
-      ...lookupRef('USER', payload.approverUserId),
-      ...lookupRef('ROLE', payload.approverRoleId),
-      ...lookupRef('DEPARTMENT', payload.approverDepartmentId),
-    ],
-    build: ({ lookups }) => [
-      entry(
-        'APPROVAL_REQUESTED',
-        {
-          subjectType: payload.subjectType,
-          approverType: payload.approverType,
-          approverLabel: approverLabel(lookups, payload),
-          dueAt: payload.dueAt ?? null,
-        },
-        { entity: ['Approval', payload.approvalId] },
-      ),
-    ],
-  }),
+  plan: (payload) => {
+    const lines =
+      payload.approvers === undefined
+        ? [payload]
+        : [...payload.approvers].sort((a, b) => a.sequence - b.sequence);
+    return {
+      refs: lines.flatMap((line) => [
+        ...lookupRef('USER', line.approverUserId),
+        ...lookupRef('ROLE', line.approverRoleId),
+        ...lookupRef('DEPARTMENT', line.approverDepartmentId),
+      ]),
+      build: ({ lookups }) => {
+        // RN-APV-28: "A ou B" (ANY), "A e B" (ALL), "A, depois B" (SEQUENTIAL); uma linha = MVP 1.
+        const labels = lines.map((line) => approverLabel(lookups, line));
+        const approverLabelText =
+          lines.length === 1
+            ? labels[0]
+            : composeApproverLabel(
+                payload.decisionPolicy ?? 'ANY',
+                labels.filter((label): label is string => label !== null),
+              );
+        return [
+          entry(
+            'APPROVAL_REQUESTED',
+            {
+              subjectType: payload.subjectType,
+              approverType: payload.approverType,
+              approverLabel: approverLabelText ?? null,
+              dueAt: payload.dueAt ?? null,
+              ...(payload.decisionPolicy === undefined
+                ? {}
+                : { decisionPolicy: payload.decisionPolicy, approversCount: lines.length }),
+            },
+            { entity: ['Approval', payload.approvalId] },
+          ),
+        ];
+      },
+    };
+  },
 });
 
 /** Quem aprova: o usuário, o perfil ou a chefia da unidade (`ApproverType`). */

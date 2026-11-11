@@ -295,7 +295,7 @@ export interface ProcessRepository {
    * US-053 (RN-TRAM-70): revoga (`revokedAt`) as concessões `APPROVER` ativas cuja origem é a
    * aprovação (`sourceId`) — o aprovador anterior e o substituto dele.
    */
-  revokeApproverAccess(tx: TenantTx, approvalId: string, at: Date): Promise<void>;
+  revokeApproverAccess(tx: TenantTx, sourceIds: readonly string[], at: Date): Promise<void>;
   /**
    * RN-PROC-62: concessões `REQUESTING` iguais à secretaria e ao setor solicitantes ATUAIS do
    * processo — revoga (`revokedAt`) as anteriores e concede as novas, no `tx`.
