@@ -34,7 +34,7 @@ As entradas são o TR, a pesquisa de preços, o mapa de riscos e o `Tender` (ver
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-169 ⏳ | Gerar o rascunho do edital com IA | P1 | L | US-115, US-116, US-122, US-164 |
+| US-169 | Gerar o rascunho do edital com IA | P1 | L | US-115, US-116, US-122, US-164 |
 
 ## Escopo
 - Gerador e prompt versionado `draft.tender` em `apps/api/src/modules/ai/prompts/draft.tender/`, com `AiGeneration.targetModule = TENDER`.
@@ -65,7 +65,7 @@ As entradas são o TR, a pesquisa de preços, o mapa de riscos e o `Tender` (ver
 
 ## Endpoints
 _Indicativos — IDs e contratos no `api.md` do MVP 2._
-- `POST /tenders/{id}/ai-drafts` — solicitar o rascunho do edital (AI-01 do MVP 1, estendido a `TENDER`).
+- `POST /processes/{id}/ai-generations` (AI-01 do MVP 1) com `targetModule = TENDER` — solicitar o rascunho do edital; não há rota própria.
 - `GET /ai/generations/{id}` — acompanhar a geração (AI-02 do MVP 1).
 - `POST /documents/{id}/ai-apply` — aplicar seções da proposta (DOC-26 do MVP 1).
 - `POST /ai/generations/{id}/discard` — descartar a proposta (AI-04 do MVP 1).

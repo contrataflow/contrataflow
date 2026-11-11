@@ -138,13 +138,13 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-163 | Criar a minuta do edital com cabeçalho tipado | FT-078 | P0 | M | US-039, US-065, US-110 | `story-163-tender-draft-creation.md` ⏳ |
-| US-164 | Importar itens, critérios e condições do TR para o edital | FT-078 | P0 | M | US-037, US-038, US-163 | `story-164-tender-tr-import.md` ⏳ |
-| US-165 | Organizar os lotes do edital | FT-078 | P0 | M | US-006, US-163 | `story-165-tender-lots.md` ⏳ |
-| US-166 | Matriz de alocação de riscos do edital | FT-078 | P1 | M | US-035, US-163 | `story-166-tender-risk-allocation.md` ⏳ |
-| US-167 | Elaborar a minuta do contrato | FT-078 | P0 | M | US-038, US-163 | `story-167-contract-draft.md` ⏳ |
-| US-168 | Concluir a minuta do edital | FT-078 | P0 | M | US-129, US-164, US-165, US-167 | `story-168-tender-draft-conclusion.md` ⏳ |
-| US-169 | Gerar o rascunho do edital com IA | FT-079 | P1 | L | US-115, US-116, US-122, US-164 | `story-169-ai-draft-tender.md` ⏳ |
+| US-163 | Criar a minuta do edital com cabeçalho tipado | FT-078 | P0 | M | US-039, US-065, US-110 | `story-163-tender-draft-creation.md` |
+| US-164 | Importar itens, critérios e condições do TR para o edital | FT-078 | P0 | M | US-037, US-038, US-163 | `story-164-tender-tr-import.md` |
+| US-165 | Organizar os lotes do edital | FT-078 | P0 | M | US-006, US-163 | `story-165-tender-lots.md` |
+| US-166 | Matriz de alocação de riscos do edital | FT-078 | P1 | M | US-035, US-163 | `story-166-tender-risk-allocation.md` |
+| US-167 | Elaborar a minuta do contrato | FT-078 | P0 | M | US-038, US-163 | `story-167-contract-draft.md` |
+| US-168 | Concluir a minuta do edital | FT-078 | P0 | M | US-129, US-164, US-165, US-167 | `story-168-tender-draft-conclusion.md` |
+| US-169 | Gerar o rascunho do edital com IA | FT-079 | P1 | L | US-115, US-116, US-122, US-164 | `story-169-ai-draft-tender.md` |
 
 ## EP-028 — Indicadores e gargalos
 
@@ -156,14 +156,14 @@ Totais: **11 épicos · 28 features · 78 stories** (P0: 33 · P1: 41 · P2: 4) 
 
 | Story | Título | Feature | Prio | Est | Depende de | Arquivo |
 |---|---|---|---|---|---|---|
-| US-170 | Alimentar o read model de indicadores pelos eventos | FT-080 | P1 | L | US-059, US-082, US-083 | `story-170-analytics-event-projection.md` ⏳ |
-| US-171 | Reconstruir e reconciliar o read model | FT-080 | P1 | M | US-170 | `story-171-analytics-rebuild-reconciliation.md` ⏳ |
-| US-172 | Relatórios de indicadores | FT-081 | P1 | L | US-013, US-097, US-171 | `story-172-indicator-reports.md` ⏳ |
-| US-173 | Relatório detalhado com detalhamento por processo | FT-081 | P1 | M | US-172 | `story-173-detailed-report.md` ⏳ |
-| US-174 | Exportar relatórios | FT-081 | P1 | M | US-073, US-083, US-172 | `story-174-report-export.md` ⏳ |
-| US-175 | Indicadores de execução do PCA | FT-081 | P1 | S | US-144, US-172 | `story-175-pca-execution-indicators.md` ⏳ |
-| US-176 | Análise de gargalos por etapa, unidade e responsável | FT-082 | P1 | L | US-171, US-172 | `story-176-bottleneck-analysis.md` ⏳ |
-| US-177 | Filas, envelhecimento e comparação entre períodos | FT-082 | P1 | M | US-176 | `story-177-queues-aging-period-comparison.md` ⏳ |
+| US-170 | Alimentar o read model de indicadores pelos eventos | FT-080 | P1 | L | US-059, US-082, US-083 | `story-170-analytics-event-projection.md` |
+| US-171 | Reconstruir e reconciliar o read model | FT-080 | P1 | M | US-170 | `story-171-analytics-rebuild-reconciliation.md` |
+| US-172 | Relatórios de indicadores | FT-081 | P1 | L | US-013, US-097, US-171 | `story-172-indicator-reports.md` |
+| US-173 | Relatório detalhado com detalhamento por processo | FT-081 | P1 | M | US-172 | `story-173-detailed-report.md` |
+| US-174 | Exportar relatórios | FT-081 | P1 | M | US-073, US-083, US-172 | `story-174-report-export.md` |
+| US-175 | Indicadores de execução do PCA | FT-081 | P1 | S | US-144, US-172 | `story-175-pca-execution-indicators.md` |
+| US-176 | Análise de gargalos por etapa, unidade e responsável | FT-082 | P1 | L | US-171, US-172 | `story-176-bottleneck-analysis.md` |
+| US-177 | Filas, envelhecimento e comparação entre períodos | FT-082 | P1 | M | US-176 | `story-177-queues-aging-period-comparison.md` |
 
 ## EP-029 — Plataforma e backoffice
 

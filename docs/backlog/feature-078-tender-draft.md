@@ -37,12 +37,12 @@ A importação traz do TR itens, critérios e condições (`importMappings`, com
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-163 ⏳ | Criar a minuta do edital com cabeçalho tipado | P0 | M | US-039, US-065, US-110 |
-| US-164 ⏳ | Importar itens, critérios e condições do TR para o edital | P0 | M | US-037, US-038, US-163 |
-| US-165 ⏳ | Organizar os lotes do edital | P0 | M | US-006, US-163 |
-| US-166 ⏳ | Matriz de alocação de riscos do edital | P1 | M | US-035, US-163 |
-| US-167 ⏳ | Elaborar a minuta do contrato | P0 | M | US-038, US-163 |
-| US-168 ⏳ | Concluir a minuta do edital | P0 | M | US-129, US-164, US-165, US-167 |
+| US-163 | Criar a minuta do edital com cabeçalho tipado | P0 | M | US-039, US-065, US-110 |
+| US-164 | Importar itens, critérios e condições do TR para o edital | P0 | M | US-037, US-038, US-163 |
+| US-165 | Organizar os lotes do edital | P0 | M | US-006, US-163 |
+| US-166 | Matriz de alocação de riscos do edital | P1 | M | US-035, US-163 |
+| US-167 | Elaborar a minuta do contrato | P0 | M | US-038, US-163 |
+| US-168 | Concluir a minuta do edital | P0 | M | US-129, US-164, US-165, US-167 |
 
 ## Escopo
 - Criar o `Tender` e o documento `EDITAL` com os defaults do processo (modalidade, registro de preços, sigilo do orçamento) e cabeçalho tipado.

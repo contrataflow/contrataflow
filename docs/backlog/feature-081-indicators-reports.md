@@ -39,10 +39,10 @@ Todo resultado respeita o escopo da permissão `REPORT_VIEW` (tenant, órgão ou
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-172 ⏳ | Relatórios de indicadores | P1 | L | US-013, US-097, US-171 |
-| US-173 ⏳ | Relatório detalhado com detalhamento por processo | P1 | M | US-172 |
-| US-174 ⏳ | Exportar relatórios | P1 | M | US-073, US-083, US-172 |
-| US-175 ⏳ | Indicadores de execução do PCA | P1 | S | US-144, US-172 |
+| US-172 | Relatórios de indicadores | P1 | L | US-013, US-097, US-171 |
+| US-173 | Relatório detalhado com detalhamento por processo | P1 | M | US-172 |
+| US-174 | Exportar relatórios | P1 | M | US-073, US-083, US-172 |
+| US-175 | Indicadores de execução do PCA | P1 | S | US-144, US-172 |
 
 ## Escopo
 - Catálogo de relatórios: tempo de ciclo, devoluções, cumprimento de prazo, volume e valor por secretaria e modalidade, com recortes por mês, exercício (`analytics.fiscalYearStartMonth`), secretaria, modalidade e tipo de contratação.

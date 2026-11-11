@@ -50,19 +50,19 @@ Permitir que Licitações elabore, dentro do processo, a **minuta do edital** e 
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-078 | Minuta do edital e do contrato | US-163 ⏳, US-164 ⏳, US-165 ⏳, US-166 ⏳, US-167 ⏳, US-168 ⏳ | P0 |
-| FT-079 | IA no edital | US-169 ⏳ | P1 |
+| FT-078 | Minuta do edital e do contrato | US-163, US-164, US-165, US-166, US-167, US-168 | P0 |
+| FT-079 | IA no edital | US-169 | P1 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-163 ⏳ | Criar a minuta do edital com cabeçalho tipado | P0 | M | 5 |
-| US-164 ⏳ | Importar itens, critérios e condições do TR para o edital | P0 | M | 5 |
-| US-165 ⏳ | Organizar os lotes do edital | P0 | M | 5 |
-| US-166 ⏳ | Matriz de alocação de riscos do edital | P1 | M | 5 |
-| US-167 ⏳ | Elaborar a minuta do contrato | P0 | M | 5 |
-| US-168 ⏳ | Concluir a minuta do edital | P0 | M | 5 |
-| US-169 ⏳ | Gerar o rascunho do edital com IA | P1 | L | 8 |
+| US-163 | Criar a minuta do edital com cabeçalho tipado | P0 | M | 5 |
+| US-164 | Importar itens, critérios e condições do TR para o edital | P0 | M | 5 |
+| US-165 | Organizar os lotes do edital | P0 | M | 5 |
+| US-166 | Matriz de alocação de riscos do edital | P1 | M | 5 |
+| US-167 | Elaborar a minuta do contrato | P0 | M | 5 |
+| US-168 | Concluir a minuta do edital | P0 | M | 5 |
+| US-169 | Gerar o rascunho do edital com IA | P1 | L | 8 |
 | **Total** | | | | **38** |
 
 ## Módulos e entidades

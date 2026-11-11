@@ -308,21 +308,21 @@
 | US-160 | Responder o checklist e registrar achados e recomendações | EP-026 | FT-077 | P0 | M | US-159 |
 | US-161 | Emitir a manifestação e concluir com a situação | EP-026 | FT-077 | P0 | M | US-065, US-110, US-129, US-160 |
 | US-162 | Acompanhar o atendimento dos achados | EP-026 | FT-077 | P1 | S | US-160 |
-| US-163 ⏳ | Criar a minuta do edital com cabeçalho tipado | EP-027 | FT-078 | P0 | M | US-039, US-065, US-110 |
-| US-164 ⏳ | Importar itens, critérios e condições do TR para o edital | EP-027 | FT-078 | P0 | M | US-037, US-038, US-163 |
-| US-165 ⏳ | Organizar os lotes do edital | EP-027 | FT-078 | P0 | M | US-006, US-163 |
-| US-166 ⏳ | Matriz de alocação de riscos do edital | EP-027 | FT-078 | P1 | M | US-035, US-163 |
-| US-167 ⏳ | Elaborar a minuta do contrato | EP-027 | FT-078 | P0 | M | US-038, US-163 |
-| US-168 ⏳ | Concluir a minuta do edital | EP-027 | FT-078 | P0 | M | US-129, US-164, US-165, US-167 |
-| US-169 ⏳ | Gerar o rascunho do edital com IA | EP-027 | FT-079 | P1 | L | US-115, US-116, US-122, US-164 |
-| US-170 ⏳ | Alimentar o read model de indicadores pelos eventos | EP-028 | FT-080 | P1 | L | US-059, US-082, US-083 |
-| US-171 ⏳ | Reconstruir e reconciliar o read model | EP-028 | FT-080 | P1 | M | US-170 |
-| US-172 ⏳ | Relatórios de indicadores | EP-028 | FT-081 | P1 | L | US-013, US-097, US-171 |
-| US-173 ⏳ | Relatório detalhado com detalhamento por processo | EP-028 | FT-081 | P1 | M | US-172 |
-| US-174 ⏳ | Exportar relatórios | EP-028 | FT-081 | P1 | M | US-073, US-083, US-172 |
-| US-175 ⏳ | Indicadores de execução do PCA | EP-028 | FT-081 | P1 | S | US-144, US-172 |
-| US-176 ⏳ | Análise de gargalos por etapa, unidade e responsável | EP-028 | FT-082 | P1 | L | US-171, US-172 |
-| US-177 ⏳ | Filas, envelhecimento e comparação entre períodos | EP-028 | FT-082 | P1 | M | US-176 |
+| US-163 | Criar a minuta do edital com cabeçalho tipado | EP-027 | FT-078 | P0 | M | US-039, US-065, US-110 |
+| US-164 | Importar itens, critérios e condições do TR para o edital | EP-027 | FT-078 | P0 | M | US-037, US-038, US-163 |
+| US-165 | Organizar os lotes do edital | EP-027 | FT-078 | P0 | M | US-006, US-163 |
+| US-166 | Matriz de alocação de riscos do edital | EP-027 | FT-078 | P1 | M | US-035, US-163 |
+| US-167 | Elaborar a minuta do contrato | EP-027 | FT-078 | P0 | M | US-038, US-163 |
+| US-168 | Concluir a minuta do edital | EP-027 | FT-078 | P0 | M | US-129, US-164, US-165, US-167 |
+| US-169 | Gerar o rascunho do edital com IA | EP-027 | FT-079 | P1 | L | US-115, US-116, US-122, US-164 |
+| US-170 | Alimentar o read model de indicadores pelos eventos | EP-028 | FT-080 | P1 | L | US-059, US-082, US-083 |
+| US-171 | Reconstruir e reconciliar o read model | EP-028 | FT-080 | P1 | M | US-170 |
+| US-172 | Relatórios de indicadores | EP-028 | FT-081 | P1 | L | US-013, US-097, US-171 |
+| US-173 | Relatório detalhado com detalhamento por processo | EP-028 | FT-081 | P1 | M | US-172 |
+| US-174 | Exportar relatórios | EP-028 | FT-081 | P1 | M | US-073, US-083, US-172 |
+| US-175 | Indicadores de execução do PCA | EP-028 | FT-081 | P1 | S | US-144, US-172 |
+| US-176 | Análise de gargalos por etapa, unidade e responsável | EP-028 | FT-082 | P1 | L | US-171, US-172 |
+| US-177 | Filas, envelhecimento e comparação entre períodos | EP-028 | FT-082 | P1 | M | US-176 |
 | US-178 ⏳ | Acesso ao backoffice e provisionamento de tenant e órgãos | EP-029 | FT-083 | P1 | L | US-087, US-090, US-099 |
 | US-179 ⏳ | Ciclo de vida do tenant no backoffice | EP-029 | FT-083 | P1 | M | US-178 |
 | US-180 ⏳ | Conceder e encerrar acesso de suporte | EP-029 | FT-083 | P1 | M | US-073, US-178 |
@@ -349,4 +349,4 @@
 
 Totais do MVP 1: 20 épicos · 62 features · 122 stories (122 escritas) · P0 84 · P1 30 · P2 8 · 661 pontos.
 
-Totais do MVP 2: 11 épicos · 28 features · 78 stories (52 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.
+Totais do MVP 2: 11 épicos · 28 features · 78 stories (67 escritas) · P0 33 · P1 41 · P2 4 · 422 pontos.

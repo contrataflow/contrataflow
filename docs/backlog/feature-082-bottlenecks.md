@@ -38,8 +38,8 @@ Análise descritiva do tempo que os processos passam em cada etapa, unidade e re
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-176 ⏳ | Análise de gargalos por etapa, unidade e responsável | P1 | L | US-171, US-172 |
-| US-177 ⏳ | Filas, envelhecimento e comparação entre períodos | P1 | M | US-176 |
+| US-176 | Análise de gargalos por etapa, unidade e responsável | P1 | L | US-171, US-172 |
+| US-177 | Filas, envelhecimento e comparação entre períodos | P1 | M | US-176 |
 
 ## Escopo
 - Tempo por etapa, por unidade e por responsável, com média, mediana, p90, passagens, devoluções e percentual no prazo.
@@ -69,11 +69,10 @@ Análise descritiva do tempo que os processos passam em cada etapa, unidade e re
 
 ## Endpoints
 _Indicativos — IDs e contratos no `api.md` do MVP 2._
-- `GET /reports/bottlenecks` — tempo por etapa, unidade ou responsável (parâmetro de agrupamento), com filtros.
-- `GET /reports/bottlenecks/queues` — filas atuais por etapa, unidade e responsável.
-- `GET /reports/bottlenecks/aging` — envelhecimento em faixas.
-- `GET /reports/bottlenecks/compare` — comparação entre dois períodos.
-- `GET /reports/bottlenecks/details` — processos por trás de um número (visibilidade DEC-024).
+- `GET /bottlenecks` (ANL-15) — tempo por etapa, unidade ou responsável (parâmetro de agrupamento), com filtros.
+- `GET /bottlenecks/queues` (ANL-17) — filas atuais e envelhecimento em faixas por etapa, unidade e responsável.
+- `GET /bottlenecks/comparison` (ANL-18) — comparação entre dois períodos de mesma duração.
+- `GET /bottlenecks/{dimension}/{key}/processes` (ANL-16) — processos por trás de um número (visibilidade DEC-024).
 
 ## Entidades
 - Leitura de `AnalyticsStageFact` e `AnalyticsProcessFact` e da visão `mv_analytics_stage_monthly` (dono `analytics`).

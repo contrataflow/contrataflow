@@ -36,8 +36,8 @@ O **worker** (e só ele) projeta nessas tabelas os eventos do outbox, de forma i
 ## Stories
 | Story | Título | Prioridade | Estimativa | Depende de |
 |---|---|---|---|---|
-| US-170 ⏳ | Alimentar o read model de indicadores pelos eventos | P1 | L | US-059, US-082, US-083 |
-| US-171 ⏳ | Reconstruir e reconciliar o read model | P1 | M | US-170 |
+| US-170 | Alimentar o read model de indicadores pelos eventos | P1 | L | US-059, US-082, US-083 |
+| US-171 | Reconstruir e reconciliar o read model | P1 | M | US-170 |
 
 ## Escopo
 - Migrações das tabelas de fatos, de idempotência (`AnalyticsProcessedEvent`, retenção de 30 dias) e de execução da reconciliação (`AnalyticsReconciliationRun`), com RLS.

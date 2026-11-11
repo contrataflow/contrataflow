@@ -53,21 +53,21 @@ Dar à gestão, ao Controle Interno e ao Auditor uma visão confiável de como a
 ## Features
 | Feature | Título | Stories | Prioridade |
 |---|---|---|---|
-| FT-080 | Read model de indicadores | US-170 ⏳, US-171 ⏳ | P1 |
-| FT-081 | Indicadores e relatórios | US-172 ⏳, US-173 ⏳, US-174 ⏳, US-175 ⏳ | P1 |
-| FT-082 | Gargalos | US-176 ⏳, US-177 ⏳ | P1 |
+| FT-080 | Read model de indicadores | US-170, US-171 | P1 |
+| FT-081 | Indicadores e relatórios | US-172, US-173, US-174, US-175 | P1 |
+| FT-082 | Gargalos | US-176, US-177 | P1 |
 
 ## Stories
 | Story | Título | Prioridade | Estimativa | Pontos |
 |---|---|---|---|---|
-| US-170 ⏳ | Alimentar o read model de indicadores pelos eventos | P1 | L | 8 |
-| US-171 ⏳ | Reconstruir e reconciliar o read model | P1 | M | 5 |
-| US-172 ⏳ | Relatórios de indicadores | P1 | L | 8 |
-| US-173 ⏳ | Relatório detalhado com detalhamento por processo | P1 | M | 5 |
-| US-174 ⏳ | Exportar relatórios | P1 | M | 5 |
-| US-175 ⏳ | Indicadores de execução do PCA | P1 | S | 2 |
-| US-176 ⏳ | Análise de gargalos por etapa, unidade e responsável | P1 | L | 8 |
-| US-177 ⏳ | Filas, envelhecimento e comparação entre períodos | P1 | M | 5 |
+| US-170 | Alimentar o read model de indicadores pelos eventos | P1 | L | 8 |
+| US-171 | Reconstruir e reconciliar o read model | P1 | M | 5 |
+| US-172 | Relatórios de indicadores | P1 | L | 8 |
+| US-173 | Relatório detalhado com detalhamento por processo | P1 | M | 5 |
+| US-174 | Exportar relatórios | P1 | M | 5 |
+| US-175 | Indicadores de execução do PCA | P1 | S | 2 |
+| US-176 | Análise de gargalos por etapa, unidade e responsável | P1 | L | 8 |
+| US-177 | Filas, envelhecimento e comparação entre períodos | P1 | M | 5 |
 | **Total** | | | | **46** |
 
 ## Módulos e entidades
