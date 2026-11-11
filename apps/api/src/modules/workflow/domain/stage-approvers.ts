@@ -180,9 +180,7 @@ function lineReference(line: ApproverLineFields): string | null {
 }
 
 /** `approvers` na auditoria (`workflow.update`): por `sequence`, tipo e referência. */
-export function approversAuditValue(
-  lines: readonly ApproverLineFields[],
-): {
+export function approversAuditValue(lines: readonly ApproverLineFields[]): {
   readonly sequence: number;
   readonly approverType: string;
   readonly reference: string | null;
