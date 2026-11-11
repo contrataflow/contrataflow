@@ -259,7 +259,7 @@ Avisos de validação (`warnings[]`): `WF_APPROVER_HEAD_MISSING` por linha (`par
 - **Transação:** em uma transação com `app.tenant_id`: trava da etapa e da versão → substituição atômica das linhas → espelho → incremento de `version` → auditoria.
 
 ## Frontend
-- **Tela(s):** SCR-034 (`/admin/workflows/[id]`) — painel de propriedades da etapa `APPROVAL`; SCR-108 (`/admin/tipos-de-documento`) — bloco "Quem aprova".
+- **Tela(s):** SCR-034 (`/admin/workflows/[id]`) — painel de propriedades da etapa `APPROVAL`; SCR-108 (`/admin/tipos-documento`) — bloco "Quem aprova".
 - **Componentes:** `DecisionPolicySelect`, `ApproverLinesEditor` (arrastar e botões "Subir/Descer"), `ApproverLineForm` (tipo, seletor `USR-02`/`ROL-02`/`DEP-02`, resolução, rótulo), `ApproverSummary` (ordem e política), `ValidationResultPanel` (link à linha), selo da política no `StageNode` do diagrama.
 - **Estados:** loading (skeleton do painel); vazio ("Nenhum aprovador definido — a etapa usa o aprovador único"); erro de validação por linha; conflito de edição (recarrega e mantém o formulário); sucesso (toast "Aprovadores salvos").
 - **Acessibilidade e responsividade:** reordenação por teclado (setas) além do arrastar; ordem anunciada por `aria-live` ("Procurador-Geral movido para a posição 2"); política e erros comunicados por texto e ícone; painel lateral vira modal abaixo de 768 px.

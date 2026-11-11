@@ -46,7 +46,7 @@ Abrir o relatório do exercício (plano de até 5.000 itens) em até 2 s (p95, s
 - Visão `mv_analytics_pca_execution` atualizada (agenda do refresh — RN-ANL-10).
 
 ## Fluxo principal
-1. Em `/relatorios` (SCR-027), a pessoa abre o cartão "Execução do PCA" (chave `pca-execution`) ou acessa `/relatorios/pca-execution`.
+1. Em `/relatorios` (SCR-027), a pessoa abre o cartão "Execução do PCA" (chave `pca-execution`) ou acessa `/relatorios/execucao-pca`.
 2. O front chama `ANL-14` com o exercício padrão (ano corrente no fuso do tenant) e `groupBy=DEPARTMENT`. A API valida permissão e escopo, resolve o plano vigente e lê o read model.
 3. A API calcula, por linha e **antes de agregar**, o tratamento do sigilo (RN-ANL-136), soma os grupos e o resumo e responde com `dataAsOf`, `confidentialExcluded`, o plano considerado e os grupos.
 4. O front mostra o cabeçalho "Plano {ano} — versão {n}, aprovado em {data}" e "dados atualizados em …", os cartões do resumo ("Previsto", "Vinculado", "Saldo previsto não vinculado", "% executado", "Processos concluídos", "Itens contratados") e a tabela agrupada com barra de progresso acompanhada de texto.
@@ -295,7 +295,7 @@ Feature: Indicadores de execução do PCA
 - **Transação:** leitura única `READ ONLY` com `statement_timeout` de 5 s; sem escrita.
 
 ## Frontend
-- **Tela(s):** SCR-027 (`/relatorios`, cartão "Execução do PCA") e `/relatorios/pca-execution` (SCR-027, relatório aberto).
+- **Tela(s):** SCR-027 (`/relatorios`, cartão "Execução do PCA") e `/relatorios/execucao-pca` (SCR-027, relatório aberto).
 - **Componentes:** `PcaExecutionSummaryCards`, `PcaExecutionTable` (agrupada, com `ProgressBar` acompanhada de texto "{x} % executado"), `GroupBySwitch`, `ReportFilters` (da US-172), `ConfidentialExcludedNotice`, `DataAsOfBadge`, `ExportButton` (US-174), `OpenInPcaLink`.
 - **Estados:** loading (skeleton), vazio (sem plano aprovado ou sem itens no escopo), erro com "Tentar novamente", sucesso; estado "mascarado" com "—" e tooltip "Inclui valores sigilosos não exibidos".
 - **Acessibilidade e responsividade:** barras de progresso com texto e `aria-valuenow`; situação do item por texto e ícone; tabela rolável com cabeçalho fixo em telas largas e cartões abaixo de 768 px; valores monetários com `R$` e alinhamento à direita; teclado completo no seletor de agrupamento.

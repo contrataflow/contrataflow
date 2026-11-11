@@ -167,6 +167,7 @@ Os documentos `EDITAL`, `MINUTA_CONTRATO`, `PARECER_JURIDICO` e `MANIFESTACAO_CO
 | Evento | Routing key | Produtor | Payload | Cons. |
 |---|---|---|---|---|
 | `AnalyticsReconciliationCompleted` | `analytics.reconciliation_completed` | Job noturno / reconstrução | `runId`, `scope`, `factsChecked`, `divergencesFixed` | M |
+| `ReportExportFinished` | `analytics.report_export_finished` | Job `exports` — conclusão do pedido de exportação de relatório (`READY`, `FAILED` ou `EXPIRED` por timeout) (US-174) | `exportId`, `reportKey`, `format`, `status`, `requestedById`, `errorCode?` — sem valores, filtros em claro nem nomes | N |
 
 Divergência acima do limite operacional gera alerta (observability.md), não notificação de usuário.
 
@@ -241,6 +242,7 @@ Tipos novos do registro `NotificationType` (regras gerais do MVP 1 continuam: nu
 | `SUPPORT_ACCESS_GRANTED` | `SupportAccessGranted` / `SupportAccessEnded` | Vínculos com `ADMIN_ORGAO` (máx. 50) | ✔ | **sim** |
 | `TEMPLATE_LIBRARY_UPDATE` | `TemplateLibraryUpdateAvailable` (DT-15) | Vínculos com `TEMPLATE_PUBLISH` (máx. 50) | não | não |
 | `GOVBR_LINK_CHANGED` | `GovbrIdentityLinked` / `Unlinked` | O próprio usuário (aviso de segurança — exceção à regra do ator) | ✔ | **sim** |
+| `REPORT_EXPORT_READY` | `ReportExportFinished` (`READY` ou `FAILED`) | O solicitante do pedido (exceção à regra do ator: ele pediu o arquivo — US-174) | não | **sim** (in-app) |
 
 **Lembretes** (job `deadlines`, idempotentes por marcação na entidade):
 - Diligência: `legalReview.diligenceReminderBusinessDays` antes de `LegalReviewDiligence.dueAt` e no vencimento (`lastReminderAt` evita repetição no mesmo dia útil).

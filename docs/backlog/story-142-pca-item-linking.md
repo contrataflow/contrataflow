@@ -10,7 +10,7 @@ status: Especificada
 depends_on: [US-005, US-014, US-140]
 modules: [pca, process, dfd, document, organization, timeline, audit, platform]
 screens: [SCR-005, SCR-006, SCR-007, SCR-041]
-endpoints: [PCA-40, PCA-41, PCA-42, PCA-43, PRC-02, PRC-04, PRC-05, DFD-02, DFD-03, DFD-04, DOC-08, SET-02]
+endpoints: [PCA-40, PCA-41, PCA-42, PCA-43, PRC-02, PRC-04, PRC-05, PRC-07, DFD-02, DFD-03, DFD-04, DOC-08, SET-02]
 permissions: [PROCESS_CREATE, PROCESS_UPDATE, DFD_UPDATE, PCA_VIEW, SETTINGS_MANAGE]
 events: [ProcessCreated, ProcessUpdated, ProcessPcaItemLinked, ProcessPcaItemUnlinked, DfdPcaItemLinked, DfdPcaItemUnlinked]
 ---
@@ -334,7 +334,7 @@ Feature: Vincular DFD e processo a item do PCA
 - **Transação:** a da operação de origem, com `app.tenant_id`: `SELECT … FOR UPDATE` do alvo → permissão/estado → `resolveItem` → lock de saldo (se `BLOCKING`) → avaliação → espelho e `version + 1` → auditoria → outbox → timeline.
 
 ## Frontend
-- **Tela(s):** SCR-005 (`/processos/novo`, passo 2), SCR-007 (`/processos/[id]/dfd/[dfdId]`, passo "Planejamento"), SCR-006 (`/processos/[id]`: cartão no painel situacional e ação "Alterar item" no painel lateral de edição), SCR-041 (`/configuracoes`, regras do PCA).
+- **Tela(s):** SCR-005 (`/processos/novo`, passo 2), SCR-007 (`/processos/[id]/dfd/[dfdId]`, passo "Planejamento"), SCR-006 (`/processos/[id]`: cartão no painel situacional e ação "Alterar item" no painel lateral de edição), SCR-041 (`/admin/configuracoes`, regras do PCA).
 - **Componentes:** `PcaFieldset` (estendido) com `PcaItemPicker` (combobox assíncrona, busca com *debounce* de 300 ms, ≥ 2 caracteres, resultados com código, objeto, secretaria e selo de situação); `PcaLinkWarnings` (lista de avisos com "Estou ciente"); `PcaLinkCard` (painel do processo); `ChangePcaItemDialog` (justificativa); `LockedField` para `pcaYear`/`pcaItemCode` com item; `PcaLinkStatusBadge`.
 - **Estados:** loading (esqueleto do seletor e do cartão), vazio ("Nenhum item encontrado. Mantenha o código em texto."), plano não aprovado (modo texto com orientação), erro (mensagem por código), sucesso (toast "Vinculado ao item {código} do PCA {ano}").
 - **Acessibilidade e responsividade:** combobox com papel `combobox`/`listbox`, `aria-activedescendant`, anúncio de resultados por `aria-live`; alertas de saldo e de item cancelado por texto e ícone, não só por cor; diálogo com foco preso e retorno ao gatilho; seletor em tela cheia abaixo de 768 px; cartão do painel em coluna única.

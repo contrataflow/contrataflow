@@ -10,7 +10,7 @@ status: Especificada
 depends_on: [US-087, US-102, US-112]
 modules: [identity, platform]
 screens: [SCR-029, SCR-102]
-endpoints: [USR-03, USR-04, USR-05, USR-06]
+endpoints: [USR-03, USR-04, USR-05, USR-06, USR-14]
 permissions: [USER_INVITE]
 events: [UserInvited, MembershipActivated]
 ---

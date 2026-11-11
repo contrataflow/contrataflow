@@ -5,6 +5,9 @@
  * referências (epic/feature/depends_on), cobertura em features.md por MVP e IDs sem duplicidade.
  * Linha de tabela com ⏳ em features.md = card reservado ainda não escrito: o arquivo pode faltar,
  * mas, depois de escrito, a marca precisa sair da linha.
+ * Endpoints e telas: todo código em `endpoints:`/`screens:` de uma story precisa ter ficha
+ * (`### CÓDIGO`) em algum `mvp-NN/api/*.md`/`mvp-NN/screens.md`, e toda ficha precisa ser citada
+ * por ao menos uma story no MVP em que aparece pela primeira vez (só quando esses documentos existem).
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -25,7 +28,14 @@ export interface Exception {
   reason: string;
 }
 
-export const MVP1_EXCEPTIONS: readonly Exception[] = [];
+export const MVP1_EXCEPTIONS: readonly Exception[] = [
+  {
+    file: 'mvp-01/api/15-platform-health.md',
+    rule: 'endpoint-orfao',
+    reason:
+      'PLT-08 (corrigir dados do tenant) tem contrato no MVP 1 sem story própria; fora da FT-083 (US-179, lacuna 10).',
+  },
+];
 
 export const STORY_FIELDS = [
   'id',
@@ -178,6 +188,7 @@ export function checkBacklog({ root }: { root: string }): Problem[] {
     for (const r of fileRefs(read(p), 'story')) if (r.pending) reservedStories.add(num(r.file));
   }
 
+  const storyRefs: { rel: string; endpoints: string[]; screens: string[] }[] = [];
   const storyMvp = new Map<string, number>();
   const featureMvp = new Map<string, number>();
   const epicMvp = new Map<string, number>();
@@ -209,6 +220,9 @@ export function checkBacklog({ root }: { root: string }): Problem[] {
     for (const k of ['depends_on', 'modules', 'screens', 'endpoints', 'permissions', 'events']) {
       if (k in data && !Array.isArray(data[k])) add(rel, 'front-matter', `${k} deve ser lista`);
     }
+    const list = (k: string): string[] =>
+      Array.isArray(data[k]) ? (data[k] as unknown[]).map((x) => String(x)) : [];
+    storyRefs.push({ rel, endpoints: list('endpoints'), screens: list('screens') });
 
     const n = num(f);
     const id = String(data.id);
@@ -331,7 +345,69 @@ export function checkBacklog({ root }: { root: string }): Problem[] {
     }
   }
 
+  checkEndpointsAndScreens(root, mvpDirs, storyRefs, add);
   return problems;
+}
+
+/** Primeira ocorrência de cada ficha `### CÓDIGO` por MVP (o diretório mais antigo é a "casa"). */
+function headings(
+  root: string,
+  mvpDirs: string[],
+  files: (d: string) => string[],
+  re: RegExp,
+): Map<string, string> {
+  const home = new Map<string, string>();
+  for (const d of mvpDirs) {
+    for (const rel of files(d)) {
+      for (const line of read(join(root, rel)).split('\n')) {
+        const m = re.exec(line);
+        if (m?.[1] && !home.has(m[1])) home.set(m[1], rel);
+      }
+    }
+  }
+  return home;
+}
+
+function checkEndpointsAndScreens(
+  root: string,
+  mvpDirs: string[],
+  storyRefs: { rel: string; endpoints: string[]; screens: string[] }[],
+  add: (file: string, rule: string, message: string) => void,
+): void {
+  const endpointHome = headings(
+    root,
+    mvpDirs,
+    (d) => listFiles(join(root, d, 'api'), /\.md$/).map((f) => `${d}/api/${f}`),
+    /^### ([A-Z]{2,5}-\d{2,3})\b/,
+  );
+  const screenHome = headings(
+    root,
+    mvpDirs,
+    (d) => (existsSync(join(root, d, 'screens.md')) ? [`${d}/screens.md`] : []),
+    /^### (SCR-\d{3})\b/,
+  );
+  const citedEndpoints = new Set<string>();
+  const citedScreens = new Set<string>();
+  for (const r of storyRefs) {
+    for (const e of r.endpoints) {
+      citedEndpoints.add(e);
+      if (endpointHome.size > 0 && !endpointHome.has(e))
+        add(r.rel, 'endpoint', `endpoint ${e} sem ficha em nenhum mvp-NN/api/*.md`);
+    }
+    for (const s of r.screens) {
+      citedScreens.add(s);
+      if (screenHome.size > 0 && !screenHome.has(s))
+        add(r.rel, 'tela', `tela ${s} sem ficha em nenhum mvp-NN/screens.md`);
+    }
+  }
+  for (const [code, file] of endpointHome) {
+    if (!citedEndpoints.has(code))
+      add(file, 'endpoint-orfao', `${code} não aparece em endpoints: de nenhuma story`);
+  }
+  for (const [scr, file] of screenHome) {
+    if (!citedScreens.has(scr))
+      add(file, 'tela-orfa', `${scr} não aparece em screens: de nenhuma story`);
+  }
 }
 
 /** Remove problemas cobertos por exceções declaradas (só MVP 1). */

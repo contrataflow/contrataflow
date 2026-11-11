@@ -10,7 +10,7 @@ status: Especificada
 depends_on: [US-098, US-182]
 modules: [identity, notification, audit, platform]
 screens: [SCR-039]
-endpoints: [GOV-04, GOV-05, GOV-06, GOV-07, GOV-08]
+endpoints: [GOV-02, GOV-04, GOV-05, GOV-06, GOV-07, GOV-08]
 permissions: [PLATFORM_TENANT_MANAGE]
 events: [GovbrIdentityLinked, GovbrIdentityUnlinked]
 ---

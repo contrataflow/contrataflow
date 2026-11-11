@@ -64,7 +64,7 @@ Regras adicionais do MVP 2:
 | `ApprovalSubjectType` | + `PCA` | Ampliado | DEC-197 |
 | `SystemDocumentModule` | + `LEGAL_OPINION`, `TENDER`, `INTERNAL_CONTROL_REPORT` | Ampliado | DEC-199 a DEC-201 |
 | `CatalogType` | + `PCA_CATEGORY`, `BUDGET_UNIT`, `BUDGET_ACTION`, `EXPENSE_NATURE`, `FUNDING_SOURCE`, `LEGAL_WAIVER_HYPOTHESIS` | Ampliado | DEC-197 a DEC-199 |
-| `AttachmentTargetType` | + `PCA`, `BUDGET_ALLOCATION`, `INTERNAL_CONTROL_REVIEW` | Ampliado | DEC-197, DEC-198, DEC-200 |
+| `AttachmentTargetType` | + `PCA`, `BUDGET_ALLOCATION`, `INTERNAL_CONTROL_REVIEW`, `REPORT_EXPORT` (arquivo gerado da exportação de relatório — US-174) | Ampliado | DEC-197, DEC-198, DEC-200, DEC-206 |
 | `AiInputRef.kind` *(schema)* | + `BUDGET_ALLOCATIONS`, `TENDER`, `LEGAL_REVIEW` | Ampliado | DEC-202 |
 | `NotificationType` *(registro)* | ver [events.md §6](events.md#6-notificações-e-lembretes) | Ampliado | — |
 | `TimelineEntryType` *(registro)* | ver [events.md §5](events.md#5-projeção-na-timeline) | Ampliado | — |

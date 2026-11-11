@@ -47,7 +47,7 @@ Garantir que 100% dos números de SCR-027 tenham detalhamento por processo com o
 - Relatório do catálogo da pessoa (US-172, RN-ANL-70).
 
 ## Fluxo principal
-1. No relatório (SCR-027), o gestor aciona **"Ver processos"** num número, numa barra do gráfico ou numa linha da tabela. O front navega para `/relatorios/returns?fiscalYear=2026&periodKey=2026-04&secretariatId=<id>&metric=returns`, levando os filtros do recorte e o que foi clicado.
+1. No relatório (SCR-027), o gestor aciona **"Ver processos"** num número, numa barra do gráfico ou numa linha da tabela. O front navega para `/relatorios/devolucoes?fiscalYear=2026&periodKey=2026-04&secretariatId=<id>&metric=returns`, levando os filtros do recorte e o que foi clicado.
 2. SCR-028 abre com o título do relatório, os filtros do recorte em chips, "Dados atualizados em 11/11/2026 14:05" e a descrição do número ("6 devoluções · Saúde · abril de 2026").
 3. O front chama `GET /api/v1/reports/{report}/processes` (ANL-09) com os filtros, `periodKey`, `metric`, `sort`, `q` e `cursor`.
 4. A API valida os parâmetros; resolve o escopo de `REPORT_VIEW` (RN-ANL-79) e o predicado de visibilidade (DEC-024); consulta os fatos aplicando os dois; mascara o valor de cada linha (RN-ANL-92); calcula `matchedTotal`, `visibleTotal` e `hiddenCount`; e, se for o primeiro acesso da sessão a este relatório, grava a auditoria `report.view_detail` (RN-ANL-93).

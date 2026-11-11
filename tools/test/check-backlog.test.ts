@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { CATEGORIES, checkBacklog } from '../docs/check-backlog.js';
+import { CATEGORIES, applyExceptions, checkBacklog } from '../docs/check-backlog.js';
 
 const realDocs = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs');
 const SECTIONS = [
@@ -121,9 +121,39 @@ describe('checkBacklog', () => {
     expect(checkBacklog({ root }).map((p) => p.rule)).toEqual(['referencia']);
   });
 
-  it('passa no backlog real do repositório', () => {
-    expect(checkBacklog({ root: realDocs }).filter((p) => !p.file.startsWith('mvp-02'))).toEqual(
-      [],
+  it('confere endpoints e telas das stories contra api/*.md e screens.md', () => {
+    const root = fixture({
+      'story-001-a.md': storyText('US-001')
+        .replace('endpoints: []', 'endpoints: [PRC-01, PRC-99]')
+        .replace('screens: []', 'screens: [SCR-004, SCR-999]'),
+    });
+    mkdirSync(join(root, 'mvp-01/api'), { recursive: true });
+    writeFileSync(
+      join(root, 'mvp-01/api/02-processes.md'),
+      '### PRC-01 — Listar\nx\n### PRC-02 — Criar\nx\n',
     );
+    writeFileSync(join(root, 'mvp-01/screens.md'), '### SCR-004 — Processos\n### SCR-005 — Novo\n');
+    const got = checkBacklog({ root }).map(
+      (p) => `${p.file}:${p.rule}:${/[A-Z]{2,5}-\d{2,3}/.exec(p.message)?.[0] ?? ''}`,
+    );
+    expect(got.sort()).toEqual(
+      [
+        'backlog/story-001-a.md:endpoint:PRC-99',
+        'backlog/story-001-a.md:tela:SCR-999',
+        'mvp-01/api/02-processes.md:endpoint-orfao:PRC-02',
+        'mvp-01/screens.md:tela-orfa:SCR-005',
+      ].sort(),
+    );
+  });
+
+  it('só confere endpoints e telas quando os documentos consolidados existem', () => {
+    const root = fixture({
+      'story-001-a.md': storyText('US-001').replace('endpoints: []', 'endpoints: [PRC-99]'),
+    });
+    expect(checkBacklog({ root })).toEqual([]);
+  });
+
+  it('passa no backlog real do repositório', () => {
+    expect(applyExceptions(checkBacklog({ root: realDocs }))).toEqual([]);
   });
 });
