@@ -237,6 +237,7 @@
     "approval": {
       "cancel": "Aprovação cancelada",
       "decide": "Aprovação decidida",
+      "vote": "Voto registrado em aprovação",
       "reassign": "Aprovação reatribuída",
       "request": "Aprovação solicitada",
       "withdraw": "Aprovação retirada"

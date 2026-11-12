@@ -964,6 +964,9 @@ describe('Feature: Decidir aprovação (US-052)', () => {
         decisionOptions: [],
         decidesAsDeputy: false,
         decisionBlocker: 'NOT_DESIGNATED_APPROVER',
+        // US-134 (aditivo): sem linha da solicitante.
+        myLine: null,
+        decidableLineIds: [],
       });
     });
 

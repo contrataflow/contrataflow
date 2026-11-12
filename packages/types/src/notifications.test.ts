@@ -20,6 +20,8 @@ import {
 import type { GroupingCandidate, NotificationType } from './notifications.js';
 
 const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', import.meta.url));
+/** MVP 2 (events.md §6): tipos novos e usos ampliados — a linha do MVP 2 prevalece sobre a do MVP 1. */
+const EVENTS_DOC_MVP2 = fileURLToPath(new URL('../../../docs/mvp-02/events.md', import.meta.url));
 
 interface DocumentedType {
   readonly type: string;
@@ -34,26 +36,34 @@ interface DocumentedType {
  */
 const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {};
 
-/** Linhas da tabela de events.md §6 (fonte canônica do registro `NotificationType`). */
-function documentedTypes(): DocumentedType[] {
-  const doc = readFileSync(EVENTS_DOC, 'utf8');
-  const section = doc.slice(
-    doc.indexOf('## 6. Notificações derivadas de eventos'),
-    doc.indexOf('## 7. Catálogo'),
-  );
+/** Linhas da tabela §6 de um events.md (fonte canônica do registro `NotificationType`). */
+function tableRows(path: string, heading: string): DocumentedType[] {
+  const doc = readFileSync(path, 'utf8');
+  const section = doc.slice(doc.indexOf(heading), doc.indexOf('## 7. Catálogo'));
   return section
     .split('\n')
     .filter((line) => line.startsWith('| `'))
     .map((line) => {
       const cells = line.split('|').map((cell) => cell.trim());
       return {
-        type: (cells[1] ?? '').replaceAll('`', ''),
+        type: (cells[1] ?? '').replace(/\*.*$/, '').replaceAll('`', '').trim(),
         origin: cells[2] ?? '',
         email: (cells[4] ?? '').includes('✔'),
         mandatory: (cells[5] ?? '').includes('sim'),
       };
     })
     .filter((row) => /^[A-Z_]+$/.test(row.type) && !(row.type in PENDING_DOCUMENTED_TYPES));
+}
+
+/** MVP 1 inteiro e, do MVP 2, os tipos já entregues (cada story do MVP 2 traz os seus). */
+function documentedTypes(): DocumentedType[] {
+  const mvp2 = tableRows(EVENTS_DOC_MVP2, '## 6. Notificações e lembretes').filter((row) =>
+    (NOTIFICATION_TYPES as readonly string[]).includes(row.type),
+  );
+  const mvp1 = tableRows(EVENTS_DOC, '## 6. Notificações derivadas de eventos').filter(
+    (row) => !mvp2.some((newer) => newer.type === row.type),
+  );
+  return [...mvp1, ...mvp2];
 }
 
 const EVENT = '0192f111-0000-7000-8000-00000000e001';

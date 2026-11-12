@@ -42,6 +42,9 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
         'approval.returned',
         'approval.rejected',
         'approval.reassigned',
+        // US-134: voto de linha (ao solicitante) e vez do próximo aprovador (APPROVAL_REQUESTED).
+        'approval.vote_recorded',
+        'approval.approver_activated',
         'comment.created',
         'comment.user_mentioned',
         'attachment.rejected',
@@ -290,6 +293,10 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     // US-053: timeline (`APPROVAL_REASSIGNED`) e `ProcessAccess` (`APPROVER`) no mesmo `tx`; no
     // worker, `APPROVAL_REASSIGNED` ao novo e ao anterior aprovador e métricas.
     ApprovalReassigned: ['approval.reassigned'],
+    // US-134: timeline (`APPROVAL_VOTE_RECORDED`/`APPROVAL_TURN`) no mesmo `tx`; no worker,
+    // `APPROVAL_VOTE_RECORDED` ao solicitante e `APPROVAL_REQUESTED` à linha ativada, e métricas.
+    ApprovalVoteRecorded: ['approval.vote_recorded'],
+    ApprovalApproverActivated: ['approval.approver_activated'],
     // US-065: timeline projetada no mesmo `tx` (síncrona); no worker só o `BusinessMetricsCollector`
     // (`document.*`). Sem notificação própria — a decisão de etapa usa `APPROVAL_DECIDED`.
     DocumentCreated: ['document.created.despacho'],

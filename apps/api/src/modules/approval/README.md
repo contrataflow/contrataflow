@@ -56,7 +56,7 @@ backfill M2-03 em `20261112091000_approval_approvers_backfill`).
   `openApprovalLines` (estado inicial — RN-APV-18), `mirroredLineOf`/`mirrorOf` (espelho nas
   colunas da `Approval` — RN-APV-24), `backfillLineOf` (o mesmo mapeamento da M2-03) e a
   sincronização provisória com as ações do MVP 1 (`linesAfterDecision`, `linesAfterCancellation`,
-  `lineAfterReassignment`) — substituídas pela US-134/US-135.
+  `lineAfterReassignment`) — substituídas pela US-135 (a decisão por linha é da US-134).
 - **Aplicação:** `ApprovalRequestService.plan` (configuração + `ApproverResolver.resolveLines`, em
   lote: uma leitura por unidade, uma dos vínculos, uma por perfil; 422 com `meta.sequence`) ANTES
   das escritas; `requestForStageEntry`/`requestForDocumentSubmission` aplicam segregação e pessoa
@@ -77,6 +77,48 @@ backfill M2-03 em `20261112091000_approval_approvers_backfill`).
   `process/presentation/multi-approver-request.routes.spec.ts` (8 categorias, memória — sem
   rollback) e `test/tenant-leak/approval-approvers.spec.ts` (PostgreSQL: rollback de pessoa
   repetida/autor/falha na 2ª linha, RLS, índice único, corrida, backfill de 2.350).
+
+## Decidir aprovação múltipla — voto por linha (US-134)
+
+DEC-193 · RN-APV-33..50. O APV-03 decide a **linha** de quem vota; os efeitos da US-052 só acontecem
+no encerramento.
+
+- **Domínio puro:** `domain/approval-vote.ts` — `lineDesignationOf` (POL-03 por linha: `USER`,
+  titular/substituto ATUAIS de `DEPARTMENT_HEAD` — reaproveita `designationOf` —, detentor competente
+  de `ROLE`; linha desviada na solicitação — `allowDeputy = false` com o substituto gravado — só a
+  pessoa gravada, `asDeputy`), `selectVoteLine` (a linha do voto e os erros na ordem de RN-APV-40:
+  `NOT_LINE_APPROVER`, `LINE_REQUIRED`, `LINE_NOT_PENDING`, `LINE_WAITING`; `alreadyVoted`),
+  `voteExpectedVersion` (If-Match: aprovação em `ANY`, linha nas demais), `voteClosesApproval` e
+  `castVote` (`DecisionPolicyStrategy`: voto que não encerra — linha `APPROVED`, ativação da próxima
+  em `SEQUENTIAL`, espelho na linha corrente —; encerramento — decisão final e espelho da linha que
+  encerrou, restantes `SKIPPED` `ANY_DECIDED`/`NEGATIVE_DECISION`, `votes[]`), `lineDecisionBlockerOf`
+  (APV-02, com `ALREADY_VOTED`/`LINE_NOT_PENDING`) e `approvalInvariantViolations` (RN-APV-50, teste
+  de propriedade com fast-check em `approval-vote.spec.ts`).
+- **Coordenador:** `DecideApprovalCommand` — trava processo → aprovação (`FOR UPDATE`) → linhas
+  relidas sob a trava → `ApprovalDecisionPolicy.lineDesignationFactsIn` (uma leitura por perfil e
+  por unidade) → seleção/If-Match/POL-03 → `castVote`. Não encerra: `recordVote`, `ApprovalVoteRecorded`
+  (+ `ApprovalApproverActivated`), `approval.vote` (`entityType = ApprovalApprover`) — nada no
+  documento, na etapa nem no prazo, e as regras `TRANSITION` não são avaliadas. Encerra:
+  `planDecision` (FA-06: `APPROVER_UNRESOLVED` desfaz o voto) → `recordVote` → evento com
+  `decisionPolicy`/`decidingApprovalApproverId`/`votes[]` → `applyDecision` → `approval.decide`.
+  `ApprovalRepository.recordVote` grava aprovação (`WHERE status = PENDING AND version`) e cada
+  linha alterada na versão lida (`false` = conflito → 412). Logs `approval.vote_recorded`,
+  `approval.closed`, `warn approval.decide_conflict`; métrica `cf_approval_vote_total{policy,decision}`.
+- **Banco:** gatilho `approval_approvers_decided_immutable` (migração
+  `20261112100000_approval_approvers_decided_immutable`): linha `APPROVED`/`RETURNED`/`REJECTED` não
+  muda decisão, decisor, comentário, aprovador nem estado.
+- **APV-02:** `meta.myLine` (`etag` = o If-Match do voto), `meta.decidableLineIds`,
+  `decisionOptions[].closesApproval` (a opção que não encerra vem habilitada e sem `violations`),
+  `approvers[].version`. **APV-03:** `{ data, meta: { outcome, remainingPending, remainingWaiting,
+activatedApproverId, approvalApproverId } }`; erros novos `APPROVAL_LINE_NOT_PENDING` e
+  `APPROVER_ALREADY_VOTED` (409); `NOT_DESIGNATED_APPROVER` com `meta.reason` (`LINE_WAITING`,
+  `NOT_LINE_APPROVER`); `access.denied` com `approvalApproverId` (`ApiError.auditMetadata`).
+- **Efeitos:** timeline `APPROVAL_VOTE_RECORDED` ("1 de 2") e `APPROVAL_TURN`; worker:
+  `APPROVAL_VOTE_RECORDED` ao solicitante (fonte `APPROVAL_REQUESTER`) e `APPROVAL_REQUESTED` à linha
+  ativada.
+- **Testes:** `domain/approval-vote.spec.ts`, `process/presentation/multi-approver-decision.routes.spec.ts`
+  (8 categorias, memória) e `test/tenant-leak/approval-votes.spec.ts` (PostgreSQL: trava, corridas,
+  gatilho, rollback do encerramento, RLS).
 
 ## Decidir aprovação (US-052)
 

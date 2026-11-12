@@ -2,6 +2,7 @@ import type {
   ApprovalDto,
   ApprovalMeta,
   DecideApprovalInput,
+  DecideApprovalMeta,
   DecidedApprovalDto,
   DepartmentLookupItem,
   ReassignApprovalInput,
@@ -46,6 +47,8 @@ const EMPTY_META: ApprovalMeta = {
   decisionOptions: [],
   decidesAsDeputy: false,
   decisionBlocker: null,
+  myLine: null,
+  decidableLineIds: [],
 };
 
 /** APV-02: `If-Match` das ações é `data.version`; a `ETag` vem junto para conferência. */
@@ -62,6 +65,8 @@ export async function fetchApproval(
       decisionOptions: meta.decisionOptions ?? EMPTY_META.decisionOptions,
       decidesAsDeputy: meta.decidesAsDeputy ?? EMPTY_META.decidesAsDeputy,
       decisionBlocker: meta.decisionBlocker ?? EMPTY_META.decisionBlocker,
+      myLine: meta.myLine ?? EMPTY_META.myLine,
+      decidableLineIds: meta.decidableLineIds ?? EMPTY_META.decidableLineIds,
     },
     etag: result.meta.etag,
   };
@@ -81,35 +86,50 @@ export function useApproval(approvalId: string) {
   });
 }
 
-/** APV-03: a mesma `Idempotency-Key` vale para as retentativas automáticas (DEC-105). */
+/** APV-03 já separado: a aprovação e o resultado do voto (US-134 — `meta.outcome`). */
+export interface DecideResult {
+  readonly approval: DecidedApprovalDto;
+  /** `null` = resposta sem `meta` (servidor do MVP 1): trate como encerramento. */
+  readonly meta: DecideApprovalMeta | null;
+}
+
+/**
+ * APV-03: a mesma `Idempotency-Key` vale para as retentativas automáticas (DEC-105). `ifMatch` é o
+ * valor exato do `If-Match` (US-134 · RN-APV-41): a versão da aprovação em `ANY`, a da linha nas
+ * demais políticas (`voteIfMatch`).
+ */
 export async function decideApproval(
   approvalId: string,
   body: DecideApprovalInput,
-  version: number,
+  ifMatch: string,
   context: IdempotentContext,
-): Promise<DecidedApprovalDto> {
+): Promise<DecideResult> {
   const result = await apiRequest<DecidedApprovalDto>(`/approvals/${approvalId}/decide`, {
     method: 'POST',
     body,
-    ifMatch: `"${String(version)}"`,
+    ifMatch,
     idempotencyKey: context.idempotencyKey,
     correlationId: context.correlationId,
   });
-  return result.data;
+  const meta = result.meta as Partial<DecideApprovalMeta>;
+  return {
+    approval: result.data,
+    meta: meta.outcome === undefined ? null : (meta as DecideApprovalMeta),
+  };
 }
 
 export interface DecideVariables {
   readonly approvalId: string;
   readonly body: DecideApprovalInput;
-  /** `version` da última leitura (APV-02): o `If-Match`. */
-  readonly version: number;
+  /** `If-Match` da última leitura (APV-02): da aprovação em `ANY`, da linha nas demais. */
+  readonly ifMatch: string;
 }
 
 /** Mutação da decisão: chave de idempotência por intenção (reenvios da falha de rede). */
 export function useDecideApproval(retry?: RetryOptions) {
-  return useIdempotentMutation<DecideVariables, DecidedApprovalDto>({
+  return useIdempotentMutation<DecideVariables, DecideResult>({
     mutationFn: (variables, context) =>
-      decideApproval(variables.approvalId, variables.body, variables.version, context),
+      decideApproval(variables.approvalId, variables.body, variables.ifMatch, context),
     retry,
   });
 }

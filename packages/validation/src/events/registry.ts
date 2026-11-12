@@ -13,6 +13,8 @@ import {
   ApprovalReassigned,
   ApprovalRequested,
   ApprovalReturned,
+  ApprovalApproverActivated,
+  ApprovalVoteRecorded,
 } from '../approval/events.js';
 import { HolidayChanged } from '../calendar/events.js';
 import { CatalogItemChanged } from '../catalog/events.js';
@@ -148,6 +150,8 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ApprovalCompleted,
   ApprovalReturned,
   ApprovalRejected,
+  ApprovalVoteRecorded,
+  ApprovalApproverActivated,
   SupplierCreated,
   SupplierUpdated,
   PriceResearchRecalculated,

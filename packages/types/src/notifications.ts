@@ -13,6 +13,8 @@ export const NOTIFICATION_TYPES = [
   'APPROVAL_REQUESTED',
   'APPROVAL_DECIDED',
   'APPROVAL_REASSIGNED',
+  // US-134: voto de linha que não encerra (ao solicitante).
+  'APPROVAL_VOTE_RECORDED',
   'MENTIONED',
   'COMMENT_REPLY',
   'STAGE_DUE_SOON',
@@ -73,7 +75,8 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
       dispatchedBy: 'US-111',
     },
     APPROVAL_REQUESTED: {
-      sourceEvents: ['ApprovalRequested'],
+      // US-134: também a linha que passa a `PENDING` em `SEQUENTIAL` (`ApprovalApproverActivated`).
+      sourceEvents: ['ApprovalRequested', 'ApprovalApproverActivated'],
       emailByDefault: true,
       mandatory: true,
       dispatchedBy: 'US-111',
@@ -87,6 +90,12 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
     APPROVAL_REASSIGNED: {
       sourceEvents: ['ApprovalReassigned'],
       emailByDefault: true,
+      mandatory: false,
+      dispatchedBy: 'US-111',
+    },
+    APPROVAL_VOTE_RECORDED: {
+      sourceEvents: ['ApprovalVoteRecorded'],
+      emailByDefault: false,
       mandatory: false,
       dispatchedBy: 'US-111',
     },

@@ -32,11 +32,25 @@ export const POLICY_EVIDENCE: Readonly<Record<PolicyId, readonly PolicyEvidence[
       mentions: ['DOCUMENT_NOT_EDITABLE'],
     },
   ],
-  // Segregação de funções: SELF_APPROVAL_FORBIDDEN.
+  // Segregação de funções: SELF_APPROVAL_FORBIDDEN. US-134: POL-03 por linha (linha em espera,
+  // linha já decidida, pessoa única).
   'POL-03': [
     {
-      file: 'src/modules/approval/domain/approval-decision.spec.ts',
+      file: 'src/modules/process/presentation/approval-decision.routes.spec.ts',
       mentions: ['NOT_DESIGNATED_APPROVER', 'SELF_APPROVAL_FORBIDDEN', 'APPROVAL_NOT_PENDING'],
+    },
+    {
+      file: 'src/modules/approval/domain/approval-vote.spec.ts',
+      mentions: ['NOT_DESIGNATED_APPROVER', 'SELF_APPROVAL_FORBIDDEN', 'LINE_WAITING'],
+    },
+    {
+      file: 'src/modules/process/presentation/multi-approver-decision.routes.spec.ts',
+      mentions: [
+        'LINE_WAITING',
+        'APPROVAL_LINE_NOT_PENDING',
+        'APPROVER_ALREADY_VOTED',
+        'SELF_APPROVAL_FORBIDDEN',
+      ],
     },
     {
       // Designação por perfil: escopo cobrindo a unidade solicitante (DEC-022).

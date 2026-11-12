@@ -9,7 +9,6 @@ import {
 } from '@contrataflow/validation';
 import type {
   ApprovalDecision,
-  ApprovalDecisionOption,
   MovementMetadata,
   ProcessStatus,
   StageChangeCause,
@@ -22,6 +21,7 @@ import type {
   DecisionSubject,
   DecisionSubjectView,
   SubjectDecisionInput,
+  SubjectDecisionOption,
   SubjectDecisionResult,
   SubjectWithdrawalInput,
   SubjectWithdrawalResult,
@@ -164,7 +164,7 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     };
   }
 
-  async decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<ApprovalDecisionOption[]> {
+  async decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<SubjectDecisionOption[]> {
     const rows = await this.processes.loadAggregate(tx, subject.processId);
     if (rows?.process.currentStageId !== subject.processStageId) return [];
     const runtime = await this.runtimes.fromAggregate(tx, rows);

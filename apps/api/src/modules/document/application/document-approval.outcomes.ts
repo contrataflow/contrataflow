@@ -1,4 +1,4 @@
-import type { ApprovalDecisionOption, ApprovalDocumentDto } from '@contrataflow/validation';
+import type { ApprovalDocumentDto } from '@contrataflow/validation';
 import { APPROVAL_WITHDRAWAL_MESSAGES, decisionRequiresComment } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
@@ -9,6 +9,7 @@ import type {
   DecisionSubjectFacts,
   DecisionSubjectView,
   SubjectDecisionInput,
+  SubjectDecisionOption,
   SubjectDecisionResult,
   SubjectWithdrawalInput,
   SubjectWithdrawalResult,
@@ -358,7 +359,7 @@ export class DocumentApprovalSubjectHandler implements ApprovalSubjectHandler<Su
     };
   }
 
-  decisionOptions(): Promise<ApprovalDecisionOption[]> {
+  decisionOptions(): Promise<SubjectDecisionOption[]> {
     return Promise.resolve(
       (['APPROVE', 'RETURN', 'REJECT'] as const).map((decision) => ({
         decision,

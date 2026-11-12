@@ -26,6 +26,11 @@ export interface ApiErrorOptions {
   readonly auditDenial?: boolean;
   /** Entidade negada gravada no `access.denied` (ex.: a visão salva de outro dono — US-003). */
   readonly auditEntity?: { readonly type: string; readonly id: string };
+  /**
+   * Ids extras gravados em `metadata` do `access.denied` (ex.: `approvalApproverId` da linha negada
+   * — US-134). Só identificadores; nunca vão na resposta.
+   */
+  readonly auditMetadata?: Readonly<Record<string, string | null>>;
   readonly cause?: unknown;
 }
 
@@ -44,6 +49,7 @@ export class ApiError extends Error {
   readonly auditReasonCode: string;
   readonly auditDenial: boolean;
   readonly auditEntity: { readonly type: string; readonly id: string } | null;
+  readonly auditMetadata: Readonly<Record<string, string | null>>;
 
   constructor(
     readonly code: ErrorCode | (string & {}),
@@ -64,6 +70,7 @@ export class ApiError extends Error {
     this.auditReasonCode = options.auditReasonCode ?? code;
     this.auditDenial = options.auditDenial ?? false;
     this.auditEntity = options.auditEntity ?? null;
+    this.auditMetadata = options.auditMetadata ?? {};
   }
 }
 

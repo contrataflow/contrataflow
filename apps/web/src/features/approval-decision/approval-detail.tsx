@@ -124,7 +124,12 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
             <Alert tone="info" live={false} title={t('decidesAsDeputy')} />
           ) : null}
           {approval.status === 'CANCELED' ? <CanceledNotice /> : null}
-          {pending && !decidable ? <BlockedExplanation blocker={meta.decisionBlocker} /> : null}
+          {pending && !decidable ? (
+            <BlockedExplanation
+              blocker={meta.decisionBlocker}
+              waiting={meta.myLine?.status === 'WAITING'}
+            />
+          ) : null}
         </div>
       }
       aside={
@@ -283,9 +288,25 @@ function CanceledNotice() {
   return <Alert tone="info" title={t('canceled')} />;
 }
 
-/** Pendente, mas fora da designação/segregação/situação do processo: explica o motivo. */
-function BlockedExplanation({ blocker }: { readonly blocker: ApprovalMeta['decisionBlocker'] }) {
+/**
+ * Pendente, mas fora da designação/segregação/situação do processo: explica o motivo. US-134: linha
+ * em espera ("Aguardando a vez"), voto já registrado e linha decidida por outro detentor.
+ */
+function BlockedExplanation({
+  blocker,
+  waiting,
+}: {
+  readonly blocker: ApprovalMeta['decisionBlocker'];
+  readonly waiting: boolean;
+}) {
   const t = useTranslations('approvals.blocked');
+  if (waiting && blocker === 'NOT_DESIGNATED_APPROVER') {
+    return (
+      <Alert tone="info" title={t('waitingTitle')}>
+        <p className="text-sm">{t('reasons.LINE_WAITING')}</p>
+      </Alert>
+    );
+  }
   return (
     <Alert tone="warning" title={t('title')}>
       <p className="text-sm">{t(`reasons.${blocker ?? 'UNKNOWN'}`)}</p>
@@ -298,6 +319,9 @@ function NoticeAlert({ problem }: { readonly problem: DecisionProblem }) {
   const t = useTranslations('approvals.notice');
   switch (problem.kind) {
     case 'notPending':
+    case 'lineNotPending':
+    case 'alreadyVoted':
+    case 'waiting':
     case 'stale':
     case 'precondition':
     case 'processStatus':

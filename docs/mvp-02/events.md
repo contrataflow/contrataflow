@@ -24,7 +24,7 @@ Campos opcionais novos — **mesma `eventVersion`** (regra do MVP 1, §8):
 | `ProcessCreated` | `pcaItemId?` | PCA (DEC-197) |
 | `ProcessStageDueSoon` / `ProcessStageOverdue` | `branchKey?`, `slaPolicyKey?`, `escalationLevel?` | SLA (DEC-205) |
 | `ApprovalRequested` | `decisionPolicy`, `approvers[]` (`{ approvalApproverId, sequence, approverType, approverUserId?, approverRoleId?, approverDepartmentId?, allowDeputy, status }` — `allowDeputy` acrescentado na US-133: o substituto é avisado e recebe `APPROVER` por linha), `pcaId?`, `thresholdResolution?`; `subjectType` aceita `PCA`. Os dois campos da US-133 são opcionais no esquema (eventos do MVP 1 no outbox) e sempre gravados nas solicitações novas | Aprovação múltipla e PCA (DEC-193, DEC-197) |
-| `ApprovalCompleted` / `ApprovalReturned` / `ApprovalRejected` | `decisionPolicy`, `decidingApprovalApproverId`, `votes[]` (`{ sequence, decision, decidedById, decidedAsDeputy }`), `pcaId?` | Idem |
+| `ApprovalCompleted` / `ApprovalReturned` / `ApprovalRejected` | `decisionPolicy`, `decidingApprovalApproverId`, `votes[]` (`{ approvalApproverId, sequence, decision, decidedById, decidedAsDeputy }` — `approvalApproverId` acrescentado na US-134; nunca o comentário), `pcaId?`. Opcionais no esquema (eventos do MVP 1 no outbox); sempre gravados desde a US-134 | Idem |
 | `ApprovalCanceled` | `reason` aceita `BRANCH_CANCELED`, `MIGRATION` | Paralelismo e migração |
 | `ApprovalReassigned` | `approvalApproverId?`, `sequence?` | Redirecionamento por linha |
 | `DocumentFinalized` (`parecer_juridico`) | `typedSummary: { legalReviewId, round }` (sem a situação) | Parecer |
@@ -81,7 +81,7 @@ Síncronos (mesma transação): `TimelineProjector` e `ProcessAccessProjector` p
 ### 4.3 Aprovação (módulo `approval`)
 | Evento | Routing key | Produtor | Payload | Cons. |
 |---|---|---|---|---|
-| `ApprovalVoteRecorded` | `approval.vote_recorded` | Decisão positiva de linha que não encerra (`ALL`/`SEQUENTIAL`) | `approvalId`, `approvalApproverId`, `sequence`, `decidedById`, `decidedAsDeputy`, `remainingPending`, `remainingWaiting` | T N R |
+| `ApprovalVoteRecorded` | `approval.vote_recorded` | Decisão positiva de linha que não encerra (`ALL`/`SEQUENTIAL`) | `approvalId`, `approvalApproverId`, `sequence`, `decisionPolicy`, `decidedById`, `decidedAsDeputy`, `remainingPending`, `remainingWaiting`, `approvedLines`, `totalLines` (os dois últimos compõem o "{votesLabel}" — US-134) | T N R |
 | `ApprovalApproverActivated` | `approval.approver_activated` | `SEQUENTIAL`: próxima linha passa a `PENDING` | `approvalId`, `approvalApproverId`, `sequence`, `approverType`, `approverUserId?`, `approverRoleId?`, `approverDepartmentId?`, `allowDeputy`, `dueAt?` | T A N |
 
 `ApprovalRequested`, `ApprovalCompleted`, `ApprovalReturned`, `ApprovalRejected`, `ApprovalCanceled` e `ApprovalReassigned` continuam como no MVP 1, com os acréscimos da §2. Aprovações de assunto `PCA` têm `processId` nulo no envelope.

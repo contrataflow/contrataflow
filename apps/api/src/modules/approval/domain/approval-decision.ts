@@ -1,8 +1,4 @@
-import type {
-  ApprovalDecision,
-  ApprovalDecisionBlocker,
-  ProcessStatus,
-} from '@contrataflow/validation';
+import type { ApprovalDecision, ProcessStatus } from '@contrataflow/validation';
 
 import type { Approval, ApprovalStatus } from './approval.js';
 
@@ -159,23 +155,4 @@ const UNDECIDABLE_STATUSES: ReadonlySet<ProcessStatus> = new Set([
 
 export function isDecidableProcessStatus(status: ProcessStatus): boolean {
   return !UNDECIDABLE_STATUSES.has(status);
-}
-
-/**
- * Por que quem consulta não pode decidir (APV-02 — SCR-015 oculta as ações e explica o motivo),
- * na ordem das checagens do APV-03; `null` = pode decidir.
- */
-export function decisionBlockerOf(input: {
-  readonly status: ApprovalStatus;
-  readonly canDecide: boolean;
-  readonly designation: Designation;
-  readonly selfApproval: boolean;
-  readonly processStatus: ProcessStatus;
-}): ApprovalDecisionBlocker | null {
-  if (input.status !== 'PENDING') return 'NOT_PENDING';
-  if (!input.canDecide) return 'PERMISSION_DENIED';
-  if (!input.designation.designated) return 'NOT_DESIGNATED_APPROVER';
-  if (input.selfApproval) return 'SELF_APPROVAL_FORBIDDEN';
-  if (!isDecidableProcessStatus(input.processStatus)) return 'INVALID_PROCESS_STATUS';
-  return null;
 }

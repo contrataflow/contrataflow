@@ -512,7 +512,7 @@ describe('Feature: Solicitar aprovação e resolver o aprovador (US-051)', () =>
 
       // Roberto (Marta) recebe APPROVAL_REQUESTED: in-app obrigatório, não pode ser desativado.
       expect(NOTIFICATION_REGISTRY.APPROVAL_REQUESTED).toMatchObject({
-        sourceEvents: ['ApprovalRequested'],
+        sourceEvents: ['ApprovalRequested', 'ApprovalApproverActivated'],
         mandatory: true,
         emailByDefault: true,
       });

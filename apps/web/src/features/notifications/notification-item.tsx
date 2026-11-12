@@ -18,6 +18,7 @@ const TYPE_ICONS: Readonly<Record<NotificationType, IconName>> = {
   APPROVAL_REQUESTED: 'stamp',
   APPROVAL_DECIDED: 'stamp',
   APPROVAL_REASSIGNED: 'stamp',
+  APPROVAL_VOTE_RECORDED: 'stamp',
   MENTIONED: 'message',
   COMMENT_REPLY: 'message',
   STAGE_DUE_SOON: 'clock',

@@ -61,6 +61,9 @@ export const DOMAIN_EVENT_NAMES = [
   'ApprovalRejected',
   // US-053: redirecionamento da aprovação pendente.
   'ApprovalReassigned',
+  // US-134: voto de linha que não encerra e vez do próximo aprovador (aprovação múltipla).
+  'ApprovalVoteRecorded',
+  'ApprovalApproverActivated',
   'DocumentCreated',
   'DocumentVersionCreated',
   'DocumentSubmitted',

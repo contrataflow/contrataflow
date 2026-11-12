@@ -11,6 +11,8 @@ export type RecipientLookup =
   | 'PROCESS_STAKEHOLDERS'
   /** Solicitante e responsáveis (`responsibleId`) dos documentos cobertos (US-051/US-052). */
   | 'APPROVAL_STAKEHOLDERS'
+  /** Quem solicitou a aprovação (US-134 — `APPROVAL_VOTE_RECORDED`). */
+  | 'APPROVAL_REQUESTER'
   /** Detentores do perfil aprovador com escopo sobre o processo, máx. 50 (US-096/US-051). */
   | 'ROLE_HOLDERS'
   /** Quem enviou o anexo (US-068). */

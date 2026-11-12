@@ -12,7 +12,6 @@ import {
   guardSelfApproval,
   lineAfterReassignment,
   linesAfterCancellation,
-  linesAfterDecision,
   mirroredLineOf,
   openApprovalLines,
   SelfApprovalAtRequestError,
@@ -354,39 +353,6 @@ describe('sincronização provisória com as ações do MVP 1', () => {
       guardSelfApproval(policy, [head(1), user(2, MARCOS), role(3)], facts([])),
       stamp,
     );
-
-  it('decisão: a linha de quem decidiu recebe a decisão; as demais vivas ficam SKIPPED (ANY_DECIDED ou NEGATIVE_DECISION)', () => {
-    const approved = linesAfterDecision(
-      open('ANY'),
-      approval({ status: 'APPROVED', decision: 'APPROVE', decidedById: MARCOS, decidedAt: NOW }),
-    );
-    expect(approved.map((line) => [line.sequence, line.status, line.skippedReason])).toEqual([
-      [1, 'SKIPPED', 'ANY_DECIDED'],
-      [2, 'APPROVED', null],
-      [3, 'SKIPPED', 'ANY_DECIDED'],
-    ]);
-    expect(approved[1]).toMatchObject({ decidedById: MARCOS, decidedAt: NOW, version: 2 });
-    const returned = linesAfterDecision(
-      open('SEQUENTIAL'),
-      approval({
-        status: 'RETURNED',
-        decision: 'RETURN',
-        decidedById: HELENA,
-        decidedAt: NOW,
-        decisionComment: 'Ajustar o edital.',
-        decidedAsDeputy: true,
-      }),
-    );
-    expect(returned.map((line) => [line.status, line.skippedReason])).toEqual([
-      ['RETURNED', null],
-      ['SKIPPED', 'NEGATIVE_DECISION'],
-      ['SKIPPED', 'NEGATIVE_DECISION'],
-    ]);
-    expect(returned[0]).toMatchObject({
-      decisionComment: 'Ajustar o edital.',
-      decidedAsDeputy: true,
-    });
-  });
 
   it('retirada/cancelamento: linhas não decididas → CANCELED (WITHDRAWN); decididas ficam', () => {
     const lines = open('ALL').map((line) =>

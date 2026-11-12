@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ApprovalNotPendingError,
   decideApproval,
-  decisionBlockerOf,
   designationOf,
   isDecidableProcessStatus,
   isSelfApproval,
@@ -162,35 +161,5 @@ describe('segregação de funções e status do processo', () => {
     ['PUBLISHED', false],
   ] as const)('processo %s decidível? %s', (status, decidable) => {
     expect(isDecidableProcessStatus(status)).toBe(decidable);
-  });
-
-  it('decisionBlockerOf: o primeiro motivo na ordem das checagens do APV-03', () => {
-    const base = {
-      status: 'PENDING' as const,
-      canDecide: true,
-      designation: { designated: true, asDeputy: false },
-      selfApproval: false,
-      processStatus: 'AWAITING_APPROVAL' as const,
-    };
-    expect(decisionBlockerOf(base)).toBeNull();
-    expect(decisionBlockerOf({ ...base, status: 'APPROVED', canDecide: false })).toBe(
-      'NOT_PENDING',
-    );
-    expect(decisionBlockerOf({ ...base, canDecide: false, selfApproval: true })).toBe(
-      'PERMISSION_DENIED',
-    );
-    expect(
-      decisionBlockerOf({
-        ...base,
-        designation: { designated: false, asDeputy: false },
-        selfApproval: true,
-      }),
-    ).toBe('NOT_DESIGNATED_APPROVER');
-    expect(decisionBlockerOf({ ...base, selfApproval: true, processStatus: 'SUSPENDED' })).toBe(
-      'SELF_APPROVAL_FORBIDDEN',
-    );
-    expect(decisionBlockerOf({ ...base, processStatus: 'SUSPENDED' })).toBe(
-      'INVALID_PROCESS_STATUS',
-    );
   });
 });

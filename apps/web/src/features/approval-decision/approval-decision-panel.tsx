@@ -6,7 +6,6 @@ import type {
   ApprovalDocumentDto,
   ApprovalDto,
   ApprovalMeta,
-  DecidedApprovalDto,
 } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -20,11 +19,14 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 import { approvalKeys, useDecideApproval } from './approval-decision.api';
-import { CommentField, TargetSelector, WarningsChecklist } from './decision-fields';
+import type { DecideResult } from './approval-decision.api';
+import { CommentField, LineSelector, TargetSelector, WarningsChecklist } from './decision-fields';
 import {
   DECISION_FIELD_ORDER,
+  activeLinesCount,
   buildDecisionBody,
   commentRequired,
+  decidableLines,
   describeDecisionError,
   groupDecisionOptions,
   isConfirmEnabled,
@@ -34,6 +36,7 @@ import {
   resolveOption,
   validateDecision,
   violationDocumentId,
+  voteIfMatch,
   warningsOf,
   withoutTrailingPeriod,
 } from './decision-model';
@@ -63,6 +66,9 @@ export interface ApprovalDecisionPanelProps {
  * da regra. Confirma com o APV-03 (`If-Match` da última leitura, `Idempotency-Key` por intenção),
  * invalida aprovação, processo e caixa de tarefas, avisa e volta ao processo. Erros em `aria-live`
  * com foco no primeiro campo inválido; o formulário continua preenchido nas falhas temporárias.
+ * US-134 (aprovação múltipla): "Sua linha: {n} de {total}", escolha da linha quando mais de uma
+ * cabe à pessoa (`LineSelector`), `If-Match` da linha em `ALL`/`SEQUENTIAL`, avisos só quando o voto
+ * encerra e, no voto que NÃO encerra ("Seu voto foi registrado. Faltam {n}…"), a tela fica e relê.
  */
 export function ApprovalDecisionPanel({
   approval,
@@ -81,6 +87,10 @@ export function ApprovalDecisionPanel({
   const mutation = useDecideApproval(retry);
   const submitting = mutation.isPending;
 
+  const selectableLines = useMemo(() => decidableLines(approval, meta), [approval, meta]);
+  const lineRequired = selectableLines.length > 1;
+  const [lineChoice, setLineChoice] = useState<string | null>(null);
+  const multiLine = approval.decisionPolicy !== 'ANY' || approval.approvers.length > 1;
   const [decision, setDecision] = useState<ApprovalDecision | null>(null);
   const [targetChoice, setTargetChoice] = useState<string | null>(null);
   const [comment, setComment] = useState('');
@@ -147,17 +157,33 @@ export function ApprovalDecisionPanel({
     if (needsRefresh(found)) onRefresh();
   };
 
-  const finish = (result: DecidedApprovalDto) => {
-    const decided = result.decision ?? decision;
-    toast({
-      title: t('toast', { decision: decided === null ? '' : tDecided(decided) }),
-      tone: 'success',
-    });
+  const finish = (result: DecideResult) => {
     void queryClient.invalidateQueries({ queryKey: approvalKeys.all(tenantId) });
     void queryClient.invalidateQueries({
       queryKey: tenantKey(tenantId, 'processes', approval.process.id),
     });
     void queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'tasks') });
+    if (result.meta?.outcome === 'VOTE_RECORDED') {
+      // US-134 (passo 8): a aprovação segue aberta — a tela fica e relê as linhas.
+      toast({
+        title: t('voteRecorded', {
+          count: result.meta.remainingPending + result.meta.remainingWaiting,
+        }),
+        tone: 'success',
+      });
+      setDecision(null);
+      setTargetChoice(null);
+      setComment('');
+      setAcknowledged([]);
+      setLineChoice(null);
+      onRefresh();
+      return;
+    }
+    const decided = result.approval.decision ?? decision;
+    toast({
+      title: t('toast', { decision: decided === null ? '' : tDecided(decided) }),
+      tone: 'success',
+    });
     router.push(`/processos/${approval.process.id}`);
   };
 
@@ -165,7 +191,15 @@ export function ApprovalDecisionPanel({
     if (submitting) return;
     setProblem(null);
     onNotice(null);
-    const draft = { decision, group, option, comment, acknowledged };
+    const draft = {
+      decision,
+      group,
+      option,
+      comment,
+      acknowledged,
+      lineRequired,
+      lineId: lineChoice,
+    };
     const found = validateDecision(draft);
     if (Object.keys(found).length > 0 || decision === null || option === undefined) {
       showErrors(found);
@@ -173,12 +207,19 @@ export function ApprovalDecisionPanel({
       return;
     }
     setErrors({});
-    let result: DecidedApprovalDto;
+    const lineId = lineRequired ? lineChoice : null;
+    let result: DecideResult;
     try {
       result = await mutation.submit({
         approvalId: approval.id,
-        body: buildDecisionBody({ decision, option, comment, acknowledged }),
-        version: approval.version,
+        body: buildDecisionBody({
+          decision,
+          option,
+          comment,
+          acknowledged,
+          approvalApproverId: lineId,
+        }),
+        ifMatch: voteIfMatch(approval, meta, lineId),
       });
     } catch (error) {
       handleError(error);
@@ -198,6 +239,11 @@ export function ApprovalDecisionPanel({
       <h2 id={headingId} className="text-base font-semibold">
         {t('heading')}
       </h2>
+      {multiLine && meta.myLine !== null && !lineRequired ? (
+        <p className="text-sm text-muted-foreground">
+          {t('myLine', { line: meta.myLine.sequence, total: activeLinesCount(approval) })}
+        </p>
+      ) : null}
 
       <div aria-live="assertive" className="flex flex-col gap-2">
         {problem === null ? null : (
@@ -220,6 +266,19 @@ export function ApprovalDecisionPanel({
           void submit();
         }}
       >
+        {lineRequired ? (
+          <LineSelector
+            name={fieldId('approvalApproverId')}
+            lines={selectableLines}
+            selected={lineChoice}
+            error={errors.approvalApproverId}
+            onSelect={(lineId) => {
+              setLineChoice(lineId);
+              clearError('approvalApproverId');
+            }}
+          />
+        ) : null}
+
         <fieldset
           id={fieldId('decision')}
           className="flex min-w-0 flex-col gap-2"
@@ -315,9 +374,10 @@ function focusTarget(field: DecisionField, ids: string): HTMLElement | null {
         null
       );
     case 'transitionId':
+    case 'approvalApproverId':
       return (
         document
-          .getElementById(`${ids}-transitionId`)
+          .getElementById(`${ids}-${field}`)
           ?.querySelector<HTMLElement>('[role="radio"]:not([disabled])') ?? null
       );
     case 'comment':

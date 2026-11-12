@@ -14,28 +14,34 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
  */
 const PENDING_AREAS: readonly string[] = [];
 
-/** Ações `resource.action` citadas na tabela de events.md §7 (fonte canônica do catálogo). */
-function documentedActions(): string[] {
-  const doc = readFileSync(EVENTS_DOC, 'utf8');
-  const section = doc.slice(
-    doc.indexOf('## 7. Catálogo de ações de auditoria'),
-    doc.indexOf('## 8. Versionamento'),
-  );
+/** MVP 2 (events.md §7): ações novas, que entram no catálogo com a story que as grava. */
+const EVENTS_DOC_MVP2 = fileURLToPath(new URL('../../../docs/mvp-02/events.md', import.meta.url));
+
+/** Ações `resource.action` citadas na tabela §7 de um events.md. */
+function tableActions(path: string, end: string): string[] {
+  const doc = readFileSync(path, 'utf8');
+  const section = doc.slice(doc.indexOf('## 7. Catálogo de ações de auditoria'), doc.indexOf(end));
   const rows = section
     .split('\n')
     .filter((line) => /^\| [A-Z]/.test(line) && !line.startsWith('| Área'))
     .filter((line) => !PENDING_AREAS.some((area) => line.startsWith(area)));
-  return [
-    ...new Set(rows.flatMap((row) => [...row.matchAll(/`([a-z_]+\.[a-z_]+)`/g)].map((m) => m[1]))),
-  ]
-    .filter((action): action is string => action !== undefined)
-    .sort();
+  return rows
+    .flatMap((row) => [...row.matchAll(/`([a-z_]+\.[a-z_]+)`/g)].map((m) => m[1]))
+    .filter((action): action is string => action !== undefined);
+}
+
+/** MVP 1 inteiro (fonte canônica do catálogo) e, do MVP 2, as ações já entregues. */
+function documentedActions(): string[] {
+  const mvp2 = tableActions(EVENTS_DOC_MVP2, '## 8. Evento').filter((action) =>
+    (AUDIT_ACTION_NAMES as readonly string[]).includes(action),
+  );
+  return [...new Set([...tableActions(EVENTS_DOC, '## 8. Versionamento'), ...mvp2])].sort();
 }
 
 describe('catálogo de ações de auditoria (events.md §7 · US-073)', () => {
   it('é exatamente o da tabela de events.md §7', () => {
     expect(AUDIT_ACTION_NAMES).toEqual(documentedActions());
-    expect(AUDIT_ACTION_NAMES).toHaveLength(150);
+    expect(AUDIT_ACTION_NAMES).toHaveLength(151);
   });
 
   it('cada ação segue `resource.action` e tem uma categoria válida', () => {

@@ -114,6 +114,8 @@ const PROCESS_WORKFLOW = [
 const APPROVAL_WORKFLOW = [
   'approval.request',
   'approval.decide',
+  // US-134: voto de linha que não encerra a aprovação múltipla (events.md MVP 2 §7).
+  'approval.vote',
   'approval.withdraw',
   'approval.reassign',
   'approval.cancel',

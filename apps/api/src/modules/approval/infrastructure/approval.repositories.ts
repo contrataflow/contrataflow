@@ -17,6 +17,7 @@ import type {
   ApprovalTransactions,
   ApprovalWithCoverage,
   ReassignmentRecord,
+  VoteWrite,
 } from '../application/ports.js';
 import { recordOf } from '../domain/approval-decision.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
@@ -24,7 +25,6 @@ import {
   backfillLineOf,
   lineAfterReassignment,
   linesAfterCancellation,
-  linesAfterDecision,
 } from '../domain/approval-lines.js';
 import type { ApprovalApprover } from '../domain/approval-lines.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
@@ -250,18 +250,22 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     return rows.map(lineOf);
   }
 
-  /** Grava as linhas que mudaram (cada uma na versão lida — a trava da aprovação serializa). */
+  /**
+   * Grava as linhas que mudaram (cada uma na versão lida — a trava da aprovação serializa).
+   * `false` = alguma linha já não estava na versão lida.
+   */
   private async saveChangedLines(
     tx: TenantTx,
     before: readonly ApprovalApprover[],
     after: readonly ApprovalApprover[],
     userId: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const previous = new Map(before.map((line) => [line.id, line]));
+    let saved = true;
     for (const line of after) {
       const old = previous.get(line.id);
       if (old === undefined || old.version === line.version) continue;
-      await tx.approvalApprover.updateMany({
+      const updated = await tx.approvalApprover.updateMany({
         where: { id: line.id, version: old.version },
         data: {
           approverType: line.approverType,
@@ -282,7 +286,9 @@ export class PrismaApprovalRepository implements ApprovalRepository {
           version: line.version,
         },
       });
+      saved &&= updated.count === 1;
     }
+    return saved;
   }
 
   async lockForUpdate(tx: TenantTx, approvalId: string): Promise<ApprovalRecord | null> {
@@ -297,29 +303,35 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     return row === null ? null : approvalOf(row);
   }
 
-  async recordDecision(
+  async recordVote(
     tx: TenantTx,
-    decided: ApprovalRecord,
+    vote: VoteWrite,
     expectedVersion: number,
+    userId: string,
   ): Promise<boolean> {
+    const { approval } = vote;
     const updated = await tx.approval.updateMany({
-      where: { id: decided.id, status: 'PENDING', version: expectedVersion },
+      where: { id: approval.id, status: 'PENDING', version: expectedVersion },
       data: {
-        status: decided.status,
-        decision: decided.decision,
-        decidedById: decided.decidedById,
-        decidedAt: decided.decidedAt,
-        decisionComment: decided.decisionComment,
-        decidedAsDeputy: decided.decidedAsDeputy,
-        updatedAt: decided.updatedAt,
-        updatedById: decided.decidedById,
-        version: decided.version,
+        status: approval.status,
+        decision: approval.decision,
+        decidedById: approval.decidedById,
+        decidedAt: approval.decidedAt,
+        decisionComment: approval.decisionComment,
+        decidedAsDeputy: approval.decidedAsDeputy,
+        // RN-APV-24/39: o espelho da linha corrente (voto) ou da que encerrou.
+        approverType: approval.approverType,
+        approverUserId: approval.approverUserId,
+        approverRoleId: approval.approverRoleId,
+        approverDepartmentId: approval.approverDepartmentId,
+        allowDeputy: approval.allowDeputy,
+        updatedAt: approval.updatedAt,
+        updatedById: userId,
+        version: approval.version,
       },
     });
     if (updated.count !== 1) return false;
-    const lines = await this.linesOf(tx, decided.id);
-    await this.saveChangedLines(tx, lines, linesAfterDecision(lines, decided), decided.decidedById);
-    return true;
+    return this.saveChangedLines(tx, vote.linesBefore, vote.linesAfter, userId);
   }
 
   async recordWithdrawal(
@@ -590,48 +602,53 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     return [...((await this.findById(tx, approvalId))?.lines ?? [])];
   }
 
-  recordDecision(
-    _tx: TenantTx,
-    decided: ApprovalRecord,
-    expectedVersion: number,
-  ): Promise<boolean> {
+  /** A aprovação do tenant do contexto ainda `PENDING` na versão lida (a "trava" em memória). */
+  private pendingAt(approvalId: string, expectedVersion: number): ApprovalRecord | null {
     const tenantId = currentRequestContext()?.tenantId;
-    const current = this.rows.get(decided.id);
-    if (
-      current === undefined ||
-      current.tenantId !== tenantId ||
-      current.status !== 'PENDING' ||
-      current.version !== expectedVersion
-    ) {
+    const current = this.rows.get(approvalId);
+    if (current === undefined || current.tenantId !== tenantId) return null;
+    return current.status === 'PENDING' && current.version === expectedVersion ? current : null;
+  }
+
+  recordVote(_tx: TenantTx, vote: VoteWrite, expectedVersion: number): Promise<boolean> {
+    const { approval } = vote;
+    if (this.pendingAt(approval.id, expectedVersion) === null) return Promise.resolve(false);
+    const stored = new Map(this.linesOf(approval.id).map((line) => [line.id, line]));
+    const before = new Map(vote.linesBefore.map((line) => [line.id, line]));
+    const changed = vote.linesAfter.filter((line) => before.get(line.id)?.version !== line.version);
+    if (changed.some((line) => stored.get(line.id)?.version !== before.get(line.id)?.version)) {
       return Promise.resolve(false);
     }
-    this.rows.set(decided.id, decided);
-    const lines = this.linesOf(decided.id);
-    if (decided.status === 'CANCELED') {
-      this.lines.set(decided.id, linesAfterCancellation(lines, decided.updatedAt));
-    } else if (decided.status !== 'PENDING') {
-      this.lines.set(decided.id, linesAfterDecision(lines, decided));
-    }
+    this.rows.set(approval.id, approval);
+    for (const line of changed) stored.set(line.id, line);
+    this.lines.set(approval.id, [...stored.values()]);
     return Promise.resolve(true);
   }
 
   recordWithdrawal(
-    tx: TenantTx,
+    _tx: TenantTx,
     canceled: ApprovalRecord,
     expectedVersion: number,
   ): Promise<boolean> {
-    return this.recordDecision(tx, canceled, expectedVersion);
+    if (this.pendingAt(canceled.id, expectedVersion) === null) return Promise.resolve(false);
+    this.rows.set(canceled.id, canceled);
+    this.lines.set(
+      canceled.id,
+      linesAfterCancellation(this.linesOf(canceled.id), canceled.updatedAt),
+    );
+    return Promise.resolve(true);
   }
 
-  async recordReassignment(
-    tx: TenantTx,
+  recordReassignment(
+    _tx: TenantTx,
     reassigned: ApprovalRecord,
     expectedVersion: number,
   ): Promise<ReassignmentRecord> {
     const lines = this.linesOf(reassigned.id);
-    if (!(await this.recordDecision(tx, reassigned, expectedVersion))) {
-      return { recorded: false, approvalApproverId: null };
+    if (this.pendingAt(reassigned.id, expectedVersion) === null) {
+      return Promise.resolve({ recorded: false, approvalApproverId: null });
     }
+    this.rows.set(reassigned.id, reassigned);
     const line = lineAfterReassignment(reassigned.decisionPolicy ?? 'ANY', lines, reassigned);
     if (line !== null) {
       this.lines.set(
@@ -639,7 +656,7 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
         lines.map((candidate) => (candidate.id === line.id ? line : candidate)),
       );
     }
-    return { recorded: true, approvalApproverId: line?.id ?? null };
+    return Promise.resolve({ recorded: true, approvalApproverId: line?.id ?? null });
   }
 
   listPendingByProcess(_tx: TenantTx, processId: string): Promise<Approval[]> {

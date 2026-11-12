@@ -151,6 +151,16 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Aprovador repetido',
     detail: 'A mesma pessoa não pode aprovar em duas linhas. Fale com o administrador do órgão.',
   },
+  APPROVAL_LINE_NOT_PENDING: {
+    status: 409,
+    title: 'Linha da aprovação não pendente',
+    detail: 'Esta linha já foi decidida.',
+  },
+  APPROVER_ALREADY_VOTED: {
+    status: 409,
+    title: 'Voto já registrado',
+    detail: 'Você já votou nesta aprovação.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

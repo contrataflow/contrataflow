@@ -3,7 +3,8 @@ import type { Counter, Histogram } from '@opentelemetry/api';
 
 /*
  * Métricas da solicitação de aprovação (DoD da US-051 — orçamento de p95 < 150 ms da lógica
- * embutida no PRC-19/DOC-09) e da decisão (US-052 — p95 < 1,5 s sem encadeamento). Convenção do
+ * embutida no PRC-19/DOC-09) e da decisão (US-052 — p95 < 1,5 s sem encadeamento; US-134 — votos
+ * de linha em `cf_approval_vote_total{policy,decision}`). Convenção do
  * repositório: `cf_<módulo>_<fato>`. A lista (US-057 — APV-01, p95 < 400 ms com os filtros padrão)
  * tem o histograma `cf_approval_list_query_duration_ms`.
  */
@@ -16,6 +17,7 @@ interface Instruments {
   readonly decideDuration: Histogram;
   readonly decideFailed: Counter;
   readonly listDuration: Histogram;
+  readonly votes: Counter;
 }
 
 let instruments: Instruments | undefined;
@@ -47,6 +49,9 @@ function approvalMetrics(): Instruments {
     listDuration: meter.createHistogram('cf_approval_list_query_duration_ms', {
       description: 'Duração da consulta da lista de aprovações (APV-01).',
       unit: 'ms',
+    }),
+    votes: meter.createCounter('cf_approval_vote_total', {
+      description: 'Votos de linha em aprovações (US-134), por política e decisão.',
     }),
   };
   return instruments;
@@ -81,6 +86,11 @@ export function recordApprovalDecided(
   };
   decided.add(1, labels);
   decideDuration.record(durationMs, { decision, chained: String(attributes.chained) });
+}
+
+/** US-134 (RN-APV-50): todo voto de linha — inclusive o que encerra a aprovação. */
+export function recordApprovalVote(policy: string, decision: string): void {
+  approvalMetrics().votes.add(1, { policy, decision });
 }
 
 export function recordApprovalDecideFailed(errorCode: string): void {

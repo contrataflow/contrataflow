@@ -37,7 +37,7 @@ const approval: Approval = {
 const DECISION_STUBS = {
   findById: () => Promise.resolve(null),
   lockForUpdate: () => Promise.resolve(null),
-  recordDecision: () => Promise.resolve(false),
+  recordVote: () => Promise.resolve(false),
   recordWithdrawal: () => Promise.resolve(false),
   recordReassignment: () => Promise.resolve({ recorded: false, approvalApproverId: null }),
   latestDecisionForDocument: () => Promise.resolve(null),
@@ -47,7 +47,7 @@ const DECISION_STUBS = {
   | 'findById'
   | 'findLines'
   | 'lockForUpdate'
-  | 'recordDecision'
+  | 'recordVote'
   | 'recordWithdrawal'
   | 'recordReassignment'
   | 'latestDecisionForDocument'

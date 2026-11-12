@@ -66,6 +66,13 @@ export interface ApprovalWithCoverage {
   readonly lines: readonly ApprovalApprover[];
 }
 
+/** O voto a gravar (US-134): a aprovação depois do voto e as linhas antes e depois. */
+export interface VoteWrite {
+  readonly approval: ApprovalRecord;
+  readonly linesBefore: readonly ApprovalApprover[];
+  readonly linesAfter: readonly ApprovalApprover[];
+}
+
 /** Resultado do redirecionamento do MVP 1 (US-053): a linha que recebeu o novo aprovador. */
 export interface ReassignmentRecord {
   /** `false` = perdeu a corrida (a aprovação deixou de estar pendente na versão lida). */
@@ -84,11 +91,18 @@ export interface ApprovalRepository {
    */
   lockForUpdate(tx: TenantTx, approvalId: string): Promise<ApprovalRecord | null>;
   /**
-   * US-052 (RN-TRAM-54/63): grava a decisão SE a aprovação ainda está `PENDING` na versão lida
-   * (`UPDATE … WHERE status = 'PENDING' AND version = $lida`). `false` = perdeu a corrida. US-133:
-   * as linhas acompanham (`linesAfterDecision` — provisório até a US-134).
+   * US-134 (RN-APV-39/40/41): grava o voto — a aprovação (aberta com `version + 1`, ou encerrada com
+   * a decisão final e o espelho da linha que encerrou) SE ainda está `PENDING` na versão lida
+   * (`UPDATE … WHERE status = 'PENDING' AND version = $lida`) e cada linha que mudou na versão lida
+   * dela (a trava da aprovação serializa). `false` = perdeu a corrida (o chamador desfaz a
+   * transação).
    */
-  recordDecision(tx: TenantTx, decided: ApprovalRecord, expectedVersion: number): Promise<boolean>;
+  recordVote(
+    tx: TenantTx,
+    vote: VoteWrite,
+    expectedVersion: number,
+    userId: string,
+  ): Promise<boolean>;
   /**
    * US-053 (RN-TRAM-66/71): grava a retirada (`CANCELED`, `canceledAt`, `canceledById`,
    * `cancellationReason`) SE a aprovação ainda está `PENDING` na versão lida. `false` = perdeu a

@@ -235,6 +235,27 @@ const RULES: Readonly<Record<string, Rule>> = {
       link: approvalId === null ? processLink(event.processId) : `/aprovacoes/${approvalId}`,
     });
   },
+  // US-134 (RN-APV-48): em `SEQUENTIAL`, a linha que passou a `PENDING` é avisada como na
+  // solicitação (titular + substituto com `allowDeputy`, usuário, detentores do perfil).
+  ApprovalApproverActivated: (event) => {
+    const approvalId = id(event.payload, 'approvalId');
+    return plan('APPROVAL_REQUESTED', event, {
+      recipients: [approverRecipient(event.payload)],
+      entityType: 'Approval',
+      entityId: approvalId,
+      link: approvalId === null ? processLink(event.processId) : `/aprovacoes/${approvalId}`,
+    });
+  },
+  // US-134: voto de linha que não encerra — só o solicitante (in-app; e-mail desligado por padrão).
+  ApprovalVoteRecorded: (event) => {
+    const approvalId = id(event.payload, 'approvalId');
+    return plan('APPROVAL_VOTE_RECORDED', event, {
+      recipients: [{ kind: 'LOOKUP', lookup: 'APPROVAL_REQUESTER' }],
+      entityType: 'Approval',
+      entityId: approvalId,
+      link: approvalId === null ? processLink(event.processId) : `/aprovacoes/${approvalId}`,
+    });
+  },
   ApprovalCompleted: (event) => approvalDecided(event, 'approved'),
   ApprovalReturned: (event) => approvalDecided(event, 'returned'),
   ApprovalRejected: (event) => approvalDecided(event, 'rejected'),

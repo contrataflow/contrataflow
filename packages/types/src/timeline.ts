@@ -42,6 +42,9 @@ export const TIMELINE_ENTRY_TYPES = [
   'APPROVAL_DECIDED',
   'APPROVAL_CANCELED',
   'APPROVAL_REASSIGNED',
+  // US-134: voto de linha que não encerra e vez do próximo aprovador.
+  'APPROVAL_VOTE_RECORDED',
+  'APPROVAL_TURN',
   // Colaboração e arquivos
   'COMMENT_ADDED',
   'COMMENT_REMOVED',
@@ -144,6 +147,8 @@ export const TIMELINE_GROUP_TYPES: Readonly<Record<TimelineGroup, readonly Timel
     'APPROVAL_DECIDED',
     'APPROVAL_CANCELED',
     'APPROVAL_REASSIGNED',
+    'APPROVAL_VOTE_RECORDED',
+    'APPROVAL_TURN',
   ],
   COMENTARIOS: ['COMMENT_ADDED', 'COMMENT_REMOVED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REMOVED'],
 };

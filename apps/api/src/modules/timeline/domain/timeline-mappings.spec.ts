@@ -248,6 +248,16 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
   ],
   ['ApprovalCanceled', { approvalId: APPROVAL, reason: 'WITHDRAWN' }, 'APPROVAL_CANCELED'],
   ['ApprovalReassigned', { approvalId: APPROVAL, toApproverUserId: ANA }, 'APPROVAL_REASSIGNED'],
+  [
+    'ApprovalVoteRecorded',
+    { approvalId: APPROVAL, sequence: 1, decidedAsDeputy: false, remainingPending: 1 },
+    'APPROVAL_VOTE_RECORDED',
+  ],
+  [
+    'ApprovalApproverActivated',
+    { approvalId: APPROVAL, sequence: 2, approverType: 'USER', approverUserId: ANA },
+    'APPROVAL_TURN',
+  ],
   ['CommentCreated', { commentId: COMMENT, targetType: 'PROCESS' }, 'COMMENT_ADDED'],
   ['CommentDeleted', { commentId: COMMENT, byModerator: true }, 'COMMENT_REMOVED'],
   [
@@ -864,6 +874,50 @@ describe('params congelados, entidade e visibilidade', () => {
       toApproverLabel: 'Gestor de Contratações',
       reason: null,
     });
+  });
+
+  it('US-134: APPROVAL_VOTE_RECORDED ("1 de 2") e APPROVAL_TURN com o rótulo do aprovador', () => {
+    expect(
+      only(
+        project(
+          event('ApprovalVoteRecorded', {
+            approvalId: APPROVAL,
+            approvalApproverId: COMMENT,
+            sequence: 1,
+            decisionPolicy: 'ALL',
+            decidedById: BRUNO,
+            decidedAsDeputy: true,
+            remainingPending: 1,
+            remainingWaiting: 0,
+            approvedLines: 1,
+            totalLines: 2,
+          }),
+        ),
+      ),
+    ).toMatchObject({
+      type: 'APPROVAL_VOTE_RECORDED',
+      entityType: 'Approval',
+      entityId: APPROVAL,
+      params: {
+        title: 'Aprovação do DFD',
+        sequence: 1,
+        remainingPending: 1,
+        asDeputy: true,
+        votesLabel: '1 de 2',
+      },
+    });
+    expect(
+      only(
+        project(
+          event('ApprovalApproverActivated', {
+            approvalId: APPROVAL,
+            sequence: 2,
+            approverType: 'ROLE',
+            approverRoleId: ROLE,
+          }),
+        ),
+      ).params,
+    ).toEqual({ approverLabel: 'Gestor de Contratações', approverType: 'ROLE', sequence: 2 });
   });
 
   it('COMMENT_ADDED: trecho de até 140 caracteres e documento quando houver', () => {

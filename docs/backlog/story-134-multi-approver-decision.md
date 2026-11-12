@@ -288,6 +288,16 @@ Feature: Decidir aprovação múltipla
   3. `skippedReason` não tem valor próprio para `ANY` negativo, cancelamentos por processo cancelado, ramo cancelado ou migração; usados `ANY_DECIDED` e `WITHDRAWN` (RN-APV-34/46). Ampliar os valores se desejado.
   4. `decisionBlocker` (APV-02) ganha `LINE_NOT_PENDING` e `ALREADY_VOTED`; a lista do MVP 1 não os prevê.
   5. O tratamento de pausa/retomada de SLA por voto (EP-030) não é descrito; `ApprovalApproverActivated.dueAt` fica nulo até a US de SLA por linha.
+- **Resolução na implementação (spec-643, 2026-11-12):** as cinco propostas acima foram adotadas como escritas. Complementos:
+  - `APPROVER_ALREADY_VOTED` (409) entrou no catálogo de erros e na POL-03 por linha (permissions.md). A ordem completa das verificações do APV-03: aprovação não `PENDING` → `APPROVAL_NOT_PENDING`; linha informada que não é da pessoa → 403 `NOT_DESIGNATED_APPROVER` (`meta.reason = NOT_LINE_APPROVER`); mais de uma linha `PENDING` sem `approvalApproverId` → 422 `CONDITIONAL_REQUIRED`; linha decidida, dispensada ou cancelada → `APPROVAL_LINE_NOT_PENDING`; linha `WAITING` → 403 `NOT_DESIGNATED_APPROVER` (`meta.reason = LINE_WAITING`); `If-Match` → 412; sem linha nenhuma → 403 `NOT_DESIGNATED_APPROVER`; já votou em outra linha → `APPROVER_ALREADY_VOTED`; autor → `SELF_APPROVAL_FORBIDDEN`; processo suspenso/final → `INVALID_PROCESS_STATUS`. O `access.denied` traz `approvalId` e `approvalApproverId` em `metadata`.
+  - `meta.myLine` = `{ id, sequence, status, etag }`, com `etag` igual ao valor exato do `If-Match` do voto (versão da aprovação em `ANY`, da linha em `ALL`/`SEQUENTIAL`); `approvers[].version` também é exposto. APV-02 ganha ainda `meta.decidableLineIds` (linhas `PENDING` que a pessoa pode decidir; mais de uma = `LineSelector`), que a story não previa.
+  - `decisionOptions[].closesApproval`: a opção que NÃO encerra não avalia as regras `TRANSITION` — vem habilitada e sem `violations` (RN-APV-38).
+  - APV-03 responde `{ data, meta }`; no voto que não encerra, `data.processStage` e `data.chainedApprovalId` são nulos e `data.processStatus` é o atual. `meta` traz também `approvalApproverId` (a linha decidida). A `ETag` da resposta é a da aprovação.
+  - `ApprovalVoteRecorded` leva também `decisionPolicy`, `approvedLines` e `totalLines` (o "{votesLabel}" "1 de 2" da timeline). `approval.vote` é gravada com `entityType = ApprovalApprover` (a linha) e `metadata.approvalId`.
+  - Linha desviada ao substituto pela segregação na solicitação (US-133 — `DEPARTMENT_HEAD`, `allowDeputy = false`, substituto em `approverUserId`) é decidida só pela pessoa gravada, com `decidedAsDeputy = true`.
+  - Encerramento: as colunas de aprovador da `Approval` passam a espelhar a linha que encerrou (RN-APV-39); no voto de `SEQUENTIAL`, a linha ativada.
+  - Gatilho de imutabilidade da linha decidida: migração `20261112100000_approval_approvers_decided_immutable` (só a função e o gatilho; nenhuma linha muda).
+  - Notificação `APPROVAL_VOTE_RECORDED` ao solicitante pela fonte nova `APPROVAL_REQUESTER` do worker.
 
 ## Impacto técnico
 - **Trava e ordem:** `FOR UPDATE` na `Approval` e depois nas linhas, sempre na mesma ordem, para evitar *deadlock*; a transação de voto é curta; a de encerramento inclui os efeitos da US-052 e pode encadear nova aprovação.

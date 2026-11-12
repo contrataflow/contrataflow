@@ -2,7 +2,7 @@
 
 import { Checkbox, Field, Label, RadioGroup, RadioGroupItem, Textarea, cx } from '@contrataflow/ui';
 import { APPROVAL_DECISION_LIMITS } from '@contrataflow/validation';
-import type { ApprovalDecisionOption } from '@contrataflow/validation';
+import type { ApprovalApproverDto, ApprovalDecisionOption } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
 import { optionKey, blockingViolations } from './decision-model';
@@ -122,6 +122,55 @@ export function TargetSelector({
                   </span>
                 ))}
               </span>
+            </div>
+          );
+        })}
+      </RadioGroup>
+    </Field>
+  );
+}
+
+/**
+ * `LineSelector` (US-134 · FA-03): a pessoa cobre mais de uma linha `PENDING` (ex.: usuário e
+ * perfil) e escolhe em qual vai decidir — uma pessoa decide no máximo uma linha por aprovação.
+ */
+export function LineSelector({
+  name,
+  lines,
+  selected,
+  error,
+  onSelect,
+}: {
+  readonly name: string;
+  readonly lines: readonly ApprovalApproverDto[];
+  readonly selected: string | null;
+  readonly error: string | undefined;
+  readonly onSelect: (lineId: string) => void;
+}) {
+  const t = useTranslations('approvals.panel.line');
+  return (
+    <Field id={name} label={t('legend')} description={t('hint')} error={error} group>
+      <RadioGroup
+        id={name}
+        name={name}
+        value={selected ?? ''}
+        onValueChange={onSelect}
+        className="gap-2"
+      >
+        {lines.map((line) => {
+          const optionId = `${name}-${line.id}`;
+          return (
+            <div
+              key={line.id}
+              className={cx(
+                'flex items-start gap-3 rounded-control border p-3 max-md:min-h-14',
+                line.id === selected ? 'border-primary bg-primary-soft/40' : 'border-border',
+              )}
+            >
+              <RadioGroupItem id={optionId} value={line.id} className="mt-0.5" />
+              <Label htmlFor={optionId} className="cursor-pointer font-medium break-words">
+                {t('option', { sequence: line.sequence, label: line.label })}
+              </Label>
             </div>
           );
         })}

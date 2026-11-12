@@ -721,6 +721,156 @@ describe('SCR-015 · Detalhe da aprovação (US-052)', () => {
     expect(screen.queryByRole('region', { name: 'Aprovadores' })).toBeNull();
   });
 
+  describe('US-134 · decisão por linha', () => {
+    const LINE_1 = '0192a000-0000-7000-8000-000000001150';
+    const LINE_2 = '0192a000-0000-7000-8000-000000001151';
+    const LINE_3 = '0192a000-0000-7000-8000-000000001152';
+    const MARCOS_ID = '0192a000-0000-7000-8000-000000000072';
+    /** Aprovação `ALL`: linha 1 de Carla (quem consulta, versão 2) e linha 2 de Marcos. */
+    function allApproval(extraLines: number[] = []) {
+      const [first] = approvalDto().approvers;
+      if (!first) throw new Error('linha ausente');
+      const lines = [
+        { ...first, id: LINE_1, version: 2 },
+        { ...first, id: LINE_2, sequence: 2, userId: MARCOS_ID, label: 'Marcos Prado' },
+        ...extraLines.map((sequence) => ({
+          ...first,
+          id: LINE_3,
+          sequence,
+          approverType: 'ROLE' as const,
+          userId: null,
+          roleId: MARCOS_ID,
+          label: 'Autoridade competente',
+        })),
+      ];
+      return approvalDto({ decisionPolicy: 'ALL', approvers: lines, version: 5 });
+    }
+    const approveOnly = [decisionOption({ closesApproval: false, violations: [] })];
+
+    it('[Sucesso] voto que não encerra: If-Match da linha, "Sua linha: 1 de 2", toast com o que falta e a tela fica', async () => {
+      const user = userEvent.setup();
+      const meta = approvalMeta({
+        decisionOptions: [...approveOnly, returnOption(), rejectOption()],
+        myLine: { id: LINE_1, sequence: 1, status: 'PENDING', etag: '"2"' },
+        decidableLineIds: [LINE_1],
+      });
+      const { api } = renderDetail({
+        ...withMeta(meta, allApproval()),
+        decide: () =>
+          jsonResponse(
+            {
+              data: { ...decidedDto(), status: 'PENDING', decision: null, processStage: null },
+              meta: {
+                outcome: 'VOTE_RECORDED',
+                remainingPending: 1,
+                remainingWaiting: 0,
+                activatedApproverId: null,
+                approvalApproverId: LINE_1,
+              },
+            },
+            { headers: { ETag: '"6"' } },
+          ),
+      });
+      expect(await screen.findByText('Sua linha: 1 de 2')).toBeTruthy();
+      await user.click(await approveButton());
+      // O voto que não encerra não pede ciência de avisos.
+      expect(screen.queryByText('Estou ciente e desejo continuar')).toBeNull();
+      await user.click(confirm('Confirmar aprovação'));
+
+      await waitFor(() => {
+        expect(posts(api)).toHaveLength(1);
+      });
+      const [call] = posts(api);
+      expect(call?.headers.get('If-Match')).toBe('"2"');
+      expect(call?.body).toEqual({ decision: 'APPROVE', transitionId: T_APROVAR });
+      expect(await screen.findByText('Seu voto foi registrado. Falta 1 aprovação.')).toBeTruthy();
+      await waitFor(() => {
+        expect(gets(api).length).toBeGreaterThanOrEqual(2);
+      });
+      expect(navigation.push).not.toHaveBeenCalled();
+    });
+
+    it('[FA-03] duas linhas possíveis: pede a linha antes de enviar e manda approvalApproverId com o If-Match dela', async () => {
+      const user = userEvent.setup();
+      const meta = approvalMeta({
+        decisionOptions: [...approveOnly],
+        myLine: { id: LINE_1, sequence: 1, status: 'PENDING', etag: '"2"' },
+        decidableLineIds: [LINE_1, LINE_3],
+      });
+      const { api } = renderDetail(withMeta(meta, allApproval([3])));
+      await user.click(await approveButton());
+      await user.click(confirm('Confirmar aprovação'));
+
+      expect(await screen.findByText('Escolha em qual linha você vai decidir.')).toBeTruthy();
+      expect(posts(api)).toHaveLength(0);
+      const group = screen.getByRole('group', { name: 'Linha do seu voto' });
+      expect(await seriousA11yViolations()).toEqual([]);
+      await user.click(
+        within(group).getByRole('radio', { name: 'Linha 3: Autoridade competente' }),
+      );
+      await user.click(confirm('Confirmar aprovação'));
+
+      await waitFor(() => {
+        expect(posts(api)).toHaveLength(1);
+      });
+      const [call] = posts(api);
+      expect(call?.body).toEqual({
+        decision: 'APPROVE',
+        transitionId: T_APROVAR,
+        approvalApproverId: LINE_3,
+      });
+      expect(call?.headers.get('If-Match')).toBe('"1"');
+    });
+
+    it('[Permissão] linha em espera: sem painel, "Aguardando a vez" com a explicação', async () => {
+      renderDetail(
+        withMeta(
+          readOnlyMeta('NOT_DESIGNATED_APPROVER', {
+            myLine: { id: LINE_2, sequence: 2, status: 'WAITING', etag: '"1"' },
+          }),
+          approvalDto({ decisionPolicy: 'SEQUENTIAL', approvers: allApproval().approvers }),
+        ),
+      );
+      expect(await screen.findByText('Aguardando a vez')).toBeTruthy();
+      expect(
+        screen.getByText(
+          'Ainda não é a sua vez de decidir esta aprovação. Você será avisado quando a sua linha for ativada.',
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Aprovar' })).toBeNull();
+    });
+
+    it('[Duplicidade] já votou: explica "Você já votou nesta aprovação."', async () => {
+      renderDetail(withMeta(readOnlyMeta('ALREADY_VOTED'), allApproval()));
+      expect(await screen.findByText('Você já votou nesta aprovação.')).toBeTruthy();
+    });
+
+    it('[Concorrência] 409 APPROVAL_LINE_NOT_PENDING: avisa e relê as linhas', async () => {
+      const user = userEvent.setup();
+      const meta = approvalMeta({
+        decisionOptions: [...approveOnly],
+        myLine: { id: LINE_1, sequence: 1, status: 'PENDING', etag: '"2"' },
+        decidableLineIds: [LINE_1],
+      });
+      const { api } = renderDetail({
+        ...withMeta(meta, allApproval()),
+        decide: () =>
+          problemResponse(409, 'APPROVAL_LINE_NOT_PENDING', {
+            detail: 'Esta linha já foi decidida.',
+          }),
+      });
+      await user.click(await approveButton());
+      await user.click(confirm('Confirmar aprovação'));
+
+      expect(
+        await screen.findByText('Esta linha já foi decidida. Recarregamos as linhas da aprovação.'),
+      ).toBeTruthy();
+      await waitFor(() => {
+        expect(gets(api).length).toBeGreaterThanOrEqual(2);
+      });
+    });
+  });
+
   it('[Acessibilidade] axe sem violações sérias: carregado, com avisos/erros e sem permissão', async () => {
     const user = userEvent.setup();
     const { unmount } = renderDetail(

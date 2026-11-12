@@ -89,6 +89,7 @@ export function approvalDto(extra: Partial<ApprovalDto> = {}): ApprovalDto {
         decidedAt: null,
         decidedAsDeputy: false,
         skippedReason: null,
+        version: 1,
       },
     ],
     documents: [
@@ -135,6 +136,8 @@ export function decisionOption(
     requiresComment: false,
     enabled: true,
     violations: [],
+    // US-134 (aditivo): na linha única de `ANY`, toda decisão encerra a aprovação.
+    closesApproval: true,
     ...extra,
   };
 }
@@ -188,6 +191,9 @@ export function approvalMeta(extra: Partial<ApprovalMeta> = {}): ApprovalMeta {
     decisionOptions: [decisionOption(), returnOption(), rejectOption()],
     decidesAsDeputy: false,
     decisionBlocker: null,
+    // US-134 (aditivo): a linha única do MVP 1 (`ANY` — If-Match da aprovação).
+    myLine: { id: ID(1150), sequence: 1, status: 'PENDING', etag: '"3"' },
+    decidableLineIds: [ID(1150)],
     ...extra,
   };
 }

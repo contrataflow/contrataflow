@@ -48,6 +48,8 @@ export const TIMELINE_MESSAGE_TEMPLATES: Readonly<Record<TimelineEntryType, stri
   APPROVAL_DECIDED: '{actor} {decisionLabel} — {title}',
   APPROVAL_CANCELED: 'Aprovação cancelada — {title}',
   APPROVAL_REASSIGNED: 'Aprovação redirecionada a {toApproverLabel} — {title}',
+  APPROVAL_VOTE_RECORDED: '{actor} aprovou ({votesLabel}) — {title}',
+  APPROVAL_TURN: 'Aprovação passou para {approverLabel}',
   COMMENT_ADDED: '{actor} comentou',
   COMMENT_REMOVED: 'Comentário removido por moderação',
   ATTACHMENT_ADDED: '{actor} anexou {fileName}',

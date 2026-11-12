@@ -18,7 +18,8 @@ import type { ApproverConfig, ResolvedApprover } from './approval.js';
  * (`SelfApprovalGuard` — substituto ou recusa), a pessoa única (`DistinctApproversPolicy`), o
  * espelho da linha corrente nas colunas da `Approval` (fase expand), o mapeamento do backfill
  * (M2-03) e a sincronização das linhas com as ações do MVP 1 que ainda encerram a aprovação inteira
- * (decisão, retirada, cancelamento e redirecionamento — substituídas pelas US-134/US-135).
+ * (retirada, cancelamento e redirecionamento — substituídas pela US-135). A decisão por linha é de
+ * `approval-vote.ts` (US-134).
  */
 
 /** Linha configurada: o aprovador como na US-051 mais a posição e o rótulo. */
@@ -314,12 +315,6 @@ export function mirrorOf(line: ApprovalApprover): ResolvedApprover {
   };
 }
 
-const DECIDED_LINE_STATUS: Readonly<Record<ApprovalDecision, ApprovalApproverStatus>> = {
-  APPROVE: 'APPROVED',
-  RETURN: 'RETURNED',
-  REJECT: 'REJECTED',
-};
-
 type DecidedStatus = 'APPROVED' | 'RETURNED' | 'REJECTED';
 
 const DECISION_OF_STATUS: Readonly<Record<DecidedStatus, ApprovalDecision>> = {
@@ -361,45 +356,6 @@ export function backfillLineOf(approval: ApprovalRecord, id: string): ApprovalAp
     createdById: null,
     version: 1,
   };
-}
-
-/**
- * Sincronização provisória com a decisão do MVP 1 (US-052), que encerra a aprovação na primeira
- * decisão: a linha viva de quem decidiu (`USER`/titular gravado) — senão a primeira `PENDING` —
- * recebe a decisão; as demais vivas ficam `SKIPPED` (`ANY_DECIDED` na aprovação, senão
- * `NEGATIVE_DECISION` — entities.md MVP 2 §6.6). A decisão por linha é da US-134.
- */
-export function linesAfterDecision(
-  lines: readonly ApprovalApprover[],
-  decided: ApprovalRecord,
-): ApprovalApprover[] {
-  const { decision, decidedAt } = decided;
-  if (decision === null || decidedAt === null) return [...lines];
-  const live = lines.filter((line) => LIVE_STATUSES.has(line.status)).sort(bySequence);
-  const target =
-    live.find((line) => line.status === 'PENDING' && line.approverUserId === decided.decidedById) ??
-    live.find((line) => line.status === 'PENDING') ??
-    live[0];
-  const skippedReason: ApprovalSkippedReason =
-    decision === 'APPROVE' ? 'ANY_DECIDED' : 'NEGATIVE_DECISION';
-  return lines.map((line) => {
-    if (!LIVE_STATUSES.has(line.status)) return line;
-    const touched = { updatedAt: decidedAt, version: line.version + 1 };
-    if (line.id === target?.id) {
-      return {
-        ...line,
-        ...touched,
-        status: DECIDED_LINE_STATUS[decision],
-        activatedAt: line.activatedAt ?? decidedAt,
-        decision,
-        decidedById: decided.decidedById,
-        decidedAt,
-        decisionComment: decided.decisionComment,
-        decidedAsDeputy: decided.decidedAsDeputy,
-      };
-    }
-    return { ...line, ...touched, status: 'SKIPPED', skippedReason };
-  });
 }
 
 /**

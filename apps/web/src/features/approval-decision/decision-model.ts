@@ -7,6 +7,7 @@ import type {
   ApprovalDecision,
   ApprovalDecisionOption,
   ApprovalDocumentDto,
+  ApprovalDto,
   ApprovalMeta,
   ChecklistViolation,
   DecideApprovalInput,
@@ -20,7 +21,10 @@ import { isApiError } from '@/lib/api/api-error';
  * APV-02 (`meta.decisionOptions`, uma por transição do workflow) e se agrupam nos três botões; o
  * comentário segue RN-TRAM-55 (as mesmas regras do APV-03); avisos `WARNING` da opção escolhida
  * exigem ciência antes de confirmar (FA-03 · DEC-016); `BLOCKING` desabilita a opção; os erros da
- * API viram o comportamento da tabela "Casos de erro" da story.
+ * API viram o comportamento da tabela "Casos de erro" da story. US-134 (decisão por linha): a linha
+ * do voto (escolha quando mais de uma cabe à pessoa), o `If-Match` da linha em `ALL`/`SEQUENTIAL`,
+ * avisos só no voto que encerra e os conflitos de linha (`APPROVAL_LINE_NOT_PENDING`,
+ * `APPROVER_ALREADY_VOTED`, linha em espera).
  */
 
 /** Ordem dos botões na tela. */
@@ -31,7 +35,13 @@ export const DECISION_ORDER = [
 ] as const satisfies readonly ApprovalDecision[];
 
 /** Campos do painel, na ordem da tela (foco no primeiro erro). */
-export const DECISION_FIELD_ORDER = ['decision', 'transitionId', 'comment', 'warnings'] as const;
+export const DECISION_FIELD_ORDER = [
+  'decision',
+  'approvalApproverId',
+  'transitionId',
+  'comment',
+  'warnings',
+] as const;
 export type DecisionField = (typeof DECISION_FIELD_ORDER)[number];
 export type DecisionFieldMessages = Partial<Record<DecisionField, string>>;
 
@@ -67,6 +77,8 @@ export interface DecisionWarning {
 
 export function warningsOf(option: ApprovalDecisionOption | undefined): DecisionWarning[] {
   const warnings: DecisionWarning[] = [];
+  // US-134 (FA-05): o voto que não encerra a aprovação não exige ciência dos avisos.
+  if (option?.closesApproval === false) return warnings;
   for (const violation of option?.violations ?? []) {
     if (violation.severity !== 'WARNING' || violation.satisfied) continue;
     if (warnings.some((warning) => warning.ruleId === violation.ruleId)) continue;
@@ -142,11 +154,18 @@ export interface DecisionDraft {
   readonly comment: string;
   /** `ruleId` dos avisos reconhecidos. */
   readonly acknowledged: readonly string[];
+  /** US-134 (FA-03): a pessoa cobre mais de uma linha `PENDING` e precisa escolher. */
+  readonly lineRequired?: boolean;
+  /** A linha escolhida (`approvalApproverId`); `null` = nenhuma escolhida. */
+  readonly lineId?: string | null;
 }
 
 /** V-01/V-02/V-03 no cliente (a API revalida tudo). */
 export function validateDecision(draft: DecisionDraft): DecisionFieldMessages {
   const messages: DecisionFieldMessages = {};
+  if (draft.lineRequired === true && (draft.lineId ?? null) === null) {
+    messages.approvalApproverId = APPROVAL_DECISION_MESSAGES.lineRequired;
+  }
   if (draft.decision === null) {
     messages.decision = APPROVAL_DECISION_MESSAGES.decisionRequired;
     return messages;
@@ -184,17 +203,53 @@ export function buildDecisionBody(draft: {
   readonly option: ApprovalDecisionOption;
   readonly comment: string;
   readonly acknowledged: readonly string[];
+  /** US-134: a linha escolhida (só quando a pessoa cobre mais de uma). */
+  readonly approvalApproverId?: string | null;
 }): DecideApprovalInput {
   const comment = draft.comment.trim();
   const acknowledgedWarnings = warningsOf(draft.option)
     .map((warning) => warning.ruleId)
     .filter((ruleId) => draft.acknowledged.includes(ruleId));
+  const lineId = draft.approvalApproverId ?? null;
   return {
     decision: draft.decision,
     ...(comment === '' ? {} : { comment }),
     ...(acknowledgedWarnings.length === 0 ? {} : { acknowledgedWarnings }),
     ...(draft.option.transitionId === null ? {} : { transitionId: draft.option.transitionId }),
+    ...(lineId === null ? {} : { approvalApproverId: lineId }),
   };
+}
+
+// ---- Linha do voto (US-134) ---------------------------------------------------------------------
+
+/** Linhas que a pessoa pode decidir (`meta.decidableLineIds`), com o rótulo de `approvers[]`. */
+export function decidableLines(
+  approval: Pick<ApprovalDto, 'approvers'>,
+  meta: Pick<ApprovalMeta, 'decidableLineIds'>,
+): ApprovalDto['approvers'] {
+  return approval.approvers.filter((line) => meta.decidableLineIds.includes(line.id));
+}
+
+/**
+ * RN-APV-41 — o `If-Match` do voto: em `ANY`, a versão da aprovação (MVP 1); nas demais, a versão da
+ * linha escolhida (ou a da linha da pessoa — `meta.myLine.etag`), para que o voto de outra linha
+ * não invalide o dela.
+ */
+export function voteIfMatch(
+  approval: Pick<ApprovalDto, 'decisionPolicy' | 'approvers' | 'version'>,
+  meta: Pick<ApprovalMeta, 'myLine'>,
+  lineId: string | null,
+): string {
+  if (approval.decisionPolicy === 'ANY') return `"${String(approval.version)}"`;
+  const chosen =
+    lineId === null ? undefined : approval.approvers.find((line) => line.id === lineId);
+  if (chosen !== undefined) return `"${String(chosen.version)}"`;
+  return meta.myLine?.etag ?? `"${String(approval.version)}"`;
+}
+
+/** Linhas não canceladas (o "de {total}" de "Sua linha: {n} de {total}"). */
+export function activeLinesCount(approval: Pick<ApprovalDto, 'approvers'>): number {
+  return approval.approvers.filter((line) => line.status !== 'CANCELED').length;
 }
 
 /** Mensagem de regra sem o ponto final, para entrar no meio de uma frase ("…agora: {mensagem}."). */
@@ -234,6 +289,12 @@ export type DecisionProblem =
   | { readonly kind: 'membership' }
   | { readonly kind: 'denied'; readonly reason: DeniedReason }
   | { readonly kind: 'notPending' }
+  /** US-134: a linha já foi decidida (por outro detentor), dispensada ou cancelada. */
+  | { readonly kind: 'lineNotPending' }
+  /** US-134: a pessoa já votou nesta aprovação (outra linha). */
+  | { readonly kind: 'alreadyVoted' }
+  /** US-134: linha em espera (`SEQUENTIAL` — ainda não é a vez). */
+  | { readonly kind: 'waiting' }
   | { readonly kind: 'processStatus' }
   | { readonly kind: 'stale' }
   | { readonly kind: 'precondition' }
@@ -246,12 +307,23 @@ export type DecisionProblemKind = DecisionProblem['kind'];
 const isDecisionField = (field: string): field is DecisionField =>
   (DECISION_FIELD_ORDER as readonly string[]).includes(field);
 
+/** `meta.reason` do problem+json (ex.: `LINE_WAITING` — US-134). */
+function reasonOf(error: { readonly problem: Readonly<Record<string, unknown>> | null }): unknown {
+  const meta = error.problem?.meta;
+  return typeof meta === 'object' && meta !== null ? (meta as { reason?: unknown }).reason : null;
+}
+
 export function describeDecisionError(error: unknown): DecisionProblem {
   if (!isApiError(error)) return { kind: 'unexpected', correlationId: '—' };
   const { status, code } = error;
   if (status === 428) return { kind: 'precondition' };
   if (status === 412) return { kind: 'stale' };
   if (status === 409 && code === 'APPROVAL_NOT_PENDING') return { kind: 'notPending' };
+  if (status === 409 && code === 'APPROVAL_LINE_NOT_PENDING') return { kind: 'lineNotPending' };
+  if (status === 409 && code === 'APPROVER_ALREADY_VOTED') return { kind: 'alreadyVoted' };
+  if (status === 403 && code === 'NOT_DESIGNATED_APPROVER' && reasonOf(error) === 'LINE_WAITING') {
+    return { kind: 'waiting' };
+  }
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') return { kind: 'processStatus' };
   if (status === 403) {
     if (code === 'MEMBERSHIP_INACTIVE' || code === 'TENANT_SUSPENDED') {
@@ -303,6 +375,9 @@ export function describeDecisionError(error: unknown): DecisionProblem {
 export function isNoticeProblem(problem: DecisionProblem): boolean {
   switch (problem.kind) {
     case 'notPending':
+    case 'lineNotPending':
+    case 'alreadyVoted':
+    case 'waiting':
     case 'stale':
     case 'precondition':
     case 'denied':

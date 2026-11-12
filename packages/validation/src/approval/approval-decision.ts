@@ -51,7 +51,32 @@ export const APPROVAL_DECISION_MESSAGES = Object.freeze({
     'Você não pode decidir esta aprovação: é autor de um documento coberto (segregação de funções).',
   notFound: 'Não encontramos a aprovação solicitada.',
   processStatus: 'Esta aprovação não pode ser decidida no status atual do processo.',
+  // US-134 (decisão por linha — V-03/V-04/V-06/V-07/V-08 e "Casos de erro").
+  lineRequired: 'Escolha em qual linha você vai decidir.',
+  notLineApprover: 'Você não é o aprovador desta linha.',
+  lineWaiting: 'Ainda não é a sua vez de decidir esta aprovação.',
+  lineNotPending: 'Esta linha já foi decidida.',
+  alreadyVoted: 'Você já votou nesta aprovação.',
 });
+
+/**
+ * US-134 (passo 8): o que a tela diz depois do voto — "Seu voto foi registrado. Faltam {n}
+ * aprovação(ões)." quando a aprovação continua aberta; "Aprovação decidida: {decisão}." no
+ * encerramento.
+ */
+export function voteRecordedMessage(remaining: number): string {
+  return `Seu voto foi registrado. Faltam ${String(remaining)} ${remaining === 1 ? 'aprovação' : 'aprovações'}.`;
+}
+
+const CLOSED_OUTCOME_LABELS = {
+  APPROVED: 'aprovada',
+  RETURNED: 'devolvida para ajuste',
+  REJECTED: 'indeferida',
+} as const;
+
+export function approvalClosedMessage(outcome: keyof typeof CLOSED_OUTCOME_LABELS): string {
+  return `Aprovação decidida: ${CLOSED_OUTCOME_LABELS[outcome]}.`;
+}
 
 /** RN-TRAM-55: o comentário é obrigatório para devolver e indeferir. */
 export function decisionRequiresComment(decision: ApprovalDecision): boolean {
@@ -111,6 +136,11 @@ export const decideApprovalSchema = z
       .max(APPROVAL_DECISION_LIMITS.acknowledgedWarningsMax)
       .optional(),
     transitionId: z.uuid({ error: APPROVAL_DECISION_MESSAGES.transitionInvalid }).optional(),
+    /**
+     * US-134 (RN-APV-33): a linha `ApprovalApprover` decidida. Opcional quando só uma linha
+     * `PENDING` cabe a quem decide; obrigatória (422 `CONDITIONAL_REQUIRED`) quando há mais de uma.
+     */
+    approvalApproverId: z.uuid({ error: APPROVAL_DECISION_MESSAGES.notLineApprover }).optional(),
   })
   .superRefine((body, context) => {
     for (const issue of decisionCommentIssues(body.decision, body.comment)) {
@@ -170,6 +200,8 @@ export const approvalApproverSchema = z
     decidedAt: isoDateTimeSchema.nullable(),
     decidedAsDeputy: z.boolean(),
     skippedReason: z.enum(APPROVAL_SKIPPED_REASONS).nullable(),
+    /** US-134 (aditivo): versão da linha — o `If-Match` do voto em `ALL`/`SEQUENTIAL` (RN-APV-41). */
+    version: z.int().min(1),
   })
   .meta({ id: 'ApprovalApprover' });
 export type ApprovalApproverDto = z.infer<typeof approvalApproverSchema>;
@@ -219,11 +251,18 @@ export type ApprovalDto = z.infer<typeof approvalSchema>;
 export const APPROVAL_ACTIONS = ['DECIDE', 'WITHDRAW', 'REASSIGN'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
-/** Por que quem consulta não pode decidir (SCR-015 "oculta ações; explica o motivo"). */
+/**
+ * Por que quem consulta não pode decidir (SCR-015 "oculta ações; explica o motivo"). US-134
+ * (lacuna 4, aditivo): `ALREADY_VOTED` (a pessoa já decidiu uma linha desta aprovação) e
+ * `LINE_NOT_PENDING` (a linha dela já foi decidida por outro detentor ou dispensada). Linha
+ * `WAITING` continua `NOT_DESIGNATED_APPROVER` (com `meta.myLine.status = WAITING`).
+ */
 export const APPROVAL_DECISION_BLOCKERS = [
   'NOT_PENDING',
   'PERMISSION_DENIED',
   'NOT_DESIGNATED_APPROVER',
+  'ALREADY_VOTED',
+  'LINE_NOT_PENDING',
   'SELF_APPROVAL_FORBIDDEN',
   'INVALID_PROCESS_STATUS',
 ] as const;
@@ -250,9 +289,29 @@ export const approvalDecisionOptionSchema = z
     requiresComment: z.boolean(),
     enabled: z.boolean(),
     violations: z.array(checklistViolationSchema),
+    /**
+     * US-134 (aditivo): o voto por esta opção encerra a aprovação (última linha a aprovar ou decisão
+     * negativa). Só a opção que encerra avalia as regras `TRANSITION` (RN-APV-38): na que não
+     * encerra, `violations` vem vazio e a opção habilitada.
+     */
+    closesApproval: z.boolean(),
   })
   .meta({ id: 'ApprovalDecisionOption' });
 export type ApprovalDecisionOption = z.infer<typeof approvalDecisionOptionSchema>;
+
+/**
+ * US-134 (aditivo): a linha de quem consulta (`meta.myLine`). `etag` é o valor exato do `If-Match`
+ * do voto (RN-APV-41): a versão da aprovação em `ANY`, a da linha em `ALL`/`SEQUENTIAL`.
+ */
+export const approvalMyLineSchema = z
+  .object({
+    id: z.uuid(),
+    sequence: z.int().min(1).max(APPROVAL_LINES_MAX),
+    status: z.enum(APPROVAL_APPROVER_STATUSES),
+    etag: z.string(),
+  })
+  .meta({ id: 'ApprovalMyLine' });
+export type ApprovalMyLine = z.infer<typeof approvalMyLineSchema>;
 
 /** `meta` de APV-02: ações, opções de decisão e o motivo de não poder decidir. */
 export const approvalMetaSchema = z
@@ -262,14 +321,50 @@ export const approvalMetaSchema = z
     /** Quem consulta decide como substituto (FA-02). */
     decidesAsDeputy: z.boolean(),
     decisionBlocker: z.enum(APPROVAL_DECISION_BLOCKERS).nullable(),
+    /** US-134 (aditivo): a linha de quem consulta (`null` = nenhuma linha cabe a ele). */
+    myLine: approvalMyLineSchema.nullable(),
+    /**
+     * US-134 (aditivo · FA-03): linhas `PENDING` que quem consulta pode decidir; mais de uma = o
+     * painel pede a escolha (`approvalApproverId` obrigatório).
+     */
+    decidableLineIds: z.array(z.uuid()),
   })
   .meta({ id: 'ApprovalMeta' });
 export type ApprovalMeta = z.infer<typeof approvalMetaSchema>;
 
-/** APV-03 — `data` da resposta: a aprovação decidida e a nova etapa/status do processo. */
+/** US-134: o que o voto produziu (`meta.outcome` de APV-03). */
+export const APPROVAL_DECISION_OUTCOMES = [
+  'VOTE_RECORDED',
+  'APPROVED',
+  'RETURNED',
+  'REJECTED',
+] as const;
+export type ApprovalDecisionOutcome = (typeof APPROVAL_DECISION_OUTCOMES)[number];
+
+/** `meta` de APV-03 (US-134, aditivo): resultado do voto e o que falta. */
+export const decideApprovalMetaSchema = z
+  .object({
+    outcome: z.enum(APPROVAL_DECISION_OUTCOMES),
+    /** Linhas ainda `PENDING` depois do voto (0 no encerramento). */
+    remainingPending: z.int().min(0),
+    /** Linhas ainda `WAITING` depois do voto (0 no encerramento). */
+    remainingWaiting: z.int().min(0),
+    /** `SEQUENTIAL`: a linha que passou a `PENDING` (`null` sem ativação). */
+    activatedApproverId: z.uuid().nullable(),
+    /** A linha decidida por este voto. */
+    approvalApproverId: z.uuid(),
+  })
+  .meta({ id: 'DecideApprovalMeta' });
+export type DecideApprovalMeta = z.infer<typeof decideApprovalMetaSchema>;
+
+/**
+ * APV-03 — `data` da resposta: a aprovação decidida e a nova etapa/status do processo. US-134: no
+ * voto que não encerra (`meta.outcome = VOTE_RECORDED`) nada muda no processo — `processStage` e
+ * `chainedApprovalId` vêm nulos e `processStatus` é o atual (`AWAITING_APPROVAL`).
+ */
 export const decidedApprovalSchema = approvalSchema
   .extend({
-    /** Etapa em que o processo ficou; `null` na avulsa (FA-01). */
+    /** Etapa em que o processo ficou; `null` na avulsa (FA-01) e no voto que não encerra. */
     processStage: z.object({ key: z.string(), name: z.string() }).nullable(),
     processStatus: z.enum(PROCESS_STATUSES).nullable(),
     /** Próxima aprovação aberta pelo encadeamento (RN-TRAM-60). */

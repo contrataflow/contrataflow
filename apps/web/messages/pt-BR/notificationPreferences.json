@@ -22,6 +22,7 @@
     "APPROVAL_REQUESTED": "Aprovação solicitada a você",
     "APPROVAL_DECIDED": "Decisão sobre uma aprovação",
     "APPROVAL_REASSIGNED": "Aprovação reatribuída",
+    "APPROVAL_VOTE_RECORDED": "Voto registrado numa aprovação que você solicitou",
     "MENTIONED": "Você foi mencionado",
     "COMMENT_REPLY": "Resposta ao seu comentário",
     "STAGE_DUE_SOON": "Prazo da etapa se aproximando",

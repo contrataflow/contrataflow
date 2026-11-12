@@ -38,6 +38,9 @@ export const ERROR_CODES = [
   'DOCUMENT_APPROVAL_POLICY_INVALID',
   // US-133: a mesma pessoa resolvida em duas linhas da aprovação (api.md MVP 2 §2.2 · RN-APV-21).
   'APPROVER_DUPLICATED',
+  // US-134: decisão por linha (api.md MVP 2 §2.2 · RN-APV-33/40 · POL-03 por linha).
+  'APPROVAL_LINE_NOT_PENDING',
+  'APPROVER_ALREADY_VOTED',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',

@@ -23,6 +23,8 @@ const meta = (allowedActions: ('DECIDE' | 'WITHDRAW' | 'REASSIGN')[]) => ({
   decisionOptions: [],
   decidesAsDeputy: false,
   decisionBlocker: null,
+  myLine: null,
+  decidableLineIds: [],
 });
 
 const apiError = (

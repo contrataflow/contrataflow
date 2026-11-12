@@ -157,6 +157,7 @@ export class ProblemDetailsExceptionFilter implements ExceptionFilter {
           ? {}
           : { entityType: error.auditEntity.type, entityId: error.auditEntity.id }),
         metadata: {
+          ...error.auditMetadata,
           code: error.code,
           method: request.method ?? null,
           route: route && !route.includes('{*') ? route : UNMATCHED_ROUTE,

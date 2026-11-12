@@ -72,6 +72,8 @@ describe('critérios da timeline (US-060 · RN-TML-10..12)', () => {
       'APPROVAL_DECIDED',
       'APPROVAL_CANCELED',
       'APPROVAL_REASSIGNED',
+      'APPROVAL_VOTE_RECORDED',
+      'APPROVAL_TURN',
     ]);
     expect(criteria.actorIds).toEqual([CARLOS]);
     expect(criteria.occurredFrom?.toISOString()).toBe('2026-10-01T00:00:00.000Z');

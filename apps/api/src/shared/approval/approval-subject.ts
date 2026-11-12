@@ -57,6 +57,12 @@ export interface DecisionSubjectFacts {
   readonly authorIds: readonly string[];
 }
 
+/**
+ * Opção de decisão como o dono do sujeito a monta (APV-02); `closesApproval` (US-134) é do
+ * `approval`, que conhece as linhas.
+ */
+export type SubjectDecisionOption = Omit<ApprovalDecisionOption, 'closesApproval'>;
+
 /** O sujeito como o detalhe da aprovação o mostra (APV-02): fatos e documentos cobertos. */
 export interface DecisionSubjectView extends DecisionSubjectFacts {
   readonly documents: readonly ApprovalDocumentDto[];
@@ -141,7 +147,7 @@ export interface ApprovalSubjectHandler<P = unknown> {
   /** O sujeito para o detalhe (APV-02), sem trava; `null` = processo inexistente no tenant. */
   describeSubject(tx: TenantTx, subject: DecisionSubject): Promise<DecisionSubjectView | null>;
   /** Opções de decisão para o SCR-015 (APV-02): destinos e regras não satisfeitas. Leitura. */
-  decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<ApprovalDecisionOption[]>;
+  decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<SubjectDecisionOption[]>;
   /**
    * POL-17 (US-053): quem consulta pode retirar a aprovação — etapa: solicitante ou lotado na
    * unidade de origem (custódia anterior), com `PROCESS_FORWARD` sobre essa unidade; avulsa:

@@ -90,6 +90,13 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
     title: 'Aprovação redirecionada',
     body: grouped('Uma aprovação que envolve você foi redirecionada.', groupCount),
   }),
+  APPROVAL_VOTE_RECORDED: ({ groupCount }) => ({
+    title: 'Voto registrado na aprovação',
+    body: grouped(
+      'Um aprovador votou numa aprovação que você solicitou; ela segue aguardando os demais.',
+      groupCount,
+    ),
+  }),
   // US-072 (FA-01): a variante `department` avisa que a menção foi à unidade do destinatário.
   MENTIONED: ({ groupCount, variant }) => ({
     title: variant === 'department' ? 'Sua unidade foi mencionada' : 'Você foi mencionado',

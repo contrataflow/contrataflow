@@ -806,6 +806,73 @@ const approvalReassigned = defineMapping({
   }),
 });
 
+/**
+ * US-134 — voto de linha que não encerra (`ApprovalVoteRecorded` → `APPROVAL_VOTE_RECORDED`):
+ * "{actor} aprovou ({votesLabel}) — {title}", com `votesLabel` = "1 de 2" (linhas aprovadas de
+ * todas as não canceladas). Nunca o comentário.
+ */
+const approvalVoteRecorded = defineMapping({
+  eventType: 'ApprovalVoteRecorded',
+  entryTypes: ['APPROVAL_VOTE_RECORDED'],
+  payload: z.looseObject({
+    approvalId: uuid,
+    sequence: z.int().min(1),
+    decidedAsDeputy: z.boolean(),
+    remainingPending: z.int().min(0),
+    remainingWaiting: z.int().min(0).optional(),
+    approvedLines: z.int().min(1).optional(),
+    totalLines: z.int().min(1).optional(),
+  }),
+  plan: (payload) => ({
+    refs: lookupRef('APPROVAL', payload.approvalId),
+    build: ({ lookups }) => [
+      entry(
+        'APPROVAL_VOTE_RECORDED',
+        {
+          title: lookups.get('APPROVAL', payload.approvalId)?.title ?? null,
+          sequence: payload.sequence,
+          remainingPending: payload.remainingPending,
+          asDeputy: payload.decidedAsDeputy,
+          votesLabel:
+            payload.approvedLines === undefined || payload.totalLines === undefined
+              ? null
+              : `${String(payload.approvedLines)} de ${String(payload.totalLines)}`,
+        },
+        { entity: ['Approval', payload.approvalId] },
+      ),
+    ],
+  }),
+});
+
+/** US-134 — vez do próximo (`ApprovalApproverActivated` → `APPROVAL_TURN`): "Aprovação passou para {approverLabel}". */
+const approvalApproverActivated = defineMapping({
+  eventType: 'ApprovalApproverActivated',
+  entryTypes: ['APPROVAL_TURN'],
+  payload: z.looseObject({
+    approvalId: uuid,
+    sequence: z.int().min(1),
+    ...approverRefsSchema,
+  }),
+  plan: (payload) => ({
+    refs: [
+      ...lookupRef('USER', payload.approverUserId),
+      ...lookupRef('ROLE', payload.approverRoleId),
+      ...lookupRef('DEPARTMENT', payload.approverDepartmentId),
+    ],
+    build: ({ lookups }) => [
+      entry(
+        'APPROVAL_TURN',
+        {
+          approverLabel: approverLabel(lookups, payload),
+          approverType: payload.approverType,
+          sequence: payload.sequence,
+        },
+        { entity: ['Approval', payload.approvalId] },
+      ),
+    ],
+  }),
+});
+
 // --- Colaboração e arquivos (events.md §4.4) ---------------------------------------------------
 
 const commentCreated = defineMapping({
@@ -1188,6 +1255,8 @@ const MAPPINGS: readonly TimelineEventMapping[] = [
   approvalDecided('ApprovalRejected', 'REJECTED'),
   approvalCanceled,
   approvalReassigned,
+  approvalVoteRecorded,
+  approvalApproverActivated,
   commentCreated,
   commentDeleted,
   attachmentUploaded,

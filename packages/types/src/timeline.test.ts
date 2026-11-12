@@ -23,9 +23,12 @@ const EVENTS_DOC = fileURLToPath(new URL('../../../docs/mvp-01/events.md', impor
  */
 const PENDING_DOCUMENTED_TYPES: Readonly<Record<string, string>> = {};
 
-/** `type` da primeira coluna da tabela de events.md §5 (fonte canônica do registro). */
-function documentedEntryTypes(): string[] {
-  const doc = readFileSync(EVENTS_DOC, 'utf8');
+/** MVP 2 (events.md §5): tipos novos, que entram com a story que os produz. */
+const EVENTS_DOC_MVP2 = fileURLToPath(new URL('../../../docs/mvp-02/events.md', import.meta.url));
+
+/** `type` da primeira coluna da tabela §5 de um events.md. */
+function tableTypes(path: string): string[] {
+  const doc = readFileSync(path, 'utf8');
   const section = doc.slice(
     doc.indexOf('## 5. Projeção na timeline'),
     doc.indexOf('## 6. Notificações'),
@@ -36,6 +39,14 @@ function documentedEntryTypes(): string[] {
     .flatMap((line) => [...(line.split('|')[1] ?? '').matchAll(/`([A-Z_]+)`/g)].map((m) => m[1]))
     .filter((type): type is string => type !== undefined)
     .filter((type) => !(type in PENDING_DOCUMENTED_TYPES));
+}
+
+/** MVP 1 inteiro (fonte canônica do registro) e, do MVP 2, os tipos já entregues. */
+function documentedEntryTypes(): string[] {
+  const mvp2 = tableTypes(EVENTS_DOC_MVP2).filter((type) =>
+    (TIMELINE_ENTRY_TYPES as readonly string[]).includes(type),
+  );
+  return [...new Set([...tableTypes(EVENTS_DOC), ...mvp2])];
 }
 
 describe('registro TimelineEntryType (events.md §5 · US-059)', () => {
@@ -85,6 +96,8 @@ describe('grupos de apresentação (US-060 · RN-TML-12)', () => {
       'APPROVAL_DECIDED',
       'APPROVAL_CANCELED',
       'APPROVAL_REASSIGNED',
+      'APPROVAL_VOTE_RECORDED',
+      'APPROVAL_TURN',
     ]);
     expect(timelineTypesOfGroups(['TRAMITACAO', 'COMENTARIOS'])).toHaveLength(10);
     expect(timelineTypesOfGroups([])).toEqual([]);

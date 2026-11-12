@@ -1,4 +1,5 @@
 import { decideApprovalSchema } from '@contrataflow/validation';
+import type { ApprovalDto } from '@contrataflow/validation';
 import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api/api-error';
@@ -6,6 +7,7 @@ import {
   DOC_ETP,
   RULE_PARECER,
   RULE_RISCOS,
+  T_APROVAR,
   T_DEVOLVER_ABERTURA,
   T_DEVOLVER_ESTUDOS,
   approvalDto,
@@ -20,9 +22,11 @@ import {
 import { violation } from '@test/support/forward-fixtures';
 
 import {
+  activeLinesCount,
   buildDecisionBody,
   canDecide,
   commentRequired,
+  decidableLines,
   describeDecisionError,
   groupDecisionOptions,
   isConfirmEnabled,
@@ -35,6 +39,7 @@ import {
   resolveOption,
   validateDecision,
   violationDocumentId,
+  voteIfMatch,
   warningsOf,
   withoutTrailingPeriod,
 } from './decision-model';
@@ -461,5 +466,102 @@ describe('describeDecisionError (tabela "Casos de erro" da US-052)', () => {
       true,
     );
     expect(needsRefresh(describeDecisionError(apiError(422, 'APPROVER_UNRESOLVED')))).toBe(false);
+  });
+});
+
+describe('US-134 · decisão por linha', () => {
+  const LINE_1 = '0192a000-0000-7000-8000-000000001150';
+  const LINE_2 = '0192a000-0000-7000-8000-000000001151';
+  const base: ApprovalDto['approvers'][number] | undefined = approvalDto().approvers[0];
+  if (base === undefined) throw new Error('linha ausente');
+  const lines = (versions: readonly number[]) =>
+    versions.map((version, index) => ({
+      ...base,
+      id: index === 0 ? LINE_1 : LINE_2,
+      sequence: index + 1,
+      version,
+    }));
+
+  it('voteIfMatch: versão da aprovação em ANY; da linha escolhida ou de myLine nas demais', () => {
+    const meta = { myLine: { id: LINE_1, sequence: 1, status: 'PENDING' as const, etag: '"4"' } };
+    expect(
+      voteIfMatch({ decisionPolicy: 'ANY', approvers: lines([4]), version: 9 }, meta, null),
+    ).toBe('"9"');
+    const all = { decisionPolicy: 'ALL' as const, approvers: lines([4, 7]), version: 9 };
+    expect(voteIfMatch(all, meta, LINE_2)).toBe('"7"');
+    expect(voteIfMatch(all, meta, null)).toBe('"4"');
+    expect(voteIfMatch(all, { myLine: null }, null)).toBe('"9"');
+  });
+
+  it('decidableLines e activeLinesCount', () => {
+    const approval = {
+      approvers: [...lines([1, 1]), { ...base, id: 'x', status: 'CANCELED' as const }],
+    };
+    expect(decidableLines(approval, { decidableLineIds: [LINE_2] }).map((line) => line.id)).toEqual(
+      [LINE_2],
+    );
+    expect(activeLinesCount(approval)).toBe(2);
+  });
+
+  it('linha obrigatória quando mais de uma cabe à pessoa; o corpo leva approvalApproverId', () => {
+    const option = decisionOption();
+    const group = groupDecisionOptions([option])[0];
+    const draft = { decision: 'APPROVE' as const, group, option, comment: '', acknowledged: [] };
+    expect(validateDecision({ ...draft, lineRequired: true, lineId: null })).toEqual({
+      approvalApproverId: 'Escolha em qual linha você vai decidir.',
+    });
+    expect(validateDecision({ ...draft, lineRequired: true, lineId: LINE_2 })).toEqual({});
+    expect(
+      buildDecisionBody({
+        decision: 'APPROVE',
+        option,
+        comment: '',
+        acknowledged: [],
+        approvalApproverId: LINE_2,
+      }),
+    ).toEqual({ decision: 'APPROVE', transitionId: T_APROVAR, approvalApproverId: LINE_2 });
+  });
+
+  it('voto que não encerra não pede ciência de avisos', () => {
+    const warning = transitionRule(RULE_RISCOS, 'WARNING', 'O mapa de riscos não foi atualizado.');
+    expect(warningsOf(decisionOption({ violations: [warning] }))).toHaveLength(1);
+    expect(warningsOf(decisionOption({ violations: [warning], closesApproval: false }))).toEqual(
+      [],
+    );
+  });
+
+  it('erros por linha viram avisos da tela inteira', () => {
+    const lineNotPending = describeDecisionError(
+      new ApiError({ status: 409, code: 'APPROVAL_LINE_NOT_PENDING', detail: 'x' }),
+    );
+    expect(lineNotPending).toEqual({ kind: 'lineNotPending' });
+    expect(
+      describeDecisionError(
+        new ApiError({ status: 409, code: 'APPROVER_ALREADY_VOTED', detail: 'x' }),
+      ),
+    ).toEqual({ kind: 'alreadyVoted' });
+    const waiting = describeDecisionError(
+      new ApiError({
+        status: 403,
+        code: 'NOT_DESIGNATED_APPROVER',
+        detail: 'x',
+        problem: {
+          type: 'https://docs.contrataflow.com.br/errors/not-designated-approver',
+          title: 'x',
+          status: 403,
+          detail: 'x',
+          instance: '/api/v1/approvals/1/decide',
+          code: 'NOT_DESIGNATED_APPROVER',
+          correlationId: 'c',
+          errors: [],
+          violations: [],
+          meta: { reason: 'LINE_WAITING' },
+        },
+      }),
+    );
+    expect(waiting).toEqual({ kind: 'waiting' });
+    for (const kind of ['lineNotPending', 'alreadyVoted', 'waiting'] as const) {
+      expect(isNoticeProblem({ kind })).toBe(true);
+    }
   });
 });

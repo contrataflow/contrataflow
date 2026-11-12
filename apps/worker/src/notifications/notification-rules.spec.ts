@@ -34,6 +34,8 @@ const ROUTING_KEYS: Readonly<Record<string, string>> = {
   ApprovalReturned: 'approval.returned',
   ApprovalRejected: 'approval.rejected',
   ApprovalReassigned: 'approval.reassigned',
+  ApprovalVoteRecorded: 'approval.vote_recorded',
+  ApprovalApproverActivated: 'approval.approver_activated',
   UserMentioned: 'comment.user_mentioned',
   CommentCreated: 'comment.created',
   ProcessStageDueSoon: 'process.stage_due_soon',
@@ -281,6 +283,49 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
     expect(plan.type).toBe('APPROVAL_DECIDED');
     expect(plan.recipients).toEqual([{ kind: 'LOOKUP', lookup: 'APPROVAL_STAKEHOLDERS' }]);
     expect(plan.content(1).title).toBe(title);
+  });
+
+  it('US-134: APPROVAL_VOTE_RECORDED ao solicitante; APPROVAL_REQUESTED à linha ativada (titular + substituto, usuário, perfil, desviada)', () => {
+    const vote = notify(
+      planNotification(envelope('ApprovalVoteRecorded', { approvalId: APPROVAL, sequence: 1 })),
+    );
+    expect(vote).toMatchObject({
+      type: 'APPROVAL_VOTE_RECORDED',
+      entityType: 'Approval',
+      entityId: APPROVAL,
+      link: `/aprovacoes/${APPROVAL}`,
+    });
+    expect(vote.recipients).toEqual([{ kind: 'LOOKUP', lookup: 'APPROVAL_REQUESTER' }]);
+    const activated = (line: Record<string, unknown>) =>
+      notify(
+        planNotification(
+          envelope('ApprovalApproverActivated', { approvalId: APPROVAL, sequence: 2, ...line }),
+        ),
+      );
+    const head = activated({
+      approverType: 'DEPARTMENT_HEAD',
+      approverUserId: USER,
+      approverDepartmentId: DEPARTMENT,
+      allowDeputy: true,
+    });
+    expect(head).toMatchObject({ type: 'APPROVAL_REQUESTED', link: `/aprovacoes/${APPROVAL}` });
+    expect(head.recipients).toEqual([
+      { kind: 'DEPARTMENT_HEADS', departmentId: DEPARTMENT, includeDeputy: true },
+    ]);
+    expect(activated({ approverType: 'USER', approverUserId: USER }).recipients).toEqual([
+      { kind: 'USER', userId: USER },
+    ]);
+    expect(activated({ approverType: 'ROLE', approverRoleId: testId() }).recipients).toEqual([
+      { kind: 'LOOKUP', lookup: 'ROLE_HOLDERS' },
+    ]);
+    expect(
+      activated({
+        approverType: 'DEPARTMENT_HEAD',
+        approverUserId: OTHER_USER,
+        approverDepartmentId: DEPARTMENT,
+        allowDeputy: false,
+      }).recipients,
+    ).toEqual([{ kind: 'USER', userId: OTHER_USER }]);
   });
 
   it('APPROVAL_REASSIGNED: novo e anterior aprovador; perfil novo via fonte', () => {

@@ -61,13 +61,23 @@
       "NOT_PENDING": "Esta aprovação já foi decidida.",
       "PERMISSION_DENIED": "O seu perfil não tem a permissão para decidir aprovações.",
       "NOT_DESIGNATED_APPROVER": "Você não é o aprovador designado nem o substituto desta aprovação.",
+      "ALREADY_VOTED": "Você já votou nesta aprovação.",
+      "LINE_NOT_PENDING": "A sua linha desta aprovação já foi decidida.",
+      "LINE_WAITING": "Ainda não é a sua vez de decidir esta aprovação. Você será avisado quando a sua linha for ativada.",
       "SELF_APPROVAL_FORBIDDEN": "Você é autor de um documento coberto e a segregação de funções impede a sua decisão.",
       "INVALID_PROCESS_STATUS": "O processo está em uma situação que não permite decidir esta aprovação agora.",
       "UNKNOWN": "As ações de decisão não estão disponíveis para você."
-    }
+    },
+    "waitingTitle": "Aguardando a vez"
   },
   "panel": {
     "heading": "Sua decisão",
+    "myLine": "Sua linha: {line} de {total}",
+    "line": {
+      "legend": "Linha do seu voto",
+      "hint": "Você é aprovador em mais de uma linha. Escolha em qual vai decidir — cada pessoa vota uma única vez.",
+      "option": "Linha {sequence}: {label}"
+    },
     "decisionLegend": "Decisão",
     "decisions": {
       "APPROVE": "Aprovar",
@@ -105,6 +115,7 @@
       "submitting": "Registrando a decisão…"
     },
     "toast": "Aprovação decidida: {decision}.",
+    "voteRecorded": "Seu voto foi registrado. {count, plural, one {Falta # aprovação} other {Faltam # aprovações}}.",
     "errors": {
       "formErrors": "Revise os campos destacados.",
       "warningsNotAcknowledged": "Confirme que está ciente dos avisos para continuar.",
@@ -122,6 +133,9 @@
   },
   "notice": {
     "notPending": "Esta aprovação já foi decidida.",
+    "lineNotPending": "Esta linha já foi decidida. Recarregamos as linhas da aprovação.",
+    "alreadyVoted": "Você já votou nesta aprovação.",
+    "waiting": "Ainda não é a sua vez de decidir esta aprovação.",
     "stale": "Esta aprovação foi atualizada por outra pessoa. Recarregamos os dados; revise e confirme de novo.",
     "precondition": "Não foi possível processar. Recarregamos a aprovação; confirme de novo.",
     "denied": "Você não pode decidir esta aprovação.",

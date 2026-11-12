@@ -1,4 +1,9 @@
-import type { ApprovalAction, ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
+import type {
+  ApprovalAction,
+  ApprovalDecisionOption,
+  ApprovalDto,
+  ApprovalMeta,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ApprovalSubjectRegistry } from '#shared/approval/approval-subject.js';
@@ -13,12 +18,15 @@ import { ApprovalPresenter } from './approval.presenter.js';
 import { APPROVAL_CLOCK, APPROVAL_REPOSITORY, APPROVAL_TRANSACTIONS } from './ports.js';
 import type { ApprovalClock, ApprovalRepository, ApprovalTransactions } from './ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
+import { isDecidableProcessStatus, isSelfApproval } from '../domain/approval-decision.js';
+import type { ApprovalRecord } from '../domain/approval-decision.js';
+import type { ApprovalApprover } from '../domain/approval-lines.js';
 import {
-  decisionBlockerOf,
-  isDecidableProcessStatus,
-  isSelfApproval,
-} from '../domain/approval-decision.js';
-import type { ApprovalRecord, Designation } from '../domain/approval-decision.js';
+  coveredLinesOf,
+  lineDecisionBlockerOf,
+  voteClosesApproval,
+  voteExpectedVersion,
+} from '../domain/approval-vote.js';
 
 export interface ApprovalDetail {
   readonly dto: ApprovalDto;
@@ -33,7 +41,10 @@ export interface ApprovalDetail {
  * `meta.allowedActions`/`decisionBlocker` repetem as checagens do APV-03 (SCR-015 oculta as ações
  * e explica o motivo) e `decisionOptions` traz as saídas do workflow com as regras `TRANSITION`.
  * US-053: `WITHDRAW` (POL-17, pelo dono do sujeito) e `REASSIGN` (`APPROVAL_REASSIGN` cobrindo o
- * processo) enquanto a aprovação está pendente e o processo nem suspenso nem final.
+ * processo) enquanto a aprovação está pendente e o processo nem suspenso nem final. US-134 (por
+ * linha, aditivo): `meta.myLine` (a linha de quem consulta e o `If-Match` do voto), as linhas que
+ * ele pode decidir (`decidableLineIds`), `decisionOptions[].closesApproval` (só a opção que encerra
+ * avalia as regras `TRANSITION` — RN-APV-38) e os bloqueios `ALREADY_VOTED`/`LINE_NOT_PENDING`.
  */
 @Injectable()
 export class GetApprovalQuery {
@@ -58,22 +69,40 @@ export class GetApprovalQuery {
       const subject = withdrawalSubjectOf(found);
       const view = handler === null ? null : await handler.describeSubject(tx, subject);
       if (handler === null || view === null) throw approvalNotFound();
-      const designation = await this.policy.designationIn(tx, approval, view, userId, this.clock());
-      await this.assertVisible(tx, approval, designation, userId);
+      const { lines } = found;
+      const facts = await this.policy.lineDesignationFactsIn(tx, lines, view, userId, this.clock());
+      const covered = coveredLinesOf(lines, facts);
+      const alreadyVoted = lines.some(
+        (line) => line.decision !== null && line.decidedById === userId,
+      );
+      await this.assertVisible(tx, approval, covered.length > 0 || alreadyVoted, userId);
 
+      // A linha de quem consulta: a `PENDING` de menor ordem, senão a em espera, a que ele decidiu
+      // ou a primeira coberta (para explicar o bloqueio).
+      const decidable = covered.filter((item) => item.line.status === 'PENDING');
+      const mine =
+        decidable[0] ??
+        covered.find((item) => item.line.status === 'WAITING') ??
+        covered.find((item) => item.line.decidedById === userId) ??
+        covered[0] ??
+        null;
       const selfApproval = isSelfApproval(
         view.authorIds,
         userId,
         await this.policy.preventsSelfApprovalIn(tx),
       );
-      const blocker = decisionBlockerOf({
+      const blocker = lineDecisionBlockerOf({
         status: approval.status,
         canDecide: this.access.can('APPROVAL_DECIDE'),
-        designation,
+        line: mine?.line ?? null,
+        alreadyVoted,
         selfApproval,
         processStatus: view.processStatus,
       });
-      const decisionOptions = blocker === null ? await handler.decisionOptions(tx, subject) : [];
+      const decisionOptions =
+        blocker !== null || mine === null
+          ? []
+          : withClosure(approval, lines, mine.line, await handler.decisionOptions(tx, subject));
       const allowedActions: ApprovalAction[] = blocker === null ? ['DECIDE'] : [];
       // US-053: retirar (POL-17) e redirecionar (`APPROVAL_REASSIGN` cobrindo o processo).
       if (approval.status === 'PENDING' && isDecidableProcessStatus(view.processStatus)) {
@@ -88,8 +117,18 @@ export class GetApprovalQuery {
         meta: {
           allowedActions,
           decisionOptions,
-          decidesAsDeputy: designation.asDeputy,
+          decidesAsDeputy: mine?.designation.asDeputy ?? false,
           decisionBlocker: blocker,
+          myLine:
+            mine === null
+              ? null
+              : {
+                  id: mine.line.id,
+                  sequence: mine.line.sequence,
+                  status: mine.line.status,
+                  etag: `"${String(voteExpectedVersion(approval, mine.line))}"`,
+                },
+          decidableLineIds: blocker === null ? decidable.map((item) => item.line.id) : [],
         },
       };
     });
@@ -99,14 +138,10 @@ export class GetApprovalQuery {
   private async assertVisible(
     tx: TenantTx,
     approval: ApprovalRecord,
-    designation: Designation,
+    designated: boolean,
     userId: string,
   ): Promise<void> {
-    if (
-      designation.designated ||
-      approval.requestedById === userId ||
-      approval.decidedById === userId
-    ) {
+    if (designated || approval.requestedById === userId || approval.decidedById === userId) {
       return;
     }
     const target = await this.processes.load(tx, approval.processId);
@@ -120,4 +155,24 @@ export class GetApprovalQuery {
       });
     }
   }
+}
+
+/**
+ * US-134 (RN-APV-38): `closesApproval` por opção, na linha de quem consulta. A opção que NÃO
+ * encerra (voto positivo com outras linhas vivas) não avalia as regras `TRANSITION`: sem violações
+ * e habilitada (avisos e bloqueios só valem para o voto que encerra).
+ */
+function withClosure(
+  approval: ApprovalRecord,
+  lines: readonly ApprovalApprover[],
+  line: ApprovalApprover,
+  options: readonly Omit<ApprovalDecisionOption, 'closesApproval'>[],
+): ApprovalDecisionOption[] {
+  const policy = approval.decisionPolicy ?? 'ANY';
+  return options.map((option) => {
+    const closesApproval = voteClosesApproval(policy, lines, line.id, option.decision);
+    return closesApproval
+      ? { ...option, closesApproval }
+      : { ...option, closesApproval, enabled: true, violations: [] };
+  });
 }

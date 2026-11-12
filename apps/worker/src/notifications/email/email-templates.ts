@@ -45,6 +45,10 @@ export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> 
   },
   APPROVAL_DECIDED: { action: 'Ver a decisão', reason: PROCESS_REASON },
   APPROVAL_REASSIGNED: { action: 'Ver a aprovação', reason: PROCESS_REASON },
+  APPROVAL_VOTE_RECORDED: {
+    action: 'Ver a aprovação',
+    reason: 'Você recebe este aviso porque solicitou esta aprovação.',
+  },
   MENTIONED: {
     action: 'Ver o comentário',
     reason: 'Você recebe este aviso porque mencionaram você ou a sua unidade.',

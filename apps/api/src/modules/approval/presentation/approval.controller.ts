@@ -4,6 +4,7 @@ import {
   approvalMetaSchema,
   approvalSchema,
   dataEnvelope,
+  decideApprovalMetaSchema,
   decideApprovalSchema,
   decidedApprovalSchema,
   reassignApprovalSchema,
@@ -16,6 +17,7 @@ import type {
   ApprovalListQuery,
   ApprovalMeta,
   DecideApproval,
+  DecideApprovalMeta,
   DecidedApprovalDto,
   ReassignApproval,
   WithdrawApproval,
@@ -114,7 +116,7 @@ export class ApprovalController {
     responses: {
       200: {
         description:
-          'Aprovação (`ETag` = versão) com os documentos cobertos na versão exata analisada e `meta`: `allowedActions` (`DECIDE` só para o designado — POL-03 — com `APPROVAL_DECIDE`, sem autoria de documento coberto e processo decidível), `decisionOptions` (saídas do workflow: devolução uma por etapa percorrida, destino e regras `TRANSITION` não satisfeitas), `decidesAsDeputy` e `decisionBlocker`. Visível sem `APPROVAL_VIEW` nem designação = 403 `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.',
+          'Aprovação (`ETag` = versão) com os documentos cobertos na versão exata analisada, a política e as linhas (`approvers[]`, com `version`) e `meta`: `allowedActions` (`DECIDE` só para quem tem uma linha `PENDING` — POL-03 por linha — com `APPROVAL_DECIDE`, sem voto anterior nesta aprovação, sem autoria de documento coberto e processo decidível), `decisionOptions` (saídas do workflow: devolução uma por etapa percorrida, destino e regras `TRANSITION` não satisfeitas; `closesApproval` — só a opção que encerra avalia as regras), `decidesAsDeputy`, `decisionBlocker` (`ALREADY_VOTED`, `LINE_NOT_PENDING`; linha `WAITING` = `NOT_DESIGNATED_APPROVER`), `myLine` (a linha de quem consulta; `etag` = o `If-Match` do voto: versão da aprovação em `ANY`, da linha em `ALL`/`SEQUENTIAL`) e `decidableLineIds` (mais de uma = `approvalApproverId` obrigatório). Visível sem `APPROVAL_VIEW` nem designação = 403 `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.',
         schema: z.object({ data: approvalSchema, meta: approvalMetaSchema }),
       },
     },
@@ -144,6 +146,7 @@ export class ApprovalController {
     idempotent: true,
     auditActions: [
       'approval.decide',
+      'approval.vote',
       'approval.request',
       'document.version_create',
       'document.submit',
@@ -151,8 +154,8 @@ export class ApprovalController {
     responses: {
       200: {
         description:
-          'Aprovação decidida (`ETag` = nova versão) com a etapa e o status do processo (`processStage`, `processStatus`; `null` na avulsa) e a próxima aprovação encadeada (`chainedApprovalId`). Uma transação: trava do processo e da aprovação; já decidida = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); POL-03 (403 `NOT_DESIGNATED_APPROVER`/`SELF_APPROVAL_FORBIDDEN`, auditados como `access.denied`); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`; mais de uma devolução sem `transitionId` = 422 `VALIDATION_ERROR`); aprovador da próxima etapa (422 `APPROVER_UNRESOLVED`). Efeitos: documentos cobertos (DEC-018), renderização `APPROVAL_STAMPED` `PENDING` (fila só depois do commit), mudança de etapa/status (destino `END` conclui o processo) e eventos `ApprovalCompleted`/`ApprovalReturned`/`ApprovalRejected`, `ProcessStageChanged`, `ProcessStatusChanged`, `ApprovalRequested`.',
-        schema: dataEnvelope(decidedApprovalSchema),
+          'Voto na linha de quem decide (US-134 · `ANY`/`ALL`/`SEQUENTIAL`) com `meta.outcome` (`VOTE_RECORDED` — a aprovação segue `PENDING`, nada muda no processo —, ou `APPROVED`/`RETURNED`/`REJECTED` no encerramento), `remainingPending`, `remainingWaiting`, `activatedApproverId` e `approvalApproverId`; `ETag` = nova versão da aprovação. No encerramento, a etapa e o status do processo (`processStage`, `processStatus`; `null` na avulsa) e a próxima aprovação encadeada (`chainedApprovalId`). Uma transação: trava do processo, da aprovação e das linhas; ordem (RN-APV-40): já encerrada = 409 `APPROVAL_NOT_PENDING`; linha decidida, dispensada ou cancelada = 409 `APPROVAL_LINE_NOT_PENDING`; linha em espera = 403 `NOT_DESIGNATED_APPROVER` (`meta.reason = LINE_WAITING`); `If-Match` (412 `VERSION_CONFLICT` — versão da aprovação em `ANY`, da linha em `ALL`/`SEQUENTIAL`); POL-03 por linha (403 `NOT_DESIGNATED_APPROVER`/`SELF_APPROVAL_FORBIDDEN`, auditados como `access.denied`; 409 `APPROVER_ALREADY_VOTED`); mais de uma linha possível sem `approvalApproverId` = 422 `VALIDATION_ERROR` (`CONDITIONAL_REQUIRED`); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; no voto que encerra, motor de workflow (422 `TRANSITION_NOT_AVAILABLE`/`TRANSITION_BLOCKED`/`WARNINGS_NOT_ACKNOWLEDGED`; mais de uma devolução sem `transitionId` = 422 `VALIDATION_ERROR`) e aprovador da próxima etapa (422 `APPROVER_UNRESOLVED`, desfaz o voto). Efeitos do encerramento (uma vez): documentos cobertos (DEC-018), renderização `APPROVAL_STAMPED` `PENDING` (fila só depois do commit), mudança de etapa/status (destino `END` conclui o processo), linhas restantes `SKIPPED` e eventos `ApprovalCompleted`/`ApprovalReturned`/`ApprovalRejected` (com `decisionPolicy`, `decidingApprovalApproverId` e `votes[]`), `ProcessStageChanged`, `ProcessStatusChanged`, `ApprovalRequested`. Voto que não encerra: `ApprovalVoteRecorded` e, em `SEQUENTIAL`, `ApprovalApproverActivated`.',
+        schema: z.object({ data: decidedApprovalSchema, meta: decideApprovalMetaSchema }),
       },
     },
   })
@@ -162,7 +165,7 @@ export class ApprovalController {
     @IfMatch() ifMatch: IfMatchValue | null,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Res({ passthrough: true }) response: HttpResponse,
-  ): Promise<DecidedApprovalDto> {
+  ): Promise<DataResult<DecidedApprovalDto, DecideApprovalMeta>> {
     const result = await this.decideCommand.execute({
       approvalId: id,
       body,
@@ -171,7 +174,7 @@ export class ApprovalController {
     });
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);
-    return result.dto;
+    return new DataResult(result.dto, result.meta);
   }
 
   @Post(':id/withdraw')
