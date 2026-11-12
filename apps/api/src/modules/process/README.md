@@ -567,3 +567,34 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<Input, Pr
   `domain/derived-estimated-value.ts`). A versão do processo sobe nos dois casos (o `If-Match` da
   edição aberta vira 412). Só o `price-research` chama, já autorizado (DEC-019: o PATCH do item e o
   do processo nunca gravam esses valores).
+
+## Ramos paralelos em execução (US-124 · DEC-194)
+
+A fonte de verdade das etapas ativas é `process_stages` (`status = ACTIVE`); `currentStageId` aponta
+para a única etapa ativa ou, no paralelismo, para a passagem do `PARALLEL_SPLIT` (nunca acionável).
+
+- **Domínio puro** (`domain/process-branches.ts`): status macro (RN-WF2-16), etapa-alvo
+  (`resolveTargetStage` — RN-WF2-18), visão focada (`focusProcess`/`focusStages` — RN-WF2-17),
+  desnormalizações no paralelismo (`parallelProcessFields` — RN-WF2-14), o plano de gravação
+  genérico `RuntimeChange` e as invariantes do bloco (`branchInvariantViolations`).
+- **Visão focada** (`StageFocusResolver`, `application/stage-focus.ts`): os comandos (PRC-19/20/21/22
+  e a decisão/retirada de aprovação) resolvem a etapa-alvo e rodam o motor e os planos do MVP 1
+  sobre o processo "como se" ela fosse a única ativa — custódia por ramo sem tocar no motor de
+  workflow. As sequências (passagem e tramitação) vêm SEMPRE do processo real (`focus.real`).
+- **`StageTransitionService` → `BranchEngine`**: com `scope`, destino `PARALLEL_SPLIT` abre os ramos
+  (`open`), destino `PARALLEL_JOIN` a partir de um ramo é a chegada/junção (`arrive`), destino no
+  mesmo ramo é avanço/devolução no ramo (`withinBranch`) e destino fora do ramo é a devolução para
+  antes da ramificação (`leave`). Sem `scope` ou no tronco, o caminho do MVP 1.
+- **Gravação**: `ProcessRepository.applyRuntimeChange` grava processo (`WHERE version`), passagens
+  encerradas (e as responsabilidades delas), passagens/responsabilidades novas, ramos e tramitações
+  numa transação; `recordStageTransition` virou um caso dela. `lockStage` = `FOR UPDATE` no split
+  (ordem processo → split → ramo).
+- **Leituras** (`ProcessBranchReader`): PRC-08 com uma rodada do motor por etapa ativa (+ `stages[]`
+  irmão de `data`; regras do join na entrada do último ramo), `activeStages[]` em PRC-04/19/20 e
+  PRC-39 (`GET /processes/{id}/branches`). PRC-11 aceita `branchKey`.
+- **Acesso** (`ProcessAccessProjector`): `CURRENT` por ramo em `ProcessBranchesOpened`; junção e
+  cancelamento retiram os `CURRENT` dos ramos (`branchDepartmentIds`); `ProcessStageChanged` não
+  retira o `CURRENT` de unidade que segue com outra etapa ativa (`activeDepartmentIds`).
+- **Pendências**: PRC-09 por etapa (`processStageId?`), PRC-10 com `branchKey`/`isCurrent` por
+  etapa, caixa de tarefas/painel/prazos por ramo (US-125) e a view `v_inbox_processes` (junta por
+  etapa ativa — no paralelismo devolve uma linha por etapa).

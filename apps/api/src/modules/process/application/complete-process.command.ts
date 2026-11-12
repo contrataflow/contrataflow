@@ -260,6 +260,7 @@ export class CompleteProcessCommand extends TransactionalCommandHandler<
         closeAs: 'COMPLETED',
         transitionId: transition.id,
         toWorkflowStageId: toStage.id,
+        toStageType: toStage.type,
         toDepartmentId,
         toUserId: null,
         assignedById: null,

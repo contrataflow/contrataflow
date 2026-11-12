@@ -3,6 +3,7 @@ import type {
   EstimatedValueSource,
   ProcessStageStatus,
   ProcessStatus,
+  StageType,
 } from '@contrataflow/validation';
 
 import type { ParticipantRole, ProcessVisibilityScope } from '#shared/auth/process-access.js';
@@ -10,6 +11,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import type { CursorReader } from '#shared/database/transaction-stream.js';
 
 import type { AssignPlan } from '../domain/process-assign.js';
+import type { ProcessBranchRecord, RuntimeChange } from '../domain/process-branches.js';
 import type { CancelPlan, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { CompleteAtEndPlan } from '../domain/process-completion.js';
@@ -128,6 +130,12 @@ export interface ProcessStageRow {
   /** Prazo pausado (processo suspenso). */
   readonly pausedAt: Date | null;
   readonly overdueSince: Date | null;
+  /** US-124 (entities.md MVP 2 §5.3): tipo da etapa, ramo e split que o abriu. */
+  readonly stageType: StageType;
+  readonly branchKey: string | null;
+  readonly splitProcessStageId: string | null;
+  /** Aberta por devolução (`enteredViaMovement.action = RETURN` — RN-WF2-16). */
+  readonly openedByReturn: boolean;
 }
 
 /**
@@ -171,6 +179,8 @@ export interface ProcessAggregateRows {
   /** Participações não revogadas (US-012). */
   readonly participants: readonly ProcessParticipantRow[];
   readonly situation: ProcessSituationRow;
+  /** US-124: ramos de todas as rodadas de ramificação, na ordem de criação. */
+  readonly branches: readonly ProcessBranchRecord[];
 }
 
 /**
@@ -315,6 +325,18 @@ export interface ProcessRepository {
    * `false` = outra escrita venceu (nada gravado).
    */
   recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean>;
+  /**
+   * US-124 (RN-WF2-28): grava a mudança genérica do runtime no `tx` — o processo (`WHERE version =
+   * expectedVersion`, `overdueSince = null`), as passagens encerradas e as responsabilidades ativas
+   * delas, as passagens e responsabilidades novas, os ramos novos e alterados e as tramitações
+   * (só INSERT). `false` = outra escrita venceu (nada gravado).
+   */
+  applyRuntimeChange(tx: TenantTx, change: RuntimeChange): Promise<boolean>;
+  /**
+   * US-124 (RN-WF2-20/24): `SELECT … FOR UPDATE` na passagem do split — a ordem de travas é
+   * processo → split → ramo; serializa a chegada dos ramos à junção.
+   */
+  lockStage(tx: TenantTx, processStageId: string): Promise<void>;
   /**
    * US-049 (RN-TRAM-33): grava o "assumir" no `tx` — o processo (`WHERE version = expectedVersion`),
    * o responsável da passagem ativa, o encerramento da responsabilidade ativa (a da fila), a nova

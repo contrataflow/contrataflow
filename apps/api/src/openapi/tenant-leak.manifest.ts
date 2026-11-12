@@ -226,6 +226,9 @@ const AUDIT_LOG_ROUTE =
 const PROCESS_TIMELINE_ROUTE =
   'Timeline do processo (US-060): a suíte genérica não tem processo nem entradas de timeline do tenant B. O isolamento (PRC-12 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_timeline_entries com app.tenant_id diferente retornando vazio e cursor forjado com posição de B sem efeito) é coberto em test/tenant-leak/process-timeline.spec.ts, com PostgreSQL real.';
 
+const PROCESS_BRANCHES_ROUTE =
+  'Ramos paralelos (US-124 · PRC-39): exige um processo do tenant em ramificação, que a suíte genérica não tem. O isolamento (PRC-39 e as ações por processStageId com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar dados; RLS de process_branches e process_stages com app.tenant_id diferente retornando vazio; FK composta impedindo ramo de outro tenant) é coberto em test/tenant-leak/process-branches.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-branches.routes.spec.ts.';
+
 const PROCESS_MOVEMENTS_ROUTE =
   'Histórico de tramitações (US-054): a suíte genérica não tem processo nem tramitações do tenant B. O isolamento (PRC-11 com id de processo de B → 404 PROCESS_NOT_FOUND sem revelar nada, RLS de process_movements com app.tenant_id diferente retornando vazio, cursor e filtros com ids de B sem efeito e nomes hidratados só do próprio tenant) é coberto em test/tenant-leak/process-movements.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/process-movements.routes.spec.ts.';
 
@@ -419,6 +422,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'PRC-09': { kind: 'exempt', reason: PROCESS_ACTIONS_ROUTE },
   'PRC-10': { kind: 'exempt', reason: PROCESS_PANEL_ROUTE },
   'PRC-11': { kind: 'exempt', reason: PROCESS_MOVEMENTS_ROUTE },
+  'PRC-39': { kind: 'exempt', reason: PROCESS_BRANCHES_ROUTE },
   'PRC-12': { kind: 'exempt', reason: PROCESS_TIMELINE_ROUTE },
   'PRC-13': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },
   'PRC-14': { kind: 'exempt', reason: PROCESS_ITEMS_ROUTE },

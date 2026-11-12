@@ -1,15 +1,17 @@
 import {
   actionEntrySchema,
+  actionStageSchema,
   dataEnvelope,
   processChecklistSchema,
   processIdParamsSchema,
 } from '@contrataflow/validation';
-import type { ActionEntry, ProcessChecklist } from '@contrataflow/validation';
+import type { ActionEntry, ActionStageDto, ProcessChecklist } from '@contrataflow/validation';
 import { Controller, Get, Param } from '@nestjs/common';
 import type { PipeTransform } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ApiError } from '#shared/errors/api-error.js';
+import { DataWithMembers } from '#shared/http/envelope.interceptor.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
 
@@ -63,13 +65,19 @@ export class ProcessActionsController {
     responses: {
       200: {
         description:
-          'Ações da etapa atual (avanço, devolução e ciclo de vida) com `enabled` e `reasons[]`.',
-        schema: dataEnvelope(z.array(actionEntrySchema)),
+          'Ações da etapa atual (avanço, devolução e ciclo de vida) com `enabled` e `reasons[]`. US-124 (aditivo): no paralelismo, as entradas de etapa trazem `processStageId`/`branchKey` (uma rodada do motor por etapa ativa — custódia por ramo; no último ramo, a entrada para a junção já traz as regras do join) e o resumo `stages[]` vem como irmão de `data`.',
+        schema: z.object({
+          data: z.array(actionEntrySchema),
+          stages: z.array(actionStageSchema).optional(),
+        }),
       },
     },
   })
-  getAvailableActions(@ProcessIdParam() id: string): Promise<ActionEntry[]> {
-    return this.availableActions.execute({ processId: id });
+  async getAvailableActions(
+    @ProcessIdParam() id: string,
+  ): Promise<ActionEntry[] | DataWithMembers<ActionEntry[], { stages: ActionStageDto[] }>> {
+    const { actions, stages } = await this.availableActions.execute({ processId: id });
+    return stages === null ? actions : new DataWithMembers(actions, { stages });
   }
 
   @Get('processes/:id/checklist')

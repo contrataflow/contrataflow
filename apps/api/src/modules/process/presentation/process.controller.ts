@@ -18,6 +18,8 @@ import {
   processSchema,
   processStageEntrySchema,
   processSummarySchema,
+  processBranchesSchema,
+  processBranchesQuerySchema,
   PROCESS_CANCELLATION_MESSAGES,
   PROCESS_COMPLETION_MESSAGES,
   PROCESS_CONFIDENTIALITY_MESSAGES,
@@ -27,6 +29,7 @@ import {
   returnedProcessSchema,
   returnProcessSchema,
   assignProcessSchema,
+  claimProcessSchema,
   setProcessConfidentialitySchema,
   suspendProcessSchema,
   suspensionProcessSchema,
@@ -50,11 +53,13 @@ import type {
   ProcessListQuery,
   ProcessStageEntryDto,
   ProcessSummaryDto,
+  ProcessBranchesDto,
   ResumeMeta,
   ResumeProcess,
   ReturnedProcessDto,
   ReturnProcess,
   AssignProcess,
+  ClaimProcess,
   SetProcessConfidentiality,
   SuspendProcess,
   SuspensionProcessDto,
@@ -100,6 +105,7 @@ import {
 import {
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
+  GetProcessBranchesQuery,
 } from '../application/process-panel.queries.js';
 import {
   ResumeProcessCommand,
@@ -164,6 +170,7 @@ export class ProcessController {
     private readonly list: ListProcessesHandler,
     private readonly summary: GetProcessSummaryQuery,
     private readonly stages: ListProcessStagesQuery,
+    private readonly branches: GetProcessBranchesQuery,
     private readonly update: UpdateProcessCommand,
     private readonly duplicate: DuplicateProcessCommand,
     private readonly confidentiality: SetProcessConfidentialityCommand,
@@ -458,12 +465,14 @@ export class ProcessController {
   })
   async claimProcess(
     @ProcessId() id: string,
+    @ZodBody(claimProcessSchema.optional()) body: ClaimProcess | undefined,
     @IfMatch() ifMatch: IfMatchValue | null,
     @Res({ passthrough: true }) response: HttpResponse,
   ): Promise<ProcessDto> {
     const result = await this.claims.execute({
       processId: id,
       expectedVersion: ifMatch?.value ?? 0,
+      processStageId: body?.processStageId ?? null,
     });
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);
@@ -585,6 +594,30 @@ export class ProcessController {
     const stages = await this.stages.execute(id);
     noStore(response);
     return stages;
+  }
+
+  @Get(':id/branches')
+  @ImplicitAccess(PANEL_ACCESS)
+  @ApiOperation({
+    operationId: 'PRC-39',
+    summary: 'Listar ramos paralelos do processo',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'US-124 (DEC-194): a rodada atual (ou `round` = `splitProcessStageId` de uma rodada anterior) do bloco paralelo — split, junção, ramos (`OPEN`/`ARRIVED`/`CANCELED`) com a etapa ativa e as passagens de cada um, e as rodadas anteriores (FA-08). `data: null` fora de ramificação; não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`.',
+        schema: z.object({ data: processBranchesSchema.nullable() }),
+      },
+    },
+  })
+  async listBranches(
+    @ProcessId() id: string,
+    @ZodQuery(processBranchesQuerySchema) query: z.output<typeof processBranchesQuerySchema>,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<ProcessBranchesDto | null> {
+    const branches = await this.branches.execute({ processId: id, round: query.round ?? null });
+    noStore(response);
+    return branches;
   }
 
   @Post(':id/suspend')

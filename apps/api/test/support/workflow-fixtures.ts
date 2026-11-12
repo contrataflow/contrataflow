@@ -86,7 +86,15 @@ export class DefinitionBuilder {
     private readonly newId: () => string = fixtureId,
   ) {}
 
-  stage(key: string, type: StageType, overrides: Partial<WorkflowStageFields> = {}): this {
+  /**
+   * `branchKey` (US-124): o ramo que a publicação calcularia (`resolveBranchKeys`) — os testes do
+   * runtime o informam direto, como o snapshot publicado o traz.
+   */
+  stage(
+    key: string,
+    type: StageType,
+    overrides: Partial<WorkflowStageFields> & { readonly branchKey?: string | null } = {},
+  ): this {
     this.stages.push({
       ...stageFields(key, type, { displayOrder: this.stages.length, ...overrides }),
       ...control(this.newId(), this.versionId),

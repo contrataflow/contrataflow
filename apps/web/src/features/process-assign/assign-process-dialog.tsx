@@ -56,6 +56,10 @@ export interface AssignProcessDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   /** Depois do sucesso (o diálogo já fechou): o painel decide para onde vai o foco. */
   readonly onDone?: (() => void) | undefined;
+  /** US-124: etapa do ramo a atribuir (`processStageId` do PRC-22); ausente fora do paralelismo. */
+  readonly processStageId?: string | null | undefined;
+  /** US-124: ramo da etapa, só para o texto do toast. */
+  readonly branchKey?: string | null | undefined;
 }
 
 /** Mensagem do erro com a ação da tabela "Casos de erro" (Recarregar, Tentar novamente, Copiar). */
@@ -119,6 +123,8 @@ export function AssignProcessDialog({
   open,
   onOpenChange,
   onDone,
+  processStageId,
+  branchKey,
 }: AssignProcessDialogProps) {
   const t = useTranslations('processes.assign');
   const session = useShellSession();
@@ -206,7 +212,10 @@ export function AssignProcessDialog({
       return;
     }
     setErrors({});
-    const body = assignBodyOf(draft);
+    const body = {
+      ...assignBodyOf(draft),
+      ...(processStageId === null || processStageId === undefined ? {} : { processStageId }),
+    };
     let updated;
     try {
       updated = await mutation.mutateAsync({ processId, body, version: process.version });
@@ -236,13 +245,15 @@ export function AssignProcessDialog({
       setProblem(found);
       return;
     }
-    toast({
-      title:
-        updated.currentResponsible === null
-          ? t('queued')
-          : t('assigned', { name: updated.currentResponsible.name }),
-      tone: 'success',
-    });
+    const branch = branchKey ?? null;
+    let title: string;
+    if (updated.currentResponsible === null) {
+      title = branch === null ? t('queued') : t('queuedBranch', { branch });
+    } else {
+      const name = updated.currentResponsible.name;
+      title = branch === null ? t('assigned', { name }) : t('assignedBranch', { branch, name });
+    }
+    toast({ title, tone: 'success' });
     refreshAll();
     done.current = true;
     handleOpenChange(false);

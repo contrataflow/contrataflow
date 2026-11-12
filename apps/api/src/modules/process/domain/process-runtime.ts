@@ -4,6 +4,7 @@ import type {
   ProcessStageStatus,
   ProcessStatus,
   RuleContextV1,
+  StageType,
 } from '@contrataflow/validation';
 
 import type { ProcessParticipation } from '#shared/auth/process-access.js';
@@ -25,6 +26,12 @@ export interface ProcessStagePass {
   /** ISO 8601 UTC. */
   readonly enteredAt: string;
   readonly exitedAt: string | null;
+  /** US-124: tipo, ramo, split e abertura por devolução (ausentes nas cargas anteriores). */
+  readonly stageType?: StageType;
+  readonly branchKey?: string | null;
+  readonly splitProcessStageId?: string | null;
+  readonly openedByReturn?: boolean;
+  readonly dueAt?: string | null;
 }
 
 export interface ProcessStageApproval {

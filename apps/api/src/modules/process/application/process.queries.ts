@@ -12,6 +12,7 @@ import { ConfidentialViewRecorder } from './confidential-view.recorder.js';
 import { DuplicateCandidatesFinder } from './duplicate-candidates.js';
 import { PROCESS_CLOCK, PROCESS_TRANSACTIONS } from './ports.js';
 import type { ProcessClock, ProcessTransactions } from './ports.js';
+import { ProcessBranchReader } from './process-branches.queries.js';
 import { ProcessPanelReader } from './process-panel.queries.js';
 import { ProcessPresenter } from './process.presenter.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
@@ -80,6 +81,7 @@ export class GetProcessQuery {
     private readonly presenter: ProcessPresenter,
     private readonly panel: ProcessPanelReader,
     private readonly confidentialViews: ConfidentialViewRecorder,
+    private readonly branches: ProcessBranchReader,
   ) {}
 
   async execute(
@@ -90,8 +92,11 @@ export class GetProcessQuery {
       const actions = await this.panel.actions(tx, runtime, viewer);
       const approvals = await this.panel.pendingApprovals(tx, processId, viewer);
       const canSeeBudget = await this.panel.canSeeBudget(rows, runtime);
+      const dto = await this.presenter.present(tx, rows.process, canSeeBudget);
+      // US-124 (aditivo · RN-WF2-15): as etapas ativas — várias no paralelismo.
+      const activeStages = await this.branches.activeStages(tx, rows);
       return {
-        process: await this.presenter.present(tx, rows.process, canSeeBudget),
+        process: { ...dto, activeStages, activeStagesCount: activeStages.length },
         allowedActions: allowedActionsOf(actions, approvals),
       };
     });

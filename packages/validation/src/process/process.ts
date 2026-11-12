@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { PROCESS_STATUSES } from './process-actions.js';
+import { activeStageSchema } from './process-branches.js';
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
 
 /*
@@ -373,6 +374,10 @@ export const processSchema = z
     updatedAt: isoDateTimeSchema,
     createdBy: unitRefSchema,
     version: z.number().int(),
+    /** US-124 (aditivo · RN-WF2-15): etapas ativas `TASK`/`APPROVAL` (várias no paralelismo). */
+    activeStages: z.array(activeStageSchema).optional(),
+    /** US-124: 1 fora do paralelismo, ≥ 1 em ramificação, 0 em status finais. */
+    activeStagesCount: z.number().int().min(0).optional(),
   })
   .meta({ id: 'Process' });
 export type ProcessDto = z.infer<typeof processSchema>;

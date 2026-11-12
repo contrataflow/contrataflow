@@ -351,6 +351,9 @@
     },
     "process": {
       "assign": "Processo atribuído",
+      "branch_cancel": "Ramos paralelos cancelados pela devolução",
+      "branch_join": "Ramos paralelos concluídos (junção)",
+      "branch_open": "Processo entrou em ramos paralelos",
       "cancel": "Processo cancelado",
       "claim": "Processo assumido",
       "complete": "Processo concluído",

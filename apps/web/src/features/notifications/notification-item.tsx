@@ -12,6 +12,8 @@ import type { IconName } from '@/components/shell/icons';
 /** Ícone por tipo (SCR-036: "ícone por tipo"). */
 const TYPE_ICONS: Readonly<Record<NotificationType, IconName>> = {
   PROCESS_RECEIVED: 'inbox',
+  PARALLEL_BRANCH_RECEIVED: 'inbox',
+  PARALLEL_BRANCHES_JOINED: 'inbox',
   PROCESS_RETURNED: 'folder',
   PROCESS_ASSIGNED: 'folder',
   PROCESS_STATUS_CHANGED: 'folder',

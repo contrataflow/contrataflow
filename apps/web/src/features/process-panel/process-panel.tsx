@@ -37,7 +37,14 @@ import { ElaborateDfdButton } from '../dfd/elaborate-dfd';
 import { CreateEtpButton } from '../etp/create-etp-dialog';
 import { MovementTimeline } from '../movements/movement-timeline';
 import { CreatePriceResearchButton } from '../price-research/create-price-research-dialog';
-import { useAvailableActions } from '../process-actions/process-actions.api';
+import { BranchSelector } from '../process-actions/branch-selector';
+import {
+  defaultBranchStageId,
+  entriesOfStage,
+  hasBranches,
+  useAvailableActionStages,
+  useAvailableActions,
+} from '../process-actions/process-actions.api';
 import { AssignProcessDialog } from '../process-assign/assign-process-dialog';
 import {
   CancelProcessDialog,
@@ -342,6 +349,20 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   const summary = useProcessSummary(processId);
   const stages = useProcessStages(processId);
   const actions = useAvailableActions(processId);
+  // US-124: no paralelismo o usuário escolhe o ramo em que age (PRC-08 `stages[]`).
+  const actionStages = useAvailableActionStages(processId);
+  const [branchChoice, setBranchChoice] = useState<string | null>(null);
+  const branched = hasBranches(actionStages.data);
+  const branchStageId = !branched
+    ? null
+    : actionStages.data?.some((stage) => stage.processStageId === branchChoice) === true
+      ? branchChoice
+      : defaultBranchStageId(actionStages.data);
+  const branchActions = branched ? entriesOfStage(actions.data, branchStageId) : actions.data;
+  // Etapa (e ramo) da ação que abriu o diálogo; `null` fora do paralelismo.
+  const [actingStageId, setActingStageId] = useState<string | null>(null);
+  const actingBranchKey =
+    actionStages.data?.find((stage) => stage.processStageId === actingStageId)?.branchKey ?? null;
   const detail = useQuery({
     queryKey: processKeys.detail(tenantId, processId),
     queryFn: ({ signal }) => fetchProcess(processId, signal),
@@ -395,6 +416,10 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
   );
 
   const onAction = (action: SummaryAction | ActionEntry) => {
+    // US-124: a etapa do ramo da ação (a entrada traz `processStageId`; senão vale o ramo escolhido).
+    const stageId =
+      ('processStageId' in action ? action.processStageId : undefined) ?? branchStageId;
+    setActingStageId(branched ? stageId : null);
     // US-005: "Editar dados" abre o painel lateral; as demais ações, os diálogos das stories donas.
     if (action.action === 'EDIT') setEditing(true);
     // US-006: "Gerenciar itens" leva à aba Itens.
@@ -409,7 +434,17 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
       setForwarding(true);
     }
     // US-049: "Assumir" chama o PRC-21 direto, com a versão do PRC-04 no `If-Match`.
-    else if (action.action === 'CLAIM') void claiming.claim(detail.data?.version);
+    else if (action.action === 'CLAIM')
+      void claiming.claim(
+        detail.data?.version,
+        branched && stageId !== null
+          ? {
+              processStageId: stageId,
+              branchKey: actionStages.data?.find((stage) => stage.processStageId === stageId)
+                ?.branchKey,
+            }
+          : undefined,
+      );
     // US-050: "Atribuir responsável" abre o diálogo SCR-115.
     else if (action.action === 'ASSIGN') setAssigning(true);
     // US-048: "Devolver" abre o diálogo SCR-104.
@@ -494,7 +529,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
             <FollowToggleButton processId={processId} />
             <ProcessActionBar
               summary={data}
-              actions={actions.data}
+              actions={branchActions}
               frozen={frozen || claiming.isPending}
               onAction={onAction}
             />
@@ -524,6 +559,11 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         }
         notices={
           <>
+            <BranchSelector
+              stages={actionStages.data}
+              value={branchStageId}
+              onChange={setBranchChoice}
+            />
             {frozen ? (
               <Alert tone="warning" title={t('actions.stale', { time: updatedAt })}>
                 <Button
@@ -568,6 +608,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         open={forwarding}
         onOpenChange={setForwarding}
         initialTransitionKey={forwardKey}
+        processStageId={actingStageId}
         onForwarded={() => {
           // Foco ao cabeçalho de status (já sem as ações de custódia), não ao botão que abriu o painel.
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
@@ -578,6 +619,7 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         open={returning}
         onOpenChange={setReturning}
         initialStageId={returnStageId}
+        processStageId={actingStageId}
         onReturned={() => {
           // Quem devolveu perde a custódia: foco ao cabeçalho de status, como no encaminhamento.
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
@@ -587,6 +629,8 @@ export function ProcessPanel({ processId }: { readonly processId: string }) {
         processId={processId}
         open={assigning}
         onOpenChange={setAssigning}
+        processStageId={actingStageId}
+        branchKey={actingBranchKey}
         onDone={() => {
           document.getElementById(PROCESS_STATUS_HEADER_ID)?.focus();
         }}

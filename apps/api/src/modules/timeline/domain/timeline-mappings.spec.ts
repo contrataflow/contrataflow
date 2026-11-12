@@ -167,6 +167,32 @@ const CASES: readonly (readonly [string, Record<string, unknown>, TimelineEntryT
   ['ProcessStageChanged', stageChange('APPROVAL_APPROVED'), 'PROCESS_STAGE_CHANGED'],
   ['ProcessStageChanged', stageChange('COMPLETE'), 'PROCESS_STAGE_CHANGED'],
   [
+    'ProcessBranchesOpened',
+    {
+      movementId: MOVEMENT,
+      branches: [
+        { branchKey: 'A', processStageId: STAGE_FROM, departmentId: DEPT_MANUT },
+        { branchKey: 'B', processStageId: STAGE_TO, departmentId: DEPT_COMPRAS },
+      ],
+    },
+    'BRANCHES_OPENED',
+  ],
+  [
+    'ProcessBranchArrived',
+    { branchKey: 'A', processStageId: STAGE_FROM, movementId: MOVEMENT, openBranchesLeft: 1 },
+    'BRANCH_ARRIVED',
+  ],
+  [
+    'ProcessBranchesJoined',
+    { nextStage: { processStageId: STAGE_TO, key: 'APROVACAO' }, toDepartmentId: DEPT_COMPRAS },
+    'BRANCHES_JOINED',
+  ],
+  [
+    'ProcessBranchesCanceled',
+    { canceledBranchKeys: ['A', 'B'], movementId: MOVEMENT, toProcessStageId: STAGE_FROM },
+    'BRANCHES_CANCELED',
+  ],
+  [
     'ProcessAssigned',
     { assignmentType: 'CLAIM', departmentId: DEPT_COMPRAS, toUserId: ANA },
     'PROCESS_CLAIMED',
@@ -595,6 +621,78 @@ describe('params congelados, entidade e visibilidade', () => {
     expect(only(projected)).toMatchObject({
       type: 'PROCESS_STAGE_CHANGED',
       params: { decision, toUserName: null, dueAt: null, hasComment: false },
+    });
+  });
+
+  it('US-124: BRANCHES_OPENED traz branches e branchesLabel; BRANCH_ARRIVED, JOINED e CANCELED', () => {
+    const opened = project(
+      event('ProcessBranchesOpened', {
+        movementId: MOVEMENT,
+        branches: [
+          { branchKey: 'A', processStageId: STAGE_FROM, departmentId: DEPT_MANUT },
+          { branchKey: 'B', processStageId: STAGE_TO, departmentId: DEPT_COMPRAS },
+        ],
+      }),
+    );
+    expect(opened?.refs).toHaveLength(4);
+    expect(only(opened)).toMatchObject({
+      type: 'BRANCHES_OPENED',
+      movementId: MOVEMENT,
+      entityType: 'Process',
+      params: {
+        branches: [
+          { stageName: 'Abertura', departmentName: 'Setor de Manutenção' },
+          { stageName: 'Aprovação do DFD', departmentName: 'Departamento de Compras' },
+        ],
+        branchesLabel:
+          'Abertura — Setor de Manutenção e Aprovação do DFD — Departamento de Compras',
+      },
+    });
+
+    expect(
+      only(
+        project(
+          event('ProcessBranchArrived', {
+            branchKey: 'A',
+            processStageId: STAGE_FROM,
+            movementId: MOVEMENT,
+            openBranchesLeft: 1,
+          }),
+        ),
+      ),
+    ).toMatchObject({
+      movementId: MOVEMENT,
+      params: { stageName: 'Abertura', openBranchesLeft: 1, branchKey: 'A' },
+    });
+
+    expect(
+      only(
+        project(
+          event('ProcessBranchesJoined', {
+            nextStage: { processStageId: STAGE_TO, key: 'APROVACAO' },
+            toDepartmentId: DEPT_COMPRAS,
+          }),
+        ),
+      ).params,
+    ).toEqual({ toStageName: 'Aprovação do DFD', toDepartmentName: 'Departamento de Compras' });
+
+    expect(
+      only(
+        project(
+          event('ProcessBranchesCanceled', {
+            canceledBranchKeys: ['A', 'B', 'C'],
+            movementId: MOVEMENT,
+            toProcessStageId: STAGE_FROM,
+          }),
+        ),
+      ),
+    ).toMatchObject({
+      movementId: MOVEMENT,
+      params: {
+        toStageName: 'Abertura',
+        canceledBranchKeys: ['A', 'B', 'C'],
+        branchesLabel: 'A, B e C',
+      },
     });
   });
 

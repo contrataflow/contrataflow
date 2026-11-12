@@ -26,6 +26,7 @@ import { ProcessItemUsageModule } from '#shared/process/process-item-usage.js';
 
 import { ProcessApprovalSubjectHandler } from './application/approval-decision.subject.js';
 import { AssignProcessCommand } from './application/assign-process.command.js';
+import { BranchEngine } from './application/branch-engine.js';
 import { ClaimProcessCommand } from './application/claim-process.command.js';
 import { CompleteProcessCommand } from './application/complete-process.command.js';
 import { ConfidentialViewRecorder } from './application/confidential-view.recorder.js';
@@ -55,6 +56,7 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import { ProcessBranchReader } from './application/process-branches.queries.js';
 import {
   CancelProcessCommand,
   DiscardDraftProcessCommand,
@@ -77,6 +79,7 @@ import {
 } from './application/process-items.support.js';
 import { ProcessListPresenter } from './application/process-list.presenter.js';
 import {
+  GetProcessBranchesQuery,
   GetProcessSummaryQuery,
   ListProcessStagesQuery,
   ProcessPanelReader,
@@ -112,6 +115,8 @@ import {
   UpdateSavedViewCommand,
 } from './application/saved-views.commands.js';
 import { SetProcessConfidentialityCommand } from './application/set-process-confidentiality.command.js';
+import { StageEntryResolver } from './application/stage-entry.resolver.js';
+import { StageFocusResolver } from './application/stage-focus.js';
 import { StageTransitionSupport } from './application/stage-transition-support.js';
 import { StageTransitionService } from './application/stage-transition.service.js';
 import {
@@ -253,6 +258,10 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     SetProcessConfidentialityCommand,
     StageTransitionService,
     StageTransitionSupport,
+    // US-124: motor de ramos paralelos (DEC-194).
+    BranchEngine,
+    StageEntryResolver,
+    StageFocusResolver,
     ProcessApprovalSubjectHandler,
     ForwardProcessCommand,
     ReturnProcessCommand,
@@ -290,6 +299,9 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessPanelReader,
     GetProcessSummaryQuery,
     ListProcessStagesQuery,
+    // US-124: leituras dos ramos (PRC-04/08/39).
+    GetProcessBranchesQuery,
+    ProcessBranchReader,
     ConfidentialViewRecorder,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,

@@ -42,6 +42,11 @@ export const ERROR_CODES = [
   'APPROVAL_LINE_NOT_PENDING',
   'APPROVAL_LINE_REQUIRED',
   'APPROVER_ALREADY_VOTED',
+  // US-124: ramos paralelos — etapa-alvo da ação e devolução para antes da ramificação (api.md MVP 2
+  // §2.2 · RN-WF2-18/23).
+  'PROCESS_STAGE_REQUIRED',
+  'PROCESS_STAGE_INVALID',
+  'BRANCH_CANCELLATION_NOT_CONFIRMED',
   'TENANT_SLUG_TAKEN',
   'TENANT_NOT_FOUND',
   'PRIMARY_ORGANIZATION_REQUIRED',

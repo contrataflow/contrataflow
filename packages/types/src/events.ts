@@ -48,6 +48,11 @@ export const DOMAIN_EVENT_NAMES = [
   'ProcessStatusChanged',
   'ProcessAssigned',
   'ProcessNumberAssigned',
+  // US-124: ramos paralelos (DEC-194).
+  'ProcessBranchesOpened',
+  'ProcessBranchArrived',
+  'ProcessBranchesJoined',
+  'ProcessBranchesCanceled',
   // US-055: job `deadlines` (vencimento próximo e atraso da etapa).
   'ProcessStageDueSoon',
   'ProcessStageOverdue',

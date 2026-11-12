@@ -16,6 +16,8 @@
   },
   "types": {
     "PROCESS_RECEIVED": "Processo recebido na sua unidade",
+    "PARALLEL_BRANCH_RECEIVED": "Ramo paralelo recebido",
+    "PARALLEL_BRANCHES_JOINED": "Ramos paralelos concluídos",
     "PROCESS_RETURNED": "Processo devolvido para você",
     "PROCESS_ASSIGNED": "Processo atribuído a você",
     "PROCESS_STATUS_CHANGED": "Situação do processo alterada",

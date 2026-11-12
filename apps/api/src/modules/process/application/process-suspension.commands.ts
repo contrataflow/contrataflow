@@ -50,7 +50,7 @@ import { BusinessCalendarFacade } from '../../catalog/application/business-calen
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 import { isSuspendable, planResume, planSuspension } from '../domain/process-suspension.js';
-import type { SuspendedPass, SuspensionFields } from '../domain/process-suspension.js';
+import type { ResumedPass, SuspendedPass, SuspensionFields } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
 
 /*
@@ -418,7 +418,36 @@ export class ResumeProcessCommand extends TransactionalCommandHandler<
       now,
       movementId: newId(),
     });
-    if (!(await this.processes.recordResume(tx, plan))) {
+    // US-124 (RN-WF2-25): no paralelismo, CADA etapa ativa dos ramos tem o prazo estendido pelos
+    // mesmos dias e a pausa acumulada; o processo fica com o menor prazo (RN-WF2-14).
+    const branchStages = rows.stages.filter(
+      (stage) => stage.status === 'ACTIVE' && stage.id !== active.id && stage.branchKey !== null,
+    );
+    const others: ResumedPass[] = [];
+    for (const stage of branchStages) {
+      const stageType: DayCountType = stage.slaType ?? 'BUSINESS';
+      const stagePausedAt = stage.pausedAt ?? pausedAt;
+      const stageDays = await this.calendar.daysInInterval(tx, stagePausedAt, now, stageType);
+      const dueAt =
+        stage.dueAt === null || stageDays === 0
+          ? stage.dueAt
+          : await this.calendar.addBusinessDays(tx, stage.dueAt, stageDays, stageType);
+      others.push({
+        id: stage.id,
+        dueAt,
+        pausedSeconds: Math.max(0, Math.floor((now.getTime() - stagePausedAt.getTime()) / 1_000)),
+        clearOverdue: dueAt !== null && dueAt.getTime() !== stage.dueAt?.getTime() && now <= dueAt,
+      });
+    }
+    const dues = others
+      .map((stage) => stage.dueAt)
+      .filter((due): due is Date => due !== null)
+      .sort((left, right) => left.getTime() - right.getTime());
+    const resumed: typeof plan =
+      others.length === 0
+        ? plan
+        : { ...plan, others, process: { ...plan.process, currentStageDueAt: dues[0] ?? null } };
+    if (!(await this.processes.recordResume(tx, resumed))) {
       throw suspensionVersionConflict(input.expectedVersion, process.version + 1);
     }
     // RN-PROC-99 — a aprovação pendente da passagem ganha os mesmos dias (ordem: processo → aprovação).
@@ -429,6 +458,9 @@ export class ResumeProcessCommand extends TransactionalCommandHandler<
       now,
       actor.userId,
     );
+    for (const stage of branchStages) {
+      await this.approvals.extendPendingStageDueAtIn(tx, stage.id, extend, now, actor.userId);
+    }
 
     await this.outbox.record(
       tx,
@@ -444,7 +476,7 @@ export class ResumeProcessCommand extends TransactionalCommandHandler<
         },
       }),
     );
-    const updated = plan.process;
+    const updated = resumed.process;
     await this.audit.record(tx, {
       action: 'process.resume',
       entityType: 'Process',

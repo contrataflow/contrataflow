@@ -27,8 +27,11 @@ import type {
   ProcessTransactions,
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
+import { ProcessBranchReader } from './process-branches.queries.js';
 import { ProcessPanelReader } from './process-panel.queries.js';
 import {
+  branchCancellationNotConfirmed,
+  branchNotCustodian,
   processNotFoundError,
   processNotReturnable,
   recordProcessReturned,
@@ -40,6 +43,7 @@ import {
   transitionNotAvailable,
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
+import { StageFocusResolver } from './stage-focus.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { accessTargetOf } from './update-process.command.js';
@@ -117,6 +121,8 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
     private readonly presenter: ProcessPresenter,
     private readonly transitions: StageTransitionService,
     private readonly support: StageTransitionSupport,
+    private readonly focus: StageFocusResolver,
+    private readonly branchReader: ProcessBranchReader,
   ) {
     super('process.return', transactions);
   }
@@ -169,25 +175,39 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
         'process.lock_wait',
       );
     }
-    const { rows, runtime, viewer } = await this.panel.load(tx, input.processId);
-    const process = rows.process;
+    const loaded = await this.panel.load(tx, input.processId);
+    const { viewer } = loaded;
+    const real = loaded.rows.process;
 
-    // RN-TRAM-30 — etapa esperada (se enviada) ANTES do If-Match.
-    if (body.expectedStageId !== undefined && process.currentStageId !== body.expectedStageId) {
+    // RN-TRAM-30 — etapa esperada (se enviada) ANTES do If-Match; com ramos, a etapa-alvo
+    // (`processStageId` — RN-WF2-18) e a visão focada nela (US-124).
+    const focus = await this.focus.resolve(tx, loaded, {
+      processStageId: body.processStageId ?? null,
+      expectedStageId: body.expectedStageId ?? null,
+    });
+    if (
+      focus.kind === 'TRUNK' &&
+      body.expectedStageId !== undefined &&
+      real.currentStageId !== body.expectedStageId
+    ) {
       throw stageChanged(
-        process.currentStageId,
-        await this.support.lastWriter(tx, process),
+        real.currentStageId,
+        await this.support.lastWriter(tx, real),
         PROCESS_RETURN_MESSAGES.stageChanged,
       );
     }
-    if (input.expectedVersion !== process.version) {
-      throw returnVersionConflict(input.expectedVersion, process.version);
+    if (input.expectedVersion !== real.version) {
+      throw returnVersionConflict(input.expectedVersion, real.version);
     }
+    const { rows, runtime } = focus;
+    const process = rows.process;
 
-    // 5.2 — PROCESS_RETURN cobrindo o processo, status e custódia (RN-TRAM-23 · POL-01).
+    // 5.2 — PROCESS_RETURN cobrindo o processo, status e custódia (RN-TRAM-23 · POL-01 por etapa).
     await this.access.assertCanOnProcess('PROCESS_RETURN', accessTargetOf(runtime));
     if (!canReturnInStatus(process.status)) throw processNotReturnable(process.status);
-    if (!isProcessCustodian(process, viewer.engine)) throw returnNotCustodian();
+    if (!isProcessCustodian(process, viewer.engine)) {
+      throw focus.branching ? branchNotCustodian() : returnNotCustodian();
+    }
     const active = activePassOf(rows, process);
 
     // 5.3 — destino já percorrido e configurado na RETURN da etapa atual (RN-TRAM-24).
@@ -198,6 +218,24 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
     );
     if (evaluation === null) throw returnTargetNotAvailable();
     const { transition, fromStage, toStage } = evaluation;
+
+    // US-124 (RN-WF2-23 · V-09): devolver de um ramo para antes da ramificação cancela os OUTROS
+    // ramos abertos — exige a confirmação explícita.
+    const fromBranch = focus.target?.branchKey ?? null;
+    const canceledBranches =
+      fromBranch !== null && (toStage.branchKey ?? null) !== fromBranch
+        ? focus.real.rows.branches.filter(
+            (branch) =>
+              branch.splitProcessStageId === focus.target?.splitProcessStageId &&
+              branch.status === 'OPEN',
+          )
+        : [];
+    if (
+      canceledBranches.some((branch) => branch.branchKey !== fromBranch) &&
+      body.confirmBranchCancellation !== true
+    ) {
+      throw branchCancellationNotConfirmed();
+    }
 
     // 5.5 — unidade (RN-TRAM-27), responsável (RN-TRAM-28) e prazo (RN-TRAM-26).
     const toDepartmentId = await this.destination(tx, evaluation, process);
@@ -231,12 +269,14 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
           departmentId: active.departmentId,
           assigneeId: active.assigneeId,
         },
-        lastStageSequence: Math.max(...rows.stages.map((stage) => stage.sequence)),
+        // As sequências vêm do processo REAL (a visão focada esconde as outras ativas).
+        lastStageSequence: Math.max(...focus.real.rows.stages.map((stage) => stage.sequence)),
         lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
         action: 'RETURN',
         closeAs: 'RETURNED',
         transitionId: transition.id,
         toWorkflowStageId: toStage.id,
+        toStageType: toStage.type,
         toDepartmentId,
         toUserId,
         assignedById: null,
@@ -266,8 +306,9 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
       cause: 'RETURN',
       statusCause: 'RETURN',
       fromStageKey: fromStage.key,
-      toStage: { key: toStage.key, type: toStage.type },
+      toStage: { key: toStage.key, type: toStage.type, branchKey: toStage.branchKey ?? null },
       requestedApprovalId: null,
+      scope: focus.scope,
     });
 
     // 5.10 — auditoria (a timeline e o ProcessAccess já vieram com o ProcessStageChanged).
@@ -278,11 +319,11 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
       entityId: process.id,
       processId: process.id,
       changes: [
-        { path: 'status', old: process.status, new: updated.status },
-        { path: 'currentStageId', old: process.currentStageId, new: updated.currentStageId },
+        { path: 'status', old: real.status, new: updated.status },
+        { path: 'currentStageId', old: real.currentStageId, new: updated.currentStageId },
         {
           path: 'currentResponsibleId',
-          old: process.currentResponsibleId,
+          old: real.currentResponsibleId,
           new: updated.currentResponsibleId,
         },
       ],
@@ -292,6 +333,11 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
         transitionKey: transition.key,
         fromStageKey: fromStage.key,
         toStageKey: toStage.key,
+        // US-124: o ramo de origem e os ramos cancelados pela devolução para antes do split.
+        processStageId: active.id,
+        branchKey: fromBranch,
+        targetStageKey: toStage.key,
+        canceledBranches: canceledBranches.map((branch) => branch.branchKey),
         commentLength: body.comment.length,
         dueDateOverridden: due.overridden,
         idempotencyKey: input.idempotencyKey,
@@ -299,13 +345,21 @@ export class ReturnProcessCommand extends TransactionalCommandHandler<
     });
 
     // POL-09 sobre o NOVO estado (quem devolveu perdeu a custódia).
-    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process: updated }, runtime);
-    const dto = await this.presenter.present(tx, updated, canSeeBudget);
+    const canSeeBudget = await this.panel.canSeeBudget(
+      { ...focus.real.rows, process: updated },
+      focus.real.runtime,
+    );
+    const presented = await this.presenter.present(tx, updated, canSeeBudget);
+    // US-124 (aditivo): as etapas ativas depois do fato (várias no paralelismo).
+    const reloaded = await this.processes.loadAggregate(tx, process.id);
+    const activeStages =
+      reloaded === null ? [] : await this.branchReader.activeStages(tx, reloaded);
+    const dto = { ...presented, activeStages, activeStagesCount: activeStages.length };
     return {
       dto: {
         ...dto,
         movement: { id: plan.movement.id, sequence: plan.movement.sequence },
-        statusFrom: process.status,
+        statusFrom: real.status,
       },
       fromStageKey: fromStage.key,
       toStageKey: toStage.key,

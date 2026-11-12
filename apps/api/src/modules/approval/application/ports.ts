@@ -168,6 +168,8 @@ export interface ApprovalRepository {
     reason: ApprovalCancelReason,
     at: Date,
     userId: string,
+    /** US-124: só as aprovações destas passagens (ramos cancelados); ausente = todas do processo. */
+    processStageIds?: readonly string[],
   ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]>;
   /** Resumos das aprovações do tenant da transação por id, numa leitura; ids de fora não voltam. */
   summariesByIds(tx: TenantTx, ids: readonly string[]): Promise<ApprovalSummaryRow[]>;

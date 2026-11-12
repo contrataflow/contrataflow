@@ -46,12 +46,17 @@ export function useProcessCapabilities(processId: string): ProcessCapabilities {
   const tenantId = useTenantId();
   const query = useQuery({
     queryKey: tenantKey(tenantId, 'processes', processId, 'available-actions'),
+    // Mesmo formato do PRC-08 do painel (`{ entries, stages }`): a chave é compartilhada (US-124).
     queryFn: async ({ signal }) => {
       const result = await apiRequest<ActionEntry[]>(`/processes/${processId}/available-actions`, {
         signal,
       });
-      return Array.isArray(result.data) ? result.data : [];
+      return {
+        entries: Array.isArray(result.data) ? result.data : [],
+        stages: Array.isArray(result.members?.stages) ? result.members.stages : undefined,
+      };
     },
+    select: (result) => result.entries,
     throwOnError: false,
   });
   return processCapabilities(query.data, query.status);

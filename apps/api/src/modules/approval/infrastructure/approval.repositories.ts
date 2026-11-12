@@ -406,9 +406,14 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     reason: ApprovalCancelReason,
     at: Date,
     userId: string,
+    processStageIds?: readonly string[],
   ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]> {
     const pending = await tx.approval.findMany({
-      where: { processId, status: 'PENDING' },
+      where: {
+        processId,
+        status: 'PENDING',
+        ...(processStageIds === undefined ? {} : { processStageId: { in: [...processStageIds] } }),
+      },
       select: { id: true, documentId: true },
       orderBy: [{ requestedAt: 'asc' }, { id: 'asc' }],
     });
@@ -682,8 +687,16 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
   async cancelPendingByProcess(
     tx: TenantTx,
     processId: string,
+    _reason?: ApprovalCancelReason,
+    _at?: Date,
+    _userId?: string,
+    processStageIds?: readonly string[],
   ): Promise<{ readonly approvalId: string; readonly documentIds: readonly string[] }[]> {
-    const pending = await this.listPendingByProcess(tx, processId);
+    const pending = (await this.listPendingByProcess(tx, processId)).filter(
+      (row) =>
+        processStageIds === undefined ||
+        (row.processStageId !== null && processStageIds.includes(row.processStageId)),
+    );
     for (const row of pending) {
       const record = asRecord(row);
       this.rows.set(row.id, { ...record, status: 'CANCELED', version: record.version + 1 });

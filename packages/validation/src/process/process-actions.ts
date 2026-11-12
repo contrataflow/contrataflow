@@ -109,6 +109,10 @@ export const actionEntrySchema = z
     /** Saída da última passagem pela etapa de destino da `RETURN` (SCR-104 — US-048). */
     lastPassedAt: z.iso.datetime({ offset: true }).optional(),
     approvalId: z.uuid().optional(),
+    /** US-124: etapa ativa a que a entrada se refere (o `processStageId` do PRC-19/20/21/22). */
+    processStageId: z.uuid().optional(),
+    /** US-124: ramo da etapa da entrada; `null` no tronco. */
+    branchKey: z.string().nullable().optional(),
     label: z.string(),
     enabled: z.boolean(),
     primary: z.boolean().optional(),

@@ -1,5 +1,5 @@
 import type { DayCountType } from '@contrataflow/types';
-import type { MovementDocumentRef, ProcessStatus } from '@contrataflow/validation';
+import type { MovementDocumentRef, ProcessStatus, StageType } from '@contrataflow/validation';
 
 /*
  * Runtime da tramitação (US-001 · entities.md §4.4): a passagem pela etapa (`ProcessStage.enter`),
@@ -23,6 +23,13 @@ export interface ProcessStageRecord {
   readonly slaDays: number | null;
   readonly slaType: DayCountType | null;
   readonly enteredViaMovementId: string | null;
+  /**
+   * US-124 (entities.md MVP 2 §5.3): tipo da etapa (ausente nas cargas de teste anteriores = `TASK`),
+   * ramo e split que o abriu (ambos nulos no tronco).
+   */
+  readonly stageType?: StageType;
+  readonly branchKey?: string | null;
+  readonly splitProcessStageId?: string | null;
 }
 
 /** `ProcessStage.enter`: passagem ATIVA pela etapa, com o SLA congelado da definição. */
@@ -39,6 +46,10 @@ export function enterStage(input: {
   readonly slaDays: number | null;
   readonly slaType: DayCountType | null;
   readonly movementId: string;
+  /** Ausente só nas cargas de teste anteriores à US-124. */
+  readonly stageType?: StageType | undefined;
+  readonly branchKey?: string | null;
+  readonly splitProcessStageId?: string | null;
 }): ProcessStageRecord {
   return {
     id: input.id,
@@ -54,6 +65,9 @@ export function enterStage(input: {
     slaDays: input.slaDays,
     slaType: input.slaDays === null ? null : input.slaType,
     enteredViaMovementId: input.movementId,
+    ...(input.stageType === undefined ? {} : { stageType: input.stageType }),
+    branchKey: input.branchKey ?? null,
+    splitProcessStageId: input.splitProcessStageId ?? null,
   };
 }
 
@@ -114,7 +128,8 @@ export interface ProcessMovementRecord {
   readonly action: MovementAction;
   readonly workflowTransitionId: string | null;
   readonly fromProcessStageId: string | null;
-  readonly toProcessStageId: string;
+  /** `null` só na chegada de um ramo que não fecha a junção (US-124 · RN-WF2-20). */
+  readonly toProcessStageId: string | null;
   readonly fromWorkflowStageId: string | null;
   readonly toWorkflowStageId: string;
   readonly fromDepartmentId: string | null;
@@ -138,6 +153,8 @@ export interface ProcessMovementRecord {
   readonly correlationId: string;
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly occurredAt: Date;
+  /** US-124 (entities.md MVP 2 §5.5): ramo da tramitação; ausente/nulo no tronco. */
+  readonly branchKey?: string | null;
 }
 
 /** Tamanho máximo do `user_agent` gravado (entities.md §4.4). */

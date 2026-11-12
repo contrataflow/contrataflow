@@ -10,6 +10,8 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { OUTBOX_WRITER } from '#shared/outbox/outbox-writer.js';
 import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 
+import { BranchEngine } from './branch-engine.js';
+import type { AppliedTransition, BranchScope } from './branch-engine.js';
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessRepository } from './ports.js';
 import { forwardVersionConflict } from './process.errors.js';
@@ -25,9 +27,22 @@ export interface StageTransitionRequest {
   /** `ProcessStatusChanged.cause` quando o status muda. */
   readonly statusCause: StatusChangeCause;
   readonly fromStageKey: string;
-  readonly toStage: { readonly key: string; readonly type: StageType };
+  /** Etapa de destino; `branchKey` = ramo dela na versão (US-124 — ausente/nulo no tronco). */
+  readonly toStage: {
+    readonly key: string;
+    readonly type: StageType;
+    readonly branchKey?: string | null | undefined;
+  };
   /** Aprovação aberta pela entrada em etapa `APPROVAL` (US-051), no evento. */
   readonly requestedApprovalId: string | null;
+  /**
+   * US-124: o processo real e a etapa-alvo quando a ação foi resolvida por etapa (a `transition`
+   * vem focada nela). Com ele, o serviço trata ramos: entrar no split, avançar/devolver no ramo,
+   * chegar à junção e devolver para antes da ramificação. Ausente = MVP 1 (tronco).
+   */
+  readonly scope?: BranchScope | undefined;
+  /** US-124: avisos reconhecidos no PRC-19 (regras `WARNING` da junção no último ramo). */
+  readonly acknowledgedWarnings?: readonly string[] | undefined;
 }
 
 /**
@@ -54,9 +69,45 @@ export class StageTransitionService {
   constructor(
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
+    private readonly branches: BranchEngine,
   ) {}
 
-  async apply(tx: TenantTx, request: StageTransitionRequest): Promise<StageTransitionPlan> {
+  /**
+   * US-124 (DEC-194): a mudança de etapa ciente de ramos — entrar no `PARALLEL_SPLIT` abre os
+   * ramos; a partir de etapa de ramo, ir para o `PARALLEL_JOIN` é a chegada (e a junção, no
+   * último), ficar no mesmo ramo é avanço/devolução no ramo e sair dele é a devolução para antes da
+   * ramificação. Sem ramos, o caminho do MVP 1 (abaixo), inalterado.
+   */
+  async apply(tx: TenantTx, request: StageTransitionRequest): Promise<AppliedTransition> {
+    const { scope } = request;
+    if (scope !== undefined) {
+      const branchRequest = {
+        transition: request.transition,
+        cause: request.cause,
+        statusCause: request.statusCause,
+        fromStageKey: request.fromStageKey,
+        toStage: request.toStage,
+        requestedApprovalId: request.requestedApprovalId,
+        scope,
+        ...(request.acknowledgedWarnings === undefined
+          ? {}
+          : { acknowledgedWarnings: request.acknowledgedWarnings }),
+      };
+      if (request.toStage.type === 'PARALLEL_SPLIT') return this.branches.open(tx, branchRequest);
+      if (scope.target.branchKey !== null) {
+        if (request.toStage.type === 'PARALLEL_JOIN')
+          return this.branches.arrive(tx, branchRequest);
+        if ((request.toStage.branchKey ?? null) === scope.target.branchKey) {
+          return this.branches.withinBranch(tx, branchRequest);
+        }
+        return this.branches.leave(tx, branchRequest);
+      }
+    }
+    return { ...(await this.trunk(tx, request)), branch: null };
+  }
+
+  /** O caminho do MVP 1: uma passagem ativa no tronco. */
+  private async trunk(tx: TenantTx, request: StageTransitionRequest): Promise<StageTransitionPlan> {
     const plan = planStageTransition(request.transition);
     if (!(await this.processes.recordStageTransition(tx, plan))) {
       // A trava garante a versão; divergir aqui é escrita fora da trava (a rede do `WHERE version`).

@@ -3,6 +3,9 @@ import {
   ApprovalReassigned,
   ApprovalRequested,
   ProcessAssigned,
+  ProcessBranchesCanceled,
+  ProcessBranchesJoined,
+  ProcessBranchesOpened,
   ProcessCreated,
   ProcessStageChanged,
   ProcessUpdated,
@@ -49,6 +52,10 @@ export class ProcessAccessProjector implements SyncEventHandler {
     'process.updated',
     'process.stage_changed.*',
     'process.assigned',
+    // US-124 (RN-WF2-27): `CURRENT` por ramo; a junção e o cancelamento dos ramos o retiram.
+    'process.branches_opened',
+    'process.branches_joined',
+    'process.branches_canceled',
     'approval.requested',
     'approval.reassigned',
     'approval.canceled',
@@ -88,7 +95,11 @@ export class ProcessAccessProjector implements SyncEventHandler {
       case ProcessStageChanged.eventType: {
         const payload = ProcessStageChanged.payloadSchema.parse(event.payload);
         const access = stageChangeAccess(payload);
-        if (access.historicalDepartmentId !== null) {
+        // US-124: a unidade de origem que segue com outra etapa ativa (outro ramo) mantém o CURRENT.
+        const stillActive =
+          access.historicalDepartmentId !== null &&
+          (payload.activeDepartmentIds ?? []).includes(access.historicalDepartmentId);
+        if (access.historicalDepartmentId !== null && !stillActive) {
           await this.processes.retireCurrentAccess(
             tx,
             event.aggregateId,
@@ -97,6 +108,42 @@ export class ProcessAccessProjector implements SyncEventHandler {
           );
         }
         await this.processes.grantAccess(tx, event.aggregateId, access.grants, at);
+        return;
+      }
+      case ProcessBranchesOpened.eventType: {
+        const payload = ProcessBranchesOpened.payloadSchema.parse(event.payload);
+        await this.processes.grantAccess(
+          tx,
+          event.aggregateId,
+          payload.branches.flatMap((branch) => [
+            {
+              principalType: 'DEPARTMENT' as const,
+              departmentId: branch.departmentId,
+              reason: 'CURRENT' as const,
+            },
+            ...(branch.toUserId === null || branch.toUserId === undefined
+              ? []
+              : [
+                  {
+                    principalType: 'USER' as const,
+                    userId: branch.toUserId,
+                    reason: 'RESPONSIBLE' as const,
+                  },
+                ]),
+          ]),
+          at,
+        );
+        return;
+      }
+      case ProcessBranchesJoined.eventType:
+      case ProcessBranchesCanceled.eventType: {
+        const payload =
+          event.eventType === ProcessBranchesJoined.eventType
+            ? ProcessBranchesJoined.payloadSchema.parse(event.payload)
+            : ProcessBranchesCanceled.payloadSchema.parse(event.payload);
+        for (const departmentId of payload.branchDepartmentIds ?? []) {
+          await this.processes.retireCurrentAccess(tx, event.aggregateId, departmentId, at);
+        }
         return;
       }
       case ProcessAssigned.eventType: {

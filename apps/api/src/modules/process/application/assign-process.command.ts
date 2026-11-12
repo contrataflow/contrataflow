@@ -33,6 +33,7 @@ import {
   recordProcessAssigned,
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
+import { StageFocusResolver, unfocused } from './stage-focus.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { batchAuditMetadata } from './task-bulk.support.js';
 import type { BulkItemContext } from './task-bulk.support.js';
@@ -102,6 +103,7 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
     private readonly panel: ProcessPanelReader,
     private readonly presenter: ProcessPresenter,
     private readonly support: StageTransitionSupport,
+    private readonly focus: StageFocusResolver,
   ) {
     super('process.assign', transactions);
   }
@@ -135,7 +137,14 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
         'process.lock_wait',
       );
     }
-    const { rows, runtime, viewer } = await this.panel.load(tx, input.processId);
+    const loaded = await this.panel.load(tx, input.processId);
+    const { viewer } = loaded;
+    const real = loaded.rows.process;
+    // US-124 (RN-WF2-18): no paralelismo, a etapa do ramo — POL-05 vale para a unidade DELA.
+    const focus = await this.focus.resolve(tx, loaded, {
+      processStageId: input.body.processStageId ?? null,
+    });
+    const { rows, runtime } = focus;
     const process = rows.process;
 
     // 5.2 — POL-05: escopo amplo de `PROCESS_ASSIGN` ou chefia (titular/substituto) da unidade atual.
@@ -181,7 +190,7 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
     });
 
     // 5.6–5.8 — responsabilidade `MANUAL`, responsável da passagem e do processo, tramitação.
-    const plan = planAssign({
+    const focusedPlan = planAssign({
       process,
       active: { id: active.id, workflowStageId: active.workflowStageId },
       assigneeId,
@@ -197,6 +206,14 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
       now,
       ids: { assignment: newId(), movement: newId() },
     });
+    // US-124: num ramo, só a etapa muda de responsável — o processo segue sem (RN-WF2-14).
+    const plan = focus.branching
+      ? {
+          ...focusedPlan,
+          process: unfocused(real, focusedPlan.process),
+          movement: { ...focusedPlan.movement, branchKey: active.branchKey },
+        }
+      : focusedPlan;
     if (!(await this.processes.recordAssign(tx, plan))) {
       // A trava garante a versão; divergir aqui é escrita fora da trava (a rede do `WHERE version`).
       throw assignVersionConflict(input.expectedVersion ?? process.version, process.version + 1);
@@ -239,7 +256,10 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
     });
 
     // POL-09 sobre o NOVO estado.
-    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process: updated }, runtime);
+    const canSeeBudget = await this.panel.canSeeBudget(
+      { ...focus.real.rows, process: updated },
+      focus.real.runtime,
+    );
     return {
       dto: await this.presenter.present(tx, updated, canSeeBudget),
       fromUserId,

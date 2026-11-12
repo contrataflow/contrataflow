@@ -189,6 +189,51 @@ const RULES: Readonly<Record<string, Rule>> = {
       ],
     });
   },
+  // US-124: um aviso por ramo — o responsável do ramo ou, sem ele, quem pode assumir na unidade.
+  // A resolução remove repetidos e o ator (RN-NTF-02).
+  ProcessBranchesOpened: (event) => {
+    const branches = Array.isArray(event.payload.branches)
+      ? event.payload.branches.filter(
+          (branch): branch is Payload => typeof branch === 'object' && branch !== null,
+        )
+      : [];
+    return plan('PARALLEL_BRANCH_RECEIVED', event, {
+      recipients: branches.map((branch): RecipientSpec => ({
+        kind: 'FIRST_OF',
+        specs: [
+          { kind: 'USER', userId: id(branch, 'toUserId') },
+          {
+            kind: 'DEPARTMENT_MEMBERS',
+            departmentId: id(branch, 'departmentId'),
+            permission: 'PROCESS_CLAIM',
+          },
+        ],
+      })),
+      entityType: 'Process',
+      entityId: event.processId,
+      link: processLink(event.processId),
+    });
+  },
+  // US-124: junção concluída — o responsável da etapa seguinte ou quem pode assumir na unidade.
+  ProcessBranchesJoined: (event) =>
+    plan('PARALLEL_BRANCHES_JOINED', event, {
+      recipients: [
+        {
+          kind: 'FIRST_OF',
+          specs: [
+            { kind: 'USER', userId: id(event.payload, 'toUserId') },
+            {
+              kind: 'DEPARTMENT_MEMBERS',
+              departmentId: id(event.payload, 'toDepartmentId'),
+              permission: 'PROCESS_CLAIM',
+            },
+          ],
+        },
+      ],
+      entityType: 'Process',
+      entityId: event.processId,
+      link: processLink(event.processId),
+    }),
   ProcessAssigned: (event) => {
     const assignmentType = text(event.payload, 'assignmentType') ?? '';
     if (!NOTIFIED_ASSIGNMENTS.has(assignmentType)) {

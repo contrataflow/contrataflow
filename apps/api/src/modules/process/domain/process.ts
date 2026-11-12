@@ -78,6 +78,11 @@ export interface Process {
   readonly createdById: string;
   readonly updatedById: string | null;
   readonly version: number;
+  /**
+   * US-124 (DEC-194 · RN-WF2-14): etapas ativas acionáveis — 1 fora do paralelismo, ≥ 1 em
+   * ramificação, 0 nos status finais. Ausente = 1 (agregados montados antes da US-124).
+   */
+  readonly activeStagesCount?: number;
 }
 
 /** Dados do processo depois das regras de RN-PROC-01..12 (antes de numerar e posicionar). */

@@ -66,6 +66,10 @@ import {
 } from '../price-research/events.js';
 import {
   ProcessAssigned,
+  ProcessBranchArrived,
+  ProcessBranchesCanceled,
+  ProcessBranchesJoined,
+  ProcessBranchesOpened,
   ProcessConfidentialityChanged,
   ProcessCreated,
   ProcessDraftDiscarded,
@@ -144,6 +148,11 @@ export const DOMAIN_EVENT_DEFINITIONS: Readonly<Record<string, AnyDomainEventDef
   ProcessAssigned,
   ProcessNumberAssigned,
   ProcessDraftDiscarded,
+  // US-124: ramos paralelos (DEC-194).
+  ProcessBranchesOpened,
+  ProcessBranchArrived,
+  ProcessBranchesJoined,
+  ProcessBranchesCanceled,
   ApprovalRequested,
   ApprovalCanceled,
   ApprovalReassigned,

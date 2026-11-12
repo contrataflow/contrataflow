@@ -2,6 +2,7 @@ import { withSpan } from '@contrataflow/observability';
 import { localDateOf } from '@contrataflow/types';
 import type {
   ActionEntry,
+  ProcessBranchesDto,
   ProcessStageEntryDto,
   ProcessSummaryDto,
   SummaryApproval,
@@ -27,6 +28,7 @@ import type {
   TagRepository,
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
+import { ProcessBranchReader } from './process-branches.queries.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
 import { ProcessViewerResolver, engineViewerFor } from './process-viewer.js';
 import type { ResolvedViewer } from './process-viewer.js';
@@ -106,11 +108,11 @@ export class ProcessPanelReader {
     @Inject(PROCESS_REPOSITORY) private readonly processes: ProcessRepository,
     private readonly runtimes: ProcessRuntimeLoader,
     private readonly viewers: ProcessViewerResolver,
-    private readonly workflow: WorkflowFacade,
     private readonly approvals: ApprovalFacade,
     private readonly access: AccessFacade,
     private readonly identity: IdentityFacade,
     private readonly organization: OrganizationFacade,
+    private readonly branchReader: ProcessBranchReader,
   ) {}
 
   /**
@@ -130,12 +132,18 @@ export class ProcessPanelReader {
   }
 
   /** PRC-08 do usuário (o mesmo motor dos comandos). */
-  actions(tx: TenantTx, runtime: ProcessRuntime, viewer: ResolvedViewer): Promise<ActionEntry[]> {
-    return this.workflow.getAvailableActions(
+  async actions(
+    tx: TenantTx,
+    runtime: ProcessRuntime,
+    viewer: ResolvedViewer,
+  ): Promise<ActionEntry[]> {
+    // US-124: no paralelismo, as ações de cada etapa ativa (visão focada — custódia por ramo).
+    const parallel = await this.branchReader.actions(
       tx,
-      executionStateOf(runtime),
+      runtime,
       engineViewerFor(viewer, runtime.organizationId ?? null),
     );
+    return parallel.actions;
   }
 
   /** Aprovações pendentes com o aprovador designado resolvido (rótulo e POL-03). */
@@ -489,6 +497,28 @@ export class ListProcessStagesQuery {
         })),
         rows.process.status,
       );
+    });
+  }
+}
+
+export interface GetProcessBranchesInput {
+  readonly processId: string;
+  readonly round: string | null;
+}
+
+/** `GetProcessBranchesQuery` — PRC-39 (US-124): os ramos do processo VISÍVEL (DEC-024) ou 404. */
+@Injectable()
+export class GetProcessBranchesQuery {
+  constructor(
+    @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
+    private readonly panel: ProcessPanelReader,
+    private readonly reader: ProcessBranchReader,
+  ) {}
+
+  execute(input: GetProcessBranchesInput): Promise<ProcessBranchesDto | null> {
+    return this.transactions.read(async (tx) => {
+      const { rows } = await this.panel.load(tx, input.processId);
+      return this.reader.branches(tx, rows, input.round);
     });
   }
 }

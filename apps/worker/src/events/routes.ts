@@ -37,6 +37,9 @@ export const DOMAIN_EVENT_ROUTES: DomainEventRoutes = {
         'process.stage_due_soon',
         'process.stage_overdue',
         'process.participant_added',
+        // US-124: ramo paralelo recebido (por ramo) e junção concluída (etapa seguinte).
+        'process.branches_opened',
+        'process.branches_joined',
         'approval.requested',
         'approval.completed',
         'approval.returned',
@@ -282,6 +285,12 @@ export const ROUTING_DECISIONS: Readonly<Record<string, readonly string[] | 'NO_
     ProcessStageDueSoon: ['process.stage_due_soon'],
     ProcessStageOverdue: ['process.stage_overdue'],
     ProcessNumberAssigned: ['process.number_assigned'],
+    // US-124: timeline e `ProcessAccess` no mesmo `tx`; no worker, `PARALLEL_BRANCH_RECEIVED` (por
+    // ramo) e `PARALLEL_BRANCHES_JOINED` (etapa seguinte à junção) e métricas.
+    ProcessBranchesOpened: ['process.branches_opened'],
+    ProcessBranchArrived: ['process.branch_arrived'],
+    ProcessBranchesJoined: ['process.branches_joined'],
+    ProcessBranchesCanceled: ['process.branches_canceled'],
     ApprovalRequested: ['approval.requested'],
     // US-009: timeline (`APPROVAL_CANCELED`) no mesmo `tx`; no worker só métricas (`approval.*`).
     ApprovalCanceled: ['approval.canceled'],

@@ -15,6 +15,9 @@ export const NOTIFICATION_TYPES = [
   'APPROVAL_REASSIGNED',
   // US-134: voto de linha que não encerra (ao solicitante).
   'APPROVAL_VOTE_RECORDED',
+  // US-124: ramos paralelos (DEC-194) — entrada nos ramos e junção.
+  'PARALLEL_BRANCH_RECEIVED',
+  'PARALLEL_BRANCHES_JOINED',
   'MENTIONED',
   'COMMENT_REPLY',
   'STAGE_DUE_SOON',
@@ -96,6 +99,18 @@ export const NOTIFICATION_REGISTRY: Readonly<Record<NotificationType, Notificati
     APPROVAL_VOTE_RECORDED: {
       sourceEvents: ['ApprovalVoteRecorded'],
       emailByDefault: false,
+      mandatory: false,
+      dispatchedBy: 'US-111',
+    },
+    PARALLEL_BRANCH_RECEIVED: {
+      sourceEvents: ['ProcessBranchesOpened'],
+      emailByDefault: true,
+      mandatory: false,
+      dispatchedBy: 'US-111',
+    },
+    PARALLEL_BRANCHES_JOINED: {
+      sourceEvents: ['ProcessBranchesJoined'],
+      emailByDefault: true,
       mandatory: false,
       dispatchedBy: 'US-111',
     },

@@ -30,6 +30,7 @@ import type { RetryOptions } from '@/lib/api/client';
 import { tenantKey } from '@/lib/query/keys';
 import { useShellSession } from '@/lib/session/session-context';
 
+import { BranchCancellationConfirm } from './branch-cancellation-confirm';
 import { useReturnProcess } from './process-return.api';
 import {
   RETURN_FIELD_ORDER,
@@ -40,7 +41,7 @@ import {
   validateReturn,
 } from './return-model';
 import type { ReturnField, ReturnFieldMessages, ReturnProblem, ReturnTarget } from './return-model';
-import { useAvailableActions } from '../process-actions/process-actions.api';
+import { entriesOfStage, useAvailableActions } from '../process-actions/process-actions.api';
 import { formatDueDate, localToday } from '../process-forward/forward-model';
 import { useInvalidateProcess } from '../process-panel/process-panel.api';
 import { fetchProcess, processKeys } from '../processes/processes.api';
@@ -54,6 +55,8 @@ export interface ReturnProcessDialogProps {
   readonly onOpenChange: (open: boolean) => void;
   /** Etapa (`WorkflowStage`) da entrada "Devolver" escolhida no menu. */
   readonly initialStageId?: string | null | undefined;
+  /** US-124: etapa do ramo em que se devolve (`processStageId` do PRC-20); ausente fora do paralelismo. */
+  readonly processStageId?: string | null | undefined;
   /** Depois do sucesso (o diálogo já fechou): o painel decide para onde vai o foco. */
   readonly onReturned?: (() => void) | undefined;
   /** Retentativas automáticas da mutação (testes: `{ retries: 0 }`). */
@@ -73,6 +76,7 @@ export function ReturnProcessDialog({
   open,
   onOpenChange,
   initialStageId,
+  processStageId,
   onReturned,
   retry,
 }: ReturnProcessDialogProps) {
@@ -97,7 +101,7 @@ export function ReturnProcessDialog({
       <ReturnForm
         key={`${detail.data.id}:${String(detail.data.version)}`}
         process={detail.data}
-        targets={returnTargets(actions.data)}
+        targets={returnTargets(entriesOfStage(actions.data, processStageId))}
         initialStageId={initialStageId}
         retry={retry}
         onClose={() => {
@@ -192,6 +196,8 @@ function ReturnForm({
   const [dueAt, setDueAt] = useState('');
   const [errors, setErrors] = useState<ReturnFieldMessages>({});
   const [problem, setProblem] = useState<ReturnProblem | null>(null);
+  // US-124: devolução para antes da ramificação aguardando a confirmação.
+  const [confirmingBranches, setConfirmingBranches] = useState(false);
   const [focusRequest, setFocusRequest] = useState<{
     fields: readonly ReturnField[];
     n: number;
@@ -253,6 +259,9 @@ function ReturnForm({
         setProblem(found);
         showErrors(found.messages);
         return;
+      case 'branchCancellation':
+        setConfirmingBranches(true);
+        return;
       case 'targetNotAvailable':
         // Recarrega a lista de etapas (o destino pode ter deixado de valer).
         setStageChoice(null);
@@ -277,8 +286,10 @@ function ReturnForm({
   };
 
   const finish = (result: ReturnedProcessDto) => {
+    const stage = result.currentStage?.name ?? target?.stageName ?? '';
+    const branch = target?.branchKey ?? null;
     toast({
-      title: t('returned', { stage: result.currentStage?.name ?? target?.stageName ?? '' }),
+      title: branch === null ? t('returned', { stage }) : t('returnedBranch', { branch, stage }),
       tone: 'success',
     });
     void invalidateProcess();
@@ -288,7 +299,7 @@ function ReturnForm({
     onReturned();
   };
 
-  const submit = async () => {
+  const submit = async (confirmBranchCancellation = false) => {
     if (submitting) return;
     setProblem(null);
     const draft = { target, comment, dueAt };
@@ -305,7 +316,7 @@ function ReturnForm({
     try {
       result = await mutation.submit({
         processId: process.id,
-        body: buildReturnBody({ ...draft, target }, expectedStageId),
+        body: buildReturnBody({ ...draft, target }, expectedStageId, confirmBranchCancellation),
         version: process.version,
       });
     } catch (error) {
@@ -348,6 +359,7 @@ function ReturnForm({
         {problem === null ? null : (
           <ProblemAlert
             problem={problem}
+            branched={target?.processStageId !== undefined}
             onReload={reload}
             onRetry={() => {
               void submit();
@@ -455,6 +467,17 @@ function ReturnForm({
           {submitting ? t('submitting') : t('submit')}
         </Button>
       </DialogFooter>
+      <BranchCancellationConfirm
+        open={confirmingBranches}
+        submitting={submitting}
+        onCancel={() => {
+          setConfirmingBranches(false);
+        }}
+        onConfirm={() => {
+          setConfirmingBranches(false);
+          void submit(true);
+        }}
+      />
     </form>
   );
 }
@@ -462,10 +485,12 @@ function ReturnForm({
 /** Mensagem do erro com a ação da tabela "Casos de erro" (Atualizar, Tentar novamente, Copiar). */
 function ProblemAlert({
   problem,
+  branched,
   onReload,
   onRetry,
 }: {
   readonly problem: ReturnProblem;
+  readonly branched: boolean;
   readonly onReload: () => void;
   readonly onRetry: () => void;
 }) {
@@ -492,7 +517,7 @@ function ProblemAlert({
             problem.kind === 'precondition'
               ? t('precondition')
               : problem.code === 'STAGE_CHANGED'
-                ? t('stageChanged')
+                ? t(branched ? 'branchStageChanged' : 'stageChanged')
                 : t('versionConflict')
           }
         >
@@ -524,6 +549,9 @@ function ProblemAlert({
           </Button>
         </Alert>
       );
+    case 'branchCancellation':
+      // Tratada pelo `BranchCancellationConfirm`, não por um alerta.
+      return null;
     default:
       return <Alert tone="error" title={t(problem.kind)} />;
   }

@@ -1,4 +1,5 @@
 import {
+  PROCESS_BRANCH_MESSAGES,
   PARTICIPANT_MESSAGES,
   PROCESS_ASSIGN_MESSAGES,
   PROCESS_CLAIM_MESSAGES,
@@ -756,4 +757,42 @@ export function recordProcessLifecycle(
   });
   suspensionCounter.add(1, { action });
   suspensionDuration.record(durationMs, { action });
+}
+
+/* US-124 — ramos paralelos (RN-WF2-18/23 · "Casos de erro" da story). */
+
+/** 422 `PROCESS_STAGE_REQUIRED` (V-01): mais de uma etapa ativa e nenhuma informada. */
+export function processStageRequired(): ApiError {
+  return new ApiError('PROCESS_STAGE_REQUIRED', { detail: PROCESS_BRANCH_MESSAGES.stageRequired });
+}
+
+/** 422 `PROCESS_STAGE_INVALID` (V-02): não é etapa ativa `TASK`/`APPROVAL`… do processo. */
+export function processStageInvalid(): ApiError {
+  return new ApiError('PROCESS_STAGE_INVALID', { detail: PROCESS_BRANCH_MESSAGES.stageInvalid });
+}
+
+/** 409 `STAGE_CHANGED` (V-03): o ramo foi movimentado por outra pessoa (antes do `If-Match`). */
+export function branchStageChanged(
+  processStageId: string | null,
+  movedBy: { readonly id: string; readonly name: string } | null,
+): ApiError {
+  return new ApiError('STAGE_CHANGED', {
+    detail: PROCESS_BRANCH_MESSAGES.stageChanged,
+    extensions: { currentStageId: processStageId, movedBy },
+  });
+}
+
+/** 403 `NOT_PROCESS_CUSTODIAN` (V-04 · RN-WF2-17): a custódia é de outro ramo. */
+export function branchNotCustodian(): ApiError {
+  return new ApiError('NOT_PROCESS_CUSTODIAN', {
+    detail: PROCESS_BRANCH_MESSAGES.notCustodian,
+    auditDenial: true,
+  });
+}
+
+/** 422 `BRANCH_CANCELLATION_NOT_CONFIRMED` (V-09 · RN-WF2-23). */
+export function branchCancellationNotConfirmed(): ApiError {
+  return new ApiError('BRANCH_CANCELLATION_NOT_CONFIRMED', {
+    detail: PROCESS_BRANCH_MESSAGES.cancellationNotConfirmed,
+  });
 }

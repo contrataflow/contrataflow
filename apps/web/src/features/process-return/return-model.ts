@@ -20,6 +20,9 @@ export interface ReturnTarget {
   /** Saída da última passagem pela etapa (ISO). */
   readonly lastPassedAt: string | null;
   readonly allowDueDateOverride: boolean;
+  /** US-124: etapa ativa do ramo da entrada (o `processStageId` do PRC-20); ausente fora do paralelismo. */
+  readonly processStageId?: string | undefined;
+  readonly branchKey?: string | null | undefined;
 }
 
 /** Campos do diálogo, na ordem da tela (foco no primeiro erro). */
@@ -41,6 +44,9 @@ export function returnTargets(actions: readonly ActionEntry[] | undefined): Retu
       stageName: entry.toStageName ?? entry.label,
       lastPassedAt: entry.lastPassedAt ?? null,
       allowDueDateOverride: entry.allowDueDateOverride === true,
+      ...(entry.processStageId === undefined
+        ? {}
+        : { processStageId: entry.processStageId, branchKey: entry.branchKey ?? null }),
     });
   }
   return targets;
@@ -87,11 +93,16 @@ export function validateReturn(draft: ReturnDraft, today: string): ReturnFieldMe
 export function buildReturnBody(
   draft: ReturnDraft & { readonly target: ReturnTarget },
   expectedStageId: string,
+  confirmBranchCancellation = false,
 ): ReturnProcessInput {
+  const branchStageId = draft.target.processStageId;
   return {
     targetStageId: draft.target.stageId,
     comment: draft.comment.trim(),
-    expectedStageId,
+    // US-124: no ramo a etapa esperada é a do próprio ramo (não o split).
+    expectedStageId: branchStageId ?? expectedStageId,
+    ...(branchStageId === undefined ? {} : { processStageId: branchStageId }),
+    ...(confirmBranchCancellation ? { confirmBranchCancellation: true } : {}),
     ...(draft.target.allowDueDateOverride && draft.dueAt !== '' ? { dueAt: draft.dueAt } : {}),
   };
 }
@@ -102,6 +113,12 @@ export type ReturnProblem =
   | { readonly kind: 'targetNotAvailable' }
   | { readonly kind: 'dueNotAllowed' }
   | { readonly kind: 'status' }
+  /** US-124: 422 `BRANCH_CANCELLATION_NOT_CONFIRMED` — pede a confirmação e reenvia. */
+  | { readonly kind: 'branchCancellation' }
+  /** US-124: 422 `PROCESS_STAGE_REQUIRED`. */
+  | { readonly kind: 'stageRequired' }
+  /** US-124: 422 `PROCESS_STAGE_INVALID`. */
+  | { readonly kind: 'stageInvalid' }
   | { readonly kind: 'custody' }
   | { readonly kind: 'notFound' }
   | { readonly kind: 'stale'; readonly code: 'STAGE_CHANGED' | 'VERSION_CONFLICT' }
@@ -121,6 +138,11 @@ export function describeReturnError(error: unknown): ReturnProblem {
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') return { kind: 'status' };
   if (status === 403) return { kind: 'custody' };
   if (status === 404) return { kind: 'notFound' };
+  if (status === 422 && code === 'BRANCH_CANCELLATION_NOT_CONFIRMED') {
+    return { kind: 'branchCancellation' };
+  }
+  if (status === 422 && code === 'PROCESS_STAGE_REQUIRED') return { kind: 'stageRequired' };
+  if (status === 422 && code === 'PROCESS_STAGE_INVALID') return { kind: 'stageInvalid' };
   if (status === 422 && code === 'TRANSITION_NOT_AVAILABLE') return { kind: 'targetNotAvailable' };
   if (status === 422 && code === 'DUE_DATE_OVERRIDE_NOT_ALLOWED') return { kind: 'dueNotAllowed' };
   if (status === 422 && code === 'VALIDATION_ERROR') {

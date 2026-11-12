@@ -77,6 +77,7 @@ import {
 } from './process-forward.api';
 import {
   processActionKeys,
+  entriesOfStage,
   useAvailableActions,
   useProcessChecklist,
 } from '../process-actions/process-actions.api';
@@ -95,6 +96,8 @@ export interface ForwardPanelProps {
   readonly onOpenChange: (open: boolean) => void;
   /** `transitionKey` da ação que abriu o painel: tem precedência sobre a transição primária. */
   readonly initialTransitionKey?: string | null | undefined;
+  /** US-124: etapa do ramo em que se encaminha; ausente fora do paralelismo. */
+  readonly processStageId?: string | null | undefined;
   /** Depois de encaminhar e fechar: quem abriu devolve o foco ao cabeçalho de status. */
   readonly onForwarded?: (() => void) | undefined;
   /** Retentativas automáticas da mutação (padrão do cliente); os testes as zeram. */
@@ -113,6 +116,7 @@ export function ForwardPanel({
   open,
   onOpenChange,
   initialTransitionKey,
+  processStageId,
   onForwarded,
   retry,
 }: ForwardPanelProps) {
@@ -159,6 +163,7 @@ export function ForwardPanel({
           <ForwardContent
             processId={processId}
             initialTransitionKey={initialTransitionKey}
+            processStageId={processStageId}
             retry={retry}
             onDirtyChange={setDirty}
             onBusyChange={setBusy}
@@ -221,6 +226,7 @@ function loadingStatus(
 function ForwardContent({
   processId,
   initialTransitionKey,
+  processStageId,
   retry,
   onDirtyChange,
   onBusyChange,
@@ -230,6 +236,7 @@ function ForwardContent({
 }: {
   readonly processId: string;
   readonly initialTransitionKey: string | null | undefined;
+  readonly processStageId: string | null | undefined;
   readonly retry: RetryOptions | undefined;
   readonly onDirtyChange: (dirty: boolean) => void;
   readonly onBusyChange: (busy: boolean) => void;
@@ -287,7 +294,7 @@ function ForwardContent({
     n: number;
   } | null>(null);
 
-  const entries = forwardEntries(actions.data);
+  const entries = forwardEntries(entriesOfStage(actions.data, processStageId));
   const initialId = initialTransitionId(entries, initialTransitionKey);
   const selectedId =
     transitionChoice !== null && entries.some((entry) => entry.transitionId === transitionChoice)
@@ -417,6 +424,8 @@ function ForwardContent({
       case 'versionConflict':
       case 'status':
       case 'transitionNotAvailable':
+      case 'stageRequired':
+      case 'stageInvalid':
         // Recarrega o painel (versão, ações, pendências) mantendo o que foi digitado.
         setProblem(found);
         void invalidateProcess();
@@ -814,7 +823,11 @@ function ForwardContent({
       >
         <DialogContent closeLabel={null}>
           <DialogTitle>{t('stale.title')}</DialogTitle>
-          <DialogDescription>{t('stale.description')}</DialogDescription>
+          <DialogDescription>
+            {processStageId === null || processStageId === undefined
+              ? t('stale.description')
+              : t('stale.branchDescription')}
+          </DialogDescription>
           <DialogFooter>
             <Button variant="primary" onClick={reloadAfterStageChange}>
               {t('stale.reload')}
@@ -878,6 +891,10 @@ function ProblemAlert({
       );
     case 'status':
       return <Alert tone="warning" title={problem.detail} />;
+    case 'stageRequired':
+      return <Alert tone="warning" title={t('stageRequired')} />;
+    case 'stageInvalid':
+      return <Alert tone="warning" title={t('stageInvalid')} />;
     case 'transitionNotAvailable':
       return (
         <Alert tone="warning" title={t('transitionNotAvailable')}>

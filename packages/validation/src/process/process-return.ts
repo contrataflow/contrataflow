@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { PROCESS_STATUSES } from './process-actions.js';
+import { processStageIdField } from './process-branches.js';
 import { isDueDateInput } from './process-forward.js';
 import { processSchema } from './process.js';
 
@@ -54,6 +55,10 @@ export const returnProcessSchema = z
       .optional(),
     /** `ProcessStage` ativa quando a tela foi carregada (RN-TRAM-30). */
     expectedStageId: z.uuid({ error: PROCESS_RETURN_MESSAGES.stageChanged }).optional(),
+    /** US-124 (RN-WF2-18): etapa-alvo; obrigatória com mais de uma etapa ativa. */
+    processStageId: processStageIdField,
+    /** US-124 (RN-WF2-23): confirma cancelar os outros ramos na devolução para antes do split. */
+    confirmBranchCancellation: z.boolean().optional(),
   })
   .meta({ id: 'ReturnProcessRequest' });
 export type ReturnProcess = z.output<typeof returnProcessSchema>;

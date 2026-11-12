@@ -7,6 +7,7 @@ export * from './process-forward.js';
 export * from './process-return.js';
 export * from './process-claim.js';
 export * from './process-assign.js';
+export * from './process-branches.js';
 export * from './process-suspension.js';
 export * from './process-cancellation.js';
 export * from './process-completion.js';

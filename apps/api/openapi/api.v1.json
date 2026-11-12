@@ -7238,6 +7238,8 @@
               "APPROVAL_DECIDED",
               "APPROVAL_REASSIGNED",
               "APPROVAL_VOTE_RECORDED",
+              "PARALLEL_BRANCH_RECEIVED",
+              "PARALLEL_BRANCHES_JOINED",
               "MENTIONED",
               "COMMENT_REPLY",
               "STAGE_DUE_SOON",
@@ -7375,6 +7377,8 @@
               "APPROVAL_DECIDED",
               "APPROVAL_REASSIGNED",
               "APPROVAL_VOTE_RECORDED",
+              "PARALLEL_BRANCH_RECEIVED",
+              "PARALLEL_BRANCHES_JOINED",
               "MENTIONED",
               "COMMENT_REPLY",
               "STAGE_DUE_SOON",
@@ -10550,6 +10554,16 @@
           },
           "version": {
             "type": "integer"
+          },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -10591,6 +10605,103 @@
           "updatedAt",
           "createdBy",
           "version"
+        ]
+      },
+      "ActiveStage": {
+        "type": "object",
+        "properties": {
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stageKey": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "stageType": {
+            "type": "string",
+            "enum": [
+              "START",
+              "TASK",
+              "APPROVAL",
+              "END",
+              "PARALLEL_SPLIT",
+              "PARALLEL_JOIN"
+            ]
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "department": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "responsible": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "enteredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          },
+          "openedByReturn": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "processStageId",
+          "stageKey",
+          "stageName",
+          "stageType",
+          "branchKey",
+          "department",
+          "responsible",
+          "enteredAt",
+          "dueAt",
+          "isOverdue",
+          "openedByReturn"
         ]
       },
       "CreateProcessRequest": {
@@ -11268,6 +11379,10 @@
             "type": "string",
             "minLength": 10,
             "maxLength": 2000
+          },
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -11336,6 +11451,16 @@
           "approvalId": {
             "type": "string",
             "format": "uuid"
+          },
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "label": {
             "type": "string"
@@ -11449,6 +11574,194 @@
         "required": [
           "code",
           "message"
+        ]
+      },
+      "ActionStage": {
+        "type": "object",
+        "properties": {
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stageKey": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "isMine": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "processStageId",
+          "branchKey",
+          "stageKey",
+          "stageName",
+          "isMine"
+        ]
+      },
+      "ProcessBranches": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "splitProcessStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "splitStageKey": {
+            "type": "string"
+          },
+          "joinStageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "openBranchesLeft": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "branches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "branchKey": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "OPEN",
+                    "ARRIVED",
+                    "CANCELED"
+                  ]
+                },
+                "arrivedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "canceledAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "cancellationReason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "activeStage": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ActiveStage"
+                    },
+                    {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  ]
+                },
+                "passes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "processStageId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "stageKey": {
+                        "type": "string"
+                      },
+                      "stageName": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "enteredAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "exitedAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "processStageId",
+                      "stageKey",
+                      "stageName",
+                      "status",
+                      "enteredAt",
+                      "exitedAt"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "branchKey",
+                "status",
+                "arrivedAt",
+                "canceledAt",
+                "cancellationReason",
+                "activeStage",
+                "passes"
+              ]
+            }
+          },
+          "previousRounds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "splitProcessStageId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "splitProcessStageId",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "splitProcessStageId",
+          "splitStageKey",
+          "joinStageKey",
+          "status",
+          "openBranchesLeft",
+          "branches",
+          "previousRounds"
         ]
       },
       "CanceledProcess": {
@@ -11842,6 +12155,16 @@
           "version": {
             "type": "integer"
           },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "canceledAt": {
             "type": [
               "string",
@@ -11926,6 +12249,16 @@
         "required": [
           "violations"
         ]
+      },
+      "ClaimProcessRequest": {
+        "type": "object",
+        "properties": {
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
       },
       "CommentThread": {
         "type": "object",
@@ -12564,6 +12897,16 @@
           },
           "version": {
             "type": "integer"
+          },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
           },
           "completedAt": {
             "type": "string",
@@ -13843,6 +14186,16 @@
           "version": {
             "type": "integer"
           },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "movement": {
             "type": "object",
             "properties": {
@@ -13853,6 +14206,9 @@
               "sequence": {
                 "type": "integer",
                 "minimum": 1
+              },
+              "branchKey": {
+                "type": "string"
               }
             },
             "required": [
@@ -14009,6 +14365,10 @@
             "format": "uuid"
           },
           "expectedStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processStageId": {
             "type": "string",
             "format": "uuid"
           },
@@ -14471,6 +14831,12 @@
           },
           "correlationId": {
             "type": "string"
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -15161,6 +15527,16 @@
           "version": {
             "type": "integer"
           },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "statusBeforeSuspension": {
             "type": [
               "string",
@@ -15673,6 +16049,16 @@
           "version": {
             "type": "integer"
           },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "movement": {
             "type": "object",
             "properties": {
@@ -15765,6 +16151,13 @@
           "expectedStageId": {
             "type": "string",
             "format": "uuid"
+          },
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confirmBranchCancellation": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -39283,6 +39676,8 @@
                             "APPROVAL_DECIDED",
                             "APPROVAL_REASSIGNED",
                             "APPROVAL_VOTE_RECORDED",
+                            "PARALLEL_BRANCH_RECEIVED",
+                            "PARALLEL_BRANCHES_JOINED",
                             "MENTIONED",
                             "COMMENT_REPLY",
                             "STAGE_DUE_SOON",
@@ -39318,7 +39713,7 @@
                       "additionalProperties": false
                     },
                     "minItems": 1,
-                    "maxItems": 38
+                    "maxItems": 42
                   }
                 },
                 "required": [
@@ -48586,7 +48981,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Ações da etapa atual (avanço, devolução e ciclo de vida) com `enabled` e `reasons[]`.",
+            "description": "Ações da etapa atual (avanço, devolução e ciclo de vida) com `enabled` e `reasons[]`. US-124 (aditivo): no paralelismo, as entradas de etapa trazem `processStageId`/`branchKey` (uma rodada do motor por etapa ativa — custódia por ramo; no último ramo, a entrada para a junção já traz as regras do join) e o resumo `stages[]` vem como irmão de `data`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -48597,6 +48992,138 @@
                       "items": {
                         "$ref": "#/components/schemas/ActionEntry"
                       }
+                    },
+                    "stages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ActionStage"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/processes/{id}/branches": {
+      "get": {
+        "operationId": "PRC-39",
+        "summary": "Listar ramos paralelos do processo",
+        "tags": [
+          "Processos"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "round",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "US-124 (DEC-194): a rodada atual (ou `round` = `splitProcessStageId` de uma rodada anterior) do bloco paralelo — split, junção, ramos (`OPEN`/`ARRIVED`/`CANCELED`) com a etapa ativa e as passagens de cada um, e as rodadas anteriores (FA-08). `data: null` fora de ramificação; não visível, inexistente ou de outro tenant = 404 `PROCESS_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ProcessBranches"
                     }
                   },
                   "required": [
@@ -48967,6 +49494,16 @@
             "in": "header"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimProcessRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Processo assumido (`currentResponsible` = quem chamou, `ETag` = nova versão). Sem corpo. Uma transação: trava do processo, `PROCESS_CLAIM` cobrindo o processo + lotação na unidade atual (POL-04: 403 `PERMISSION_DENIED`, auditado), status `IN_PROGRESS`/`RETURNED` em etapa que não seja `APPROVAL` (409 `INVALID_PROCESS_STATUS`), sem responsável individual (409 `PROCESS_ALREADY_ASSIGNED` com `currentResponsible`) e `If-Match` (412 `VERSION_CONFLICT`; o reenvio do clique duplo de quem já assumiu cai aqui). Sem motivo e sem notificação.",
@@ -51716,6 +52253,16 @@
             },
             "required": false,
             "name": "actorId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "required": false,
+            "name": "branchKey",
             "in": "query"
           },
           {

@@ -94,6 +94,7 @@ describe('Histórico de tramitações — domínio (US-054)', () => {
       fromDepartmentId: null,
       toDepartmentId: null,
       actorId: null,
+      branchKey: null,
       occurredFrom: null,
       occurredTo: null,
     });
@@ -112,6 +113,7 @@ describe('Histórico de tramitações — domínio (US-054)', () => {
       fromDepartmentId: ORIGIN,
       toDepartmentId: TARGET,
       actorId: ANA,
+      branchKey: null,
       occurredFrom: new Date('2026-10-01T00:00:00.000Z'),
       occurredTo: new Date('2026-10-02T00:00:00.000Z'),
     });
@@ -201,6 +203,7 @@ describe('Histórico de tramitações — domínio (US-054)', () => {
       ip: null,
       userAgent: 'Mozilla/5.0',
       correlationId: 'corr-1',
+      branchKey: null,
     });
     expect(toMovementItem(record, NAMES, true).ip).toBe('200.10.20.30');
   });

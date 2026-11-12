@@ -33,6 +33,15 @@ export const EMAIL_TEMPLATES: Readonly<Record<NotificationType, EmailTemplate>> 
     action: 'Abrir o processo',
     reason: 'Você recebe este aviso porque o processo chegou para você ou para a sua unidade.',
   },
+  PARALLEL_BRANCH_RECEIVED: {
+    action: 'Abrir o processo',
+    reason: 'Você recebe este aviso porque o processo chegou à sua unidade em um ramo paralelo.',
+  },
+  PARALLEL_BRANCHES_JOINED: {
+    action: 'Abrir o processo',
+    reason:
+      'Você recebe este aviso porque o processo concluiu os ramos paralelos e chegou para você ou para a sua unidade.',
+  },
   PROCESS_RETURNED: { action: 'Ver o motivo da devolução', reason: PROCESS_REASON },
   PROCESS_ASSIGNED: {
     action: 'Abrir o processo',

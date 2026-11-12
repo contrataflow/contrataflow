@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { processStageIdField } from './process-branches.js';
+
 /*
  * Atribuir/reatribuir responsável (US-050 · PRC-22 · api/02-processes.md): o corpo de
  * `POST /processes/{id}/assign` com `If-Match`; a resposta é o `Process` atualizado
@@ -53,6 +55,8 @@ export const assignProcessSchema = z
       .min(PROCESS_ASSIGN_LIMITS.reasonMin, { error: PROCESS_ASSIGN_MESSAGES.reasonTooShort })
       .max(PROCESS_ASSIGN_LIMITS.reasonMax, { error: PROCESS_ASSIGN_MESSAGES.reasonTooLong })
       .optional(),
+    /** US-124 (RN-WF2-18): etapa-alvo; obrigatória com mais de uma etapa ativa. */
+    processStageId: processStageIdField,
   })
   .meta({ id: 'AssignProcessRequest' });
 export type AssignProcess = z.output<typeof assignProcessSchema>;

@@ -30,6 +30,7 @@ import type {
 } from '../application/ports.js';
 import { isPossibleDuplicate } from '../domain/duplicate-detection.js';
 import type { AssignPlan } from '../domain/process-assign.js';
+import type { ProcessBranchRecord, RuntimeChange } from '../domain/process-branches.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { CompleteAtEndPlan } from '../domain/process-completion.js';
@@ -50,6 +51,7 @@ import type {
 } from '../domain/process-runtime-records.js';
 import type { ResumePlan, SuspendPlan } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
+import { runtimeChangeOf } from '../domain/stage-transition.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
 /**
@@ -66,6 +68,9 @@ export type StoredStage = Omit<ProcessStageRecord, 'status'> & {
   readonly dueSoonNotifiedAt?: Date | null;
   readonly overdueNotifiedAt?: Date | null;
 };
+
+/** `cancellationReason` dos ramos no cancelamento do processo (RN-WF2-25). */
+const PROCESS_CANCELED_BRANCH_REASON = 'Processo cancelado';
 
 const NO_SITUATION: Omit<ProcessSituationRow, 'assignmentSince'> = {
   statusBeforeSuspension: null,
@@ -112,6 +117,8 @@ export class InMemoryProcessRepository implements ProcessRepository {
   /** Responsabilidades encerradas (`endedAt`/`isActive = false` no PostgreSQL). */
   private readonly endedAssignments = new Map<string, Date>();
   private readonly movements: ProcessMovementRecord[] = [];
+  /** US-124: ramos (`ProcessBranch`) por id. */
+  private readonly branches = new Map<string, ProcessBranchRecord>();
   private readonly access: StoredAccess[] = [];
   /** Concessões revogadas (`revokedAt` — RN-PROC-62), fora das leituras como no PostgreSQL. */
   private readonly revoked: (StoredAccess & { readonly revokedAt: Date })[] = [];
@@ -267,43 +274,82 @@ export class InMemoryProcessRepository implements ProcessRepository {
     );
   }
 
-  recordStageTransition(_tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
-    const current = this.processes.get(plan.process.id);
-    if (current?.tenantId !== tenantOfContext() || current.version !== plan.expectedVersion) {
+  recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
+    return this.applyRuntimeChange(tx, runtimeChangeOf(plan));
+  }
+
+  applyRuntimeChange(_tx: TenantTx, change: RuntimeChange): Promise<boolean> {
+    const current = this.processes.get(change.process.id);
+    if (current?.tenantId !== tenantOfContext() || current.version !== change.expectedVersion) {
       return Promise.resolve(false);
     }
-    const closing = this.stages.get(plan.closed.id);
-    if (closing?.status !== 'ACTIVE') {
-      return Promise.reject(new Error('Passagem ativa ausente ao encerrar a etapa.'));
-    }
-    this.processes.set(plan.process.id, plan.process);
-    this.stages.set(closing.id, {
-      ...closing,
-      status: plan.closed.status,
-      exitedAt: plan.closed.exitedAt,
-    });
-    for (const assignment of this.assignments) {
-      if (assignment.processId === plan.process.id && !this.endedAssignments.has(assignment.id)) {
-        this.endedAssignments.set(assignment.id, plan.closed.exitedAt);
+    for (const closed of change.closeStages) {
+      if (this.stages.get(closed.id)?.status !== 'ACTIVE') {
+        return Promise.reject(new Error('Passagem ativa ausente ao encerrar a etapa.'));
       }
     }
-    const { entered, completion } = plan;
-    this.stages.set(
-      entered.id,
-      entered.finishedAt === null
-        ? entered
-        : { ...entered, status: 'COMPLETED', exitedAt: entered.finishedAt },
-    );
-    this.assignments.push(plan.assignment);
-    if (entered.finishedAt !== null) {
-      this.endedAssignments.set(plan.assignment.id, entered.finishedAt);
+    for (const branch of change.updateBranches) {
+      if (this.branches.get(branch.id)?.status !== 'OPEN') {
+        return Promise.reject(new Error('Ramo aberto ausente ao encerrar o ramo.'));
+      }
     }
-    if (completion !== null) {
-      this.setSituation(plan.process.id, { completedAt: completion.completedAt });
-      this.completedBy.set(plan.process.id, completion.completedById);
+    this.processes.set(change.process.id, change.process);
+    for (const closed of change.closeStages) {
+      const stage = this.stages.get(closed.id);
+      if (stage === undefined) continue;
+      this.stages.set(stage.id, { ...stage, status: closed.status, exitedAt: closed.exitedAt });
+      for (const assignment of this.assignments) {
+        if (assignment.processStageId === closed.id && !this.endedAssignments.has(assignment.id)) {
+          this.endedAssignments.set(assignment.id, closed.exitedAt);
+        }
+      }
     }
-    this.movements.push(plan.movement);
+    const finished = new Map<string, Date>();
+    for (const entry of change.insertStages) {
+      const { finishedAt, ...stage } = entry;
+      this.stages.set(
+        entry.id,
+        finishedAt === null
+          ? { ...stage, status: 'ACTIVE' }
+          : { ...stage, status: 'COMPLETED', exitedAt: finishedAt },
+      );
+      if (finishedAt !== null) finished.set(entry.id, finishedAt);
+    }
+    const [firstClosed] = change.closeStages;
+    if (firstClosed !== undefined)
+      this.endStaleAssignments(change.process.id, firstClosed.exitedAt);
+    for (const assignment of change.insertAssignments) {
+      this.assignments.push(assignment);
+      const endedAt = finished.get(assignment.processStageId);
+      if (endedAt !== undefined) this.endedAssignments.set(assignment.id, endedAt);
+    }
+    for (const branch of change.insertBranches) this.branches.set(branch.id, branch);
+    for (const branch of change.updateBranches) {
+      const stored = this.branches.get(branch.id);
+      if (stored === undefined) continue;
+      this.branches.set(
+        branch.id,
+        branch.status === 'ARRIVED'
+          ? { ...stored, status: 'ARRIVED', arrivedAt: branch.at }
+          : {
+              ...stored,
+              status: 'CANCELED',
+              canceledAt: branch.at,
+              cancellationReason: branch.cancellationReason,
+            },
+      );
+    }
+    if (change.completion !== null) {
+      this.setSituation(change.process.id, { completedAt: change.completion.completedAt });
+      this.completedBy.set(change.process.id, change.completion.completedById);
+    }
+    for (const movement of change.movements) this.movements.push(movement);
     return Promise.resolve(true);
+  }
+
+  lockStage(): Promise<void> {
+    // Em memória as transações já são serializadas (fila do `ProcessTransactions` dos testes).
+    return Promise.resolve();
   }
 
   recordClaim(_tx: TenantTx, plan: ClaimPlan): Promise<boolean> {
@@ -317,11 +363,13 @@ export class InMemoryProcessRepository implements ProcessRepository {
     }
     this.processes.set(plan.process.id, plan.process);
     this.stages.set(stage.id, { ...stage, assigneeId: plan.assignment.assigneeId });
+    // US-124: uma responsabilidade ativa por etapa — encerra só a da etapa assumida/atribuída.
     for (const assignment of this.assignments) {
-      if (assignment.processId === plan.process.id && !this.endedAssignments.has(assignment.id)) {
+      if (assignment.processStageId === plan.stageId && !this.endedAssignments.has(assignment.id)) {
         this.endedAssignments.set(assignment.id, plan.endedAt);
       }
     }
+    this.endStaleAssignments(plan.process.id, plan.endedAt);
     this.assignments.push(plan.assignment);
     this.movements.push(plan.movement);
     return Promise.resolve(true);
@@ -341,6 +389,12 @@ export class InMemoryProcessRepository implements ProcessRepository {
       return Promise.reject(new Error('Passagem ativa ausente ao suspender o processo.'));
     }
     this.processes.set(plan.process.id, plan.process);
+    // US-124 (RN-WF2-25): pausa TODAS as etapas ativas (os ramos e o split).
+    for (const other of this.stages.values()) {
+      if (other.processId === plan.process.id && other.status === 'ACTIVE' && !other.pausedAt) {
+        this.stages.set(other.id, { ...other, pausedAt: plan.pausedAt });
+      }
+    }
     this.stages.set(stage.id, { ...stage, pausedAt: plan.pausedAt });
     this.setSituation(plan.process.id, {
       statusBeforeSuspension: plan.suspension.statusBeforeSuspension,
@@ -372,6 +426,19 @@ export class InMemoryProcessRepository implements ProcessRepository {
         ? { overdueSince: null, dueSoonNotifiedAt: null, overdueNotifiedAt: null }
         : {}),
     });
+    for (const other of plan.others ?? []) {
+      const branch = this.stages.get(other.id);
+      if (branch?.status !== 'ACTIVE') continue;
+      this.stages.set(branch.id, {
+        ...branch,
+        pausedAt: null,
+        pausedTotalSeconds: (branch.pausedTotalSeconds ?? 0) + other.pausedSeconds,
+        dueAt: other.dueAt,
+        ...(other.clearOverdue
+          ? { overdueSince: null, dueSoonNotifiedAt: null, overdueNotifiedAt: null }
+          : {}),
+      });
+    }
     this.setSituation(plan.process.id, {
       statusBeforeSuspension: null,
       suspendedAt: null,
@@ -395,8 +462,19 @@ export class InMemoryProcessRepository implements ProcessRepository {
     if (this.stages.get(plan.stage.id)?.status !== 'ACTIVE') {
       return Promise.reject(new Error('Passagem ativa ausente ao encerrar o processo.'));
     }
-    this.processes.set(plan.process.id, plan.process);
+    this.processes.set(plan.process.id, { ...plan.process, activeStagesCount: 0 });
     this.closeActivePass(plan.process.id, plan.stage);
+    // US-124 (RN-WF2-25): os ramos `OPEN` são cancelados com o processo.
+    for (const branch of this.branches.values()) {
+      if (branch.processId === plan.process.id && branch.status === 'OPEN') {
+        this.branches.set(branch.id, {
+          ...branch,
+          status: 'CANCELED',
+          canceledAt: plan.cancellation.canceledAt,
+          cancellationReason: PROCESS_CANCELED_BRANCH_REASON,
+        });
+      }
+    }
     this.setSituation(plan.process.id, {
       canceledAt: plan.cancellation.canceledAt,
       cancellationReason: plan.cancellation.cancellationReason,
@@ -420,7 +498,7 @@ export class InMemoryProcessRepository implements ProcessRepository {
     if (this.stages.get(plan.stage.id)?.status !== 'ACTIVE') {
       return Promise.reject(new Error('Passagem ativa ausente ao encerrar o processo.'));
     }
-    this.processes.set(plan.process.id, plan.process);
+    this.processes.set(plan.process.id, { ...plan.process, activeStagesCount: 0 });
     this.closeActivePass(plan.process.id, plan.stage, 'COMPLETED');
     this.setSituation(plan.process.id, {
       completedAt: plan.completion.completedAt,
@@ -474,7 +552,26 @@ export class InMemoryProcessRepository implements ProcessRepository {
     if (stage !== undefined) {
       this.stages.set(stage.id, { ...stage, status, exitedAt: closed.exitedAt });
     }
+    // US-124 (RN-WF2-25): encerrar o processo encerra TODAS as passagens ativas.
+    for (const other of this.stages.values()) {
+      if (other.processId === processId && other.status === 'ACTIVE') {
+        this.stages.set(other.id, { ...other, status, exitedAt: closed.exitedAt });
+      }
+    }
     this.endActiveAssignments(processId, closed.exitedAt);
+  }
+
+  /**
+   * Responsabilidades ativas de passagens já encerradas (cargas de teste que semeiam a passagem sem
+   * a responsabilidade): o banco real não as tem (a passagem encerra a sua no mesmo `tx`).
+   */
+  private endStaleAssignments(processId: string, endedAt: Date): void {
+    for (const assignment of this.assignments) {
+      if (assignment.processId !== processId || this.endedAssignments.has(assignment.id)) continue;
+      if (this.stages.get(assignment.processStageId)?.status !== 'ACTIVE') {
+        this.endedAssignments.set(assignment.id, endedAt);
+      }
+    }
   }
 
   private endActiveAssignments(processId: string, endedAt: Date): void {
@@ -785,7 +882,16 @@ export class InMemoryProcessRepository implements ProcessRepository {
           stage.pausedAt ??
           (stage.status === 'ACTIVE' ? (this.extras.get(processId)?.stagePausedAt ?? null) : null),
         overdueSince: stage.overdueSince ?? null,
+        stageType: stage.stageType ?? 'TASK',
+        branchKey: stage.branchKey ?? null,
+        splitProcessStageId: stage.splitProcessStageId ?? null,
+        openedByReturn: this.movements.some(
+          (movement) => movement.id === stage.enteredViaMovementId && movement.action === 'RETURN',
+        ),
       }));
+    const branches = [...this.branches.values()]
+      .filter((branch) => branch.processId === processId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
     const access = this.access
       .filter((row) => row.processId === processId)
       .map(({ principalType, departmentId, userId, reason }) => ({
@@ -812,7 +918,9 @@ export class InMemoryProcessRepository implements ProcessRepository {
         role,
         expiresAt,
       }));
-    return Promise.resolve(structuredClone({ process, stages, access, participants, situation }));
+    return Promise.resolve(
+      structuredClone({ process, stages, access, participants, situation, branches }),
+    );
   }
 
   codes(_tx: TenantTx, processIds: readonly string[]) {
@@ -863,6 +971,13 @@ export class InMemoryProcessRepository implements ProcessRepository {
         ...assignment,
         isActive: !this.endedAssignments.has(assignment.id),
       }));
+  }
+
+  /** US-124: ramos do processo (todas as rodadas), na ordem de criação. */
+  branchesOf(processId: string): readonly ProcessBranchRecord[] {
+    return [...this.branches.values()]
+      .filter((branch) => branch.processId === processId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
   }
 
   movementsOf(processId: string): readonly ProcessMovementRecord[] {

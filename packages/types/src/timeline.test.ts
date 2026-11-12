@@ -99,7 +99,7 @@ describe('grupos de apresentação (US-060 · RN-TML-12)', () => {
       'APPROVAL_VOTE_RECORDED',
       'APPROVAL_TURN',
     ]);
-    expect(timelineTypesOfGroups(['TRAMITACAO', 'COMENTARIOS'])).toHaveLength(10);
+    expect(timelineTypesOfGroups(['TRAMITACAO', 'COMENTARIOS'])).toHaveLength(14);
     expect(timelineTypesOfGroups([])).toEqual([]);
   });
 

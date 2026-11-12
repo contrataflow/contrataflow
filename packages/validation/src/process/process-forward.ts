@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { PROCESS_STATUSES } from './process-actions.js';
+import { processStageIdField } from './process-branches.js';
 import { processSchema } from './process.js';
 import { APPROVAL_APPROVER_STATUSES, APPROVAL_LINES_MAX } from '../approval/approval-approvers.js';
 import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
@@ -75,6 +76,8 @@ export const forwardProcessSchema = z
   .strictObject({
     transitionId: z.uuid({ error: PROCESS_FORWARD_MESSAGES.transitionRequired }),
     expectedStageId: z.uuid({ error: PROCESS_FORWARD_MESSAGES.transitionRequired }),
+    /** US-124 (RN-WF2-18): etapa-alvo; obrigatória com mais de uma etapa ativa. */
+    processStageId: processStageIdField,
     toDepartmentId: z.uuid({ error: PROCESS_FORWARD_MESSAGES.departmentInvalid }).optional(),
     toUserId: z.uuid({ error: PROCESS_FORWARD_MESSAGES.assigneeNotEligible }).optional(),
     dueAt: z
@@ -255,9 +258,17 @@ export const movementMetadataSchema = z
         toDepartment: z.string().optional(),
         fromUser: z.string().optional(),
         toUser: z.string().optional(),
+        /** US-124 (RN-WF2-13): ramos abertos pela entrada no split (nomes das etapas). */
+        branches: z.array(z.string()).optional(),
       })
       .optional(),
     withdrawn: z.boolean().optional(),
+    /** US-124 (entities.md MVP 2 §5.5): o ramo da tramitação. */
+    branch: z
+      .object({ splitProcessStageId: z.uuid(), branchKey: z.string().min(1).max(60) })
+      .optional(),
+    /** US-124 (RN-WF2-23): ramos cancelados pela devolução para antes da ramificação. */
+    canceledBranches: z.array(z.string().min(1).max(60)).optional(),
     clientChannel: z.enum(['WEB', 'API']).optional(),
   })
   .meta({ id: 'MovementMetadata' });
@@ -288,7 +299,12 @@ export type OpenedApprovalDto = z.infer<typeof openedApprovalSchema>;
 /** PRC-19 — `data` da resposta: o processo atualizado, a tramitação e a aprovação aberta. */
 export const forwardedProcessSchema = processSchema
   .extend({
-    movement: z.object({ id: z.uuid(), sequence: z.int().min(1) }),
+    movement: z.object({
+      id: z.uuid(),
+      sequence: z.int().min(1),
+      /** US-124: ramo da tramitação (ausente no tronco). */
+      branchKey: z.string().optional(),
+    }),
     /**
      * Aprovação aberta pelo destino `APPROVAL` (US-051); ausente nos demais destinos. US-133
      * (aditivo): a política e as linhas criadas; `approverLabel` é o rótulo composto pela política

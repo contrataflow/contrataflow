@@ -28,6 +28,8 @@ function notify(outcome: PlanOutcome): NotificationPlan {
 const ROUTING_KEYS: Readonly<Record<string, string>> = {
   ProcessStageChanged: 'process.stage_changed.return',
   ProcessAssigned: 'process.assigned',
+  ProcessBranchesOpened: 'process.branches_opened',
+  ProcessBranchesJoined: 'process.branches_joined',
   ProcessStatusChanged: 'process.status_changed.suspended',
   ApprovalRequested: 'approval.requested',
   ApprovalCompleted: 'approval.completed',
@@ -104,6 +106,66 @@ describe('regras por tipo (coluna "Destinatários" de events.md §6)', () => {
         },
       ]);
     }
+  });
+
+  it('PARALLEL_BRANCH_RECEIVED: um destinatário por ramo — responsável ou quem pode assumir', () => {
+    const OTHER_DEPARTMENT = testId();
+    const plan = notify(
+      planNotification(
+        envelope('ProcessBranchesOpened', {
+          branches: [
+            { branchKey: 'A', departmentId: DEPARTMENT, toUserId: USER },
+            { branchKey: 'B', departmentId: OTHER_DEPARTMENT, toUserId: null },
+          ],
+        }),
+      ),
+    );
+    expect(plan).toMatchObject({
+      type: 'PARALLEL_BRANCH_RECEIVED',
+      processId: PROCESS,
+      entityType: 'Process',
+      link: `/processos/${PROCESS}`,
+    });
+    expect(plan.includeActor).toBeUndefined();
+    expect(plan.recipients).toEqual([
+      {
+        kind: 'FIRST_OF',
+        specs: [
+          { kind: 'USER', userId: USER },
+          { kind: 'DEPARTMENT_MEMBERS', departmentId: DEPARTMENT, permission: 'PROCESS_CLAIM' },
+        ],
+      },
+      {
+        kind: 'FIRST_OF',
+        specs: [
+          { kind: 'USER', userId: null },
+          {
+            kind: 'DEPARTMENT_MEMBERS',
+            departmentId: OTHER_DEPARTMENT,
+            permission: 'PROCESS_CLAIM',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('PARALLEL_BRANCHES_JOINED: responsável da etapa seguinte ou quem pode assumir na unidade', () => {
+    const plan = notify(
+      planNotification(
+        envelope('ProcessBranchesJoined', { toUserId: null, toDepartmentId: DEPARTMENT }),
+      ),
+    );
+    expect(plan.type).toBe('PARALLEL_BRANCHES_JOINED');
+    expect(plan.link).toBe(`/processos/${PROCESS}`);
+    expect(plan.recipients).toEqual([
+      {
+        kind: 'FIRST_OF',
+        specs: [
+          { kind: 'USER', userId: null },
+          { kind: 'DEPARTMENT_MEMBERS', departmentId: DEPARTMENT, permission: 'PROCESS_CLAIM' },
+        ],
+      },
+    ]);
   });
 
   it('PROCESS_RECEIVED: só em etapa START/TASK, com fallback para quem pode assumir', () => {

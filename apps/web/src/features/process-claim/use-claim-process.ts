@@ -15,6 +15,12 @@ import { useInvalidateProcess } from '../process-panel/process-panel.api';
 /** Listas que o "assumir" muda além do processo: caixa de tarefas, lista e painel inicial. */
 const AFTER_CLAIM_KEYS = ['processes', 'tasks', 'dashboard'] as const;
 
+/** US-124: a etapa (e o ramo, para o toast) que o "assumir" atinge; ausente fora do paralelismo. */
+export interface ClaimBranch {
+  readonly processStageId?: string | undefined;
+  readonly branchKey?: string | null | undefined;
+}
+
 /**
  * "Assumir" (SCR-115 · ação direta, sem confirmação): dispara o PRC-21, mostra o toast e recarrega o
  * painel e as listas. O 412 do clique duplo vale como sucesso já aplicado (FA-03); o 409 mostra quem
@@ -36,7 +42,7 @@ export function useClaimProcess(processId: string) {
   }, [invalidateProcess, queryClient, tenantId]);
 
   const claim = useCallback(
-    async (version: number | undefined): Promise<void> => {
+    async (version: number | undefined, branch?: ClaimBranch): Promise<void> => {
       if (isPending) return;
       if (version === undefined) {
         // Sem a versão do PRC-04 não há `If-Match`: recarrega e deixa tentar de novo.
@@ -45,7 +51,13 @@ export function useClaimProcess(processId: string) {
         return;
       }
       try {
-        await mutateAsync({ processId, version });
+        await mutateAsync({
+          processId,
+          version,
+          ...(branch?.processStageId === undefined
+            ? {}
+            : { processStageId: branch.processStageId }),
+        });
       } catch (error) {
         const found = describeClaimError(error);
         switch (found.kind) {
@@ -73,7 +85,11 @@ export function useClaimProcess(processId: string) {
         refresh();
         return;
       }
-      toast({ title: t('claimed'), tone: 'success' });
+      const branchKey = branch?.branchKey ?? null;
+      toast({
+        title: branchKey === null ? t('claimed') : t('claimedBranch', { branch: branchKey }),
+        tone: 'success',
+      });
       refresh();
     },
     [isPending, invalidateProcess, mutateAsync, processId, refresh, t],

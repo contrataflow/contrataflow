@@ -35,9 +35,11 @@ import type {
   ProcessTransactions,
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
+import { ProcessBranchReader } from './process-branches.queries.js';
 import { ProcessPanelReader } from './process-panel.queries.js';
 import {
   assigneeNotEligible,
+  branchNotCustodian,
   departmentRequired,
   dueDateOverrideNotAllowed,
   forwardNotCustodian,
@@ -51,6 +53,7 @@ import {
   warningsNotAcknowledged,
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
+import { StageFocusResolver } from './stage-focus.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { accessTargetOf } from './update-process.command.js';
@@ -161,6 +164,8 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     private readonly presenter: ProcessPresenter,
     private readonly transitions: StageTransitionService,
     private readonly support: StageTransitionSupport,
+    private readonly focus: StageFocusResolver,
+    private readonly branchReader: ProcessBranchReader,
   ) {
     super('process.forward', transactions);
   }
@@ -214,21 +219,32 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
         'process.lock_wait',
       );
     }
-    const { rows, runtime, viewer } = await this.panel.load(tx, input.processId);
+    const loaded = await this.panel.load(tx, input.processId);
+    const { viewer } = loaded;
+    const real = loaded.rows.process;
+
+    // 11.3 — etapa esperada ANTES do If-Match (RN-TRAM-03 · FA-08); com ramos, a etapa-alvo
+    // (`processStageId` — RN-WF2-18) e a visão focada nela (US-124).
+    const focus = await this.focus.resolve(tx, loaded, {
+      processStageId: body.processStageId ?? null,
+      expectedStageId: body.expectedStageId,
+    });
+    if (focus.kind === 'TRUNK' && real.currentStageId !== body.expectedStageId) {
+      throw stageChanged(real.currentStageId, await this.support.lastWriter(tx, real));
+    }
+    if (input.expectedVersion !== real.version) {
+      throw forwardVersionConflict(input.expectedVersion, real.version);
+    }
+    const { rows, runtime } = focus;
     const process = rows.process;
 
-    // 11.3 — etapa esperada ANTES do If-Match (RN-TRAM-03 · FA-08).
-    if (process.currentStageId !== body.expectedStageId) {
-      throw stageChanged(process.currentStageId, await this.support.lastWriter(tx, process));
-    }
-    if (input.expectedVersion !== process.version) {
-      throw forwardVersionConflict(input.expectedVersion, process.version);
-    }
-
-    // 11.4 — PROCESS_FORWARD cobrindo o processo, status e custódia (RN-TRAM-01/02 · POL-01).
+    // 11.4 — PROCESS_FORWARD cobrindo o processo, status e custódia (RN-TRAM-01/02 · POL-01 por
+    // etapa — RN-WF2-17: quem tem um ramo não age no outro).
     await this.access.assertCanOnProcess('PROCESS_FORWARD', accessTargetOf(runtime));
     if (!canForwardInStatus(process.status)) throw processNotForwardable(process.status);
-    if (!isProcessCustodian(process, viewer.engine)) throw forwardNotCustodian();
+    if (!isProcessCustodian(process, viewer.engine)) {
+      throw focus.branching ? branchNotCustodian() : forwardNotCustodian();
+    }
     const active = activePassOf(rows, process);
 
     // 11.5 — motor de workflow sobre o estado travado (RN-TRAM-04/05/06).
@@ -261,12 +277,20 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     }
     if (issues.length > 0) throw validationError(issues);
 
-    // 11.6 — unidade e responsável de destino.
-    const toDepartmentId = await this.destination(tx, toStage, process, body.toDepartmentId);
-    const toUserId = await this.assignee(tx, toStage, runtime, toDepartmentId, body.toUserId, now);
+    // 11.6 — unidade e responsável de destino. US-124: ramificação e junção não têm unidade nem
+    // responsável — o motor de ramos resolve as etapas que abrir (RN-WF2-13/21).
+    const control = toStage.type === 'PARALLEL_SPLIT' || toStage.type === 'PARALLEL_JOIN';
+    const toDepartmentId = control
+      ? process.currentDepartmentId
+      : await this.destination(tx, toStage, process, body.toDepartmentId);
+    const toUserId = control
+      ? null
+      : await this.assignee(tx, toStage, runtime, toDepartmentId, body.toUserId, now);
 
     // 11.7 — prazo calculado (dias úteis/corridos) ou sobrescrito.
-    const due = await this.dueDate(tx, evaluation, body, now);
+    const due: ForwardDueDate = control
+      ? { dueAt: null, computedDueAt: null, reason: null }
+      : await this.dueDate(tx, evaluation, body, now);
 
     // RN-TRAM-12 — documentos que acompanham a tramitação.
     const before = await this.documents.movementDocumentsIn(tx, process.id);
@@ -356,12 +380,14 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
           departmentId: active.departmentId,
           assigneeId: active.assigneeId,
         },
-        lastStageSequence: Math.max(...rows.stages.map((stage) => stage.sequence)),
+        // As sequências vêm do processo REAL (a visão focada esconde as outras ativas).
+        lastStageSequence: Math.max(...focus.real.rows.stages.map((stage) => stage.sequence)),
         lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
         action: 'FORWARD',
         closeAs: 'COMPLETED',
         transitionId: transition.id,
         toWorkflowStageId: toStage.id,
+        toStageType: toStage.type,
         toDepartmentId,
         toUserId,
         assignedById: body.toUserId === undefined ? null : userId,
@@ -387,14 +413,17 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       cause: 'FORWARD',
       statusCause: 'FORWARD',
       fromStageKey: fromStage.key,
-      toStage: { key: toStage.key, type: toStage.type },
+      toStage: { key: toStage.key, type: toStage.type, branchKey: toStage.branchKey ?? null },
       requestedApprovalId: approvalId,
+      scope: focus.scope,
+      acknowledgedWarnings: acknowledged,
     });
 
     // 11.13 — aprovação da etapa (a passagem já existe: FK), com a segregação por linha (os
     // autores dos cobertos só são lidos quando ela vale — RN-APV-20).
-    let opened: OpenedApproval | null = null;
-    if (approvalPlan !== null && approvalId !== null) {
+    let opened: OpenedApproval | null =
+      plan.branch?.kind === 'JOINED' ? plan.branch.openedApproval : null;
+    if (approvalPlan !== null && approvalId !== null && plan.entered !== null) {
       opened = await this.approvals.requestForStageIn(tx, {
         approvalId,
         processId: process.id,
@@ -419,21 +448,21 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
       entityId: process.id,
       processId: process.id,
       changes: [
-        { path: 'status', old: process.status, new: updated.status },
-        { path: 'currentStageId', old: process.currentStageId, new: updated.currentStageId },
+        { path: 'status', old: real.status, new: updated.status },
+        { path: 'currentStageId', old: real.currentStageId, new: updated.currentStageId },
         {
           path: 'currentDepartmentId',
-          old: process.currentDepartmentId,
+          old: real.currentDepartmentId,
           new: updated.currentDepartmentId,
         },
         {
           path: 'currentResponsibleId',
-          old: process.currentResponsibleId,
+          old: real.currentResponsibleId,
           new: updated.currentResponsibleId,
         },
         {
           path: 'currentStageDueAt',
-          old: process.currentStageDueAt?.toISOString() ?? null,
+          old: real.currentStageDueAt?.toISOString() ?? null,
           new: updated.currentStageDueAt?.toISOString() ?? null,
         },
       ],
@@ -441,8 +470,11 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
         processCode: updated.code,
         movementId: plan.movement.id,
         transitionKey: transition.key,
-        fromStatus: process.status,
+        fromStatus: real.status,
         toStatus: updated.status,
+        // US-124: a etapa e o ramo em que a ação foi feita.
+        processStageId: active.id,
+        branchKey: focus.target?.branchKey ?? null,
         warningsAcknowledged: metadata.warningsAcknowledged ?? [],
         ...(documentWarnings.length === 0
           ? {}
@@ -454,15 +486,28 @@ export class ForwardProcessCommand extends TransactionalCommandHandler<
     });
 
     // POL-09 sobre o NOVO estado (quem encaminhou pode ter perdido a custódia).
-    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process: updated }, runtime);
-    const dto = await this.presenter.present(tx, updated, canSeeBudget);
+    const canSeeBudget = await this.panel.canSeeBudget(
+      { ...focus.real.rows, process: updated },
+      focus.real.runtime,
+    );
+    const presented = await this.presenter.present(tx, updated, canSeeBudget);
+    // US-124 (aditivo): as etapas ativas depois do fato (várias no paralelismo).
+    const reloaded = await this.processes.loadAggregate(tx, process.id);
+    const activeStages =
+      reloaded === null ? [] : await this.branchReader.activeStages(tx, reloaded);
+    const dto = { ...presented, activeStages, activeStagesCount: activeStages.length };
+    const branchKey = plan.movement.branchKey ?? null;
     return {
       dto: {
         ...dto,
-        movement: { id: plan.movement.id, sequence: plan.movement.sequence },
+        movement: {
+          id: plan.movement.id,
+          sequence: plan.movement.sequence,
+          ...(branchKey === null ? {} : { branchKey }),
+        },
         ...(opened === null ? {} : { approval: opened }),
         numberAssigned: numbering !== null,
-        statusFrom: process.status,
+        statusFrom: real.status,
       },
       fromStageKey: fromStage.key,
       toStageKey: toStage.key,

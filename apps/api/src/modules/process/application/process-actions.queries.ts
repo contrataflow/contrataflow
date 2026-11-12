@@ -1,16 +1,17 @@
-import type { ActionEntry, ProcessChecklist } from '@contrataflow/validation';
+import type { ActionEntry, ActionStageDto, ProcessChecklist } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
+import { executionStateOf } from './execution-state.js';
 import { ForwardPreviews } from './forward-previews.js';
 import { PROCESS_RUNTIME_READER, PROCESS_TRANSACTIONS } from './ports.js';
 import type { ProcessRuntimeReader, ProcessTransactions } from './ports.js';
+import { ProcessBranchReader } from './process-branches.queries.js';
 import { ProcessViewerResolver, engineViewerFor } from './process-viewer.js';
 import type { ResolvedViewer } from './process-viewer.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
-import type { ProcessExecutionState } from '../../workflow/application/workflow.facade.js';
 import type { ProcessRuntime } from '../domain/process-runtime.js';
 import { canViewProcess } from '../domain/process-visibility.js';
 
@@ -26,22 +27,8 @@ export function processNotFound(): ApiError {
   return new ApiError('NOT_FOUND', { detail: 'Processo não encontrado.' });
 }
 
-/** O runtime do processo como o motor o lê. */
-export function executionStateOf(runtime: ProcessRuntime): ProcessExecutionState {
-  return {
-    processId: runtime.id,
-    workflowVersionId: runtime.workflowVersionId,
-    status: runtime.status,
-    createdById: runtime.createdById,
-    currentDepartmentId: runtime.currentDepartmentId,
-    currentResponsibleId: runtime.currentResponsibleId,
-    numbered: runtime.numbered ?? true,
-    ruleProcess: runtime.ruleProcess,
-    passes: runtime.passes,
-    approvals: runtime.approvals,
-    documents: runtime.documents,
-  };
-}
+/** O runtime do processo como o motor o lê (definido em `execution-state.ts`). */
+export { executionStateOf } from './execution-state.js';
 
 /** Carrega o runtime visível ao usuário ou 404. */
 export async function loadVisible(
@@ -63,6 +50,12 @@ export interface GetAvailableActionsQuery {
   readonly processId: string;
 }
 
+/** PRC-08: as ações e, no paralelismo, o resumo das etapas ativas (US-124). */
+export interface AvailableActions {
+  readonly actions: ActionEntry[];
+  readonly stages: ActionStageDto[] | null;
+}
+
 /**
  * `GetAvailableActionsQuery` — PRC-08: ações da etapa atual com motivos de indisponibilidade e,
  * nas entradas `FORWARD`, as prévias do encaminhamento (US-047 — `ForwardPreviews`).
@@ -73,19 +66,23 @@ export class GetAvailableActionsHandler {
     @Inject(PROCESS_RUNTIME_READER) private readonly reader: ProcessRuntimeReader,
     @Inject(PROCESS_TRANSACTIONS) private readonly transactions: ProcessTransactions,
     private readonly viewers: ProcessViewerResolver,
-    private readonly workflow: WorkflowFacade,
     private readonly previews: ForwardPreviews,
+    private readonly branches: ProcessBranchReader,
   ) {}
 
-  execute(query: GetAvailableActionsQuery): Promise<ActionEntry[]> {
+  /**
+   * US-124: no paralelismo, as entradas de cada etapa ativa ganham `processStageId`/`branchKey` e
+   * vem o resumo `stages[]` (irmão de `data`); fora dele, a resposta do MVP 1 (sem `stages`).
+   */
+  execute(query: GetAvailableActionsQuery): Promise<AvailableActions> {
     return this.transactions.read(async (tx) => {
       const { runtime, viewer } = await loadVisible(tx, this.reader, this.viewers, query.processId);
-      const actions = await this.workflow.getAvailableActions(
+      const { actions, stages } = await this.branches.actions(
         tx,
-        executionStateOf(runtime),
+        runtime,
         engineViewerFor(viewer, runtime.organizationId ?? null),
       );
-      return this.previews.enrich(tx, runtime, actions);
+      return { actions: await this.previews.enrich(tx, runtime, actions), stages };
     });
   }
 }

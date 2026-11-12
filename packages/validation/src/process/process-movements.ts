@@ -81,6 +81,8 @@ export const processMovementsQuerySchema = cursorQuerySchema
     fromDepartmentId: referenceFilter,
     toDepartmentId: referenceFilter,
     actorId: referenceFilter,
+    /** US-124 (RN-WF2-26): só as tramitações do ramo. */
+    branchKey: z.string().trim().min(1).max(60).optional(),
     occurredFrom: isoDateTimeSchema.optional(),
     occurredTo: isoDateTimeSchema.optional(),
   })
@@ -156,6 +158,8 @@ export const movementItemSchema = z
     ip: z.string().nullable(),
     userAgent: z.string().nullable(),
     correlationId: z.string(),
+    /** US-124 (aditivo · RN-WF2-26): ramo da tramitação; `null` no tronco. */
+    branchKey: z.string().nullable().optional(),
   })
   .meta({ id: 'MovementItem' });
 export type MovementItemDto = z.infer<typeof movementItemSchema>;

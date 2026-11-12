@@ -41,6 +41,8 @@ export interface MovementFeedSearch {
   readonly fromDepartmentId: string | null;
   readonly toDepartmentId: string | null;
   readonly actorId: string | null;
+  /** US-124 (RN-WF2-26): só as tramitações do ramo; ausente/`null` = todas. */
+  readonly branchKey?: string | null;
   /** Período inclusivo sobre `occurredAt`. */
   readonly occurredFrom: Date | null;
   readonly occurredTo: Date | null;
@@ -59,6 +61,7 @@ export function movementCriteriaOf(
     fromDepartmentId: query.fromDepartmentId ?? null,
     toDepartmentId: query.toDepartmentId ?? null,
     actorId: query.actorId ?? null,
+    branchKey: query.branchKey ?? null,
     occurredFrom: query.occurredFrom === undefined ? null : new Date(query.occurredFrom),
     occurredTo: query.occurredTo === undefined ? null : new Date(query.occurredTo),
   };
@@ -72,6 +75,7 @@ export function movementFilterKeys(query: ProcessMovementsQuery): string[] {
       'fromDepartmentId',
       'toDepartmentId',
       'actorId',
+      'branchKey',
       'occurredFrom',
       'occurredTo',
     ] as const
@@ -92,6 +96,8 @@ export function matchesMovementSearch(
     return false;
   }
   if (search.actorId !== null && movement.actorId !== search.actorId) return false;
+  const branchKey = search.branchKey ?? null;
+  if (branchKey !== null && (movement.branchKey ?? null) !== branchKey) return false;
   const time = movement.occurredAt.getTime();
   if (search.occurredFrom !== null && time < search.occurredFrom.getTime()) return false;
   if (search.occurredTo !== null && time > search.occurredTo.getTime()) return false;
@@ -227,5 +233,6 @@ export function toMovementItem(
     ip: canViewIp ? movement.ip : null,
     userAgent: movement.userAgent,
     correlationId: movement.correlationId,
+    branchKey: movement.branchKey ?? null,
   };
 }

@@ -6,6 +6,7 @@ import type {
   Priority,
   ProcessStageStatus,
   ProcessStatus,
+  StageType,
 } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
@@ -44,6 +45,12 @@ import type {
 } from '../application/ports.js';
 import { DUPLICATE_SIMILARITY_THRESHOLD } from '../domain/duplicate-detection.js';
 import type { AssignPlan } from '../domain/process-assign.js';
+import type {
+  ProcessBranchRecord,
+  ProcessBranchStatus,
+  RuntimeChange,
+  StageEntry,
+} from '../domain/process-branches.js';
 import type { CancelPlan, ClosedPass, DiscardPlan } from '../domain/process-cancellation.js';
 import type { ClaimPlan } from '../domain/process-claim.js';
 import type { CompleteAtEndPlan } from '../domain/process-completion.js';
@@ -52,6 +59,7 @@ import type { PreviousAssignment } from '../domain/process-return.js';
 import type { AccessGrant, ProcessMovementRecord } from '../domain/process-runtime-records.js';
 import type { ResumePlan, SuspendPlan } from '../domain/process-suspension.js';
 import type { Process } from '../domain/process.js';
+import { runtimeChangeOf } from '../domain/stage-transition.js';
 import type { StageTransitionPlan } from '../domain/stage-transition.js';
 
 /*
@@ -155,8 +163,24 @@ interface ProcessRow {
     readonly dueDateOverridden: boolean;
     readonly pausedAt: string | null;
     readonly overdueSince: string | null;
+    readonly stageType: StageType;
+    readonly branchKey: string | null;
+    readonly splitProcessStageId: string | null;
+    readonly openedByReturn: boolean;
   }[];
   readonly access: readonly ProcessAccessRow[];
+  /** US-124: ramos (datas como texto ISO do `jsonb`). */
+  readonly branches?: readonly {
+    readonly id: string;
+    readonly splitProcessStageId: string;
+    readonly branchKey: string;
+    readonly status: ProcessBranchStatus;
+    readonly arrivedAt: string | null;
+    readonly canceledAt: string | null;
+    readonly cancellationReason: string | null;
+    readonly createdAt: string;
+  }[];
+  readonly active_stages_count?: number;
   /** `expiresAt` chega como texto ISO do `jsonb`. */
   readonly participants: readonly (Omit<ProcessParticipantRow, 'expiresAt'> & {
     readonly expiresAt: string | null;
@@ -206,6 +230,7 @@ function toProcess(row: ProcessRow): Process {
     createdById: row.created_by_id,
     updatedById: row.updated_by_id,
     version: row.version,
+    activeStagesCount: row.active_stages_count ?? 1,
   };
 }
 
@@ -225,7 +250,58 @@ function toStage(row: ProcessRow['stages'][number]): ProcessStageRow {
     dueDateOverridden: row.dueDateOverridden,
     pausedAt: row.pausedAt === null ? null : new Date(row.pausedAt),
     overdueSince: row.overdueSince === null ? null : new Date(row.overdueSince),
+    stageType: row.stageType,
+    branchKey: row.branchKey,
+    splitProcessStageId: row.splitProcessStageId,
+    openedByReturn: row.openedByReturn,
   };
+}
+
+function toBranch(
+  row: NonNullable<ProcessRow['branches']>[number],
+  tenantId: string,
+  processId: string,
+): ProcessBranchRecord {
+  return {
+    id: row.id,
+    tenantId,
+    processId,
+    splitProcessStageId: row.splitProcessStageId,
+    branchKey: row.branchKey,
+    status: row.status,
+    arrivedAt: row.arrivedAt === null ? null : new Date(row.arrivedAt),
+    canceledAt: row.canceledAt === null ? null : new Date(row.canceledAt),
+    cancellationReason: row.cancellationReason,
+    createdAt: new Date(row.createdAt),
+  };
+}
+
+/** Uma passagem nova (`ProcessStage`) — a da junção e a `END` nascem encerradas. */
+async function insertStage(tx: TenantTx, entry: StageEntry): Promise<void> {
+  await tx.processStage.create({
+    data: {
+      id: entry.id,
+      tenantId: entry.tenantId,
+      processId: entry.processId,
+      workflowStageId: entry.workflowStageId,
+      sequence: entry.sequence,
+      status: entry.finishedAt === null ? 'ACTIVE' : 'COMPLETED',
+      exitedAt: entry.finishedAt,
+      departmentId: entry.departmentId,
+      assigneeId: entry.assigneeId,
+      enteredAt: entry.enteredAt,
+      dueAt: entry.dueAt,
+      slaDays: entry.slaDays,
+      slaType: entry.slaType,
+      dueDateOverridden: entry.dueDateOverridden,
+      dueDateOverrideReason: entry.dueDateOverrideReason,
+      enteredViaMovementId: entry.enteredViaMovementId,
+      stageType: entry.stageType,
+      branchKey: entry.branchKey,
+      splitProcessStageId: entry.splitProcessStageId,
+    },
+    select: { id: true },
+  });
 }
 
 function toSituation(row: ProcessRow): ProcessSituationRow {
@@ -260,6 +336,17 @@ async function closeActivePass(
     },
   });
   if (ended.count !== 1) throw new Error('Passagem ativa ausente ao encerrar o processo.');
+  // US-124 (RN-WF2-25): encerrar o processo encerra TODAS as passagens ativas — os ramos e o split.
+  await tx.processStage.updateMany({
+    where: { processId, status: 'ACTIVE' },
+    data: {
+      status: status === 'COMPLETED' ? 'COMPLETED' : 'CANCELED',
+      exitedAt: stage.exitedAt,
+      exitedViaMovementId: stage.exitedViaMovementId,
+      updatedAt: stage.exitedAt,
+      version: { increment: 1 },
+    },
+  });
   await tx.processAssignment.updateMany({
     where: { processId, isActive: true },
     data: { isActive: false, endedAt: stage.exitedAt },
@@ -297,6 +384,7 @@ async function insertMovement(tx: TenantTx, movement: ProcessMovementRecord): Pr
       correlationId: movement.correlationId,
       metadata: movement.metadata as Prisma.InputJsonObject,
       occurredAt: movement.occurredAt,
+      branchKey: movement.branchKey ?? null,
     },
     select: { id: true },
   });
@@ -372,6 +460,9 @@ export class PrismaProcessRepository implements ProcessRepository {
         slaDays: stage.slaDays,
         slaType: stage.slaType,
         enteredViaMovementId: stage.enteredViaMovementId,
+        stageType: stage.stageType ?? 'START',
+        branchKey: stage.branchKey ?? null,
+        splitProcessStageId: stage.splitProcessStageId ?? null,
       },
       select: { id: true },
     });
@@ -438,6 +529,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         ...(search.fromDepartmentId === null ? {} : { fromDepartmentId: search.fromDepartmentId }),
         ...(search.toDepartmentId === null ? {} : { toDepartmentId: search.toDepartmentId }),
         ...(search.actorId === null ? {} : { actorId: search.actorId }),
+        ...((search.branchKey ?? null) === null ? {} : { branchKey: search.branchKey ?? null }),
         ...(Object.keys(occurredAt).length === 0 ? {} : { occurredAt }),
         ...(search.beforeSequence === null ? {} : { sequence: { lt: search.beforeSequence } }),
       },
@@ -451,11 +543,16 @@ export class PrismaProcessRepository implements ProcessRepository {
     }));
   }
 
-  async recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
-    const { process, closed, entered, assignment, movement, completion } = plan;
+  recordStageTransition(tx: TenantTx, plan: StageTransitionPlan): Promise<boolean> {
+    // O plano do MVP 1 é um caso da mudança genérica: encerra a passagem ativa, abre a nova.
+    return this.applyRuntimeChange(tx, runtimeChangeOf(plan));
+  }
+
+  async applyRuntimeChange(tx: TenantTx, change: RuntimeChange): Promise<boolean> {
+    const { process, completion } = change;
     // O processo primeiro: a versão lida sob a trava é a rede contra uma escrita fora da trava.
     const updated = await tx.process.updateMany({
-      where: { id: process.id, version: plan.expectedVersion, deletedAt: null },
+      where: { id: process.id, version: change.expectedVersion, deletedAt: null },
       data: {
         status: process.status,
         // DOM-09 · RN-PROC-116 (US-052): a mudança para a etapa `END` conclui o processo.
@@ -467,6 +564,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         currentDepartmentId: process.currentDepartmentId,
         currentResponsibleId: process.currentResponsibleId,
         currentStageDueAt: process.currentStageDueAt,
+        activeStagesCount: process.activeStagesCount ?? 1,
         overdueSince: null,
         number: process.number,
         year: process.year,
@@ -478,60 +576,87 @@ export class PrismaProcessRepository implements ProcessRepository {
       },
     });
     if (updated.count !== 1) return false;
-    // Encerra antes de abrir: uma única passagem/responsabilidade ativa por processo (índices parciais).
-    const ended = await tx.processStage.updateMany({
-      where: { id: closed.id, status: 'ACTIVE' },
-      data: {
-        status: closed.status,
-        exitedAt: closed.exitedAt,
-        exitedViaMovementId: closed.exitedViaMovementId,
-        updatedAt: closed.exitedAt,
-        version: { increment: 1 },
-      },
-    });
-    if (ended.count !== 1) throw new Error('Passagem ativa ausente ao encerrar a etapa.');
-    await tx.processAssignment.updateMany({
-      where: { processId: process.id, isActive: true },
-      data: { isActive: false, endedAt: closed.exitedAt },
-    });
-    await tx.processStage.create({
-      data: {
-        id: entered.id,
-        tenantId: entered.tenantId,
-        processId: entered.processId,
-        workflowStageId: entered.workflowStageId,
-        sequence: entered.sequence,
-        status: entered.finishedAt === null ? entered.status : 'COMPLETED',
-        exitedAt: entered.finishedAt,
-        departmentId: entered.departmentId,
-        assigneeId: entered.assigneeId,
-        enteredAt: entered.enteredAt,
-        dueAt: entered.dueAt,
-        slaDays: entered.slaDays,
-        slaType: entered.slaType,
-        dueDateOverridden: entered.dueDateOverridden,
-        dueDateOverrideReason: entered.dueDateOverrideReason,
-        enteredViaMovementId: entered.enteredViaMovementId,
-      },
-      select: { id: true },
-    });
-    await tx.processAssignment.create({
-      data: {
-        id: assignment.id,
-        tenantId: assignment.tenantId,
-        processId: assignment.processId,
-        processStageId: assignment.processStageId,
-        departmentId: assignment.departmentId,
-        assigneeId: assignment.assigneeId,
-        type: assignment.type,
-        assignedById: assignment.assignedById,
-        startedAt: assignment.startedAt,
-        ...(entered.finishedAt === null ? {} : { isActive: false, endedAt: entered.finishedAt }),
-      },
-      select: { id: true },
-    });
-    await insertMovement(tx, movement);
+    // Encerra antes de abrir: um tronco ativo e uma etapa ativa por ramo (índices parciais).
+    for (const closed of change.closeStages) {
+      const ended = await tx.processStage.updateMany({
+        where: { id: closed.id, status: 'ACTIVE' },
+        data: {
+          status: closed.status,
+          exitedAt: closed.exitedAt,
+          exitedViaMovementId: closed.exitedViaMovementId,
+          updatedAt: closed.exitedAt,
+          version: { increment: 1 },
+        },
+      });
+      if (ended.count !== 1) throw new Error('Passagem ativa ausente ao encerrar a etapa.');
+      await tx.processAssignment.updateMany({
+        where: { processStageId: closed.id, isActive: true },
+        data: { isActive: false, endedAt: closed.exitedAt },
+      });
+    }
+    for (const entry of change.insertStages) await insertStage(tx, entry);
+    const finished = new Map(
+      change.insertStages
+        .filter((entry) => entry.finishedAt !== null)
+        .map((entry) => [entry.id, entry.finishedAt]),
+    );
+    for (const assignment of change.insertAssignments) {
+      const endedAt = finished.get(assignment.processStageId) ?? null;
+      await tx.processAssignment.create({
+        data: {
+          id: assignment.id,
+          tenantId: assignment.tenantId,
+          processId: assignment.processId,
+          processStageId: assignment.processStageId,
+          departmentId: assignment.departmentId,
+          assigneeId: assignment.assigneeId,
+          type: assignment.type,
+          assignedById: assignment.assignedById,
+          startedAt: assignment.startedAt,
+          ...(endedAt === null ? {} : { isActive: false, endedAt }),
+        },
+        select: { id: true },
+      });
+    }
+    for (const branch of change.insertBranches) {
+      await tx.processBranch.create({
+        data: {
+          id: branch.id,
+          tenantId: branch.tenantId,
+          processId: branch.processId,
+          splitProcessStageId: branch.splitProcessStageId,
+          branchKey: branch.branchKey,
+          status: branch.status,
+          createdAt: branch.createdAt,
+          updatedAt: branch.createdAt,
+        },
+        select: { id: true },
+      });
+    }
+    for (const branch of change.updateBranches) {
+      const moved = await tx.processBranch.updateMany({
+        where: { id: branch.id, status: 'OPEN' },
+        data:
+          branch.status === 'ARRIVED'
+            ? { status: 'ARRIVED', arrivedAt: branch.at, updatedAt: branch.at }
+            : {
+                status: 'CANCELED',
+                canceledAt: branch.at,
+                cancellationReason: branch.cancellationReason,
+                updatedAt: branch.at,
+              },
+      });
+      if (moved.count !== 1) throw new Error('Ramo aberto ausente ao encerrar o ramo.');
+    }
+    for (const movement of change.movements) await insertMovement(tx, movement);
     return true;
+  }
+
+  async lockStage(tx: TenantTx, processStageId: string): Promise<void> {
+    await tx.$queryRaw`
+      SELECT id FROM process_stages
+       WHERE tenant_id = current_setting('app.tenant_id')::uuid AND id = ${processStageId}::uuid
+         FOR UPDATE`;
   }
 
   async recordClaim(tx: TenantTx, plan: ClaimPlan): Promise<boolean> {
@@ -556,9 +681,9 @@ export class PrismaProcessRepository implements ProcessRepository {
       },
     });
     if (staged.count !== 1) throw new Error('Passagem ativa ausente ao assumir o processo.');
-    // Encerra antes de abrir: uma única responsabilidade ativa por processo (índice parcial).
+    // Encerra antes de abrir: uma responsabilidade ativa por etapa (índice parcial — US-124).
     await tx.processAssignment.updateMany({
-      where: { processId: process.id, isActive: true },
+      where: { processStageId: plan.stageId, isActive: true },
       data: { isActive: false, endedAt: plan.endedAt },
     });
     await tx.processAssignment.create({
@@ -605,6 +730,11 @@ export class PrismaProcessRepository implements ProcessRepository {
       data: { pausedAt: plan.pausedAt, updatedAt: process.updatedAt, version: { increment: 1 } },
     });
     if (staged.count !== 1) throw new Error('Passagem ativa ausente ao suspender o processo.');
+    // US-124 (RN-WF2-25): a suspensão pausa TODAS as etapas ativas dos ramos.
+    await tx.processStage.updateMany({
+      where: { processId: process.id, status: 'ACTIVE', pausedAt: null },
+      data: { pausedAt: plan.pausedAt, updatedAt: process.updatedAt, version: { increment: 1 } },
+    });
     await insertMovement(tx, plan.movement);
     return true;
   }
@@ -641,6 +771,22 @@ export class PrismaProcessRepository implements ProcessRepository {
       },
     });
     if (staged.count !== 1) throw new Error('Passagem ativa ausente ao retomar o processo.');
+    // US-124 (RN-WF2-25): as demais etapas ativas (ramos) retomam com o próprio prazo estendido.
+    for (const other of plan.others ?? []) {
+      await tx.processStage.updateMany({
+        where: { id: other.id, status: 'ACTIVE' },
+        data: {
+          pausedAt: null,
+          pausedTotalSeconds: { increment: other.pausedSeconds },
+          dueAt: other.dueAt,
+          ...(other.clearOverdue
+            ? { overdueSince: null, dueSoonNotifiedAt: null, overdueNotifiedAt: null }
+            : {}),
+          updatedAt: process.updatedAt,
+          version: { increment: 1 },
+        },
+      });
+    }
     await insertMovement(tx, plan.movement);
     return true;
   }
@@ -657,6 +803,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         // FA-03: o status anterior à suspensão é descartado junto com o cancelamento.
         statusBeforeSuspension: null,
         overdueSince: null,
+        activeStagesCount: 0,
         updatedAt: process.updatedAt,
         updatedById: process.updatedById,
         version: process.version,
@@ -664,6 +811,16 @@ export class PrismaProcessRepository implements ProcessRepository {
     });
     if (updated.count !== 1) return false;
     await closeActivePass(tx, process.id, stage);
+    // US-124 (RN-WF2-25): os ramos `OPEN` são cancelados com o processo.
+    await tx.processBranch.updateMany({
+      where: { processId: process.id, status: 'OPEN' },
+      data: {
+        status: 'CANCELED',
+        canceledAt: cancellation.canceledAt,
+        cancellationReason: 'Processo cancelado',
+        updatedAt: cancellation.canceledAt,
+      },
+    });
     await insertMovement(tx, plan.movement);
     return true;
   }
@@ -678,6 +835,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         completedById: completion.completedById,
         currentStageDueAt: process.currentStageDueAt,
         overdueSince: null,
+        activeStagesCount: 0,
         updatedAt: process.updatedAt,
         updatedById: process.updatedById,
         version: process.version,
@@ -1014,6 +1172,7 @@ export class PrismaProcessRepository implements ProcessRepository {
              p.updated_by_id, p.version,
              p.status_before_suspension::text AS status_before_suspension, p.suspension_reason,
              p.suspended_at, p.completed_at, p.canceled_at, p.cancellation_reason, p.overdue_since,
+             p.active_stages_count,
              (SELECT pa.started_at
                 FROM process_assignments pa
                WHERE pa.tenant_id = p.tenant_id AND pa.process_id = p.id AND pa.is_active
@@ -1026,11 +1185,26 @@ export class PrismaProcessRepository implements ProcessRepository {
                         'assigneeId', s.assignee_id, 'enteredAt', s.entered_at,
                         'exitedAt', s.exited_at, 'dueAt', s.due_at, 'slaDays', s.sla_days,
                         'slaType', s.sla_type, 'dueDateOverridden', s.due_date_overridden,
-                        'pausedAt', s.paused_at, 'overdueSince', s.overdue_since)
+                        'pausedAt', s.paused_at, 'overdueSince', s.overdue_since,
+                        'stageType', s.stage_type, 'branchKey', s.branch_key,
+                        'splitProcessStageId', s.split_process_stage_id,
+                        'openedByReturn', COALESCE(m.action = 'RETURN', false))
                       ORDER BY s.sequence)
                  FROM process_stages s
+                 LEFT JOIN process_movements m
+                        ON m.tenant_id = s.tenant_id AND m.id = s.entered_via_movement_id
                 WHERE s.tenant_id = p.tenant_id AND s.process_id = p.id
              ), '[]'::jsonb) AS stages,
+             COALESCE((
+               SELECT jsonb_agg(jsonb_build_object(
+                        'id', b.id, 'splitProcessStageId', b.split_process_stage_id,
+                        'branchKey', b.branch_key, 'status', b.status, 'arrivedAt', b.arrived_at,
+                        'canceledAt', b.canceled_at, 'cancellationReason', b.cancellation_reason,
+                        'createdAt', b.created_at)
+                      ORDER BY b.created_at, b.id)
+                 FROM process_branches b
+                WHERE b.tenant_id = p.tenant_id AND b.process_id = p.id
+             ), '[]'::jsonb) AS branches,
              COALESCE((
                SELECT jsonb_agg(jsonb_build_object(
                         'principalType', a.principal_type, 'departmentId', a.department_id,
@@ -1062,6 +1236,7 @@ export class PrismaProcessRepository implements ProcessRepository {
         expiresAt: participant.expiresAt === null ? null : new Date(participant.expiresAt),
       })),
       situation: toSituation(row),
+      branches: (row.branches ?? []).map((branch) => toBranch(branch, row.tenant_id, row.id)),
     };
   }
 

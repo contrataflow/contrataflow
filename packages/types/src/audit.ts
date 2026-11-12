@@ -110,6 +110,10 @@ const PROCESS_WORKFLOW = [
   'process.resume',
   'process.cancel',
   'process.complete',
+  // US-124: ramos paralelos (DEC-194 · events.md MVP 2 §7).
+  'process.branch_open',
+  'process.branch_join',
+  'process.branch_cancel',
 ] as const;
 const APPROVAL_WORKFLOW = [
   'approval.request',

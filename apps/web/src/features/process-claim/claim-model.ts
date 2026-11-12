@@ -8,6 +8,12 @@ export type ClaimProblem =
   | { readonly kind: 'alreadyDone' }
   | { readonly kind: 'alreadyAssigned'; readonly name: string | null }
   | { readonly kind: 'status' }
+  /** US-124: 409 `STAGE_CHANGED` — o ramo foi movimentado por outra pessoa. */
+  | { readonly kind: 'stageChanged' }
+  /** US-124: 422 `PROCESS_STAGE_REQUIRED`. */
+  | { readonly kind: 'stageRequired' }
+  /** US-124: 422 `PROCESS_STAGE_INVALID`. */
+  | { readonly kind: 'stageInvalid' }
   | { readonly kind: 'denied' }
   | { readonly kind: 'notFound' }
   | { readonly kind: 'unavailable' }
@@ -28,6 +34,9 @@ export function describeClaimError(error: unknown): ClaimProblem {
     return { kind: 'alreadyAssigned', name: responsibleName(error.problem) };
   }
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') return { kind: 'status' };
+  if (status === 409 && code === 'STAGE_CHANGED') return { kind: 'stageChanged' };
+  if (status === 422 && code === 'PROCESS_STAGE_REQUIRED') return { kind: 'stageRequired' };
+  if (status === 422 && code === 'PROCESS_STAGE_INVALID') return { kind: 'stageInvalid' };
   if (status === 403) return { kind: 'denied' };
   if (status === 404) return { kind: 'notFound' };
   if (status === 503 || status === 429 || status === 502 || status === 504) {

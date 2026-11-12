@@ -21,5 +21,10 @@
     "unavailable": "Não foi possível calcular as ações agora. Tente novamente em instantes.",
     "unexpected": "Ocorreu um erro inesperado. Código: {correlationId}.",
     "retry": "Tentar novamente"
+  },
+  "branches": {
+    "label": "Ramo em que você quer agir",
+    "current": "Ramo selecionado: {name}",
+    "mine": "sua etapa"
   }
 }

@@ -90,6 +90,11 @@ export function describeAssignError(error: unknown): AssignProblem {
   const { status, code } = error;
   if (status === 412 || status === 428) return { kind: 'stale' };
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') return { kind: 'status' };
+  // US-124: o ramo mudou ou a etapa deixou de estar ativa — recarrega.
+  if (status === 409 && code === 'STAGE_CHANGED') return { kind: 'stale' };
+  if (status === 422 && (code === 'PROCESS_STAGE_INVALID' || code === 'PROCESS_STAGE_REQUIRED')) {
+    return { kind: 'stale' };
+  }
   if (status === 403) return { kind: 'permission' };
   if (status === 404) return { kind: 'notFound' };
   if (status === 422 && code === 'ASSIGNEE_NOT_ELIGIBLE') return { kind: 'notEligible' };

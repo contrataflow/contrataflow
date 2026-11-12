@@ -14,9 +14,12 @@ export async function claimProcess(
   version: number,
   /** US-056: a ação rápida da caixa de tarefas envia a chave (reenvio = mesma resposta). */
   idempotencyKey?: string,
+  /** US-124: etapa do ramo a assumir (corpo opcional do PRC-21). */
+  processStageId?: string,
 ): Promise<ProcessDto> {
   const result = await apiRequest<ProcessDto>(`/processes/${processId}/claim`, {
     method: 'POST',
+    ...(processStageId === undefined ? {} : { body: { processStageId } }),
     ifMatch: `"${String(version)}"`,
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
   });
@@ -27,10 +30,12 @@ export interface ClaimVariables {
   readonly processId: string;
   /** `version` do PRC-04 (o `If-Match`). */
   readonly version: number;
+  readonly processStageId?: string | undefined;
 }
 
 export function useClaimMutation() {
   return useMutation({
-    mutationFn: ({ processId, version }: ClaimVariables) => claimProcess(processId, version),
+    mutationFn: ({ processId, version, processStageId }: ClaimVariables) =>
+      claimProcess(processId, version, undefined, processStageId),
   });
 }

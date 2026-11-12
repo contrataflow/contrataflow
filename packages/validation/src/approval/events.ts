@@ -65,7 +65,13 @@ export const ApprovalRequested = defineDomainEvent({
 });
 
 /** Por que a aprovação pendente foi cancelada (events.md §4.2 · `ApprovalCanceled.reason`). */
-export const APPROVAL_CANCEL_REASONS = ['WITHDRAWN', 'PROCESS_CANCELED', 'REASSIGNED'] as const;
+export const APPROVAL_CANCEL_REASONS = [
+  'WITHDRAWN',
+  'PROCESS_CANCELED',
+  'REASSIGNED',
+  // US-124 (events.md MVP 2 §2): devolução para antes da ramificação cancela as do ramo.
+  'BRANCH_CANCELED',
+] as const;
 export type ApprovalCancelReason = (typeof APPROVAL_CANCEL_REASONS)[number];
 
 /**

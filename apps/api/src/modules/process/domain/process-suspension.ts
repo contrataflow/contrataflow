@@ -189,6 +189,11 @@ export interface ResumePlan {
   readonly process: Process;
   readonly expectedVersion: number;
   readonly stage: ResumedPass;
+  /**
+   * US-124 (RN-WF2-25): as DEMAIS etapas ativas (ramos paralelos), cada uma com o prazo estendido e
+   * a pausa acumulada; ausente fora do paralelismo.
+   */
+  readonly others?: readonly ResumedPass[];
   readonly movement: ProcessMovementRecord;
 }
 

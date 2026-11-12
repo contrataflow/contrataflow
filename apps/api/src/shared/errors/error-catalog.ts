@@ -166,6 +166,23 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Voto já registrado',
     detail: 'Você já votou nesta aprovação.',
   },
+  // US-124: ramos paralelos (RN-WF2-18/23 · api.md MVP 2 §2.2).
+  PROCESS_STAGE_REQUIRED: {
+    status: 422,
+    title: 'Etapa não informada',
+    detail: 'Escolha em qual ramo você quer agir.',
+  },
+  PROCESS_STAGE_INVALID: {
+    status: 422,
+    title: 'Etapa inválida',
+    detail: 'Essa etapa não está ativa neste processo. Atualize a página.',
+  },
+  BRANCH_CANCELLATION_NOT_CONFIRMED: {
+    status: 422,
+    title: 'Cancelamento dos ramos não confirmado',
+    detail:
+      'Devolver nesta etapa cancela os outros ramos e as aprovações pendentes. Confirme para continuar.',
+  },
   TENANT_SLUG_TAKEN: {
     status: 409,
     title: 'Identificador em uso',

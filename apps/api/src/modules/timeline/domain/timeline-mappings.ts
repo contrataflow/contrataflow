@@ -336,6 +336,123 @@ const processStageChanged = defineMapping({
   }),
 });
 
+/** Une rótulos como "A, B e C" (ramos paralelos — US-124). */
+function joinLabels(labels: readonly string[]): string {
+  if (labels.length <= 1) return labels[0] ?? '';
+  return `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
+}
+
+const processBranchesOpened = defineMapping({
+  eventType: 'ProcessBranchesOpened',
+  entryTypes: ['BRANCHES_OPENED'],
+  payload: z.looseObject({
+    movementId: uuid,
+    branches: z
+      .array(
+        z.looseObject({ branchKey: z.string().min(1), processStageId: uuid, departmentId: uuid }),
+      )
+      .min(1),
+  }),
+  plan: (payload, event) => ({
+    refs: payload.branches.flatMap((branch) => [
+      ...lookupRef('PROCESS_STAGE', branch.processStageId),
+      ...lookupRef('DEPARTMENT', branch.departmentId),
+    ]),
+    build: ({ lookups }) => {
+      const branches = payload.branches.map((branch) => ({
+        stageName: lookups.get('PROCESS_STAGE', branch.processStageId)?.name ?? null,
+        departmentName: lookups.get('DEPARTMENT', branch.departmentId)?.name ?? null,
+      }));
+      const branchesLabel = joinLabels(
+        branches.map((branch) =>
+          [branch.stageName, branch.departmentName].filter((part) => part !== null).join(' — '),
+        ),
+      );
+      return [
+        entry(
+          'BRANCHES_OPENED',
+          { branches, branchesLabel },
+          { entity: processEntity(event), movementId: payload.movementId },
+        ),
+      ];
+    },
+  }),
+});
+
+const processBranchArrived = defineMapping({
+  eventType: 'ProcessBranchArrived',
+  entryTypes: ['BRANCH_ARRIVED'],
+  payload: z.looseObject({
+    branchKey: z.string().min(1),
+    processStageId: uuid,
+    movementId: uuid,
+    openBranchesLeft: z.int().min(0),
+  }),
+  plan: (payload, event) => ({
+    refs: lookupRef('PROCESS_STAGE', payload.processStageId),
+    build: ({ lookups }) => [
+      entry(
+        'BRANCH_ARRIVED',
+        {
+          stageName: lookups.get('PROCESS_STAGE', payload.processStageId)?.name ?? null,
+          openBranchesLeft: payload.openBranchesLeft,
+          branchKey: payload.branchKey,
+        },
+        { entity: processEntity(event), movementId: payload.movementId },
+      ),
+    ],
+  }),
+});
+
+const processBranchesJoined = defineMapping({
+  eventType: 'ProcessBranchesJoined',
+  entryTypes: ['BRANCHES_JOINED'],
+  payload: z.looseObject({
+    nextStage: z.looseObject({ processStageId: uuid }),
+    toDepartmentId: uuid,
+  }),
+  plan: (payload, event) => ({
+    refs: [
+      ...lookupRef('PROCESS_STAGE', payload.nextStage.processStageId),
+      ...lookupRef('DEPARTMENT', payload.toDepartmentId),
+    ],
+    build: ({ lookups }) => [
+      entry(
+        'BRANCHES_JOINED',
+        {
+          toStageName: lookups.get('PROCESS_STAGE', payload.nextStage.processStageId)?.name ?? null,
+          toDepartmentName: lookups.get('DEPARTMENT', payload.toDepartmentId)?.name ?? null,
+        },
+        { entity: processEntity(event) },
+      ),
+    ],
+  }),
+});
+
+const processBranchesCanceled = defineMapping({
+  eventType: 'ProcessBranchesCanceled',
+  entryTypes: ['BRANCHES_CANCELED'],
+  payload: z.looseObject({
+    canceledBranchKeys: z.array(z.string().min(1)),
+    movementId: uuid,
+    toProcessStageId: uuid,
+  }),
+  plan: (payload, event) => ({
+    refs: lookupRef('PROCESS_STAGE', payload.toProcessStageId),
+    build: ({ lookups }) => [
+      entry(
+        'BRANCHES_CANCELED',
+        {
+          toStageName: lookups.get('PROCESS_STAGE', payload.toProcessStageId)?.name ?? null,
+          canceledBranchKeys: payload.canceledBranchKeys,
+          branchesLabel: joinLabels(payload.canceledBranchKeys),
+        },
+        { entity: processEntity(event), movementId: payload.movementId },
+      ),
+    ],
+  }),
+});
+
 const processAssigned = defineMapping({
   eventType: 'ProcessAssigned',
   entryTypes: ['PROCESS_CLAIMED', 'PROCESS_ASSIGNED'],
@@ -757,7 +874,8 @@ const approvalCanceled = defineMapping({
   entryTypes: ['APPROVAL_CANCELED'],
   payload: z.looseObject({
     approvalId: uuid,
-    reason: z.enum(['WITHDRAWN', 'PROCESS_CANCELED', 'REASSIGNED']),
+    // US-124: `BRANCH_CANCELED` — devolução para antes da ramificação.
+    reason: z.enum(['WITHDRAWN', 'PROCESS_CANCELED', 'REASSIGNED', 'BRANCH_CANCELED']),
   }),
   plan: (payload) => ({
     refs: lookupRef('APPROVAL', payload.approvalId),
@@ -1233,6 +1351,10 @@ const MAPPINGS: readonly TimelineEventMapping[] = [
   processNumberAssigned,
   processItemsChanged,
   processStageChanged,
+  processBranchesOpened,
+  processBranchArrived,
+  processBranchesJoined,
+  processBranchesCanceled,
   processAssigned,
   processStatusChanged,
   processParticipantAdded,

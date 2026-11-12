@@ -32,6 +32,7 @@ import { newId } from '#shared/database/ids.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
+import type { BranchScope } from './branch-engine.js';
 import { PROCESS_REPOSITORY } from './ports.js';
 import type { ProcessAggregateRows, ProcessRepository, ProcessStageRow } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
@@ -39,6 +40,7 @@ import { ProcessCompletionRecorder } from './process-completion.recorder.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
 import { ProcessViewerResolver } from './process-viewer.js';
 import { processNotCompletable, transitionNotAvailable } from './process.errors.js';
+import { focusOn } from './stage-focus.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { StageTransitionService } from './stage-transition.service.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
@@ -102,7 +104,10 @@ const OUTCOME_OF = {
 /** O plano resolvido sob a trava, antes de qualquer escrita. */
 export interface StageDecisionPlan {
   readonly input: SubjectDecisionInput;
+  /** Visão focada na etapa da aprovação (US-124 — num ramo, as outras ativas saem de cena). */
   readonly rows: ProcessAggregateRows;
+  /** O processo real e a etapa da aprovação (motor de ramos — US-124). */
+  readonly scope: BranchScope;
   readonly process: Process;
   readonly active: ProcessStageRow;
   readonly evaluation: DecisionEvaluation;
@@ -166,9 +171,13 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
 
   async decisionOptions(tx: TenantTx, subject: DecisionSubject): Promise<SubjectDecisionOption[]> {
     const rows = await this.processes.loadAggregate(tx, subject.processId);
-    if (rows?.process.currentStageId !== subject.processStageId) return [];
-    const runtime = await this.runtimes.fromAggregate(tx, rows);
-    const targets = await this.workflow.decisionTargets(tx, executionStateOf(runtime));
+    // US-124: a etapa da aprovação ativa — a única do tronco ou a de um ramo.
+    const target = rows?.stages.find(
+      (stage) => stage.id === subject.processStageId && stage.status === 'ACTIVE',
+    );
+    if (rows === null || target === undefined) return [];
+    const focused = focusOn(rows, await this.runtimes.fromAggregate(tx, rows), target);
+    const targets = await this.workflow.decisionTargets(tx, executionStateOf(focused.runtime));
     return targets.map(({ transition, toStage, violations }) => {
       const decision = transition.action as ApprovalDecision;
       return {
@@ -185,16 +194,19 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
 
   async planDecision(tx: TenantTx, input: SubjectDecisionInput): Promise<StageDecisionPlan> {
     const { subject, decision, now } = input;
-    const rows = await this.processes.loadAggregate(tx, subject.processId);
-    const active = rows?.stages.find(
-      (stage) => stage.id === rows.process.currentStageId && stage.status === 'ACTIVE',
+    const realRows = await this.processes.loadAggregate(tx, subject.processId);
+    // A aprovação pendente é da passagem ativa (a pendência única e a trava garantem) — no
+    // paralelismo, a etapa do ramo (US-124 · FA-02).
+    const active = realRows?.stages.find(
+      (stage) => stage.id === subject.processStageId && stage.status === 'ACTIVE',
     );
-    // A aprovação pendente é da passagem ativa (a pendência única e a trava garantem).
-    if (rows === null || active?.id !== subject.processStageId) {
+    if (realRows === null || active === undefined) {
       throw transitionNotAvailable(APPROVAL_DECISION_MESSAGES.transitionNotAvailable);
     }
+    const realRuntime = await this.runtimes.fromAggregate(tx, realRows);
+    const scope: BranchScope = { rows: realRows, runtime: realRuntime, target: active };
+    const { rows, runtime } = focusOn(realRows, realRuntime, active);
     const { process } = rows;
-    const runtime = await this.runtimes.fromAggregate(tx, rows);
 
     // 6.3 / 6.6 — a saída pela ação da decisão e as regras TRANSITION (RN-TRAM-56 · DEC-016).
     const choice = await withSpan('approval.decide.rules', {}, () =>
@@ -242,12 +254,18 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     // 6.6 — unidade, responsável (RN-TRAM-61) e prazo (US-055) do destino; status (RN-TRAM-59).
     const { toStage } = evaluation;
     const backward = decision !== 'APPROVE';
-    const toDepartmentId = await this.destination(tx, toStage, rows, active);
-    const toUserId = backward
-      ? await this.previousAssignee(tx, process, toStage.id, toDepartmentId, now)
-      : await this.policyAssignee(tx, toStage, runtime, toDepartmentId, now);
+    // US-124: a junção não tem unidade nem responsável — o motor de ramos resolve a etapa seguinte.
+    const join = toStage.type === 'PARALLEL_JOIN';
+    const toDepartmentId = join
+      ? active.departmentId
+      : await this.destination(tx, toStage, rows, active);
+    const toUserId = join
+      ? null
+      : backward
+        ? await this.previousAssignee(tx, process, toStage.id, toDepartmentId, now)
+        : await this.policyAssignee(tx, toStage, runtime, toDepartmentId, now);
     const dueAt =
-      toStage.type === 'END' || toStage.slaDays === null
+      join || toStage.type === 'END' || toStage.slaDays === null
         ? null
         : await this.calendar.addBusinessDays(tx, now, toStage.slaDays, toStage.slaType);
     const statusTo: ProcessStatus = backward
@@ -266,6 +284,7 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     return {
       input,
       rows,
+      scope,
       process,
       active,
       evaluation,
@@ -348,12 +367,14 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
           departmentId: active.departmentId,
           assigneeId: active.assigneeId,
         },
-        lastStageSequence: Math.max(...plan.rows.stages.map((stage) => stage.sequence)),
+        // As sequências vêm do processo REAL (a visão focada esconde as outras ativas).
+        lastStageSequence: Math.max(...plan.scope.rows.stages.map((stage) => stage.sequence)),
         lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
         action: decision,
         closeAs: backward ? 'RETURNED' : 'COMPLETED',
         transitionId: transition.id,
         toWorkflowStageId: toStage.id,
+        toStageType: toStage.type,
         toDepartmentId: plan.toDepartmentId,
         toUserId: plan.toUserId,
         assignedById: null,
@@ -388,8 +409,10 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       cause: CAUSE_OF[decision],
       statusCause: 'APPROVAL_DECISION',
       fromStageKey: fromStage.key,
-      toStage: { key: toStage.key, type: toStage.type },
+      toStage: { key: toStage.key, type: toStage.type, branchKey: toStage.branchKey ?? null },
       requestedApprovalId: chainedApprovalId,
+      scope: plan.scope,
+      acknowledgedWarnings: input.acknowledgedWarnings,
     });
 
     // US-017: o efeito do tipo de cada documento coberto (o DFD propaga ao processo), DEPOIS da
@@ -427,7 +450,7 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
     }
 
     // 6.9 — a próxima aprovação (a passagem já existe: FK).
-    if (plan.approver !== null && chainedApprovalId !== null) {
+    if (plan.approver !== null && chainedApprovalId !== null && transitionPlan.entered !== null) {
       await this.approvals.requestForStageIn(tx, {
         approvalId: chainedApprovalId,
         processId: process.id,
@@ -506,14 +529,18 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
   ): Promise<SubjectWithdrawalResult> {
     const { subject, now } = input;
     const context = requireRequestContext();
-    const rows = await this.processes.loadAggregate(tx, subject.processId);
-    const active = rows?.stages.find(
-      (stage) => stage.id === rows.process.currentStageId && stage.status === 'ACTIVE',
+    const realRows = await this.processes.loadAggregate(tx, subject.processId);
+    // US-124 (FA-02): a etapa da aprovação ativa — no paralelismo, a do ramo; a retirada volta à
+    // etapa anterior DO MESMO ramo e não afeta os demais.
+    const active = realRows?.stages.find(
+      (stage) => stage.id === subject.processStageId && stage.status === 'ACTIVE',
     );
-    const origin = rows === null ? null : originPassOf(rows.stages, subject.processStageId);
-    if (rows === null || active?.id !== subject.processStageId || origin === null) {
+    const origin = realRows === null ? null : originPassOf(realRows.stages, subject.processStageId);
+    if (realRows === null || active === undefined || origin === null) {
       throw transitionNotAvailable(APPROVAL_DECISION_MESSAGES.transitionNotAvailable);
     }
+    const realRuntime = await this.runtimes.fromAggregate(tx, realRows);
+    const { rows } = focusOn(realRows, realRuntime, active);
     const { process } = rows;
 
     // 4.4 — documentos cobertos (DEC-018 · RN-TRAM-67).
@@ -576,12 +603,13 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
           departmentId: active.departmentId,
           assigneeId: active.assigneeId,
         },
-        lastStageSequence: Math.max(...rows.stages.map((stage) => stage.sequence)),
+        lastStageSequence: Math.max(...realRows.stages.map((stage) => stage.sequence)),
         lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
         action: 'RETURN',
         closeAs: 'RETURNED',
         transitionId: null,
         toWorkflowStageId: toStage.id,
+        toStageType: toStage.type,
         toDepartmentId,
         toUserId,
         assignedById: null,
@@ -615,9 +643,10 @@ export class ProcessApprovalSubjectHandler implements ApprovalSubjectHandler<Sta
       cause: 'RETURN',
       statusCause: 'RETURN',
       fromStageKey: fromStage.key,
-      toStage: { key: toStage.key, type: toStage.type },
+      toStage: { key: toStage.key, type: toStage.type, branchKey: toStage.branchKey ?? null },
       // `ProcessStageChanged.approvalId` = a aprovação retirada (APV-04 · "Efeitos").
       requestedApprovalId: subject.approvalId,
+      scope: { rows: realRows, runtime: realRuntime, target: active },
     });
     return {
       fromStatus: process.status,

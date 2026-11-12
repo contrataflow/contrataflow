@@ -66,6 +66,20 @@ const TEMPLATES: Readonly<Record<NotificationType, Template>> = {
       groupCount,
     ),
   }),
+  PARALLEL_BRANCH_RECEIVED: ({ groupCount }) => ({
+    title: 'Ramo paralelo recebido',
+    body: grouped(
+      'Um processo chegou à sua unidade em paralelo com outras unidades. Abra-o para dar andamento ao seu ramo.',
+      groupCount,
+    ),
+  }),
+  PARALLEL_BRANCHES_JOINED: ({ groupCount }) => ({
+    title: 'Ramos paralelos concluídos',
+    body: grouped(
+      'Um processo concluiu os ramos paralelos e seguiu para a próxima etapa. Abra-o para dar andamento.',
+      groupCount,
+    ),
+  }),
   PROCESS_RETURNED: ({ groupCount }) => ({
     title: 'Processo devolvido',
     body: grouped('Um processo foi devolvido para ajustes. Abra-o para ver o motivo.', groupCount),

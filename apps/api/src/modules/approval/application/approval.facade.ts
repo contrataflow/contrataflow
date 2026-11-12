@@ -175,6 +175,28 @@ export class ApprovalFacade {
   }
 
   /**
+   * US-124 (RN-WF2-23): cancela as aprovações `PENDING` das passagens dos ramos cancelados pela
+   * devolução para antes da ramificação — motivo `BRANCH_CANCELED` (`approval.cancel` e
+   * `ApprovalCanceled`), no `tx` da devolução; devolve os documentos cobertos (DEC-018).
+   */
+  cancelPendingForStagesIn(
+    tx: TenantTx,
+    processId: string,
+    processStageIds: readonly string[],
+    at: Date,
+    userId: string,
+  ): Promise<CanceledApproval[]> {
+    if (processStageIds.length === 0) return Promise.resolve([]);
+    return this.cancellations.cancelPendingForProcess(tx, {
+      processId,
+      reason: 'BRANCH_CANCELED',
+      at,
+      userId,
+      processStageIds,
+    });
+  }
+
+  /**
    * US-017 (DFD-03 · `DecisionBanner`): a decisão mais recente de uma aprovação que cobriu o
    * documento, com o motivo informado pelo aprovador, no `tx` do chamador. `null` = nunca decidido.
    * A visibilidade do documento é de quem chama.

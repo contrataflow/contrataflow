@@ -320,6 +320,7 @@ export class CreateProcessCommand extends TransactionalCommandHandler<
       slaDays: stage.slaDays,
       slaType: stage.slaType,
       movementId: ids.movement,
+      stageType: stage.type,
     });
     try {
       await this.processes.insertCreation(tx, {

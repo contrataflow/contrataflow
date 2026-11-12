@@ -31,6 +31,7 @@ import {
   recordProcessClaimed,
 } from './process.errors.js';
 import { ProcessPresenter } from './process.presenter.js';
+import { StageFocusResolver, unfocused } from './stage-focus.js';
 import { StageTransitionSupport } from './stage-transition-support.js';
 import { batchAuditMetadata } from './task-bulk.support.js';
 import type { BulkItemContext } from './task-bulk.support.js';
@@ -47,6 +48,8 @@ export interface ClaimProcessInput {
    * (US-058), que não envia versão por item: a trava do processo decide a corrida.
    */
   readonly expectedVersion: number | null;
+  /** US-124 (RN-WF2-18): a etapa do ramo a assumir; obrigatória com mais de uma etapa ativa. */
+  readonly processStageId?: string | null;
   /** Item de um lote (US-058): `batchId` e a `Idempotency-Key` vão para a auditoria. */
   readonly batch?: BulkItemContext;
 }
@@ -93,6 +96,7 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
     private readonly panel: ProcessPanelReader,
     private readonly presenter: ProcessPresenter,
     private readonly support: StageTransitionSupport,
+    private readonly focus: StageFocusResolver,
   ) {
     super('process.claim', transactions);
   }
@@ -124,7 +128,14 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
         'process.lock_wait',
       );
     }
-    const { rows, runtime, viewer } = await this.panel.load(tx, input.processId);
+    const loaded = await this.panel.load(tx, input.processId);
+    const { viewer } = loaded;
+    const real = loaded.rows.process;
+    // US-124 (FA-06): no paralelismo, a etapa do ramo — POL-04 vale para a unidade DELA.
+    const focus = await this.focus.resolve(tx, loaded, {
+      processStageId: input.processStageId ?? null,
+    });
+    const { rows, runtime } = focus;
     const process = rows.process;
 
     // 3.2 — `PROCESS_CLAIM` cobrindo o processo e lotação na unidade atual (POL-04).
@@ -183,7 +194,7 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
     });
 
     // 3.4–3.6 — responsabilidade `CLAIM`, responsável da passagem e do processo, tramitação.
-    const plan = planClaim({
+    const focusedPlan = planClaim({
       process,
       active: { id: active.id, workflowStageId: active.workflowStageId },
       lastMovementSequence: await this.processes.lastMovementSequence(tx, process.id),
@@ -197,6 +208,14 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
       now,
       ids: { assignment: newId(), movement: newId() },
     });
+    // US-124: num ramo, só a etapa ganha responsável — o processo segue sem (RN-WF2-14).
+    const plan = focus.branching
+      ? {
+          ...focusedPlan,
+          process: unfocused(real, focusedPlan.process),
+          movement: { ...focusedPlan.movement, branchKey: active.branchKey },
+        }
+      : focusedPlan;
     if (!(await this.processes.recordClaim(tx, plan))) {
       // A trava garante a versão; divergir aqui é escrita fora da trava (a rede do `WHERE version`).
       throw claimVersionConflict(input.expectedVersion ?? process.version, process.version + 1);
@@ -235,7 +254,10 @@ export class ClaimProcessCommand extends TransactionalCommandHandler<
     });
 
     // POL-09 sobre o NOVO estado.
-    const canSeeBudget = await this.panel.canSeeBudget({ ...rows, process: updated }, runtime);
+    const canSeeBudget = await this.panel.canSeeBudget(
+      { ...focus.real.rows, process: updated },
+      focus.real.runtime,
+    );
     return { dto: await this.presenter.present(tx, updated, canSeeBudget), lockWaitMs };
   }
 

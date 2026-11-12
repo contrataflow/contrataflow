@@ -349,7 +349,9 @@ export function buildForwardBody(
     .map((rule) => rule.ruleId);
   return {
     transitionId: entry.transitionId,
-    expectedStageId,
+    // US-124: no ramo, a etapa esperada é a do próprio ramo (o `processStageId` da entrada).
+    expectedStageId: entry.processStageId ?? expectedStageId,
+    ...(entry.processStageId === undefined ? {} : { processStageId: entry.processStageId }),
     ...(choosesDepartment(entry) && draft.department !== null
       ? { toDepartmentId: draft.department.id }
       : {}),
@@ -497,6 +499,11 @@ export function summaryOf(input: ForwardSummaryInput): ForwardSummary | null {
 /** Toast do sucesso (passo 12; FA-07 quando o processo foi autuado agora). */
 export function forwardedToast(result: ForwardedProcessDto): ForwardMessage {
   const code = result.code ?? '';
+  // US-124: encaminhou dentro de um ramo — o toast diz qual (sem aprovação aberta).
+  const branch = result.movement.branchKey;
+  if (branch !== undefined && result.approval === undefined) {
+    return message('toast.branchForwarded', { branch });
+  }
   if (result.approval !== undefined) {
     const approver = result.approval.approverLabel;
     return result.numberAssigned
@@ -526,6 +533,9 @@ export type ForwardProblem =
   | { readonly kind: 'notFound' }
   | { readonly kind: 'status'; readonly detail: string }
   | { readonly kind: 'transitionNotAvailable' }
+  /** US-124: 422 `PROCESS_STAGE_REQUIRED` / `PROCESS_STAGE_INVALID`. */
+  | { readonly kind: 'stageRequired' }
+  | { readonly kind: 'stageInvalid' }
   | {
       readonly kind: 'blocked';
       readonly rules: readonly ForwardRule[];
@@ -619,6 +629,8 @@ export function describeForwardError(error: unknown): ForwardProblem {
   if (status === 409 && code === 'IDEMPOTENCY_IN_PROGRESS') return { kind: 'inProgress' };
   if (status === 422) {
     if (code === 'TRANSITION_NOT_AVAILABLE') return { kind: 'transitionNotAvailable' };
+    if (code === 'PROCESS_STAGE_REQUIRED') return { kind: 'stageRequired' };
+    if (code === 'PROCESS_STAGE_INVALID') return { kind: 'stageInvalid' };
     if (code === 'TRANSITION_BLOCKED') {
       return {
         kind: 'blocked',

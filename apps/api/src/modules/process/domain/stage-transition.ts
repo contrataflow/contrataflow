@@ -1,6 +1,7 @@
 import type { DayCountType } from '@contrataflow/types';
-import type { MovementDocumentRef, ProcessStatus } from '@contrataflow/validation';
+import type { MovementDocumentRef, ProcessStatus, StageType } from '@contrataflow/validation';
 
+import type { RuntimeChange, StageEntry } from './process-branches.js';
 import { completeProcess } from './process-completion.js';
 import type { CompletionCause, ProcessCompletion } from './process-completion.js';
 import { USER_AGENT_MAX, enterStage, stageEntryAssignment } from './process-runtime-records.js';
@@ -64,6 +65,14 @@ export interface StageTransitionInput {
   readonly closeAs: ClosedPass['status'];
   readonly transitionId: string | null;
   readonly toWorkflowStageId: string;
+  /**
+   * Tipo da etapa de destino (snapshot em `ProcessStage.stageType` — US-124); todos os comandos o
+   * informam (ausente só nos planos montados pelos testes de domínio anteriores).
+   */
+  readonly toStageType?: StageType | undefined;
+  /** US-124: ramo e split da passagem de destino (herdados dentro do ramo); ausentes no tronco. */
+  readonly branchKey?: string | null;
+  readonly splitProcessStageId?: string | null;
   readonly toDepartmentId: string;
   /** Responsável da nova passagem; `null` = fila da unidade. */
   readonly toUserId: string | null;
@@ -130,6 +139,9 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
     slaDays: input.slaDays,
     slaType: input.slaType,
     movementId: ids.movement,
+    stageType: input.toStageType,
+    branchKey: input.branchKey ?? null,
+    splitProcessStageId: input.splitProcessStageId ?? null,
   });
   const entered: EnteredPass = {
     ...stage,
@@ -170,6 +182,7 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
     correlationId: input.actor.correlationId,
     metadata: input.metadata,
     occurredAt: now,
+    branchKey: input.branchKey ?? null,
   };
   const numbered = input.numbering;
   // RN-PROC-114/115: o status de origem do caminho e o carimbo — antes de montar o plano.
@@ -191,6 +204,8 @@ export function planStageTransition(input: StageTransitionInput): StageTransitio
       currentDepartmentId: stage.departmentId,
       currentResponsibleId: stage.assigneeId,
       currentStageDueAt: stage.dueAt,
+      // US-124: uma etapa ativa no tronco; a mudança para `END` encerra (0).
+      activeStagesCount: input.completion === undefined ? 1 : 0,
       ...(numbered === null
         ? {}
         : {
@@ -240,4 +255,43 @@ export function stageChangeAccess(input: {
   }
   const moved = input.fromDepartmentId !== input.toDepartmentId;
   return { historicalDepartmentId: moved ? input.fromDepartmentId : null, grants };
+}
+
+/** Entrada da mudança genérica do runtime (US-124) a partir de uma passagem do plano. */
+export function stageEntryOf(entered: EnteredPass): StageEntry {
+  return {
+    id: entered.id,
+    tenantId: entered.tenantId,
+    processId: entered.processId,
+    workflowStageId: entered.workflowStageId,
+    sequence: entered.sequence,
+    departmentId: entered.departmentId,
+    assigneeId: entered.assigneeId,
+    enteredAt: entered.enteredAt,
+    dueAt: entered.dueAt,
+    slaDays: entered.slaDays,
+    slaType: entered.slaType,
+    dueDateOverridden: entered.dueDateOverridden,
+    dueDateOverrideReason: entered.dueDateOverrideReason,
+    enteredViaMovementId: entered.enteredViaMovementId,
+    stageType: entered.stageType ?? 'TASK',
+    branchKey: entered.branchKey ?? null,
+    splitProcessStageId: entered.splitProcessStageId ?? null,
+    finishedAt: entered.finishedAt,
+  };
+}
+
+/** O plano do MVP 1 como mudança genérica do runtime (US-124 · `applyRuntimeChange`). */
+export function runtimeChangeOf(plan: StageTransitionPlan): RuntimeChange {
+  return {
+    process: plan.process,
+    expectedVersion: plan.expectedVersion,
+    completion: plan.completion,
+    closeStages: [plan.closed],
+    insertStages: [stageEntryOf(plan.entered)],
+    insertAssignments: [plan.assignment],
+    insertBranches: [],
+    updateBranches: [],
+    movements: [{ ...plan.movement, branchKey: plan.movement.branchKey ?? null }],
+  };
 }

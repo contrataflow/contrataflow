@@ -298,6 +298,15 @@ Feature: Executar ramos paralelos no processo
   - `events.md` define `ProcessBranchesOpened.movementId` mas não como o movimento único da entrada no split registra os ramos: adotado `metadata.labels` (MVP 1); `ApprovalCanceled.reason = BRANCH_CANCELED` consta de `events.md` §2.
   - `entities.md` não diz se `ProcessBranch` `ARRIVED` vira `CANCELED` na devolução para antes do split: adotado o histórico (permanece `ARRIVED`; só ramos `OPEN` cancelam).
   - `entities.md` §5.1 mantém a unique `(tenant_id, process_id) WHERE ACTIVE AND branch_key IS NULL` (tronco); a contagem `activeStagesCount` exclui o split.
+- **Resolução das lacunas (implementação, spec-647 · 2026-11-12):**
+  - PRC-08: adotado `stages[]` irmão de `data` (só no paralelismo; fora dele a resposta do MVP 1 não muda) e `processStageId`/`branchKey` nas entradas `FORWARD`/`COMPLETE`/`RETURN`/`CLAIM`/`ASSIGN`; o motor roda uma vez por etapa ativa sobre a visão focada nela, e no último ramo `OPEN` a entrada para a junção já traz as regras do join.
+  - Códigos `PROCESS_STAGE_REQUIRED`, `PROCESS_STAGE_INVALID` e `BRANCH_CANCELLATION_NOT_CONFIRMED` registrados no catálogo (`@contrataflow/types` · `error-catalog`), como em `api.md` MVP 2 §2.2.
+  - Movimento único da entrada no split com os ramos em `metadata.labels.branches` (nomes das etapas); movimentos de ramo com `branchKey` e `metadata.branch`; a devolução para antes do split com `metadata.canceledBranches`.
+  - Ramo `ARRIVED` permanece `ARRIVED` (histórico) na devolução para antes do split; só os `OPEN` cancelam.
+  - A junção grava dois movimentos: o do ramo (etapa → passagem do join, `branchKey`) e a saída do join (join → etapa seguinte); a chegada de ramo que não fecha a junção grava o movimento do ramo com `toProcessStageId` nulo.
+  - Na chegada/junção a primeira etapa de cada ramo e a etapa de saída da junção resolvem unidade, responsável, prazo e aprovador pelo `StageEntryResolver`; `CHOSEN_ON_FORWARD` nessas etapas (sem quem escolha) deixa o caminho indisponível (`TRANSITION_NOT_AVAILABLE`).
+  - Aprovações pendentes canceladas pela devolução para antes do split devolvem os documentos cobertos a `DRAFT` (DEC-018, como no cancelamento do processo); os demais documentos não mudam.
+  - `process_stages.stage_type` ganhou um gatilho que o preenche pela etapa da versão quando a inserção não o informa (cargas por SQL); a aplicação sempre o informa.
 
 ## Impacto técnico
 - **Compatibilidade (DEC-108):** `currentStageId` continua preenchido (split no paralelismo); `activeStages[]`, `activeStagesCount`, `processStageId`, `branchKey` e `stages[]` são aditivos. Um leitor do MVP 1 que envie `expectedStageId = currentStageId` de um processo em ramificação recebe `STAGE_CHANGED`; a web do MVP 2 usa `activeStages[]` (teste de contrato cobre ambos).

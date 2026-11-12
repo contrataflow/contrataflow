@@ -304,7 +304,13 @@ describe('Feature: Criar processo de contratação (US-001)', () => {
       // Painel do processo (SCR-006): PRC-04 e o próximo passo (etapa com DFD).
       const detail = await getAs(api, `/processes/${created.id}`, 'sub-ana', A);
       expect(detail.status, JSON.stringify(detail.body)).toBe(200);
-      expect(data<ProcessDto>(detail)).toEqual(created);
+      // US-124 (aditivo — DEC-108): o detalhe traz as etapas ativas; o resto é o do MVP 1.
+      const { activeStages, activeStagesCount, ...mvp1 } = data<ProcessDto>(detail);
+      expect(mvp1).toEqual(created);
+      expect(activeStagesCount).toBe(1);
+      expect(activeStages?.map((stage) => [stage.stageKey, stage.branchKey])).toEqual([
+        ['ABERTURA', null],
+      ]);
       const actions = await getAs(api, `/processes/${created.id}/available-actions`, 'sub-ana', A);
       expect(actions.status, JSON.stringify(actions.body)).toBe(200);
     });

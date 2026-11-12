@@ -39,6 +39,8 @@ export class ApprovalCancellationService {
       readonly reason: ApprovalCancelReason;
       readonly at: Date;
       readonly userId: string;
+      /** US-124: só as aprovações destas passagens (ramos cancelados). */
+      readonly processStageIds?: readonly string[];
     },
   ): Promise<CanceledApproval[]> {
     const canceled = await this.approvals.cancelPendingByProcess(
@@ -47,6 +49,7 @@ export class ApprovalCancellationService {
       input.reason,
       input.at,
       input.userId,
+      input.processStageIds,
     );
     for (const approval of canceled) {
       await this.audit.record(tx, {

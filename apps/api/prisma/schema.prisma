@@ -949,40 +949,40 @@ model WorkflowVersion {
 /// entities.md §4.5 `WorkflowStage`: escrita só em versão `DRAFT` (gatilho
 /// `trg_wf_definition_immutable`); no máximo uma `START` por versão (índice parcial na migração).
 model WorkflowStage {
-  id                           String                @id @db.Uuid
-  tenantId                     String                @map("tenant_id") @db.Uuid
-  workflowVersionId            String                @map("workflow_version_id") @db.Uuid
-  key                          String                @db.VarChar(60)
-  name                         String                @db.VarChar(150)
+  id                           String                 @id @db.Uuid
+  tenantId                     String                 @map("tenant_id") @db.Uuid
+  workflowVersionId            String                 @map("workflow_version_id") @db.Uuid
+  key                          String                 @db.VarChar(60)
+  name                         String                 @db.VarChar(150)
   instructions                 String?
   type                         StageType
-  groupLabel                   String?               @map("group_label") @db.VarChar(60)
-  displayOrder                 Int                   @map("display_order")
-  departmentResolution         DepartmentResolution  @map("department_resolution")
-  fixedDepartmentId            String?               @map("fixed_department_id") @db.Uuid
-  assignmentPolicy             StageAssignmentPolicy @default(UNASSIGNED) @map("assignment_policy")
-  approverType                 ApproverType?         @map("approver_type")
-  approverUserId               String?               @map("approver_user_id") @db.Uuid
-  approverRoleId               String?               @map("approver_role_id") @db.Uuid
-  approverDepartmentResolution DepartmentResolution? @map("approver_department_resolution")
-  approverFixedDepartmentId    String?               @map("approver_fixed_department_id") @db.Uuid
-  allowDeputy                  Boolean               @default(true) @map("allow_deputy")
-  approvalDocumentTypeCodes    String[]              @default([]) @map("approval_document_type_codes") @db.VarChar(40)
-  documentTypeCodes            String[]              @default([]) @map("document_type_codes") @db.VarChar(40)
-  slaDays                      Int?                  @map("sla_days")
-  slaType                      DayCountType          @default(BUSINESS) @map("sla_type")
-  color                        String?               @db.VarChar(7)
+  groupLabel                   String?                @map("group_label") @db.VarChar(60)
+  displayOrder                 Int                    @map("display_order")
+  departmentResolution         DepartmentResolution   @map("department_resolution")
+  fixedDepartmentId            String?                @map("fixed_department_id") @db.Uuid
+  assignmentPolicy             StageAssignmentPolicy  @default(UNASSIGNED) @map("assignment_policy")
+  approverType                 ApproverType?          @map("approver_type")
+  approverUserId               String?                @map("approver_user_id") @db.Uuid
+  approverRoleId               String?                @map("approver_role_id") @db.Uuid
+  approverDepartmentResolution DepartmentResolution?  @map("approver_department_resolution")
+  approverFixedDepartmentId    String?                @map("approver_fixed_department_id") @db.Uuid
+  allowDeputy                  Boolean                @default(true) @map("allow_deputy")
+  approvalDocumentTypeCodes    String[]               @default([]) @map("approval_document_type_codes") @db.VarChar(40)
+  documentTypeCodes            String[]               @default([]) @map("document_type_codes") @db.VarChar(40)
+  slaDays                      Int?                   @map("sla_days")
+  slaType                      DayCountType           @default(BUSINESS) @map("sla_type")
+  color                        String?                @db.VarChar(7)
   /// US-132 (M2-04): política de decisão; só etapa `APPROVAL` aceita valor diferente de `ANY`.
   decisionPolicy               ApprovalDecisionPolicy @default(ANY) @map("decision_policy")
   /// Alçada da política por faixa (`[{ when: RuleRef, policy }]`) — só a biblioteca de regras (US-198).
-  decisionPolicyRules          Json                  @default("[]") @map("decision_policy_rules") @db.JsonB
+  decisionPolicyRules          Json                   @default("[]") @map("decision_policy_rules") @db.JsonB
   /// US-123 (RN-WF2-07): ramo da etapa (`key` da primeira etapa do ramo), gravado na publicação.
-  branchKey                    String?               @map("branch_key") @db.VarChar(60)
-  createdAt                    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById                  String?               @map("created_by_id") @db.Uuid
-  updatedById                  String?               @map("updated_by_id") @db.Uuid
-  version                      Int                   @default(1)
+  branchKey                    String?                @map("branch_key") @db.VarChar(60)
+  createdAt                    DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById                  String?                @map("created_by_id") @db.Uuid
+  updatedById                  String?                @map("updated_by_id") @db.Uuid
+  version                      Int                    @default(1)
 
   @@unique([tenantId, id], map: "workflow_stages_tenant_id_id_key")
   @@unique([tenantId, workflowVersionId, id], map: "workflow_stages_tenant_id_workflow_version_id_id_key")
@@ -1380,6 +1380,8 @@ model Process {
   version                 Int                      @default(1)
   deletedAt               DateTime?                @map("deleted_at") @db.Timestamptz(6)
   deletedById             String?                  @map("deleted_by_id") @db.Uuid
+  /// US-124 (DEC-194): etapas ativas `TASK`/`APPROVAL` — 1 fora do paralelismo, 0 nos status finais.
+  activeStagesCount       Int                      @default(1) @map("active_stages_count") @db.SmallInt
 
   @@unique([tenantId, id], map: "processes_tenant_id_id_key")
   // Parciais na migração (`WHERE code IS NOT NULL` · `WHERE internal_code IS NOT NULL AND deleted_at IS NULL`).
@@ -1516,20 +1518,61 @@ model ProcessStage {
   overdueNotifiedAt     DateTime?          @map("overdue_notified_at") @db.Timestamptz(6)
   enteredViaMovementId  String?            @map("entered_via_movement_id") @db.Uuid
   exitedViaMovementId   String?            @map("exited_via_movement_id") @db.Uuid
+  /// US-124 (entities.md MVP 2 §5.3): snapshot do tipo da `WorkflowStage`.
+  stageType             StageType          @map("stage_type")
+  /// US-124: ramo da passagem (`null` no tronco) e o split que o abriu (check: ambos ou nenhum).
+  branchKey             String?            @map("branch_key") @db.VarChar(60)
+  splitProcessStageId   String?            @map("split_process_stage_id") @db.Uuid
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   version               Int                @default(1)
 
   @@unique([tenantId, id], map: "process_stages_tenant_id_id_key")
   @@unique([tenantId, processId, sequence], map: "process_stages_sequence_key")
-  // Parciais na migração (`WHERE status = 'ACTIVE'`).
-  @@index([tenantId, processId], map: "process_stages_single_active_key")
+  // Parciais na migração (US-124): um tronco ativo (`WHERE status = 'ACTIVE' AND branch_key IS
+  // NULL`), uma etapa ativa por ramo (`(tenant_id, split_process_stage_id, branch_key)`) e o índice
+  // não único das etapas ativas.
+  @@index([tenantId, processId], map: "process_stages_trunk_active_key")
+  @@index([tenantId, splitProcessStageId, branchKey], map: "process_stages_branch_active_key")
+  @@index([tenantId, processId], map: "process_stages_active_idx")
   @@index([tenantId, departmentId], map: "process_stages_department_idx")
   @@index([tenantId, assigneeId], map: "process_stages_assignee_idx")
   @@index([tenantId, dueAt], map: "process_stages_due_idx")
   // US-076 (AVG_STAGE_DURATION do dashboard): parcial na migração (`WHERE exited_at IS NOT NULL`).
   @@index([tenantId, exitedAt, workflowStageId], map: "process_stages_exited_idx")
   @@map("process_stages")
+}
+
+/// entities.md MVP 2 §2 — `ProcessBranchStatus` (US-124 · DEC-194).
+enum ProcessBranchStatus {
+  OPEN
+  ARRIVED
+  CANCELED
+
+  @@map("process_branch_status")
+}
+
+/// entities.md MVP 2 §4.7 `ProcessBranch` (US-124 · DEC-194): ramo aberto por um `PARALLEL_SPLIT`.
+/// FKs compostas, checks do ciclo de vida e RLS na migração `20261112120000_process_branches`.
+model ProcessBranch {
+  id                  String              @id @db.Uuid
+  tenantId            String              @map("tenant_id") @db.Uuid
+  processId           String              @map("process_id") @db.Uuid
+  splitProcessStageId String              @map("split_process_stage_id") @db.Uuid
+  branchKey           String              @map("branch_key") @db.VarChar(60)
+  status              ProcessBranchStatus @default(OPEN)
+  arrivedAt           DateTime?           @map("arrived_at") @db.Timestamptz(6)
+  canceledAt          DateTime?           @map("canceled_at") @db.Timestamptz(6)
+  cancellationReason  String?             @map("cancellation_reason") @db.VarChar(200)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  version             Int                 @default(1)
+
+  @@unique([tenantId, id], map: "process_branches_tenant_id_id_key")
+  @@unique([tenantId, splitProcessStageId, branchKey], map: "process_branches_split_branch_key")
+  // Parcial na migração (`WHERE status = 'OPEN'`).
+  @@index([tenantId, processId], map: "process_branches_open_idx")
+  @@map("process_branches")
 }
 
 /// entities.md §4.4 `ProcessAssignment`: histórico de responsabilidade (um ativo por processo).
@@ -1549,8 +1592,9 @@ model ProcessAssignment {
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([tenantId, id], map: "process_assignments_tenant_id_id_key")
-  // Parciais na migração (`WHERE is_active` …).
-  @@index([tenantId, processId], map: "process_assignments_single_active_key")
+  // Parciais na migração (`WHERE is_active` …) — US-124: uma responsabilidade ativa por etapa.
+  @@index([tenantId, processStageId], map: "process_assignments_stage_active_key")
+  @@index([tenantId, processId], map: "process_assignments_active_idx")
   @@index([tenantId, assigneeId], map: "process_assignments_assignee_idx")
   @@index([tenantId, departmentId], map: "process_assignments_queue_idx")
   @@map("process_assignments")
@@ -1586,6 +1630,8 @@ model ProcessMovement {
   correlationId        String         @map("correlation_id") @db.VarChar(64)
   metadata             Json           @default("{}") @db.JsonB
   occurredAt           DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  /// US-124 (entities.md MVP 2 §5.5): ramo da tramitação (`null` no tronco).
+  branchKey            String?        @map("branch_key") @db.VarChar(60)
 
   @@unique([tenantId, id], map: "process_movements_tenant_id_id_key")
   @@unique([tenantId, processId, sequence], map: "process_movements_sequence_key")
@@ -1770,36 +1816,36 @@ model DocumentVersion {
 /// submissão avulsa de documento (`DOCUMENT` — US-065). Uma pendência por etapa/documento (índices
 /// únicos parciais na migração); a decisão é da US-052.
 model Approval {
-  id                   String              @id @db.Uuid
-  tenantId             String              @map("tenant_id") @db.Uuid
-  processId            String              @map("process_id") @db.Uuid
-  subjectType          ApprovalSubjectType @map("subject_type")
-  processStageId       String?             @map("process_stage_id") @db.Uuid
-  documentId           String?             @map("document_id") @db.Uuid
-  title                String              @db.VarChar(200)
-  requestedById        String              @map("requested_by_id") @db.Uuid
-  requestedAt          DateTime            @default(now()) @map("requested_at") @db.Timestamptz(6)
-  requestComment       String?             @map("request_comment")
-  approverType         ApproverType        @map("approver_type")
-  approverUserId       String?             @map("approver_user_id") @db.Uuid
-  approverRoleId       String?             @map("approver_role_id") @db.Uuid
-  approverDepartmentId String?             @map("approver_department_id") @db.Uuid
-  allowDeputy          Boolean             @map("allow_deputy")
-  dueAt                DateTime?           @map("due_at") @db.Timestamptz(6)
-  status               ApprovalStatus      @default(PENDING)
+  id                   String                 @id @db.Uuid
+  tenantId             String                 @map("tenant_id") @db.Uuid
+  processId            String                 @map("process_id") @db.Uuid
+  subjectType          ApprovalSubjectType    @map("subject_type")
+  processStageId       String?                @map("process_stage_id") @db.Uuid
+  documentId           String?                @map("document_id") @db.Uuid
+  title                String                 @db.VarChar(200)
+  requestedById        String                 @map("requested_by_id") @db.Uuid
+  requestedAt          DateTime               @default(now()) @map("requested_at") @db.Timestamptz(6)
+  requestComment       String?                @map("request_comment")
+  approverType         ApproverType           @map("approver_type")
+  approverUserId       String?                @map("approver_user_id") @db.Uuid
+  approverRoleId       String?                @map("approver_role_id") @db.Uuid
+  approverDepartmentId String?                @map("approver_department_id") @db.Uuid
+  allowDeputy          Boolean                @map("allow_deputy")
+  dueAt                DateTime?              @map("due_at") @db.Timestamptz(6)
+  status               ApprovalStatus         @default(PENDING)
   decision             ApprovalDecision?
-  decidedById          String?             @map("decided_by_id") @db.Uuid
-  decidedAt            DateTime?           @map("decided_at") @db.Timestamptz(6)
-  decisionComment      String?             @map("decision_comment")
-  decidedAsDeputy      Boolean             @default(false) @map("decided_as_deputy")
-  canceledAt           DateTime?           @map("canceled_at") @db.Timestamptz(6)
-  canceledById         String?             @map("canceled_by_id") @db.Uuid
-  cancellationReason   String?             @map("cancellation_reason")
-  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById          String?             @map("created_by_id") @db.Uuid
-  updatedById          String?             @map("updated_by_id") @db.Uuid
-  version              Int                 @default(1)
+  decidedById          String?                @map("decided_by_id") @db.Uuid
+  decidedAt            DateTime?              @map("decided_at") @db.Timestamptz(6)
+  decisionComment      String?                @map("decision_comment")
+  decidedAsDeputy      Boolean                @default(false) @map("decided_as_deputy")
+  canceledAt           DateTime?              @map("canceled_at") @db.Timestamptz(6)
+  canceledById         String?                @map("canceled_by_id") @db.Uuid
+  cancellationReason   String?                @map("cancellation_reason")
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById          String?                @map("created_by_id") @db.Uuid
+  updatedById          String?                @map("updated_by_id") @db.Uuid
+  version              Int                    @default(1)
   /// US-133 (M2-02): política copiada da etapa ou da `approvalPolicy` na solicitação.
   decisionPolicy       ApprovalDecisionPolicy @default(ANY) @map("decision_policy")
 
@@ -2192,39 +2238,39 @@ enum TreatmentStatus {
 /// (`scaleSnapshot` — RN-RISK-04). FKs compostas, checks (`score = probability * impact`), gatilho
 /// de colunas imutáveis e RLS ficam em SQL bruto na migração. Exclusão só lógica.
 model Risk {
-  id                  String      @id @db.Uuid
-  tenantId            String      @map("tenant_id") @db.Uuid
-  processId           String      @map("process_id") @db.Uuid
-  code                String      @db.VarChar(10)
-  title               String      @db.VarChar(200)
+  id                  String     @id @db.Uuid
+  tenantId            String     @map("tenant_id") @db.Uuid
+  processId           String     @map("process_id") @db.Uuid
+  code                String     @db.VarChar(10)
+  title               String     @db.VarChar(200)
   description         String?
-  categoryId          String      @map("category_id") @db.Uuid
+  categoryId          String     @map("category_id") @db.Uuid
   phase               RiskPhase
   cause               String
   consequence         String
-  probability         Int         @db.SmallInt
-  impact              Int         @db.SmallInt
-  score               Int         @db.SmallInt
+  probability         Int        @db.SmallInt
+  impact              Int        @db.SmallInt
+  score               Int        @db.SmallInt
   level               RiskLevel
-  scaleSnapshot       Json        @map("scale_snapshot")
-  ownerId             String?     @map("owner_id") @db.Uuid
-  ownerDepartmentId   String?     @map("owner_department_id") @db.Uuid
-  status              RiskStatus  @default(OPEN)
-  residualProbability Int?        @map("residual_probability") @db.SmallInt
-  residualImpact      Int?        @map("residual_impact") @db.SmallInt
-  residualScore       Int?        @map("residual_score") @db.SmallInt
-  residualLevel       RiskLevel?  @map("residual_level")
-  sortOrder           Int         @default(0) @map("sort_order")
-  aiGenerationId      String?     @map("ai_generation_id") @db.Uuid
-  aiReviewedAt        DateTime?   @map("ai_reviewed_at") @db.Timestamptz(6)
-  aiReviewedById      String?     @map("ai_reviewed_by_id") @db.Uuid
-  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  createdById         String?     @map("created_by_id") @db.Uuid
-  updatedById         String?     @map("updated_by_id") @db.Uuid
-  deletedAt           DateTime?   @map("deleted_at") @db.Timestamptz(6)
-  deletedById         String?     @map("deleted_by_id") @db.Uuid
-  version             Int         @default(1)
+  scaleSnapshot       Json       @map("scale_snapshot")
+  ownerId             String?    @map("owner_id") @db.Uuid
+  ownerDepartmentId   String?    @map("owner_department_id") @db.Uuid
+  status              RiskStatus @default(OPEN)
+  residualProbability Int?       @map("residual_probability") @db.SmallInt
+  residualImpact      Int?       @map("residual_impact") @db.SmallInt
+  residualScore       Int?       @map("residual_score") @db.SmallInt
+  residualLevel       RiskLevel? @map("residual_level")
+  sortOrder           Int        @default(0) @map("sort_order")
+  aiGenerationId      String?    @map("ai_generation_id") @db.Uuid
+  aiReviewedAt        DateTime?  @map("ai_reviewed_at") @db.Timestamptz(6)
+  aiReviewedById      String?    @map("ai_reviewed_by_id") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdById         String?    @map("created_by_id") @db.Uuid
+  updatedById         String?    @map("updated_by_id") @db.Uuid
+  deletedAt           DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  deletedById         String?    @map("deleted_by_id") @db.Uuid
+  version             Int        @default(1)
 
   @@unique([tenantId, id], map: "risks_tenant_id_id_key")
   @@unique([tenantId, processId, code], map: "risks_code_key")

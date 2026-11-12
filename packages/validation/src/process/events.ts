@@ -19,6 +19,9 @@ import { STAGE_TYPES } from '../workflow/workflow.js';
 
 const uuid = z.uuid();
 
+/** Máximo de ramos de um bloco (≤ 10 esperados — story · Performance; folga para a definição). */
+export const BRANCHES_MAX = 20;
+
 export const ProcessCreated = defineDomainEvent({
   eventType: 'ProcessCreated',
   eventVersion: 1,
@@ -201,8 +204,124 @@ export const ProcessStageChanged = defineDomainEvent({
     hasComment: z.boolean(),
     /** Aprovação aberta pela entrada em etapa `APPROVAL` (US-051). */
     approvalId: uuid.nullable(),
+    /** US-124 (aditivo · DEC-194): ramo da passagem de destino; ausente/nulo fora do paralelismo. */
+    branchKey: z.string().min(1).max(60).nullable().optional(),
+    /** US-124: a `ProcessStage` do `PARALLEL_SPLIT` que abriu o ramo. */
+    splitProcessStageId: uuid.nullable().optional(),
+    /** US-124: etapas ativas `TASK`/`APPROVAL` do processo DEPOIS do fato (events.md MVP 2 §2). */
+    activeStageIds: z.array(uuid).max(BRANCHES_MAX).optional(),
+    /**
+     * US-124 (RN-WF2-27): unidades que continuam com etapa ativa depois do fato — o
+     * `ProcessAccessProjector` não lhes retira o `CURRENT` (outro ramo segue na mesma unidade).
+     */
+    activeDepartmentIds: z.array(uuid).max(BRANCHES_MAX).optional(),
   }),
   routingKey: (payload) => `process.stage_changed.${payload.cause.toLowerCase()}`,
+});
+
+/* US-124 — ramos paralelos (events.md MVP 2 §4.1 · DEC-194 · ADR-005). Só ids, chaves e prazos. */
+
+const branchKeySchema = z.string().min(1).max(60);
+
+/**
+ * `ProcessBranchesOpened` (US-124 · RN-WF2-13): o processo entrou no `PARALLEL_SPLIT` — uma
+ * `ProcessStage` ativa e um `ProcessBranch` `OPEN` por ramo, gravados com o movimento único
+ * `movementId` (etapa anterior → split). Consumidores: `TimelineProjector` (`BRANCHES_OPENED`) e
+ * `ProcessAccessProjector` (`CURRENT` por ramo, `RESPONSIBLE` por responsável) no mesmo `tx`; no
+ * worker, `PARALLEL_BRANCH_RECEIVED` por ramo.
+ */
+export const ProcessBranchesOpened = defineDomainEvent({
+  eventType: 'ProcessBranchesOpened',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    movementId: uuid,
+    splitProcessStageId: uuid,
+    splitStageKey: z.string().min(1).max(60),
+    branches: z
+      .array(
+        z.strictObject({
+          branchKey: branchKeySchema,
+          processStageId: uuid,
+          stageKey: z.string().min(1).max(60),
+          departmentId: uuid,
+          toUserId: uuid.nullable().optional(),
+          dueAt: z.iso.datetime({ offset: true }).nullable().optional(),
+        }),
+      )
+      .min(1)
+      .max(BRANCHES_MAX),
+  }),
+  routingKey: 'process.branches_opened',
+});
+
+/**
+ * `ProcessBranchArrived` (US-124 · RN-WF2-20): a última etapa do ramo foi concluída rumo ao
+ * `PARALLEL_JOIN` (`openBranchesLeft` = ramos ainda `OPEN`). Consumidor: `TimelineProjector`
+ * (`BRANCH_ARRIVED`).
+ */
+export const ProcessBranchArrived = defineDomainEvent({
+  eventType: 'ProcessBranchArrived',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    splitProcessStageId: uuid,
+    branchKey: branchKeySchema,
+    /** A passagem do ramo que chegou (nome congelado na timeline). */
+    processStageId: uuid,
+    movementId: uuid,
+    openBranchesLeft: z.number().int().min(0).max(BRANCHES_MAX),
+  }),
+  routingKey: 'process.branch_arrived',
+});
+
+/**
+ * `ProcessBranchesJoined` (US-124 · RN-WF2-21): o último ramo chegou e a junção foi feita NA MESMA
+ * transação — o processo seguiu para `nextStage`. Consumidores: `TimelineProjector`
+ * (`BRANCHES_JOINED`) e `ProcessAccessProjector` (os `CURRENT` dos ramos viram `HISTORICAL`) no
+ * mesmo `tx`; no worker, `PARALLEL_BRANCHES_JOINED`.
+ */
+export const ProcessBranchesJoined = defineDomainEvent({
+  eventType: 'ProcessBranchesJoined',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    splitProcessStageId: uuid,
+    joinProcessStageId: uuid,
+    nextStage: z.strictObject({
+      processStageId: uuid,
+      key: z.string().min(1).max(60),
+      type: z.enum(STAGE_TYPES),
+    }),
+    toDepartmentId: uuid,
+    /** Responsável da etapa seguinte; `null` = fila da unidade. */
+    toUserId: uuid.nullable().optional(),
+    /** Unidades dos ramos encerrados (perdem o `CURRENT`, ganham o `HISTORICAL` — RN-WF2-27). */
+    branchDepartmentIds: z.array(uuid).max(BRANCHES_MAX).optional(),
+  }),
+  routingKey: 'process.branches_joined',
+});
+
+/**
+ * `ProcessBranchesCanceled` (US-124 · RN-WF2-23): a devolução para antes da ramificação cancelou os
+ * ramos `OPEN` e as aprovações pendentes deles. Consumidores: `TimelineProjector`
+ * (`BRANCHES_CANCELED`) e `ProcessAccessProjector` (os `CURRENT` dos ramos viram `HISTORICAL`).
+ */
+export const ProcessBranchesCanceled = defineDomainEvent({
+  eventType: 'ProcessBranchesCanceled',
+  eventVersion: 1,
+  aggregateType: 'Process',
+  payload: z.strictObject({
+    splitProcessStageId: uuid,
+    canceledBranchKeys: z.array(branchKeySchema).max(BRANCHES_MAX),
+    canceledApprovalIds: z.array(uuid).max(BRANCHES_MAX * 5),
+    movementId: uuid,
+    /** A passagem reaberta pela devolução (nome congelado na timeline). */
+    toProcessStageId: uuid,
+    /** Unidades dos ramos cancelados (perdem o `CURRENT` — RN-WF2-27). */
+    branchDepartmentIds: z.array(uuid).max(BRANCHES_MAX).optional(),
+  }),
+  routingKey: 'process.branches_canceled',
 });
 
 /* US-055 — prazos da etapa (events.md §4.1): emitidos só pelo job `deadlines` (ator `SYSTEM`). */
