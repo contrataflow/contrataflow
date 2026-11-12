@@ -84,6 +84,48 @@ function targetDateOverdueSql(today: string): Prisma.Sql {
     AND NOT (p.status = ANY(${[...FINAL_PROCESS_STATUSES]}::process_status[])), FALSE)`;
 }
 
+/**
+ * US-125 (RN-WF2-36): alguma etapa ATIVA de ramo do processo atende `condition` (alias `bs`). Fora
+ * do paralelismo não há etapa de ramo ativa — o filtro volta a ser o do MVP 1. Usa o índice
+ * `process_stages_active_idx`.
+ */
+function anyBranchStage(condition: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`EXISTS (SELECT 1 FROM process_stages bs
+                    WHERE bs.tenant_id = p.tenant_id AND bs.process_id = p.id
+                      AND bs.status = 'ACTIVE' AND bs.branch_key IS NOT NULL AND ${condition})`;
+}
+
+/** O processo OU qualquer etapa ativa de ramo (`column` × `branchColumn`) está na lista. */
+function processOrBranchIn(
+  column: Prisma.Sql,
+  branchColumn: Prisma.Sql,
+  ids: readonly string[],
+): Prisma.Sql {
+  if (ids.length === 0) return SQL_FALSE;
+  return Prisma.sql`(${uuidIn(column, ids)} OR ${anyBranchStage(uuidIn(branchColumn, ids))})`;
+}
+
+/** Responsável (RN-PROC-20 + US-125): `ids` OU `none`, no processo ou em qualquer etapa de ramo. */
+function responsibleSql(filter: { readonly ids: readonly string[]; readonly none: boolean }) {
+  const parts: Prisma.Sql[] = [];
+  if (filter.ids.length > 0) {
+    parts.push(
+      processOrBranchIn(
+        Prisma.sql`p.current_responsible_id`,
+        Prisma.sql`bs.assignee_id`,
+        filter.ids,
+      ),
+    );
+  }
+  if (filter.none) {
+    parts.push(
+      Prisma.sql`((p.current_responsible_id IS NULL AND NOT ${anyBranchStage(Prisma.sql`TRUE`)})
+                  OR ${anyBranchStage(Prisma.sql`bs.assignee_id IS NULL`)})`,
+    );
+  }
+  return parts.length === 0 ? SQL_FALSE : Prisma.sql`(${Prisma.join(parts, ' OR ')})`;
+}
+
 /** Condições do `WHERE` além da visibilidade (RN-PROC-20..25 · RN-PROC-31). */
 export function criteriaSql(
   criteria: ProcessListCriteria,
@@ -98,15 +140,33 @@ export function criteriaSql(
   if (criteria.statuses !== null) {
     where.push(Prisma.sql`p.status = ANY(${[...criteria.statuses]}::process_status[])`);
   }
-  list(Prisma.sql`p.current_workflow_stage_id`, criteria.stageIdsByKey);
-  list(Prisma.sql`p.current_workflow_stage_id`, criteria.currentWorkflowStageIds);
-  list(Prisma.sql`p.current_department_id`, criteria.currentDepartmentIds);
+  // US-125 (RN-WF2-36): etapa, unidade e responsável casam com qualquer etapa ativa.
+  const anyStage = (
+    column: Prisma.Sql,
+    branchColumn: Prisma.Sql,
+    ids: readonly string[] | null,
+  ) => {
+    if (ids !== null) where.push(processOrBranchIn(column, branchColumn, ids));
+  };
+  anyStage(
+    Prisma.sql`p.current_workflow_stage_id`,
+    Prisma.sql`bs.workflow_stage_id`,
+    criteria.stageIdsByKey,
+  );
+  anyStage(
+    Prisma.sql`p.current_workflow_stage_id`,
+    Prisma.sql`bs.workflow_stage_id`,
+    criteria.currentWorkflowStageIds,
+  );
+  anyStage(
+    Prisma.sql`p.current_department_id`,
+    Prisma.sql`bs.department_id`,
+    criteria.currentDepartmentIds,
+  );
   list(Prisma.sql`p.requesting_secretariat_id`, criteria.requestingSecretariatIds);
   list(Prisma.sql`p.requesting_department_id`, criteria.requestingDepartmentIds);
   list(Prisma.sql`p.organization_id`, criteria.organizationIds);
-  if (criteria.responsible !== null) {
-    where.push(idsOrNone(Prisma.sql`p.current_responsible_id`, criteria.responsible));
-  }
+  if (criteria.responsible !== null) where.push(responsibleSql(criteria.responsible));
   if (criteria.priorities !== null) {
     where.push(Prisma.sql`p.priority = ANY(${[...criteria.priorities] as Priority[]}::priority[])`);
   }
@@ -272,7 +332,9 @@ const ROW_COLUMNS = Prisma.sql`f.id, f.organization_id, f.number, f.year, f.code
                f.is_budget_confidential, f.can_view_budget,
                CASE WHEN f.can_view_budget THEN f.estimated_value::text END AS estimated_value,
                f.target_date, f.opened_at, f.created_at, f.updated_at,
-               s.sla_type::text AS sla_type, s.paused_at AS stage_paused_at`;
+               s.sla_type::text AS sla_type, s.paused_at AS stage_paused_at,
+               COALESCE(s.status = 'ACTIVE' AND s.stage_type = 'PARALLEL_SPLIT', FALSE)
+                 AS in_branching`;
 
 const ACTIVE_STAGE_JOIN = Prisma.sql`LEFT JOIN process_stages s
             ON s.tenant_id = current_setting('app.tenant_id')::uuid AND s.id = f.current_stage_id`;
@@ -344,6 +406,7 @@ export interface ProcessListDbRow {
   readonly updated_at: Date;
   readonly sla_type: DayCountType | null;
   readonly stage_paused_at: Date | null;
+  readonly in_branching: boolean;
 }
 
 export function toProcessListRow(
@@ -379,5 +442,6 @@ export function toProcessListRow(
     tagIds: [],
     slaType: row.sla_type,
     stagePausedAt: row.stage_paused_at,
+    inBranching: row.in_branching,
   };
 }

@@ -50,6 +50,7 @@ import { ListSearchField } from '@/components/lists/list-search-field';
 import { ListSortSelect } from '@/components/lists/list-sort-select';
 import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
+import { BranchLabelChip, SiblingsSummary } from '@/features/process-actions/branch-summary';
 import { claimProcess } from '@/features/process-claim/process-claim.api';
 import { ConfidentialBadge } from '@/features/process-list/process-list-badges';
 import {
@@ -65,6 +66,7 @@ import {
   EMPTY_SELECTION,
   isFull,
   isSelectable,
+  rowKeyOf,
   selectedItemOf,
   togglePage,
   toggleSelection,
@@ -531,7 +533,7 @@ function InboxTable({
   const approvals = view === 'PENDING_APPROVALS';
   const selectable = bulk === null ? [] : items.filter(isSelectable).map(selectedItemOf);
   const selectedOnPage =
-    bulk === null ? 0 : selectable.filter((item) => bulk.selection.has(item.processId)).length;
+    bulk === null ? 0 : selectable.filter((item) => bulk.selection.has(item.key)).length;
   const pageSelected = selectable.length > 0 && selectedOnPage === selectable.length;
   return (
     <Table className="md:min-w-[52rem]">
@@ -566,7 +568,7 @@ function InboxTable({
           const code = item.code ?? t('table.noCode');
           return (
             <Tr
-              key={item.id}
+              key={rowKeyOf(item)}
               className="max-md:relative max-md:flex max-md:flex-col max-md:gap-1.5 max-md:p-4 max-md:pr-14"
             >
               {bulk === null ? null : (
@@ -574,8 +576,8 @@ function InboxTable({
                   {isSelectable(item) ? (
                     <Checkbox
                       aria-label={t('bulk.selectRow', { code: item.code ?? item.title })}
-                      checked={bulk.selection.has(item.processId)}
-                      disabled={!bulk.selection.has(item.processId) && isFull(bulk.selection)}
+                      checked={bulk.selection.has(rowKeyOf(item))}
+                      disabled={!bulk.selection.has(rowKeyOf(item)) && isFull(bulk.selection)}
                       onCheckedChange={() => {
                         bulk.onChange(toggleSelection(bulk.selection, selectedItemOf(item)));
                       }}
@@ -619,7 +621,12 @@ function InboxTable({
               ) : null}
               <Td className={CELL}>
                 <span className="md:sr-only">{t('table.stage')}: </span>
-                {item.currentStage?.name ?? t('table.noStage')}
+                <span className="inline-flex flex-col gap-1">
+                  <span>{item.currentStage?.name ?? t('table.noStage')}</span>
+                  {/* US-125 (RN-WF2-30): o ramo da linha e os outros ramos do processo. */}
+                  <BranchLabelChip label={item.branchLabel} />
+                  <SiblingsSummary siblings={item.siblings} more={item.siblingsMore} />
+                </span>
               </Td>
               <Td className={`${CELL} max-md:text-muted-foreground`}>
                 <span className="md:sr-only">{t('table.department')}: </span>
@@ -719,13 +726,13 @@ function RowMenu({
         </DropdownMenuItem>
         {item.canClaim ? (
           <DropdownMenuItem
-            disabled={quickClaim.claimingId === item.processId}
+            disabled={quickClaim.claimingId === rowKeyOf(item)}
             aria-label={t('claim.actionLabel', { code: item.code ?? item.title })}
             onSelect={() => {
               void quickClaim.claim(item);
             }}
           >
-            {quickClaim.claimingId === item.processId ? t('claim.claiming') : t('claim.menu')}
+            {quickClaim.claimingId === rowKeyOf(item) ? t('claim.claiming') : t('claim.menu')}
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
@@ -760,9 +767,15 @@ function useQuickClaim(): QuickClaim {
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const claim = async (item: TaskInboxItemDto) => {
     if (claimingId !== null) return;
-    setClaimingId(item.processId);
+    setClaimingId(rowKeyOf(item));
     try {
-      await claimProcess(item.processId, item.version, crypto.randomUUID());
+      // US-125 (RN-WF2-32): na linha de um ramo, o PRC-21 recebe a etapa do ramo.
+      await claimProcess(
+        item.processId,
+        item.version,
+        crypto.randomUUID(),
+        (item.branchKey ?? null) === null ? undefined : (item.processStageId ?? undefined),
+      );
       toast({ title: t('claimed'), tone: 'success' });
     } catch (error) {
       const problem = describeQuickClaimError(error);

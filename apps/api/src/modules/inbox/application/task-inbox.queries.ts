@@ -31,6 +31,8 @@ export const INBOX_SLOW_QUERY_MS = 500;
 export interface TaskInboxResult {
   readonly items: TaskInboxItemDto[];
   readonly meta: PageMeta;
+  /** US-125 (`inbox.list`): linhas de ramo da página. */
+  readonly parallelRows: number;
 }
 
 /** Logs, métrica e tradução de falhas comuns às duas consultas. */
@@ -117,10 +119,12 @@ export class GetTaskInboxHandler {
               pageSize: query.pageSize,
               viewer,
               now,
+              branchKey: query.branchKey,
             });
       const items = await this.presenter.present(tx, page.rows, viewer);
       return {
         items,
+        parallelRows: items.filter((item) => (item.branchKey ?? null) !== null).length,
         meta: {
           page: query.page,
           pageSize: query.pageSize,

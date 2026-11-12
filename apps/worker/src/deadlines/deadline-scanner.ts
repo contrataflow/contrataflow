@@ -68,6 +68,8 @@ interface MarkedStageRow {
   readonly department_id: string;
   readonly stage_key: string;
   readonly stage_name: string;
+  /** US-125 (RN-WF2-35): ramo da passagem (nulo no tronco). */
+  readonly branch_key: string | null;
 }
 
 interface DeadlineInstruments {
@@ -253,9 +255,9 @@ export class DeadlineScanner implements JobHandler<Record<string, never>> {
            FROM picked
           WHERE ps.id = picked.id AND ps.tenant_id = $1
           RETURNING ps.id, ps.process_id, ps.workflow_stage_id, ps.due_at, ps.assignee_id,
-                    ps.department_id
+                    ps.department_id, ps.branch_key
        )
-       SELECT m.id, m.process_id, m.due_at, m.assignee_id, m.department_id,
+       SELECT m.id, m.process_id, m.due_at, m.assignee_id, m.department_id, m.branch_key,
               ws.key AS stage_key, ws.name AS stage_name
          FROM marked m
          JOIN workflow_stages ws ON ws.id = m.workflow_stage_id AND ws.tenant_id = $1
@@ -327,9 +329,9 @@ export class DeadlineScanner implements JobHandler<Record<string, never>> {
            FROM picked
           WHERE ps.id = picked.id AND ps.tenant_id = $1
           RETURNING ps.id, ps.process_id, ps.workflow_stage_id, ps.due_at, ps.assignee_id,
-                    ps.department_id
+                    ps.department_id, ps.branch_key
        )
-       SELECT m.id, m.process_id, m.due_at, m.assignee_id, m.department_id,
+       SELECT m.id, m.process_id, m.due_at, m.assignee_id, m.department_id, m.branch_key,
               ws.key AS stage_key, ws.name AS stage_name
          FROM marked m
          JOIN workflow_stages ws ON ws.id = m.workflow_stage_id AND ws.tenant_id = $1
@@ -350,6 +352,10 @@ export class DeadlineScanner implements JobHandler<Record<string, never>> {
   }
 }
 
+/**
+ * Campos comuns dos dois eventos. US-125 (RN-WF2-35): a passagem de ramo leva `branchKey`
+ * (aditivo — a do tronco sai como no MVP 1); destinatário e idempotência continuam por passagem.
+ */
 function stagePayloadOf(row: MarkedStageRow): Record<string, unknown> {
   return {
     processStageId: row.id,
@@ -357,6 +363,7 @@ function stagePayloadOf(row: MarkedStageRow): Record<string, unknown> {
     dueAt: row.due_at.toISOString(),
     assigneeId: row.assignee_id,
     departmentId: row.department_id,
+    ...((row.branch_key ?? null) === null ? {} : { branchKey: row.branch_key }),
   };
 }
 

@@ -18,6 +18,7 @@ import {
   summarizeBulk,
   togglePage,
   toggleSelection,
+  bulkTargetsBody,
   validateBulkAssign,
 } from './task-bulk-model';
 import type { BulkSelectedItem } from './task-bulk-model';
@@ -353,7 +354,9 @@ describe('SCR-013 — Ações em lote na fila da unidade (US-058)', () => {
 
 describe('regras de tela do lote (task-bulk-model)', () => {
   const selected = (n: number, departmentId = UNIT): BulkSelectedItem => ({
+    key: pid(n),
     processId: pid(n),
+    processStageId: null,
     code: `${String(n).padStart(4, '0')}/2026`,
     title: `Processo ${String(n)}`,
     departmentId,
@@ -452,5 +455,44 @@ describe('regras de tela do lote (task-bulk-model)', () => {
     });
     expect(describeBulkError(error(500, 'INTERNAL_ERROR')).kind).toBe('unexpected');
     expect(describeBulkError(new Error('x'))).toEqual({ kind: 'unexpected', correlationId: '—' });
+  });
+
+  it('US-125 (RN-WF2-32): linhas de ramo do mesmo processo são itens distintos e vão em items[]', () => {
+    const branch = (n: number, stage: number): BulkSelectedItem => ({
+      ...selected(n),
+      key: `${pid(n)}:${pid(stage)}`,
+      processStageId: pid(stage),
+    });
+    const plain = togglePage(EMPTY_SELECTION, [selected(1), selected(2)]);
+    expect(bulkTargetsBody(plain)).toEqual({ processIds: [pid(1), pid(2)] });
+    const both = togglePage(EMPTY_SELECTION, [branch(3, 31), branch(3, 32)]);
+    expect(both.size).toBe(2);
+    expect(bulkTargetsBody(both)).toEqual({
+      items: [
+        { processId: pid(3), processStageId: pid(31) },
+        { processId: pid(3), processStageId: pid(32) },
+      ],
+    });
+    const summary = summarizeBulk(
+      {
+        data: [
+          { processId: pid(3), processStageId: pid(31), ok: true },
+          {
+            processId: pid(3),
+            processStageId: pid(32),
+            ok: false,
+            code: 'STAGE_CHANGED',
+            message: 'Este ramo já foi movimentado. Atualize a lista.',
+          },
+        ],
+        meta: { successCount: 1, errorCount: 1 },
+      },
+      both,
+    );
+    expect(summary.succeeded).toEqual([`${pid(3)}:${pid(31)}`]);
+    expect(summary.problems[0]).toMatchObject({
+      key: `${pid(3)}:${pid(32)}`,
+      code: 'STAGE_CHANGED',
+    });
   });
 });

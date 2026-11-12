@@ -1,4 +1,4 @@
-import { approvalProgressOf } from '@contrataflow/validation';
+import { approvalProgressOf, inboxRowKeyOf } from '@contrataflow/validation';
 import type { ApprovalProgressDto, TaskInboxItemDto } from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
@@ -9,8 +9,22 @@ import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
 import { ProcessFacade } from '../../process/application/process.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
-import { canClaim, dueAtOf } from '../domain/task-inbox.js';
+import { canClaim, dueAtOf, rowFocusOf } from '../domain/task-inbox.js';
 import type { InboxItemRow, InboxViewer } from '../domain/task-inbox.js';
+
+/**
+ * US-125: a linha pertence a um processo em ramificação — linha de ramo, mais de uma etapa ativa,
+ * ou a etapa da linha não é a etapa corrente do processo (o split aponta para outra).
+ */
+function inBranching(row: InboxItemRow): boolean {
+  const { process } = row;
+  return (
+    row.stageId !== null ||
+    process.activeStagesCount > 1 ||
+    (process.stageWorkflowStageId !== null &&
+      process.stageWorkflowStageId !== process.currentWorkflowStageId)
+  );
+}
 
 /**
  * Linhas da caixa de tarefas (US-056 · TSK-01): nomes por lote pelas fachadas donas (etapa —
@@ -67,16 +81,24 @@ export class TaskInboxPresenter {
   ): Promise<TaskInboxItemDto[]> {
     if (rows.length === 0) return [];
     const stages = new Map((await this.workflow.releasedStages(tx)).map((s) => [s.id, s]));
+    const focus = rows.map((row) => rowFocusOf(row.process));
     const departmentNames = await this.organization.departmentNames(tx, [
-      ...new Set(rows.map((row) => row.process.currentDepartmentId)),
+      ...new Set(focus.map((row) => row.departmentId)),
     ]);
     const userNames = await this.identity.userDisplayNames(tx, [
       ...new Set(
-        rows.flatMap((row) => [
-          ...(row.process.currentResponsibleId === null ? [] : [row.process.currentResponsibleId]),
-          ...(row.approval === null ? [] : [row.approval.requestedById]),
-        ]),
+        rows.flatMap((row, index) => {
+          const responsibleId = focus[index]?.responsibleId ?? null;
+          return [
+            ...(responsibleId === null ? [] : [responsibleId]),
+            ...(row.approval === null ? [] : [row.approval.requestedById]),
+          ];
+        }),
       ),
+    ]);
+    // US-125 (RN-WF2-30): rótulo do ramo e irmãos, só para os processos em ramificação.
+    const branchViews = await this.processes.branchViewsIn(tx, [
+      ...new Set(rows.filter(inBranching).map((row) => row.process.id)),
     ]);
     const deadlines = await this.processes.stageDeadlinesIn(
       tx,
@@ -91,13 +113,22 @@ export class TaskInboxPresenter {
     const userRef = (id: string) => ({ id, name: userNames.get(id) ?? id });
     return rows.flatMap((row, index) => {
       const deadline = deadlines[index];
-      if (deadline === undefined) return [];
+      const rowFocus = focus[index];
+      if (deadline === undefined || rowFocus === undefined) return [];
       const { process, approval } = row;
+      const view = branchViews.get(process.id);
+      // Etapa da linha: a da versão liberada; no ramo, também a da fotografia do processo.
+      const ownStage = view?.stages.find((candidate) => candidate.processStageId === row.stageId);
       const stage =
-        process.currentWorkflowStageId === null
-          ? undefined
-          : stages.get(process.currentWorkflowStageId);
+        (rowFocus.workflowStageId === null ? undefined : stages.get(rowFocus.workflowStageId)) ??
+        (ownStage === undefined ? undefined : { key: ownStage.stageKey, name: ownStage.stageName });
       const dueAt = dueAtOf(row);
+      const branchKey = row.stageId === null ? null : process.branchKey;
+      const branchLabel = ownStage?.branchLabel ?? null;
+      const siblings =
+        view === undefined
+          ? { siblings: [], siblingsMore: 0 }
+          : this.processes.branchSiblingsOf(view, branchKey);
       const item: TaskInboxItemDto = {
         id: row.key,
         processId: process.id,
@@ -107,11 +138,11 @@ export class TaskInboxPresenter {
         version: process.version,
         currentStage: stage ? { key: stage.key, name: stage.name } : null,
         currentDepartment: {
-          id: process.currentDepartmentId,
-          name: departmentNames.get(process.currentDepartmentId) ?? process.currentDepartmentId,
+          id: rowFocus.departmentId,
+          name: departmentNames.get(rowFocus.departmentId) ?? rowFocus.departmentId,
         },
         currentResponsible:
-          process.currentResponsibleId === null ? null : userRef(process.currentResponsibleId),
+          rowFocus.responsibleId === null ? null : userRef(rowFocus.responsibleId),
         enteredAt: process.enteredAt?.toISOString() ?? null,
         dueAt: dueAt?.toISOString() ?? null,
         isOverdue: process.overdueSince !== null,
@@ -136,6 +167,14 @@ export class TaskInboxPresenter {
                 dueAt: (approval.lineDueAt ?? approval.dueAt)?.toISOString() ?? null,
               },
             }),
+        // US-125 (aditivo · RN-WF2-30).
+        rowKey: approval === null ? inboxRowKeyOf(process.id, row.stageId) : row.key,
+        processStageId: row.stageId ?? (view === undefined ? process.stageId : null),
+        activeStagesCount: process.activeStagesCount,
+        branchKey,
+        branchLabel,
+        siblings: siblings.siblings,
+        siblingsMore: siblings.siblingsMore,
       };
       return [item];
     });

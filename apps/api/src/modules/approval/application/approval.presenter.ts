@@ -4,6 +4,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import type { DecisionSubjectView } from '#shared/approval/approval-subject.js';
 import type { TenantTx } from '#shared/database/prisma.js';
+import { ProcessBranchContextRegistry } from '#shared/process/process-branch-context.js';
+import type { StageBranchContext } from '#shared/process/process-branch-context.js';
 
 import { ApproverResolver } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
@@ -12,6 +14,17 @@ import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
 import type { ApprovalApprover } from '../domain/approval-lines.js';
 import { currentLineOf } from '../domain/approval-list.js';
+
+/** US-125 (aditivo · RN-WF2-37): os campos de ramo, só na aprovação de etapa de ramo. */
+export function branchFieldsOf(context: StageBranchContext | undefined) {
+  if (context === undefined) return {};
+  return {
+    branchKey: context.branchKey,
+    branchLabel: context.branchLabel,
+    siblings: [...context.siblings],
+    siblingsMore: context.siblingsMore,
+  };
+}
 
 /**
  * `Approval` de APV-02/APV-03 (US-052): os nomes de quem solicitou e decidiu, o rótulo do aprovador
@@ -26,6 +39,7 @@ export class ApprovalPresenter {
     @Inject(APPROVAL_REPOSITORY) private readonly approvals: ApprovalRepository,
     private readonly identity: IdentityFacade,
     private readonly resolver: ApproverResolver,
+    private readonly branches: ProcessBranchContextRegistry,
   ) {}
 
   async present(
@@ -44,6 +58,15 @@ export class ApprovalPresenter {
       [approval.requestedById, approval.decidedById].filter((id): id is string => id !== null),
     );
     const person = (id: string) => ({ id, name: names.get(id) ?? null });
+    // US-125 (RN-WF2-37): o ramo da etapa da aprovação e os irmãos (só aprovação de ramo).
+    const branch =
+      approval.processStageId === null
+        ? undefined
+        : (
+            await this.branches.forStages(tx, [
+              { processId: approval.processId, processStageId: approval.processStageId },
+            ])
+          ).get(approval.processStageId);
     return {
       id: approval.id,
       subjectType: approval.subjectType,
@@ -79,6 +102,7 @@ export class ApprovalPresenter {
         current: current === null ? null : { sequence: current.sequence, label: current.label },
       }),
       version: approval.version,
+      ...branchFieldsOf(branch),
     };
   }
 

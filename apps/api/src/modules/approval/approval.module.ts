@@ -9,6 +9,7 @@ import {
   DocumentApprovalModule,
   DocumentApprovalRegistry,
 } from '#shared/document/document-approval.js';
+import { ProcessBranchContextModule } from '#shared/process/process-branch-context.js';
 
 import { ApprovalCancellationService } from './application/approval-cancellation.service.js';
 import { ApprovalDecisionPolicy } from './application/approval-decision.policy.js';
@@ -65,6 +66,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     DocumentApprovalModule,
     ApprovalSubjectModule,
     ProcessAccessModule,
+    ProcessBranchContextModule,
     AccessModule,
     CatalogModule,
     IdentityModule,

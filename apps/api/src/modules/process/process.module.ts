@@ -19,6 +19,10 @@ import {
 import { SYNC_EVENT_HANDLERS } from '#shared/outbox/outbox-writer.js';
 import type { SyncEventHandlerRegistryPort } from '#shared/outbox/outbox-writer.js';
 import {
+  ProcessBranchContextModule,
+  ProcessBranchContextRegistry,
+} from '#shared/process/process-branch-context.js';
+import {
   ProcessItemCatalogModule,
   ProcessItemCatalogRegistry,
 } from '#shared/process/process-item-catalog.js';
@@ -56,6 +60,7 @@ import {
   GetAvailableActionsHandler,
 } from './application/process-actions.queries.js';
 import { ProcessAttachmentTargets } from './application/process-attachment-targets.js';
+import { ProcessBranchViews } from './application/process-branch-views.js';
 import { ProcessBranchReader } from './application/process-branches.queries.js';
 import {
   CancelProcessCommand,
@@ -225,6 +230,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     ProcessItemUsageModule,
     ProcessItemCatalogModule,
     ApprovalSubjectModule,
+    ProcessBranchContextModule,
   ],
   controllers: [
     // US-003: `/processes/export` antes de `/processes/:id`.
@@ -302,6 +308,7 @@ const inMemory = (config: AppConfig) => config.oidc.fakeSigningKey !== null;
     // US-124: leituras dos ramos (PRC-04/08/39).
     GetProcessBranchesQuery,
     ProcessBranchReader,
+    ProcessBranchViews,
     ConfidentialViewRecorder,
     GetAvailableActionsHandler,
     EvaluateStageRulesHandler,
@@ -419,6 +426,8 @@ export class ProcessModule implements OnModuleInit {
     private readonly itemCatalogLoader: ProcessItemCatalogLoader,
     private readonly approvalSubjects: ApprovalSubjectRegistry,
     private readonly approvalSubject: ProcessApprovalSubjectHandler,
+    private readonly branchContexts: ProcessBranchContextRegistry,
+    private readonly branchViews: ProcessBranchViews,
   ) {}
 
   onModuleInit(): void {
@@ -435,5 +444,7 @@ export class ProcessModule implements OnModuleInit {
     this.itemCatalog.register(this.itemCatalogLoader);
     // US-052: o dono do sujeito `PROCESS_STAGE` da decisão de aprovação (etapa, status, documentos).
     this.approvalSubjects.register(this.approvalSubject);
+    // US-125: o ramo da etapa lido pelas aprovações (APV-01/APV-02).
+    this.branchContexts.register(this.branchViews);
   }
 }

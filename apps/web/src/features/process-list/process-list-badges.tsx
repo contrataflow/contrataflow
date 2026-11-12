@@ -1,4 +1,5 @@
-import type { Priority, ProcessDeadlineDto } from '@contrataflow/validation';
+import { StatusChip } from '@contrataflow/ui';
+import type { CompactActiveStageDto, Priority, ProcessDeadlineDto } from '@contrataflow/validation';
 import { useTranslations } from 'next-intl';
 
 /*
@@ -181,4 +182,28 @@ export function formatBrl(decimal: string): string {
   const [whole = '0', cents = '00'] = decimal.split('.');
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `R$ ${grouped},${cents.padEnd(2, '0').slice(0, 2)}`;
+}
+
+/**
+ * `ProcessStageChips` (US-125): as etapas ativas do processo em ramificação, uma por chip, com o
+ * atraso dito em texto (nunca só cor).
+ */
+export function ProcessStageChips({
+  stages,
+}: {
+  readonly stages: readonly CompactActiveStageDto[];
+}) {
+  const t = useTranslations('processActions.branchReads');
+  return (
+    <span
+      className="inline-flex flex-wrap gap-1"
+      aria-label={t('stagesLabel', { list: stages.map((stage) => stage.stageName).join(' · ') })}
+    >
+      {stages.map((stage) => (
+        <StatusChip key={stage.processStageId} tone={stage.isOverdue ? 'danger' : 'info'}>
+          {stage.isOverdue ? `${stage.stageName} (${t('overdue')})` : stage.stageName}
+        </StatusChip>
+      ))}
+    </span>
+  );
 }

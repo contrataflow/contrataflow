@@ -308,7 +308,7 @@ Contrato original: [mvp-01/api/03-documents.md](../../mvp-01/api/03-documents.md
 
 ### PRC-01 — GET `/processes` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:
-- **US-125:** request MVP 1; filtros por etapa/unidade/responsável casam com qualquer etapa ativa → response `ProcessListItem` + `activeStages[]` compacto, `activeStagesCount`, `deadline` pelo menor `dueAt` (+ `criticalStage`) · códigos 200, 403, 422
+- **US-125:** request MVP 1; filtros por etapa/unidade/responsável casam com qualquer etapa ativa → response `ProcessListItem` + `activeStages[]` compacto, `activeStagesCount`, `deadline` pelo menor `dueAt` (+ `criticalStage`) · códigos 200, 403, 422. Implementado (spec-648): `activeStages[] { processStageId, stageKey, stageName, branchKey, branchLabel, departmentName, dueAt, isOverdue }`, `activeStagesCount` e `deadline.criticalStage { processStageId, branchKey, stageName }` só no paralelismo; `currentResponsibleId=none` no paralelismo casa quando algum ramo está na fila
 
 ### PRC-04 — GET `/processes/{id}` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:
@@ -316,7 +316,7 @@ Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md
 
 ### PRC-07 — GET `/processes/{id}/summary` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:
-- **US-125:** request — → response MVP 1 + `where.stages[]`, `responsible.byStage[]`, `nextStep.byStage[]`, `pending.items[].processStageId/branchKey`, `approvals[].branchKey`, `deadline.criticalStage` · códigos 200, 404
+- **US-125:** request — → response MVP 1 + `where.stages[]`, `responsible.byStage[]`, `nextStep.byStage[]`, `pending.items[].processStageId/branchKey`, `approvals[].branchKey`, `deadline.criticalStage` · códigos 200, 404. Implementado (spec-648), só no paralelismo: `where.stages[]` = `ActiveStage` + `branchLabel` + `isMine`; `where.branches[] { branchKey, branchLabel, status: OPEN|ARRIVED, arrivedAt }`; `responsible.byStage[] { processStageId, branchKey, user, queueDepartment, since }`; `nextStep.byStage[] { processStageId, branchKey, branchLabel, stageName, isMine, action, waitingFor { stageName, departmentName } }`
 
 ### PRC-08 — GET `/processes/{id}/available-actions` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md). Mudanças do MVP 2, todas aditivas:
@@ -365,7 +365,7 @@ Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md
 
 ### TSK-01 — GET `/tasks` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
-- **US-125:** request MVP 1 + `branchKey?` (filtro opcional) → response Linha por etapa ativa com `rowKey`, `processStageId`, `branchKey`, `branchLabel`, `activeStagesCount`, `siblings[]`, `siblingsMore` (RN-WF2-30) · códigos 200, 403, 422
+- **US-125:** request MVP 1 + `branchKey?` (filtro opcional) → response Linha por etapa ativa com `rowKey`, `processStageId`, `branchKey`, `branchLabel`, `activeStagesCount`, `siblings[]`, `siblingsMore` (RN-WF2-30) · códigos 200, 403, 422. Implementado (spec-648): os campos saem em todas as linhas (tronco: `rowKey = processId`, ramo nulo); `siblings[] { branchKey, branchLabel, stageName, status: OPEN|ARRIVED, isOverdue }`; `FOLLOWING` uma linha por processo, sem ramo
 - **US-136:** request `?view=PENDING_APPROVALS&page=&pageSize=&sort=` (MVP 1) → response `data[]` do MVP 1; em `PENDING_APPROVALS`, `id` = `approvalApproverId` e `approval { id, approvalApproverId, sequence, decisionPolicy, progress, title, subjectType, requestedBy, requestedAt, dueAt }` (aditivo; lê `v_inbox_pending_approvals_v2`; `dueAt` = o da linha, senão o da aprovação); `process` nulo em assunto `PCA` (pendente — EP-023) · códigos 200, 401, 403, 422, 429, 500, 503
 - **US-137:** request `view=PENDING_APPROVALS` → response `approval.dueAt` com o prazo próprio da aprovação avulsa (antes, o da etapa) · códigos 200, 401, 403, 422, 429, 503
 
@@ -376,7 +376,7 @@ Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approv
 
 ### TSK-03 — POST `/tasks/bulk-claim` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
-- **US-125:** request `processIds` **ou** `items: [{ processId, processStageId }]` (2–50); `Idempotency-Key` → response `200 { data: [{ processId, processStageId?, ok, code?, message?, process? }], meta: { successCount, errorCount } }` · códigos 200, 403, 422
+- **US-125:** request `processIds` **ou** `items: [{ processId, processStageId }]` (2–50); `Idempotency-Key` → response `200 { data: [{ processId, processStageId?, ok, code?, message?, process? }], meta: { successCount, errorCount } }` · códigos 200, 403, 422. Implementado (spec-648): os dois formatos juntos → `VALIDATION_ERROR` `NOT_ALLOWED` em `items`; nenhum → `REQUIRED` em `processIds`; par repetido → `DUPLICATE_IN_LIST`; `processStageId` no resultado quando o item veio em `items[]`; item de etapa já movimentada → `STAGE_CHANGED`
 
 ### TSK-04 — POST `/tasks/bulk-assign` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:

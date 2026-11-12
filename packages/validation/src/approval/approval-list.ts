@@ -12,6 +12,7 @@ import { APPROVER_TYPES } from '../document/document-type.js';
 import { pageMetaSchema, pageQuerySchema } from '../http/pagination.js';
 import { APPROVAL_STATUSES } from '../process/process-actions.js';
 import type { ApprovalStatus } from '../process/process-actions.js';
+import { branchRowFields } from '../process/process-branch-views.js';
 
 /*
  * Lista de aprovações (US-057 · APV-01 · SCR-014): as `Approval` da cobertura de aprovador do
@@ -192,6 +193,8 @@ export const approvalListItemSchema = z
     myLine: approvalListMyLineSchema.nullable().optional(),
     /** US-136 (aditivo): o rótulo da linha corrente em `SEQUENTIAL` pendente; senão `null`. */
     currentApprover: z.object({ label: z.string() }).nullable().optional(),
+    /** US-125 (aditivo · RN-WF2-37): o ramo da etapa da aprovação e os outros ramos. */
+    ...branchRowFields,
   })
   .meta({ id: 'ApprovalListItem' });
 export type ApprovalListItemDto = z.infer<typeof approvalListItemSchema>;

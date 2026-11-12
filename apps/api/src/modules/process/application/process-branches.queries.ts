@@ -289,7 +289,7 @@ export class ProcessBranchReader {
 }
 
 /** Visão focada do runtime numa passagem ativa (RN-WF2-17 — custódia e status da etapa). */
-function focusRuntime(runtime: ProcessRuntime, pass: ProcessStagePass): ProcessRuntime {
+export function focusRuntime(runtime: ProcessRuntime, pass: ProcessStagePass): ProcessRuntime {
   return {
     ...runtime,
     status: stageStatusOf(runtime.status, {

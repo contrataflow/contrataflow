@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { PROCESS_STATUSES } from './process-actions.js';
 import type { ProcessStatus } from './process-actions.js';
+import { compactActiveStageSchema, criticalStageSchema } from './process-branch-views.js';
 import { PRIORITIES } from './process.js';
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
 import { DAY_COUNT_TYPES } from '../document/document-type.js';
@@ -309,6 +310,11 @@ export const processDeadlineSchema = z
     isOverdue: z.boolean(),
     /** Etapa ativa com o prazo pausado (processo suspenso). */
     isPaused: z.boolean(),
+    /**
+     * US-125 (aditivo · RN-WF2-34): no paralelismo, a etapa do menor `dueAt` (o prazo do
+     * processo); ausente fora da ramificação.
+     */
+    criticalStage: criticalStageSchema.optional(),
   })
   .meta({ id: 'ProcessDeadline' });
 export type ProcessDeadlineDto = z.infer<typeof processDeadlineSchema>;
@@ -355,6 +361,12 @@ export const processListItemSchema = z
     openedAt: isoDateTimeSchema.nullable(),
     createdAt: isoDateTimeSchema,
     updatedAt: isoDateTimeSchema,
+    /**
+     * US-125 (aditivo · RN-WF2-36): no paralelismo, as etapas ativas (chips da coluna "Etapa") e a
+     * contagem; ausentes fora da ramificação (`currentStage` aponta para o split).
+     */
+    activeStages: z.array(compactActiveStageSchema).optional(),
+    activeStagesCount: z.int().min(0).optional(),
   })
   .meta({ id: 'ProcessListItem' });
 export type ProcessListItemDto = z.infer<typeof processListItemSchema>;

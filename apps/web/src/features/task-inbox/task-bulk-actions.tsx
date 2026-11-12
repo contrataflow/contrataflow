@@ -29,6 +29,7 @@ import { tenantKey } from '@/lib/query/keys';
 import { useTenantId } from '@/lib/session/session-context';
 
 import {
+  bulkTargetsBody,
   canSubmit,
   describeBulkError,
   isFull,
@@ -116,8 +117,8 @@ export function TaskBulkActions({
 
   const claimSelected = () => {
     setConfirming(false);
-    const ids = [...selection.keys()];
-    void run('claim', (key) => bulkClaim(ids, key));
+    const body = bulkTargetsBody(selection);
+    void run('claim', (key) => bulkClaim(body, key));
   };
 
   return (
@@ -216,10 +217,10 @@ export function TaskBulkActions({
           }}
           onSubmit={(draft) => {
             setAssigning(false);
-            const ids = [...selection.keys()];
+            const targets = bulkTargetsBody(selection);
             void run('assign', (key) =>
               bulkAssign(
-                { processIds: ids, assigneeId: draft.assigneeId, reason: draft.reason.trim() },
+                { ...targets, assigneeId: draft.assigneeId, reason: draft.reason.trim() },
                 key,
               ),
             );
@@ -265,7 +266,7 @@ function BulkResultSummary({
           </summary>
           <ul className="mt-1 list-disc ps-5 text-sm">
             {summary.problems.map((problem) => (
-              <li key={problem.processId}>{itemMessage(t, problem)}</li>
+              <li key={problem.key}>{itemMessage(t, problem)}</li>
             ))}
           </ul>
         </details>

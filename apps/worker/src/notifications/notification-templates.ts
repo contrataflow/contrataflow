@@ -31,6 +31,8 @@ export interface StageTemplateInput {
   readonly dueDate: string | null;
   /** `dd/mm/aaaa às HH:mm` do registro do atraso (`overdueSince`). */
   readonly overdueSince: string | null;
+  /** US-125: rótulo do ramo da passagem (ausente fora do paralelismo). */
+  readonly branchLabel?: string;
 }
 
 type Template = (input: TemplateInput) => NotificationContent;
@@ -41,7 +43,8 @@ const grouped = (body: string, count: number) =>
 
 /** "da etapa “Análise jurídica”" — sem o nome (passagem não encontrada), "de uma etapa". */
 const ofStage = (stage: StageTemplateInput | undefined) =>
-  stage?.name ? `da etapa “${stage.name}”` : 'de uma etapa';
+  (stage?.name ? `da etapa “${stage.name}”` : 'de uma etapa') +
+  (stage?.branchLabel ? ` do ramo “${stage.branchLabel}”` : '');
 
 const onDate = (date: string | null | undefined) => (date ? ` em ${date}` : '');
 

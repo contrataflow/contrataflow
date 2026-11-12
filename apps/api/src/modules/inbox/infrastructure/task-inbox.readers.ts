@@ -61,6 +61,10 @@ function toProcessRow(row: Omit<TaskInboxDbRow, 'total'>): InboxProcessRow {
     assignmentDepartmentId: row.assignment_department_id,
     assigneeId: row.assignee_id,
     assignmentType: row.assignment_type,
+    branchKey: row.branch_key,
+    stageWorkflowStageId: row.stage_workflow_stage_id,
+    stageDepartmentId: row.stage_department_id,
+    activeStagesCount: row.active_stages_count,
   };
 }
 
@@ -96,6 +100,8 @@ function toApprovalRow(row: Omit<TaskInboxDbRow, 'total'>): InboxApprovalRow | n
     approverRoleId: row.approver_role_id,
     approverDepartmentId: row.approver_department_id,
     allowDeputy: row.allow_deputy ?? false,
+    processStageId: row.approval_process_stage_id,
+    branchKey: row.approval_branch_key,
   };
 }
 
@@ -110,7 +116,14 @@ export class PrismaInboxReader implements InboxReader {
       rows: rows.flatMap((row) =>
         row.row_key === null
           ? []
-          : [{ key: row.row_key, process: toProcessRow(row), approval: toApprovalRow(row) }],
+          : [
+              {
+                key: row.row_key,
+                process: toProcessRow(row),
+                approval: toApprovalRow(row),
+                stageId: row.row_stage_id,
+              },
+            ],
       ),
     };
   }
@@ -157,10 +170,13 @@ export class InMemoryInboxReader implements InboxReader {
     this.participations.push(...(input.participations ?? []));
   }
 
-  /** Troca a linha do processo (ex.: depois de "Assumir"). */
+  /** Troca a linha do processo — a da mesma etapa, no paralelismo (ex.: depois de "Assumir"). */
   replaceProcess(row: InboxProcessRow): void {
     const index = this.processes.findIndex(
-      (process) => process.tenantId === row.tenantId && process.id === row.id,
+      (process) =>
+        process.tenantId === row.tenantId &&
+        process.id === row.id &&
+        (row.branchKey === null || process.stageId === row.stageId),
     );
     if (index >= 0) this.processes[index] = { ...this.processes[index], ...row };
   }
@@ -172,7 +188,7 @@ export class InMemoryInboxReader implements InboxReader {
   }
 
   page(_tx: TenantTx, search: InboxPageSearch): Promise<InboxPage> {
-    const items = this.items(search.view, search.viewer, search.now).sort(
+    const items = this.items(search.view, search.viewer, search.now, null, search.branchKey).sort(
       compareItems(search.sort),
     );
     const start = (search.page - 1) * search.pageSize;
@@ -199,6 +215,7 @@ export class InMemoryInboxReader implements InboxReader {
     viewer: InboxViewer,
     now: Date,
     restriction: InboxProcessRestriction | null = null,
+    branchKey: string | null = null,
   ): InboxItemRow[] {
     const tenantId = currentRequestContext()?.tenantId ?? null;
     const inTenant = <T extends { readonly tenantId: string }>(rows: readonly T[]) =>
@@ -217,6 +234,7 @@ export class InMemoryInboxReader implements InboxReader {
       },
       viewer,
       now,
+      branchKey,
     );
   }
 }

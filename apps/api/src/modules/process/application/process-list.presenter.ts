@@ -6,6 +6,8 @@ import type { TenantTx } from '#shared/database/prisma.js';
 
 import { PROCESS_CLOCK, TAG_REPOSITORY } from './ports.js';
 import type { ProcessClock, ProcessListRow, TagRepository } from './ports.js';
+import { ProcessBranchViews } from './process-branch-views.js';
+import type { ProcessBranchView } from './process-branch-views.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { CatalogFacade } from '../../catalog/application/catalog.facade.js';
 import type { CatalogItemRef } from '../../catalog/application/catalog.facade.js';
@@ -14,6 +16,7 @@ import { OrganizationFacade } from '../../organization/application/organization.
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { ReleasedStage } from '../../workflow/application/workflow.facade.js';
+import { criticalStageDtoOf } from '../domain/branch-views.js';
 import { deadlineDateRange, isProcessOverdue, stageDeadline } from '../domain/process-list.js';
 import type { StageDeadlineInput } from '../domain/process-list.js';
 
@@ -61,6 +64,7 @@ export class ProcessListPresenter {
     private readonly organization: OrganizationFacade,
     private readonly catalog: CatalogFacade,
     private readonly identity: IdentityFacade,
+    private readonly branchViews: ProcessBranchViews,
   ) {}
 
   /** Só o que o DTO `deadline` precisa (US-056: linhas da caixa de tarefas). */
@@ -111,12 +115,18 @@ export class ProcessListPresenter {
     context: ProcessListContext,
   ): Promise<ProcessListItemDto[]> {
     if (rows.length === 0) return [];
+    // US-125 (RN-WF2-34/36): as etapas ativas dos processos em ramificação (só eles).
+    const views = await this.branchViews.ofProcesses(
+      tx,
+      rows.filter((row) => row.inBranching).map((row) => row.id),
+    );
     const departmentNames = await this.organization.departmentNames(tx, [
       ...new Set(
         rows.flatMap((row) => [
           row.requestingSecretariatId,
           row.requestingDepartmentId,
           row.currentDepartmentId,
+          ...(views.get(row.id)?.stages.map((stage) => stage.departmentId) ?? []),
         ]),
       ),
     ]);
@@ -143,13 +153,8 @@ export class ProcessListPresenter {
       rows.map((row) => row.id),
     );
     const stageById = new Map(context.stages.map((stage) => [stage.id, stage]));
-    const inputOf = (row: ProcessListRow): StageDeadlineInput => ({
-      dueAt: row.currentStageDueAt,
-      slaType: row.slaType,
-      isPaused: row.stagePausedAt !== null,
-      isOverdue: isProcessOverdue(row, context.now),
-      overdueSince: row.overdueSince,
-    });
+    const inputOf = (row: ProcessListRow): StageDeadlineInput =>
+      deadlineInputOf(row, views.get(row.id), context.now);
     const deadlineOf = await this.deadlineCalculator(tx, rows.map(inputOf), context);
     const unit = (id: string) => ({ id, name: departmentNames.get(id) ?? id });
     const catalogRef = (id: string) => {
@@ -160,6 +165,9 @@ export class ProcessListPresenter {
       const stage =
         row.currentWorkflowStageId === null ? undefined : stageById.get(row.currentWorkflowStageId);
       const masked = row.isBudgetConfidential && !row.canViewBudget;
+      const view = views.get(row.id);
+      const critical = view?.critical ?? null;
+      const deadline = deadlineOf(inputOf(row));
       return {
         id: row.id,
         code: row.code,
@@ -184,7 +192,10 @@ export class ProcessListPresenter {
                 id: row.currentResponsibleId,
                 name: userNames.get(row.currentResponsibleId) ?? row.currentResponsibleId,
               },
-        deadline: deadlineOf(inputOf(row)),
+        deadline:
+          critical === null
+            ? deadline
+            : { ...deadline, criticalStage: criticalStageDtoOf(critical) },
         contractingType: catalogRef(row.contractingTypeId),
         modality: row.modalityId === null ? null : catalogRef(row.modalityId),
         origin: catalogRef(row.originId),
@@ -202,6 +213,22 @@ export class ProcessListPresenter {
         openedAt: row.openedAt?.toISOString() ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+        // US-125 (aditivo · RN-WF2-36): só no paralelismo.
+        ...(view === undefined
+          ? {}
+          : {
+              activeStages: view.stages.map((active) => ({
+                processStageId: active.processStageId,
+                stageKey: active.stageKey,
+                stageName: active.stageName,
+                branchKey: active.branchKey,
+                branchLabel: active.branchLabel,
+                departmentName: departmentNames.get(active.departmentId) ?? active.departmentId,
+                dueAt: active.dueAt?.toISOString() ?? null,
+                isOverdue: active.isOverdue,
+              })),
+              activeStagesCount: view.stages.length,
+            }),
       };
     });
   }
@@ -228,4 +255,25 @@ export class ProcessListPresenter {
     };
     return (input) => stageDeadline(input, calendar);
   }
+}
+
+/**
+ * Entrada do DTO `deadline` da linha (US-002). US-125 (RN-WF2-34): no paralelismo o prazo é o menor
+ * `dueAt` (`currentStageDueAt` já o guarda — US-124) e o tipo de contagem e a pausa são os da etapa
+ * crítica; o atraso continua o do processo (qualquer etapa atrasada).
+ */
+function deadlineInputOf(
+  row: ProcessListRow,
+  view: ProcessBranchView | undefined,
+  now: Date,
+): StageDeadlineInput {
+  const critical = view?.critical ?? null;
+  return {
+    dueAt: critical?.dueAt ?? row.currentStageDueAt,
+    slaType: critical === null ? row.slaType : critical.slaType,
+    isPaused: (critical === null ? row.stagePausedAt : critical.pausedAt) !== null,
+    isOverdue:
+      isProcessOverdue(row, now) || (view?.stages.some((stage) => stage.isOverdue) ?? false),
+    overdueSince: row.overdueSince,
+  };
 }

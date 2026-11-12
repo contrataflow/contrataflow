@@ -25,6 +25,8 @@ interface FakeStage {
   overdueSince: Date | null;
   overdueNotifiedAt: Date | null;
   dueSoonNotifiedAt: Date | null;
+  /** US-125: ramo da passagem (ausente no tronco). */
+  branchKey?: string | null;
 }
 
 let sequence = 0;
@@ -69,6 +71,7 @@ function fakeDatabase(stages: FakeStage[], settings: Record<string, unknown> = {
     department_id: DEPARTMENT,
     stage_key: 'estudos_preliminares',
     stage_name: 'Estudos preliminares',
+    branch_key: s.branchKey ?? null,
   });
   const eligible = (s: FakeStage) => s.status === 'ACTIVE' && s.pausedAt === null && s.dueAt;
   const dueOf = (s: FakeStage) => s.dueAt?.getTime() ?? Number.NaN;
@@ -383,5 +386,39 @@ describe('DeadlineScanner — deadlines.scan-tenant (US-055)', () => {
   it('job sem tenant é ignorado', async () => {
     const db = fakeDatabase([]);
     expect(await scanner().handle({}, contextOf(db.client, null))).toBe('skipped');
+  });
+});
+
+describe('US-125 — alertas por ramo (RN-WF2-35)', () => {
+  it('[Sucesso] Cada etapa de ramo é avaliada: atraso de um ramo e aviso do outro, uma única vez, com branchKey', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    // JURIDICO venceu na sexta; CONTROLE_INTERNO vence na quarta (2 dias úteis — RN-TRAM-82).
+    const juridico = stage({ dueAt: endOf('2026-10-16'), branchKey: 'JURIDICO' });
+    const controle = stage({ dueAt: endOf('2026-10-21'), branchKey: 'CONTROLE_INTERNO' });
+    const db = fakeDatabase([juridico, controle]);
+
+    expect(await scanner().handle({}, contextOf(db.client))).toBe('completed');
+    expect(await scanner().handle({}, contextOf(db.client))).toBe('completed');
+
+    expect(juridico.overdueSince).toEqual(NOW);
+    expect(controle.overdueSince).toBeNull();
+    expect(db.outbox.map((row) => [row.eventType, row.payload.branchKey])).toEqual([
+      ['ProcessStageOverdue', 'JURIDICO'],
+      ['ProcessStageDueSoon', 'CONTROLE_INTERNO'],
+    ]);
+    for (const row of db.outbox) {
+      expect(() => DOMAIN_EVENT_DEFINITIONS[row.eventType]?.resolve(row.payload)).not.toThrow();
+    }
+    // O processo aparece atrasado: `processes.overdue_since` marcado pelo ramo atrasado.
+    expect(db.processesMarked).toEqual([[TENANT, NOW, [PROCESS]]]);
+  });
+
+  it('[Compatibilidade] Passagem do tronco: o payload do MVP 1, sem branchKey', async () => {
+    vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const db = fakeDatabase([stage({ dueAt: endOf('2026-10-16') })]);
+
+    await scanner().handle({}, contextOf(db.client));
+
+    expect(db.outbox[0]?.payload).not.toHaveProperty('branchKey');
   });
 });

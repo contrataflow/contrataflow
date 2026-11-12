@@ -19,10 +19,17 @@ export interface BulkItemFailure {
   readonly message: string;
 }
 
+/** US-125: `processStageId` acompanha o item enviado no formato `items[]`. */
 export type BulkItemResult<P> =
-  | { readonly processId: string; readonly ok: true; readonly process: P }
   | {
       readonly processId: string;
+      readonly processStageId?: string;
+      readonly ok: true;
+      readonly process: P;
+    }
+  | {
+      readonly processId: string;
+      readonly processStageId?: string;
       readonly ok: false;
       readonly code: string;
       readonly message: string;

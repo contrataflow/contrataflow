@@ -246,6 +246,8 @@ export class AssignProcessCommand extends TransactionalCommandHandler<
       metadata: {
         processCode: updated.code,
         processStageId: active.id,
+        // US-125: o ramo da etapa assumida/atribuída (só no paralelismo).
+        ...(active.branchKey === null ? {} : { branchKey: active.branchKey }),
         movementId: plan.movement.id,
         fromUserId,
         toUserId: assigneeId,

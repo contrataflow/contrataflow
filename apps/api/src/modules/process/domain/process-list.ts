@@ -106,6 +106,18 @@ export interface ProcessListFacts {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly tagIds: readonly string[];
+  /**
+   * US-125 (RN-WF2-36): as etapas ativas de ramo (só no paralelismo) — os filtros de etapa,
+   * unidade e responsável casam com QUALQUER etapa ativa. Ausente/vazio = processo sem ramos.
+   */
+  readonly branchStages?: readonly BranchStageFacts[];
+}
+
+/** Uma etapa ativa de ramo como os filtros da lista a enxergam (US-125). */
+export interface BranchStageFacts {
+  readonly workflowStageId: string;
+  readonly departmentId: string;
+  readonly assigneeId: string | null;
 }
 
 /** Contexto de avaliação dos critérios dependentes do relógio e do fuso. */
@@ -193,26 +205,43 @@ export function matchesCriteria(
 ): boolean {
   if (criteria.search !== null && searchRank(facts, criteria.search) === null) return false;
   if (!inList(criteria.statuses, facts.status)) return false;
-  if (
-    criteria.stageIdsByKey !== null &&
-    !criteria.stageIdsByKey.includes(facts.currentWorkflowStageId ?? '')
-  ) {
-    return false;
-  }
+  // US-125 (RN-WF2-36): etapa, unidade e responsável casam com o processo OU com qualquer etapa
+  // ativa de ramo.
+  const branches = facts.branchStages ?? [];
+  const stageMatches = (ids: readonly string[]) =>
+    ids.includes(facts.currentWorkflowStageId ?? '') ||
+    branches.some((stage) => ids.includes(stage.workflowStageId));
+  if (criteria.stageIdsByKey !== null && !stageMatches(criteria.stageIdsByKey)) return false;
   if (
     criteria.currentWorkflowStageIds !== null &&
-    !criteria.currentWorkflowStageIds.includes(facts.currentWorkflowStageId ?? '')
+    !stageMatches(criteria.currentWorkflowStageIds)
   ) {
     return false;
   }
-  if (!inList(criteria.currentDepartmentIds, facts.currentDepartmentId)) return false;
+  const departments = criteria.currentDepartmentIds;
+  if (
+    departments !== null &&
+    !departments.includes(facts.currentDepartmentId) &&
+    !branches.some((stage) => departments.includes(stage.departmentId))
+  ) {
+    return false;
+  }
   if (!inList(criteria.requestingSecretariatIds, facts.requestingSecretariatId)) return false;
   if (!inList(criteria.requestingDepartmentIds, facts.requestingDepartmentId)) return false;
   if (!inList(criteria.organizationIds, facts.organizationId)) return false;
   if (criteria.responsible !== null) {
     const { ids, none } = criteria.responsible;
     const responsible = facts.currentResponsibleId;
-    if (!(responsible === null ? none : ids.includes(responsible))) return false;
+    const matches =
+      branches.length === 0
+        ? responsible === null
+          ? none
+          : ids.includes(responsible)
+        : (responsible !== null && ids.includes(responsible)) ||
+          branches.some((stage) =>
+            stage.assigneeId === null ? none : ids.includes(stage.assigneeId),
+          );
+    if (!matches) return false;
   }
   if (!inList(criteria.priorities, facts.priority)) return false;
   if (!inList(criteria.contractingTypeIds, facts.contractingTypeId)) return false;

@@ -250,6 +250,8 @@ export class NotificationDispatcher implements JobHandler<NotificationJobPayload
       name: details.stageName,
       dueDate: formatTenantDate(ref.dueAt, details.timezone),
       overdueSince: formatTenantDateTime(ref.overdueSince, details.timezone),
+      // US-125 (RN-WF2-35): o aviso de um ramo cita o rótulo do ramo.
+      ...(details.branchLabel === undefined ? {} : { branchLabel: details.branchLabel }),
     };
     return (groupCount) => notificationContent(plan.type, { groupCount, stage });
   }

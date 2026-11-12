@@ -317,6 +317,56 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     });
   });
 
+  it('US-125: uma linha por ramo com o chip do ramo e os outros ramos; "Assumir" envia a etapa do ramo', async () => {
+    const user = userEvent.setup();
+    const branchRow = (stage: number, label: string, sibling: string) =>
+      item(12, {
+        canClaim: true,
+        currentResponsible: null,
+        version: 7,
+        rowKey: `${pid(12)}:${pid(stage)}`,
+        processStageId: pid(stage),
+        branchKey: label.toUpperCase().replace(' ', '_'),
+        branchLabel: label,
+        activeStagesCount: 2,
+        currentStage: { key: 'ETAPA', name: label },
+        siblings: [
+          {
+            branchKey: 'OUTRO',
+            branchLabel: sibling,
+            stageName: sibling,
+            status: 'OPEN',
+            isOverdue: stage === 21,
+          },
+        ],
+        siblingsMore: 0,
+      });
+    const fetchMock = mockApi({
+      list: (url) =>
+        url.searchParams.get('view') === 'UNIT_QUEUE'
+          ? page([
+              branchRow(21, 'Controle interno', 'Análise jurídica'),
+              branchRow(22, 'Análise jurídica', 'Controle interno'),
+            ])
+          : page([item(1)]),
+    });
+    renderPage();
+    await user.click(await screen.findByRole('tab', { name: /Na fila da minha unidade/ }));
+    // O mesmo processo em duas linhas (chave por ramo), cada uma com o seu ramo (texto, não só cor).
+    expect(await screen.findByText('Ramo: Controle interno')).toBeTruthy();
+    expect(screen.getByText('Ramo: Análise jurídica')).toBeTruthy();
+    expect(screen.getByText('Também em andamento: Análise jurídica (atrasado)')).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Aquisição de materiais 12' })).toHaveLength(2);
+    const [first] = screen.getAllByRole('button', { name: 'Ações de 0012/2026' });
+    if (!first) throw new Error('menu ausente');
+    await user.click(first);
+    await user.click(await screen.findByRole('menuitem', { name: 'Assumir o processo 0012/2026' }));
+    expect((await screen.findAllByText('Você assumiu este processo.')).length).toBeGreaterThan(0);
+    const [claimCall] = calls(fetchMock, `/api/v1/processes/${pid(12)}/claim`);
+    expect(JSON.parse(claimCall?.init?.body as string)).toEqual({ processStageId: pid(21) });
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
   it('FA-04: outro usuário assumiu antes → aviso e a lista é recarregada', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({

@@ -13,9 +13,16 @@ import { isApiError } from '@/lib/api/api-error';
  * em cada recusa do lote inteiro (tabela "Casos de erro").
  */
 
-/** O que a seleção guarda de cada linha (sobrevive à troca de página e ao polling). */
+/**
+ * O que a seleção guarda de cada linha (sobrevive à troca de página e ao polling). US-125: a
+ * chave é a da LINHA (`rowKey` — um processo pode ter uma linha por ramo); a linha de ramo leva a
+ * etapa (`processStageId`), e o lote passa a ir no formato `items[]` (RN-WF2-32).
+ */
 export interface BulkSelectedItem {
+  readonly key: string;
   readonly processId: string;
+  /** Etapa da linha de ramo; `null` na linha do processo (MVP 1). */
+  readonly processStageId: string | null;
   readonly code: string | null;
   readonly title: string;
   readonly departmentId: string;
@@ -30,12 +37,42 @@ export function isSelectable(item: TaskInboxItemDto): boolean {
   return item.currentResponsible === null;
 }
 
+/** Chave da linha na seleção (US-125): o `rowKey` da API; o processo nas respostas do MVP 1. */
+export function rowKeyOf(item: Pick<TaskInboxItemDto, 'rowKey' | 'processId'>): string {
+  return item.rowKey ?? item.processId;
+}
+
 export function selectedItemOf(item: TaskInboxItemDto): BulkSelectedItem {
+  const branched = (item.branchKey ?? null) !== null;
   return {
+    key: rowKeyOf(item),
     processId: item.processId,
+    processStageId: branched ? (item.processStageId ?? null) : null,
     code: item.code,
     title: item.title,
     departmentId: item.currentDepartment.id,
+  };
+}
+
+/**
+ * O corpo do lote (RN-WF2-32): só linhas do processo → `processIds` (MVP 1); com alguma linha de
+ * ramo → `items[]` com o par processo/etapa de cada linha.
+ */
+export function bulkTargetsBody(
+  selection: BulkSelection,
+):
+  | { readonly processIds: string[] }
+  | { readonly items: { readonly processId: string; readonly processStageId: string }[] } {
+  const selected = [...selection.values()];
+  if (selected.every((item) => item.processStageId === null)) {
+    return { processIds: selected.map((item) => item.processId) };
+  }
+  return {
+    items: selected.flatMap((item) =>
+      item.processStageId === null
+        ? []
+        : [{ processId: item.processId, processStageId: item.processStageId }],
+    ),
   };
 }
 
@@ -47,8 +84,8 @@ export function isFull(selection: BulkSelection): boolean {
 /** Marca/desmarca uma linha; acima de 50 não marca (FA-01). */
 export function toggleSelection(selection: BulkSelection, item: BulkSelectedItem): BulkSelection {
   const next = new Map(selection);
-  if (next.has(item.processId)) next.delete(item.processId);
-  else if (!isFull(selection)) next.set(item.processId, item);
+  if (next.has(item.key)) next.delete(item.key);
+  else if (!isFull(selection)) next.set(item.key, item);
   return next;
 }
 
@@ -58,13 +95,13 @@ export function togglePage(
   items: readonly BulkSelectedItem[],
 ): BulkSelection {
   const next = new Map(selection);
-  if (items.length > 0 && items.every((item) => next.has(item.processId))) {
-    for (const item of items) next.delete(item.processId);
+  if (items.length > 0 && items.every((item) => next.has(item.key))) {
+    for (const item of items) next.delete(item.key);
     return next;
   }
   for (const item of items) {
     if (next.size >= TASK_BULK_LIMITS.max) break;
-    next.set(item.processId, item);
+    next.set(item.key, item);
   }
   return next;
 }
@@ -111,6 +148,8 @@ export function validateBulkAssign(draft: BulkAssignDraft): BulkAssignErrors {
 export type BulkOutcomeKind = 'success' | 'partial' | 'failure';
 
 export interface BulkItemProblem {
+  /** Chave da linha na seleção (US-125: um processo pode ter duas linhas no lote). */
+  readonly key: string;
   readonly processId: string;
   /** Código do processo (ou o título, quando ainda sem número). */
   readonly label: string;
@@ -124,8 +163,19 @@ export interface BulkSummary {
   readonly successCount: number;
   readonly errorCount: number;
   readonly problems: readonly BulkItemProblem[];
-  /** Os bem-sucedidos (saem da fila e da seleção). */
+  /** As chaves das linhas bem-sucedidas (saem da fila e da seleção). */
   readonly succeeded: readonly string[];
+}
+
+/** A chave da seleção de um resultado: a linha do ramo (`items[]`) ou o processo. */
+function resultKeyOf(item: BulkResultResponse['data'][number], selection: BulkSelection): string {
+  const byStage = [...selection.values()].find(
+    (selected) =>
+      selected.processId === item.processId &&
+      item.processStageId !== undefined &&
+      selected.processStageId === item.processStageId,
+  );
+  return byStage?.key ?? item.processId;
 }
 
 /** FA-02: todos falharam = falha total, a lista fica como está. */
@@ -136,12 +186,14 @@ export function summarizeBulk(result: BulkResultResponse, selection: BulkSelecti
     total: result.data.length,
     successCount,
     errorCount,
-    succeeded: result.data.filter((item) => item.ok).map((item) => item.processId),
+    succeeded: result.data.filter((item) => item.ok).map((item) => resultKeyOf(item, selection)),
     problems: result.data
       .filter((item) => !item.ok)
       .map((item) => {
-        const selected = selection.get(item.processId);
+        const key = resultKeyOf(item, selection);
+        const selected = selection.get(key);
         return {
+          key,
           processId: item.processId,
           label: selected?.code ?? selected?.title ?? item.processId,
           code: item.code ?? 'INTERNAL_ERROR',

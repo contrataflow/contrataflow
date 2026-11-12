@@ -28,7 +28,9 @@ import type {
   TagRepository,
 } from './ports.js';
 import { executionStateOf } from './process-actions.queries.js';
-import { ProcessBranchReader } from './process-branches.queries.js';
+import { ProcessBranchViews } from './process-branch-views.js';
+import type { ProcessBranchView } from './process-branch-views.js';
+import { ProcessBranchReader, focusRuntime } from './process-branches.queries.js';
 import { ProcessRuntimeLoader } from './process-runtime.loader.js';
 import { ProcessViewerResolver, engineViewerFor } from './process-viewer.js';
 import type { ResolvedViewer } from './process-viewer.js';
@@ -43,6 +45,8 @@ import { OrganizationFacade } from '../../organization/application/organization.
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
 import type { WorkflowSnapshot } from '../../workflow/application/workflow.facade.js';
+import { criticalStageDtoOf } from '../domain/branch-views.js';
+import { parallelSummaryOf } from '../domain/parallel-summary.js';
 import {
   canViewConfidentialBudget,
   deadlineDateRange,
@@ -203,6 +207,7 @@ export class GetProcessSummaryQuery {
     private readonly tenancy: TenancyFacade,
     private readonly calendar: BusinessCalendarFacade,
     private readonly confidentialViews: ConfidentialViewRecorder,
+    private readonly branchViews: ProcessBranchViews,
   ) {}
 
   execute(processId: string): Promise<ProcessSummaryDto> {
@@ -257,17 +262,23 @@ export class GetProcessSummaryQuery {
     const approvals = await timed('approvals', () =>
       this.panel.pendingApprovals(tx, processId, viewer),
     );
+    // US-125 (RN-WF2-33): no paralelismo, as etapas ativas lado a lado; fora dele, `null`.
+    const branchView = final ? null : await this.branchViews.ofRows(tx, rows);
+    const branchOfStage = new Map(rows.stages.map((pass) => [pass.id, pass.branchKey]));
 
     const now = this.clock();
     const timezone = await this.calendar.timezone(tx);
     const today = localDateOf(now, timezone);
     const departmentNames = await this.organization.departmentNames(tx, [
       process.currentDepartmentId,
+      ...(branchView?.stages.map((stage) => stage.departmentId) ?? []),
     ]);
-    const userNames = await this.identity.userDisplayNames(
-      tx,
-      process.currentResponsibleId === null ? [] : [process.currentResponsibleId],
-    );
+    const userNames = await this.identity.userDisplayNames(tx, [
+      ...(process.currentResponsibleId === null ? [] : [process.currentResponsibleId]),
+      ...(branchView?.stages.flatMap((stage) =>
+        stage.assigneeId === null ? [] : [stage.assigneeId],
+      ) ?? []),
+    ]);
     const organization = await this.tenancy.organizationSummary(tx, process.organizationId);
     const primaryOrganizationId = await this.tenancy.primaryOrganizationId(tx);
     const masked = process.isBudgetConfidential && !canSeeBudget;
@@ -280,6 +291,23 @@ export class GetProcessSummaryQuery {
     const approvalOfStage =
       approvals.find((approval) => approval.processStageId === process.currentStageId) ??
       approvals[0];
+    const parallel =
+      branchView === null
+        ? null
+        : parallelSummaryOf({
+            status: process.status,
+            stages: branchView.stages,
+            branches: branchView.branches,
+            viewer: { userId: viewer.engine.userId, departmentIds: viewer.engine.departmentIds },
+            actions,
+            approvals: panelApprovals,
+            departmentName: (id) => departmentNames.get(id) ?? id,
+            userName: (id) => userNames.get(id) ?? id,
+          });
+    const pending =
+      branchView === null
+        ? pendingOf(violations, documents)
+        : await this.pendingByStage(tx, runtime, branchView, documents);
 
     const summary: ProcessSummaryDto = {
       header: {
@@ -314,6 +342,9 @@ export class GetProcessSummaryQuery {
         completedAt: situation.completedAt?.toISOString() ?? null,
         canceledAt: situation.canceledAt?.toISOString() ?? null,
         cancellationReason: situation.cancellationReason,
+        ...(parallel === null
+          ? {}
+          : { stages: parallel.whereStages, branches: parallel.whereBranches }),
       },
       responsible: {
         user:
@@ -338,8 +369,9 @@ export class GetProcessSummaryQuery {
                 isMine: approvalOfStage.isMine,
               }
             : null,
+        ...(parallel === null ? {} : { byStage: parallel.responsibleByStage }),
       },
-      pending: pendingOf(violations, documents),
+      pending,
       nextStep: {
         action: selectPrimaryAction({
           status: process.status,
@@ -347,10 +379,17 @@ export class GetProcessSummaryQuery {
           approvals: panelApprovals,
         }),
         instructions: stage?.instructions ?? null,
+        ...(parallel === null ? {} : { byStage: parallel.nextStepByStage }),
       },
       deadline: final
         ? null
-        : await this.deadlineOf(tx, rows, stage?.slaType ?? null, { now, today, timezone }),
+        : await this.deadlineOf(
+            tx,
+            rows,
+            stage?.slaType ?? null,
+            { now, today, timezone },
+            branchView,
+          ),
       target: targetOf(process.targetDate, process.status, today),
       documents,
       approvals: approvals.map((approval): SummaryApproval => ({
@@ -361,6 +400,15 @@ export class GetProcessSummaryQuery {
         dueAt: approval.dueAt?.toISOString() ?? null,
         isOverdue: approval.dueAt !== null && approval.dueAt.getTime() < now.getTime(),
         isMine: approval.isMine,
+        // US-125 (aditivo): o ramo da etapa da aprovação, só no paralelismo.
+        ...(branchView === null
+          ? {}
+          : {
+              branchKey:
+                approval.processStageId === null
+                  ? null
+                  : (branchOfStage.get(approval.processStageId) ?? null),
+            }),
       })),
       counts: {
         documents: documents.length,
@@ -374,27 +422,69 @@ export class GetProcessSummaryQuery {
     return { summary, rulesEvaluated: rulesOfStage(definition, process.currentWorkflowStageId) };
   }
 
-  /** DTO `deadline` da etapa ativa (US-002 — `StageDeadlineCalculator`). */
+  /**
+   * US-125 (RN-WF2-33): pendências de cada etapa ativa no paralelismo — as regras rodam sobre a
+   * visão focada do ramo (as mesmas do PRC-08) e cada item leva a etapa e o ramo.
+   */
+  private async pendingByStage(
+    tx: TenantTx,
+    runtime: ProcessRuntime,
+    view: ProcessBranchView,
+    documents: readonly SummaryDocument[],
+  ): Promise<ProcessSummaryDto['pending']> {
+    const items: ProcessSummaryDto['pending']['items'] = [];
+    for (const stage of view.stages) {
+      const pass = runtime.passes.find(
+        (candidate) => candidate.processStageId === stage.processStageId,
+      );
+      if (pass === undefined) continue;
+      const violations = await this.workflow.evaluateRules(
+        tx,
+        executionStateOf(focusRuntime(runtime, pass)),
+      );
+      for (const item of pendingOf(violations, documents).items) {
+        items.push({ ...item, processStageId: stage.processStageId, branchKey: stage.branchKey });
+      }
+    }
+    return {
+      blockingCount: items.filter((item) => item.severity === 'BLOCKING').length,
+      warningCount: items.filter((item) => item.severity === 'WARNING').length,
+      items,
+    };
+  }
+
+  /**
+   * DTO `deadline` da etapa ativa (US-002 — `StageDeadlineCalculator`). US-125 (RN-WF2-34): no
+   * paralelismo, o menor `dueAt` entre as etapas ativas (com a etapa crítica), o tipo de contagem
+   * e a pausa dela; atrasado se QUALQUER etapa ativa estiver atrasada.
+   */
   private async deadlineOf(
     tx: TenantTx,
     rows: ProcessAggregateRows,
     stageSlaType: StageDeadlineInput['slaType'],
     clock: { readonly now: Date; readonly today: string; readonly timezone: string },
+    view: ProcessBranchView | null = null,
   ) {
     const { process, situation } = rows;
-    const active = rows.stages.find((pass) => pass.status === 'ACTIVE');
+    const critical = view?.critical ?? null;
+    const active =
+      critical === null
+        ? rows.stages.find((pass) => pass.status === 'ACTIVE')
+        : rows.stages.find((pass) => pass.id === critical.processStageId);
     const input: StageDeadlineInput = {
-      dueAt: process.currentStageDueAt,
+      dueAt: critical?.dueAt ?? process.currentStageDueAt,
       slaType: active?.slaType ?? stageSlaType,
       isPaused: (active?.pausedAt ?? null) !== null || process.status === 'SUSPENDED',
-      isOverdue: isProcessOverdue(
-        {
-          status: process.status,
-          overdueSince: situation.overdueSince,
-          currentStageDueAt: process.currentStageDueAt,
-        },
-        clock.now,
-      ),
+      isOverdue:
+        isProcessOverdue(
+          {
+            status: process.status,
+            overdueSince: situation.overdueSince,
+            currentStageDueAt: process.currentStageDueAt,
+          },
+          clock.now,
+        ) ||
+        (view?.stages.some((stage) => stage.isOverdue) ?? false),
       overdueSince: situation.overdueSince,
     };
     const localDate = (instant: Date) => localDateOf(instant, clock.timezone);
@@ -403,12 +493,15 @@ export class GetProcessSummaryQuery {
       await this.calendar.listBusinessDaysBetween(tx, range.from, range.to),
     );
     const warn = (await this.tenancy.settingValues(tx, [WARN_SETTING])).get(WARN_SETTING);
-    return stageDeadline(input, {
+    const deadline = stageDeadline(input, {
       today: clock.today,
       localDate,
       isBusinessDay: (date) => businessDays.has(date),
       warnBeforeBusinessDays: typeof warn === 'number' ? warn : 2,
     });
+    return critical === null
+      ? deadline
+      : { ...deadline, criticalStage: criticalStageDtoOf(critical) };
   }
 
   /** `info process.summary` e `warn process.summary_slow` — nunca título, valores nem instruções. */

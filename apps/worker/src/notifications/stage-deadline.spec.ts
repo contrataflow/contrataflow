@@ -7,6 +7,7 @@ import type { SqlClient } from '#shared/database/outbox-database.js';
 import { NotificationDispatcher } from './notification-dispatcher.js';
 import { planNotification } from './notification-rules.js';
 import type { NotificationPlan } from './notification-rules.js';
+import { notificationContent } from './notification-templates.js';
 import { RecipientResolver } from './recipient-resolver.js';
 import type { ProcessVisibility } from './recipient-resolver.js';
 import {
@@ -385,5 +386,40 @@ describe('NotificationDispatcher — STAGE_DUE_SOON/STAGE_OVERDUE (Gherkin da US
     expect(generic.store.rows[0]?.body).toBe(
       'O prazo de uma etapa termina. Abra o processo para dar andamento.',
     );
+  });
+});
+
+describe('US-125 — aviso de prazo de um ramo (RN-WF2-35)', () => {
+  it('a passagem de ramo traz o rótulo do ramo; o texto do aviso o cita', async () => {
+    const client: SqlClient = {
+      query: (sql: string) =>
+        Promise.resolve({
+          rows: sql.includes('FROM tenants')
+            ? [{ timezone: 'America/Sao_Paulo' }]
+            : [
+                {
+                  stage_name: 'Análise jurídica',
+                  branch_key: 'JURIDICO',
+                  branch_label: 'Jurídico',
+                },
+              ],
+        }) as never,
+    } as SqlClient;
+    const details = await new SqlStageDeadlineSource().details(client, TENANT, testId());
+    expect(details).toEqual({
+      stageName: 'Análise jurídica',
+      timezone: 'America/Sao_Paulo',
+      branchLabel: 'Jurídico',
+    });
+    const content = notificationContent('STAGE_OVERDUE', {
+      groupCount: 1,
+      stage: {
+        name: 'Análise jurídica',
+        dueDate: '18/11/2026',
+        overdueSince: null,
+        branchLabel: 'Jurídico',
+      },
+    });
+    expect(content.body).toContain('da etapa “Análise jurídica” do ramo “Jurídico”');
   });
 });

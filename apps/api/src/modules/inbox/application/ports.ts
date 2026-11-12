@@ -16,6 +16,8 @@ export interface InboxPageSearch {
   readonly pageSize: number;
   readonly viewer: InboxViewer;
   readonly now: Date;
+  /** US-125: só as linhas deste ramo (`null` = todas). */
+  readonly branchKey: string | null;
 }
 
 export interface InboxPage {

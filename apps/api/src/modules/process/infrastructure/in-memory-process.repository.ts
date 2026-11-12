@@ -787,6 +787,19 @@ export class InMemoryProcessRepository implements ProcessRepository {
         ...process,
         overdueSince: extras.overdueSince,
         tagIds: [...extras.tagIds, ...this.tags.tagIdsOf(process.id)],
+        // US-125: as etapas ativas de ramo (filtros por qualquer etapa ativa).
+        branchStages: [...this.stages.values()]
+          .filter(
+            (stage) =>
+              stage.processId === process.id &&
+              stage.status === 'ACTIVE' &&
+              (stage.branchKey ?? null) !== null,
+          )
+          .map((stage) => ({
+            workflowStageId: stage.workflowStageId,
+            departmentId: stage.departmentId,
+            assigneeId: stage.assigneeId,
+          })),
       };
       if (
         coverage !== null &&
@@ -844,6 +857,12 @@ export class InMemoryProcessRepository implements ProcessRepository {
         tagIds: fact.tagIds,
         slaType: stage?.slaType ?? null,
         stagePausedAt: this.extras.get(fact.id)?.stagePausedAt ?? null,
+        inBranching: [...this.stages.values()].some(
+          (candidate) =>
+            candidate.processId === fact.id &&
+            candidate.status === 'ACTIVE' &&
+            candidate.stageType === 'PARALLEL_SPLIT',
+        ),
       };
     });
   }
@@ -933,6 +952,19 @@ export class InMemoryProcessRepository implements ProcessRepository {
       }
     }
     return Promise.resolve(refs);
+  }
+
+  branchKeysOf(_tx: TenantTx, processStageIds: readonly string[]) {
+    const owned = new Set(this.owned().map((process) => process.id));
+    const result = new Map<string, { processId: string; branchKey: string }>();
+    for (const id of processStageIds) {
+      const stage = this.stages.get(id);
+      const branchKey = stage?.branchKey ?? null;
+      if (stage !== undefined && branchKey !== null && owned.has(stage.processId)) {
+        result.set(id, { processId: stage.processId, branchKey });
+      }
+    }
+    return Promise.resolve(result);
   }
 
   stageRefs(_tx: TenantTx, processStageIds: readonly string[]) {

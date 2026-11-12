@@ -78,6 +78,10 @@ function processRow(n: number, patch: Partial<InboxProcessRow> = {}): InboxProce
     assignmentDepartmentId: MANUT,
     assigneeId: null,
     assignmentType: 'STAGE_ENTRY',
+    branchKey: null,
+    stageWorkflowStageId: null,
+    stageDepartmentId: null,
+    activeStagesCount: 1,
     ...patch,
   };
 }
@@ -105,6 +109,8 @@ function approvalRow(n: number, patch: Partial<InboxApprovalRow> = {}): InboxApp
     approverRoleId: null,
     approverDepartmentId: null,
     allowDeputy: false,
+    processStageId: null,
+    branchKey: null,
     ...patch,
   };
 }

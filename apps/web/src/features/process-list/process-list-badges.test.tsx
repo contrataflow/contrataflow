@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { seriousA11yViolations } from '@test/support/axe';
 import { IntlProvider } from '@test/support/render';
 
-import { DueDateBadge } from './process-list-badges';
+import { DueDateBadge, ProcessStageChips } from './process-list-badges';
 
 afterEach(() => {
   cleanup();
@@ -61,5 +61,33 @@ describe('DueDateBadge — estados do prazo da etapa (US-055 · SCR-004/SCR-006)
       overdueSince: '2026-10-29T03:00:00.000Z',
     });
     expect(screen.getByText('Atrasado (suspenso)').textContent).toBe('Atrasado (suspenso)');
+  });
+});
+
+describe('ProcessStageChips (US-125 · RN-WF2-36)', () => {
+  it('um chip por etapa ativa, com o atraso em texto e a lista anunciada', async () => {
+    const stage = (n: number, name: string, isOverdue: boolean) => ({
+      processStageId: `0192e125-0000-7000-8000-${String(n).padStart(12, '0')}`,
+      stageKey: `ETAPA_${String(n)}`,
+      stageName: name,
+      branchKey: `RAMO_${String(n)}`,
+      branchLabel: name,
+      departmentName: 'Procuradoria',
+      dueAt: null,
+      isOverdue,
+    });
+    render(
+      <IntlProvider>
+        <ProcessStageChips
+          stages={[stage(1, 'Análise jurídica', true), stage(2, 'Controle interno', false)]}
+        />
+      </IntlProvider>,
+    );
+    expect(screen.getByText('Análise jurídica (atrasado)')).toBeTruthy();
+    expect(screen.getByText('Controle interno')).toBeTruthy();
+    expect(
+      screen.getByLabelText('Etapas ativas: Análise jurídica · Controle interno'),
+    ).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
   });
 });

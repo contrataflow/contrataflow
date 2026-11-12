@@ -61,6 +61,7 @@ import { ListSortSelect } from '@/components/lists/list-sort-select';
 import { useFilterPanelLabels } from '@/components/lists/use-filter-panel-labels';
 import { AppPageHeader } from '@/components/shell/page-header';
 import { ApprovalStatusBadge } from '@/features/approval-decision/approval-status-badge';
+import { BranchLabelChip, SiblingsSummary } from '@/features/process-actions/branch-summary';
 import { ConfidentialBadge } from '@/features/process-list/process-list-badges';
 import {
   FILTER_OPTIONS_STALE_TIME_MS,
@@ -603,6 +604,9 @@ function ApprovalTable({ items }: { readonly items: readonly ApprovalListItemDto
                   <span className="text-xs break-words text-muted-foreground">
                     {t(`subjectType.${item.subjectType}`)} · {item.approver.label}
                   </span>
+                  {/* US-125 (RN-WF2-37): o ramo da etapa e "Aguardando também: …". */}
+                  <BranchLabelChip label={item.branchLabel} />
+                  <SiblingsSummary siblings={item.siblings} more={item.siblingsMore} />
                 </div>
               </Td>
               <Td className={CELL}>

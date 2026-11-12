@@ -76,7 +76,8 @@ const PROCESS_COLUMNS = Prisma.sql`pr.id AS process_id, pr.tenant_id, pr.organiz
        pr.current_department_id, pr.current_responsible_id, pr.current_workflow_stage_id,
        pr.stage_id, pr.entered_at, pr.due_at, pr.overdue_since, pr.sla_type::text AS sla_type,
        pr.paused_at, pr.assignment_department_id, pr.assignee_id,
-       pr.assignment_type::text AS assignment_type`;
+       pr.assignment_type::text AS assignment_type, pr.branch_key, pr.stage_workflow_stage_id,
+       pr.stage_department_id, pr.active_stages_count`;
 
 const NO_APPROVAL_COLUMNS = Prisma.sql`NULL::uuid AS approval_id, NULL::uuid AS approval_approver_id,
        NULL::int AS approval_sequence, NULL::text AS approval_decision_policy,
@@ -86,7 +87,8 @@ const NO_APPROVAL_COLUMNS = Prisma.sql`NULL::uuid AS approval_id, NULL::uuid AS 
        NULL::text AS approval_title, NULL::uuid AS approval_requested_by_id,
        NULL::timestamptz AS approval_requested_at, NULL::timestamptz AS approval_due_at,
        NULL::text AS approver_type, NULL::uuid AS approver_user_id, NULL::uuid AS approver_role_id,
-       NULL::uuid AS approver_department_id, NULL::boolean AS allow_deputy`;
+       NULL::uuid AS approver_department_id, NULL::boolean AS allow_deputy,
+       NULL::uuid AS approval_process_stage_id, NULL::text AS approval_branch_key`;
 
 /** `matchesRestriction` (US-076): recorte pela unidade solicitante; `TRUE` sem recorte. */
 function restrictionSql(restriction: InboxProcessRestriction | null): Prisma.Sql {
@@ -101,12 +103,17 @@ function restrictionSql(restriction: InboxProcessRestriction | null): Prisma.Sql
   return parts.length === 0 ? Prisma.sql`TRUE` : Prisma.join(parts, ' AND ');
 }
 
-/** O conjunto da visão (uma linha por chave), já com visibilidade (DEC-024). */
+/**
+ * O conjunto da visão (uma linha por chave), já com visibilidade (DEC-024). US-125 (RN-WF2-29):
+ * `row_key` é o processo (ou a linha de aprovação) e `row_stage_id`, a etapa de ramo que a linha
+ * descreve (`NULL` = linha do processo); `branchKey` restringe às linhas daquele ramo.
+ */
 export function itemsSql(
   view: TaskInboxView,
   viewer: InboxViewer,
   now: Date,
   restriction: InboxProcessRestriction | null = null,
+  branchKey: string | null = null,
 ): Prisma.Sql {
   const visible = Prisma.sql`${buildVisibilityPredicate(viewer.visibility, {
     processAlias: 'pr',
@@ -114,9 +121,15 @@ export function itemsSql(
   })} AND ${restrictionSql(restriction)}`;
   if (view === 'PENDING_APPROVALS') {
     // RN-APV-62: `ap` é a linha (uma por `approval_approver_id`); a cobertura por dois caminhos é
-    // um OR no predicado — nunca uma junção que multiplique.
+    // um OR no predicado — nunca uma junção que multiplique. US-125: a linha do processo é UMA —
+    // a da etapa da aprovação, senão a da etapa crítica (LATERAL … LIMIT 1).
+    const inBranch =
+      branchKey === null ? Prisma.sql`TRUE` : Prisma.sql`ap.branch_key = ${branchKey}`;
     return Prisma.sql`
-      SELECT ap.approval_approver_id AS row_key, ${PROCESS_COLUMNS},
+      SELECT ap.approval_approver_id AS row_key,
+             CASE WHEN ap.branch_key IS NOT NULL AND pr.process_stage_id = ap.process_stage_id
+                  THEN pr.process_stage_id END AS row_stage_id,
+             ${PROCESS_COLUMNS},
              ap.approval_id, ap.approval_approver_id, ap.sequence AS approval_sequence,
              ap.decision_policy AS approval_decision_policy,
              ap.line_due_at AS approval_line_due_at, ap.total_lines AS approval_total_lines,
@@ -128,10 +141,18 @@ export function itemsSql(
              ap.requested_at AS approval_requested_at, ap.due_at AS approval_due_at,
              ap.approver_type::text AS approver_type, ap.approver_user_id, ap.approver_role_id,
              ap.approver_department_id, ap.allow_deputy,
+             ap.process_stage_id AS approval_process_stage_id,
+             ap.branch_key AS approval_branch_key,
              COALESCE(ap.line_due_at, ap.due_at, pr.due_at) AS row_due_at
         FROM v_inbox_pending_approvals_v2 ap
-        JOIN v_inbox_processes pr ON pr.tenant_id = ap.tenant_id AND pr.id = ap.process_id
-       WHERE ${visible} AND ${designatedSql(viewer)}`;
+        JOIN LATERAL (
+          SELECT * FROM v_inbox_processes vp
+           WHERE vp.tenant_id = ap.tenant_id AND vp.id = ap.process_id
+           ORDER BY (vp.process_stage_id IS NOT DISTINCT FROM ap.process_stage_id) DESC,
+                    vp.due_at ASC NULLS LAST, vp.process_stage_id
+           LIMIT 1
+        ) pr ON TRUE
+       WHERE ${visible} AND ${inBranch} AND ${designatedSql(viewer)}`;
   }
   const mine = mineSql(viewer);
   const queue = unitQueueSql(viewer);
@@ -143,10 +164,22 @@ export function itemsSql(
                          AND (${mine} OR ${queue}))`,
     FOLLOWING: followingSql(viewer, now),
   };
-  return Prisma.sql`
-      SELECT pr.id AS row_key, ${PROCESS_COLUMNS}, ${NO_APPROVAL_COLUMNS}, pr.due_at AS row_due_at
+  const inBranch = branchKey === null ? Prisma.sql`TRUE` : Prisma.sql`pr.branch_key = ${branchKey}`;
+  if (view === 'FOLLOWING') {
+    // RN-WF2-29: "Acompanhando" é uma linha por processo, sem ramo — a da etapa crítica.
+    return Prisma.sql`
+      SELECT DISTINCT ON (pr.id) pr.id AS row_key, NULL::uuid AS row_stage_id, ${PROCESS_COLUMNS},
+             ${NO_APPROVAL_COLUMNS}, pr.due_at AS row_due_at
         FROM v_inbox_processes pr
-       WHERE ${visible} AND ${predicate[view]}`;
+       WHERE ${visible} AND ${inBranch} AND ${predicate[view]}
+       ORDER BY pr.id, pr.due_at ASC NULLS LAST, pr.process_stage_id`;
+  }
+  return Prisma.sql`
+      SELECT pr.id AS row_key,
+             CASE WHEN pr.branch_key IS NOT NULL THEN pr.process_stage_id END AS row_stage_id,
+             ${PROCESS_COLUMNS}, ${NO_APPROVAL_COLUMNS}, pr.due_at AS row_due_at
+        FROM v_inbox_processes pr
+       WHERE ${visible} AND ${inBranch} AND ${predicate[view]}`;
 }
 
 const DIRECTION = { asc: Prisma.raw('ASC'), desc: Prisma.raw('DESC') } as const;
@@ -164,8 +197,8 @@ export function orderSql(sort: TaskInboxSort): Prisma.Sql {
   const parts = SORT_COLUMNS[sort.field].map(
     (column) => Prisma.sql`${column} ${DIRECTION[sort.direction]} NULLS LAST`,
   );
-  // Desempate final: paginação determinística.
-  parts.push(Prisma.sql`i.row_key DESC`);
+  // Desempate final: paginação determinística (US-125: o mesmo processo em várias linhas de ramo).
+  parts.push(Prisma.sql`i.row_key DESC`, Prisma.sql`i.row_stage_id DESC NULLS LAST`);
   return Prisma.join(parts, ', ');
 }
 
@@ -173,7 +206,7 @@ export function orderSql(sort: TaskInboxSort): Prisma.Sql {
 export function buildTaskInboxPageSql(search: InboxPageSearch): Prisma.Sql {
   const offset = (search.page - 1) * search.pageSize;
   return Prisma.sql`
-    WITH items AS (${itemsSql(search.view, search.viewer, search.now)}
+    WITH items AS (${itemsSql(search.view, search.viewer, search.now, null, search.branchKey)}
     )
     SELECT t.total, page.*
       FROM (SELECT count(*)::int AS total FROM items) t
@@ -203,6 +236,7 @@ export function buildTaskInboxCountsSql(
 export interface TaskInboxDbRow {
   readonly total: number;
   readonly row_key: string | null;
+  readonly row_stage_id: string | null;
   readonly process_id: string;
   readonly tenant_id: string;
   readonly organization_id: string;
@@ -227,6 +261,10 @@ export interface TaskInboxDbRow {
   readonly assignment_department_id: string | null;
   readonly assignee_id: string | null;
   readonly assignment_type: string | null;
+  readonly branch_key: string | null;
+  readonly stage_workflow_stage_id: string | null;
+  readonly stage_department_id: string | null;
+  readonly active_stages_count: number;
   readonly approval_id: string | null;
   readonly approval_approver_id: string | null;
   readonly approval_sequence: number | null;
@@ -246,4 +284,6 @@ export interface TaskInboxDbRow {
   readonly approver_role_id: string | null;
   readonly approver_department_id: string | null;
   readonly allow_deputy: boolean | null;
+  readonly approval_process_stage_id: string | null;
+  readonly approval_branch_key: string | null;
 }

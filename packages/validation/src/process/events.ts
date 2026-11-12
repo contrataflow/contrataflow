@@ -333,6 +333,8 @@ const stageDeadlineFields = {
   /** Responsável da passagem; ausente/nulo = fila da unidade. */
   assigneeId: uuid.nullable().optional(),
   departmentId: uuid,
+  /** US-125 (aditivo · RN-WF2-35): ramo da passagem; ausente/nulo fora do paralelismo. */
+  branchKey: z.string().min(1).max(60).nullable().optional(),
 };
 
 /**

@@ -45,6 +45,11 @@ export function stageDeadlineRecipients(
 export interface StageDeadlineDetails {
   /** Nome da etapa no fluxo (`WorkflowStage.name`); nulo = passagem não encontrada. */
   readonly stageName: string | null;
+  /**
+   * US-125 (RN-WF2-35): rótulo do ramo da passagem (nome da primeira etapa do ramo na versão —
+   * RN-WF2-07); ausente fora do paralelismo.
+   */
+  readonly branchLabel?: string;
   /** Fuso do tenant (DEC-003) para formatar `dueAt`/`overdueSince`. */
   readonly timezone: string;
 }
@@ -70,10 +75,17 @@ export class SqlStageDeadlineSource implements StageDeadlineSource {
     tenantId: string,
     processStageId: string,
   ): Promise<StageDeadlineDetails> {
-    const stage = await client.query<{ stage_name: string }>(
-      `SELECT ws.name AS stage_name
+    const stage = await client.query<{
+      stage_name: string;
+      branch_key?: string | null;
+      branch_label?: string | null;
+    }>(
+      `SELECT ws.name AS stage_name, ps.branch_key, wb.name AS branch_label
          FROM process_stages ps
          JOIN workflow_stages ws ON ws.id = ps.workflow_stage_id AND ws.tenant_id = ps.tenant_id
+         LEFT JOIN workflow_stages wb
+                ON wb.tenant_id = ps.tenant_id AND wb.workflow_version_id = ws.workflow_version_id
+               AND wb.key = ps.branch_key
         WHERE ps.id = $1 AND ps.tenant_id = $2`,
       [processStageId, tenantId],
     );
@@ -81,9 +93,12 @@ export class SqlStageDeadlineSource implements StageDeadlineSource {
       'SELECT timezone FROM tenants WHERE id = $1',
       [tenantId],
     );
+    const row = stage.rows[0];
+    const branchKey = row?.branch_key ?? null;
     return {
-      stageName: stage.rows[0]?.stage_name ?? null,
+      stageName: row?.stage_name ?? null,
       timezone: tenant.rows[0]?.timezone ?? DEFAULT_TIMEZONE,
+      ...(branchKey === null ? {} : { branchLabel: row?.branch_label ?? branchKey }),
     };
   }
 }

@@ -16,7 +16,16 @@ describe('taskInboxQuerySchema (US-056 · TSK-01)', () => {
       page: 1,
       pageSize: 20,
       sort: { field: 'dueAt', direction: 'desc' },
+      branchKey: null,
     });
+  });
+
+  it('US-125 (V-02): filtro opcional por ramo, no formato da chave da etapa', () => {
+    expect(taskInboxQuerySchema.parse({ branchKey: 'CONTROLE_INTERNO' }).branchKey).toBe(
+      'CONTROLE_INTERNO',
+    );
+    expect(taskInboxQuerySchema.safeParse({ branchKey: 'controle interno' }).success).toBe(false);
+    expect(taskInboxQuerySchema.safeParse({ branchKey: 'X'.repeat(61) }).success).toBe(false);
   });
 
   it('aceita os campos de ordenação de cada visão', () => {

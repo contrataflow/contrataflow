@@ -29,6 +29,10 @@ export const TASK_BULK_MESSAGES = Object.freeze({
   itemNotFound: 'O processo não pôde ser processado.',
   /** Item não processado por indisponibilidade (`DEPENDENCY_UNAVAILABLE`). */
   itemUnavailable: 'Não foi possível concluir a ação agora.',
+  /** US-125 V-03: `items` e `processIds` juntos, ou nenhum dos dois. */
+  selectionFormat: 'Selecione de 2 a 50 itens do mesmo tipo de seleção.',
+  /** US-125 V-04: par `{ processId, processStageId }` repetido. */
+  duplicateItems: 'Há itens repetidos na seleção.',
 });
 
 const processIdsSchema = z
@@ -40,9 +44,69 @@ const processIdsSchema = z
     params: { code: 'DUPLICATE_IN_LIST' },
   });
 
+/** US-125 (RN-WF2-32): um item do lote por ramo — o processo e a etapa ativa da linha. */
+export const bulkItemSchema = z
+  .strictObject({ processId: z.uuid(), processStageId: z.uuid() })
+  .meta({ id: 'BulkItem' });
+export type BulkItem = z.output<typeof bulkItemSchema>;
+
+const itemsSchema = z
+  .array(bulkItemSchema, { error: TASK_BULK_MESSAGES.selectionFormat })
+  .min(TASK_BULK_LIMITS.min, { error: TASK_BULK_MESSAGES.tooShort })
+  .max(TASK_BULK_LIMITS.max, { error: TASK_BULK_MESSAGES.tooLong })
+  .refine(
+    (items) =>
+      new Set(items.map((item) => `${item.processId}:${item.processStageId}`)).size ===
+      items.length,
+    { message: TASK_BULK_MESSAGES.duplicateItems, params: { code: 'DUPLICATE_IN_LIST' } },
+  );
+
+/**
+ * A seleção do lote: `processIds` (MVP 1) OU `items[]` (US-125 · RN-WF2-32 — por ramo). Os dois
+ * juntos → `NOT_ALLOWED` em `items`; nenhum → `REQUIRED` em `processIds`.
+ */
+function exclusiveSelection(
+  body: {
+    readonly processIds?: readonly string[] | undefined;
+    readonly items?: readonly BulkItem[] | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (body.processIds !== undefined && body.items !== undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['items'],
+      message: TASK_BULK_MESSAGES.selectionFormat,
+      params: { code: 'NOT_ALLOWED' },
+    });
+  } else if (body.processIds === undefined && body.items === undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['processIds'],
+      message: TASK_BULK_MESSAGES.tooShort,
+      params: { code: 'REQUIRED' },
+    });
+  }
+}
+
+/** Os itens do lote, na ordem enviada (`processStageId` nulo = formato `processIds`). */
+export function bulkTargetsOf(body: {
+  readonly processIds?: readonly string[] | undefined;
+  readonly items?: readonly BulkItem[] | undefined;
+}): { readonly processId: string; readonly processStageId: string | null }[] {
+  if (body.items !== undefined) {
+    return body.items.map((item) => ({
+      processId: item.processId,
+      processStageId: item.processStageId,
+    }));
+  }
+  return (body.processIds ?? []).map((processId) => ({ processId, processStageId: null }));
+}
+
 /** TSK-03. ESTRITO: campo fora da lista → 422 (`NOT_ALLOWED`). */
 export const bulkClaimSchema = z
-  .strictObject({ processIds: processIdsSchema })
+  .strictObject({ processIds: processIdsSchema.optional(), items: itemsSchema.optional() })
+  .superRefine(exclusiveSelection)
   .meta({ id: 'BulkClaimRequest' });
 export type BulkClaim = z.output<typeof bulkClaimSchema>;
 
@@ -52,7 +116,8 @@ export type BulkClaim = z.output<typeof bulkClaimSchema>;
  */
 export const bulkAssignSchema = z
   .strictObject({
-    processIds: processIdsSchema,
+    processIds: processIdsSchema.optional(),
+    items: itemsSchema.optional(),
     assigneeId: z.uuid({ error: TASK_BULK_MESSAGES.assignRequired }),
     reason: z
       .string({ error: TASK_BULK_MESSAGES.assignRequired })
@@ -60,6 +125,7 @@ export const bulkAssignSchema = z
       .min(PROCESS_ASSIGN_LIMITS.reasonMin, { error: TASK_BULK_MESSAGES.reasonTooShort })
       .max(PROCESS_ASSIGN_LIMITS.reasonMax, { error: TASK_BULK_MESSAGES.reasonTooLong }),
   })
+  .superRefine(exclusiveSelection)
   .meta({ id: 'BulkAssignRequest' });
 export type BulkAssign = z.output<typeof bulkAssignSchema>;
 export type BulkAssignInput = z.input<typeof bulkAssignSchema>;
@@ -78,6 +144,8 @@ export const bulkProcessRefSchema = z
 export const bulkItemResultSchema = z
   .object({
     processId: z.uuid(),
+    /** US-125: a etapa do item, quando ele veio no formato `items[]` (RN-WF2-32). */
+    processStageId: z.uuid().optional(),
     ok: z.boolean(),
     code: z.string().optional(),
     message: z.string().optional(),

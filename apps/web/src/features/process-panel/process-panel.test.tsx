@@ -555,6 +555,103 @@ describe('SCR-006 · Painel situacional do processo (US-004)', () => {
     expect(screen.getByText('Rascunho (sem número)')).toBeTruthy();
   });
 
+  it('US-125: no paralelismo, "Onde está?" lista os ramos lado a lado, o prazo cita a etapa crítica e o próximo passo separa a minha etapa', async () => {
+    const stage = (n: number, name: string, mine: boolean) => ({
+      processStageId: ID(900 + n),
+      stageKey: `ETAPA_${String(n)}`,
+      stageName: name,
+      stageType: 'TASK' as const,
+      branchKey: `RAMO_${String(n)}`,
+      branchLabel: name,
+      department: { id: ID(950 + n), name: n === 1 ? 'Procuradoria' : 'Controle Interno' },
+      responsible: mine ? { id: ID(970), name: 'Rita Souza' } : null,
+      enteredAt: '2026-10-05T12:00:00.000Z',
+      dueAt: n === 1 ? '2026-11-18T02:59:59.000Z' : '2026-11-20T02:59:59.000Z',
+      isOverdue: false,
+      openedByReturn: false,
+      isMine: mine,
+    });
+    mockProcessApi({
+      summary: () =>
+        jsonResponse({
+          data: summaryDto({
+            where: {
+              ...summaryDto().where,
+              stages: [stage(1, 'Análise jurídica', false), stage(2, 'Controle interno', true)],
+              branches: [
+                {
+                  branchKey: 'RAMO_1',
+                  branchLabel: 'Análise jurídica',
+                  status: 'OPEN',
+                  arrivedAt: null,
+                },
+                {
+                  branchKey: 'RAMO_2',
+                  branchLabel: 'Controle interno',
+                  status: 'OPEN',
+                  arrivedAt: null,
+                },
+                {
+                  branchKey: 'RAMO_3',
+                  branchLabel: 'Orçamento',
+                  status: 'ARRIVED',
+                  arrivedAt: '2026-11-10T15:00:00.000Z',
+                },
+              ],
+            },
+            deadline: {
+              dueAt: '2026-11-18T02:59:59.000Z',
+              slaType: 'BUSINESS',
+              daysLeft: 5,
+              overdueDays: null,
+              isDueSoon: false,
+              isOverdue: false,
+              isPaused: false,
+              criticalStage: {
+                processStageId: ID(901),
+                branchKey: 'RAMO_1',
+                stageName: 'Análise jurídica',
+              },
+            },
+            nextStep: {
+              action: null,
+              instructions: null,
+              byStage: [
+                {
+                  processStageId: ID(901),
+                  branchKey: 'RAMO_1',
+                  branchLabel: 'Análise jurídica',
+                  stageName: 'Análise jurídica',
+                  isMine: false,
+                  action: null,
+                  waitingFor: { stageName: 'Análise jurídica', departmentName: 'Procuradoria' },
+                },
+                {
+                  processStageId: ID(902),
+                  branchKey: 'RAMO_2',
+                  branchLabel: 'Controle interno',
+                  stageName: 'Controle interno',
+                  isMine: true,
+                  action: null,
+                  waitingFor: null,
+                },
+              ],
+            },
+          }),
+        }),
+    });
+    renderWithShell(<ProcessPanel processId={PROCESS_ID} />);
+    expect(await screen.findByText('Onde está? — 2 etapas em paralelo')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: 'Análise jurídica' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 3, name: 'Controle interno' })).toBeTruthy();
+    expect(screen.getByText('Na fila de Procuradoria')).toBeTruthy();
+    expect(screen.getByText('Concluído em 10/11/2026')).toBeTruthy();
+    expect(screen.getByText('Prazo do processo definido pela etapa Análise jurídica')).toBeTruthy();
+    expect(screen.getByText('Sua etapa: Controle interno')).toBeTruthy();
+    expect(screen.getByText('Aguardando: Análise jurídica (Procuradoria)')).toBeTruthy();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
   it('[Concorrência] comando recusado por dado desatualizado: avisa e recarrega o painel', async () => {
     const api = mockProcessApi();
     let recover: ((error: unknown) => boolean) | undefined;

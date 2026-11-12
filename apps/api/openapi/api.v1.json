@@ -841,6 +841,29 @@
             "required": [
               "label"
             ]
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchSibling"
+            },
+            "maxItems": 3
+          },
+          "siblingsMore": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -925,6 +948,37 @@
           "approvalApproverId",
           "sequence",
           "status"
+        ]
+      },
+      "BranchSibling": {
+        "type": "object",
+        "properties": {
+          "branchKey": {
+            "type": "string"
+          },
+          "branchLabel": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "ARRIVED"
+            ]
+          },
+          "isOverdue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "branchKey",
+          "branchLabel",
+          "stageName",
+          "status",
+          "isOverdue"
         ]
       },
       "PageMeta": {
@@ -1178,6 +1232,29 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchSibling"
+            },
+            "maxItems": 3
+          },
+          "siblingsMore": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -2031,6 +2108,29 @@
             "type": "integer",
             "minimum": 1
           },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchSibling"
+            },
+            "maxItems": 3
+          },
+          "siblingsMore": {
+            "type": "integer",
+            "minimum": 0
+          },
           "processStage": {
             "type": [
               "object",
@@ -2434,6 +2534,29 @@
           "version": {
             "type": "integer",
             "minimum": 1
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchSibling"
+            },
+            "maxItems": 3
+          },
+          "siblingsMore": {
+            "type": "integer",
+            "minimum": 0
           },
           "processStage": {
             "type": [
@@ -10017,6 +10140,16 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "activeStages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompactActiveStage"
+            }
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -10090,6 +10223,9 @@
           },
           "isPaused": {
             "type": "boolean"
+          },
+          "criticalStage": {
+            "$ref": "#/components/schemas/CriticalStage"
           }
         },
         "required": [
@@ -10100,6 +10236,79 @@
           "isDueSoon",
           "isOverdue",
           "isPaused"
+        ]
+      },
+      "CriticalStage": {
+        "type": "object",
+        "properties": {
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stageName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "processStageId",
+          "branchKey",
+          "stageName"
+        ]
+      },
+      "CompactActiveStage": {
+        "type": "object",
+        "properties": {
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stageKey": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "departmentName": {
+            "type": "string"
+          },
+          "dueAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "processStageId",
+          "stageKey",
+          "stageName",
+          "branchKey",
+          "branchLabel",
+          "departmentName",
+          "dueAt",
+          "isOverdue"
         ]
       },
       "ProcessListMeta": {
@@ -17456,6 +17665,151 @@
                   "string",
                   "null"
                 ]
+              },
+              "stages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "processStageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "stageKey": {
+                      "type": "string"
+                    },
+                    "stageName": {
+                      "type": "string"
+                    },
+                    "stageType": {
+                      "type": "string",
+                      "enum": [
+                        "START",
+                        "TASK",
+                        "APPROVAL",
+                        "END",
+                        "PARALLEL_SPLIT",
+                        "PARALLEL_JOIN"
+                      ]
+                    },
+                    "branchKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "department": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "responsible": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "enteredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "dueAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "isOverdue": {
+                      "type": "boolean"
+                    },
+                    "openedByReturn": {
+                      "type": "boolean"
+                    },
+                    "branchLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "isMine": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "processStageId",
+                    "stageKey",
+                    "stageName",
+                    "stageType",
+                    "branchKey",
+                    "department",
+                    "responsible",
+                    "enteredAt",
+                    "dueAt",
+                    "isOverdue",
+                    "openedByReturn",
+                    "branchLabel",
+                    "isMine"
+                  ]
+                }
+              },
+              "branches": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "branchKey": {
+                      "type": "string"
+                    },
+                    "branchLabel": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OPEN",
+                        "ARRIVED"
+                      ]
+                    },
+                    "arrivedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "branchKey",
+                    "branchLabel",
+                    "status",
+                    "arrivedAt"
+                  ]
+                }
               }
             },
             "required": [
@@ -17547,6 +17901,76 @@
                   "label",
                   "isMine"
                 ]
+              },
+              "byStage": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "processStageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "branchKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "user": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "queueDepartment": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ]
+                    },
+                    "since": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "processStageId",
+                    "branchKey",
+                    "user",
+                    "queueDepartment",
+                    "since"
+                  ]
+                }
               }
             },
             "required": [
@@ -17631,6 +18055,16 @@
                         {
                           "type": "null"
                         }
+                      ]
+                    },
+                    "processStageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "branchKey": {
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     }
                   },
@@ -17728,6 +18162,131 @@
                   "string",
                   "null"
                 ]
+              },
+              "byStage": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "processStageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "branchKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "branchLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stageName": {
+                      "type": "string"
+                    },
+                    "isMine": {
+                      "type": "boolean"
+                    },
+                    "action": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "FORWARD",
+                            "RETURN",
+                            "CLAIM",
+                            "ASSIGN",
+                            "SUSPEND",
+                            "RESUME",
+                            "CANCEL",
+                            "DISCARD",
+                            "COMPLETE",
+                            "DECIDE_APPROVAL",
+                            "EDIT",
+                            "MANAGE_ITEMS",
+                            "MANAGE_TAGS",
+                            "DUPLICATE",
+                            "MANAGE_PARTICIPANTS",
+                            "FOLLOW",
+                            "UNFOLLOW",
+                            "SET_CONFIDENTIALITY"
+                          ]
+                        },
+                        "transitionKey": {
+                          "type": "string"
+                        },
+                        "approvalId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "reasons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "action",
+                        "label",
+                        "enabled",
+                        "reasons"
+                      ]
+                    },
+                    "waitingFor": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "stageName": {
+                          "type": "string"
+                        },
+                        "departmentName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "stageName",
+                        "departmentName"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "processStageId",
+                    "branchKey",
+                    "branchLabel",
+                    "stageName",
+                    "isMine",
+                    "action",
+                    "waitingFor"
+                  ]
+                }
               }
             },
             "required": [
@@ -17876,6 +18435,12 @@
                 },
                 "isMine": {
                   "type": "boolean"
+                },
+                "branchKey": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
@@ -19506,6 +20071,43 @@
           },
           "approval": {
             "$ref": "#/components/schemas/TaskInboxApproval"
+          },
+          "rowKey": {
+            "type": "string"
+          },
+          "processStageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "activeStagesCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "branchKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "branchLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "siblings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BranchSibling"
+            },
+            "maxItems": 3
+          },
+          "siblingsMore": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
@@ -19608,6 +20210,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "ok": {
             "type": "boolean"
           },
@@ -19682,6 +20288,14 @@
             "minItems": 2,
             "maxItems": 50
           },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkItem"
+            },
+            "minItems": 2,
+            "maxItems": 50
+          },
           "assigneeId": {
             "type": "string",
             "format": "uuid"
@@ -19693,9 +20307,26 @@
           }
         },
         "required": [
-          "processIds",
           "assigneeId",
           "reason"
+        ],
+        "additionalProperties": false
+      },
+      "BulkItem": {
+        "type": "object",
+        "properties": {
+          "processId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processStageId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "processId",
+          "processStageId"
         ],
         "additionalProperties": false
       },
@@ -19710,11 +20341,16 @@
             },
             "minItems": 2,
             "maxItems": 50
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BulkItem"
+            },
+            "minItems": 2,
+            "maxItems": 50
           }
         },
-        "required": [
-          "processIds"
-        ],
         "additionalProperties": false
       },
       "TaskInboxCounters": {
@@ -61200,6 +61836,16 @@
           {
             "schema": {
               "type": "string",
+              "maxLength": 60,
+              "pattern": "^[A-Z][A-Z0-9_]{1,59}$"
+            },
+            "required": false,
+            "name": "branchKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "uuid",
               "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
             },
@@ -61211,7 +61857,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Itens da visão (`MINE`, `UNIT_QUEUE`, `PENDING_APPROVALS`, `RETURNED`, `OVERDUE`, `FOLLOWING` — RN-INBOX-02..08) entre os processos visíveis (DEC-024), ordenados por `dueAt`, `code` e `enteredAt` (`requestedAt` em `PENDING_APPROVALS`), nulos por último. Página e total do mesmo snapshot. `UNIT_QUEUE` de quem não tem `PROCESS_CLAIM` com lotação nem é titular/substituto = `data: []`. Sem valores monetários.",
+            "description": "Itens da visão (`MINE`, `UNIT_QUEUE`, `PENDING_APPROVALS`, `RETURNED`, `OVERDUE`, `FOLLOWING` — RN-INBOX-02..08) entre os processos visíveis (DEC-024), ordenados por `dueAt`, `code` e `enteredAt` (`requestedAt` em `PENDING_APPROVALS`), nulos por último. Página e total do mesmo snapshot. `UNIT_QUEUE` de quem não tem `PROCESS_CLAIM` com lotação nem é titular/substituto = `data: []`. Sem valores monetários. US-125 (RN-WF2-29/30): uma linha por etapa ativa (ramo) — `rowKey` único, `processStageId`, `branchKey`, `branchLabel`, `activeStagesCount`, `siblings[]`/`siblingsMore`; `FOLLOWING` é uma linha por processo; `branchKey` na query restringe às linhas do ramo.",
             "content": {
               "application/json": {
                 "schema": {
@@ -61652,7 +62298,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Contadores por visão com os mesmos predicados do TSK-01, numa única instrução (RN-INBOX-09). `unitQueue` só quando a fila da unidade se aplica ao usuário (FA-01).",
+            "description": "Contadores por visão com os mesmos predicados do TSK-01, numa única instrução (RN-INBOX-09). `unitQueue` só quando a fila da unidade se aplica ao usuário (FA-01). US-125 (RN-WF2-31): contam LINHAS (`meta.countUnit = \"ROW\"`) — um processo com dois ramos visíveis na mesma visão conta 2.",
             "content": {
               "application/json": {
                 "schema": {
@@ -61660,6 +62306,20 @@
                   "properties": {
                     "data": {
                       "$ref": "#/components/schemas/TaskInboxCounters"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "countUnit": {
+                          "type": "string",
+                          "enum": [
+                            "ROW"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "countUnit"
+                      ]
                     }
                   },
                   "required": [

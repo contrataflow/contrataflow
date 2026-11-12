@@ -68,24 +68,32 @@ function refusalOf(error: unknown): BulkItemRefusal | null {
   };
 }
 
+/** Um item do lote: o processo e, no formato `items[]` (US-125), a etapa do ramo. */
+export interface BulkTarget {
+  readonly processId: string;
+  readonly processStageId: string | null;
+}
+
 /** Executa os itens em sequência, cada um isolado (RN-INBOX-22). */
 export async function runBulkItems(
-  processIds: readonly string[],
-  attempt: (processId: string) => Promise<BulkProcessRef>,
+  targets: readonly BulkTarget[],
+  attempt: (target: BulkTarget) => Promise<BulkProcessRef>,
 ): Promise<BulkItemResult<BulkProcessRef>[]> {
   const results: BulkItemResult<BulkProcessRef>[] = [];
   let unavailable = false;
-  for (const processId of processIds) {
+  for (const target of targets) {
+    const { processId } = target;
+    const stage = target.processStageId === null ? {} : { processStageId: target.processStageId };
     if (unavailable) {
-      results.push(notAttempted(processId));
+      results.push({ ...notAttempted(processId), ...stage });
       continue;
     }
     try {
-      results.push({ processId, ok: true, process: await attempt(processId) });
+      results.push({ processId, ...stage, ok: true, process: await attempt(target) });
     } catch (error) {
       const refusal = refusalOf(error);
       unavailable = isUnavailable(refusal);
-      results.push({ processId, ok: false, ...bulkItemFailureOf(refusal) });
+      results.push({ processId, ...stage, ok: false, ...bulkItemFailureOf(refusal) });
     }
   }
   return results;
@@ -93,16 +101,19 @@ export async function runBulkItems(
 
 export function toBulkOutcome(results: readonly BulkItemResult<BulkProcessRef>[]): BulkOutcome {
   return {
-    items: results.map((result) =>
-      result.ok
-        ? { processId: result.processId, ok: true, process: result.process }
+    items: results.map((result) => {
+      const stage =
+        result.processStageId === undefined ? {} : { processStageId: result.processStageId };
+      return result.ok
+        ? { processId: result.processId, ...stage, ok: true, process: result.process }
         : {
             processId: result.processId,
+            ...stage,
             ok: false,
             code: result.code,
             message: result.message,
-          },
-    ),
+          };
+    }),
     summary: summarizeBulk(results),
   };
 }

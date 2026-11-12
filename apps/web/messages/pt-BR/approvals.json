@@ -18,7 +18,8 @@
       "requestedAt": "Solicitada em",
       "dueAt": "Prazo",
       "noDueAt": "Sem prazo definido",
-      "approver": "Aprovador"
+      "approver": "Aprovador",
+      "branch": "Ramo"
     },
     "allowDeputy": "O substituto do aprovador também pode decidir esta aprovação.",
     "decidesAsDeputy": "Você decide esta aprovação como substituto.",

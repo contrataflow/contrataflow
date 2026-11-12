@@ -1,4 +1,5 @@
 import type {
+  BranchSiblingDto,
   DayCountType,
   EstimatedValueSource,
   PcaStatus,
@@ -22,6 +23,8 @@ import type {
   ProcessParticipantRepository,
   ProcessRepository,
 } from './ports.js';
+import { ProcessBranchViews } from './process-branch-views.js';
+import type { ProcessBranchView } from './process-branch-views.js';
 import { ProcessDfdApprovalSync } from './process-dfd-approval.sync.js';
 import type {
   DfdApprovalPropagationInput,
@@ -38,6 +41,7 @@ import { accessGrantsOf } from './process-runtime.loader.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { TenancyFacade } from '../../tenancy/application/tenancy.facade.js';
 import { WorkflowFacade } from '../../workflow/application/workflow.facade.js';
+import { siblingsOf } from '../domain/branch-views.js';
 import { acceptsDerivedEstimatedValue } from '../domain/derived-estimated-value.js';
 import { canViewConfidentialBudget } from '../domain/process-list.js';
 
@@ -141,7 +145,28 @@ export class ProcessFacade {
     private readonly listPresenter: ProcessListPresenter,
     @Inject(PROCESS_ITEM_REPOSITORY) private readonly items: ProcessItemRepository,
     private readonly dfdApproval: ProcessDfdApprovalSync,
+    private readonly branchViews: ProcessBranchViews,
   ) {}
+
+  /**
+   * US-125 (RN-WF2-30/36/37): a fotografia da rodada atual dos processos em ramificação (etapas
+   * ativas, ramos com rótulo e situação, etapa crítica) — para a caixa de tarefas e as aprovações.
+   * Processos fora da ramificação não entram no mapa (as leituras do MVP 1 não mudam).
+   */
+  branchViewsIn(
+    tx: TenantTx,
+    processIds: readonly string[],
+  ): Promise<Map<string, ProcessBranchView>> {
+    return this.branchViews.ofProcesses(tx, processIds);
+  }
+
+  /** US-125 (RN-WF2-30): os outros ramos de uma linha (até 3 + excedente), sem pessoas. */
+  branchSiblingsOf(
+    view: ProcessBranchView,
+    ownBranchKey: string | null,
+  ): { readonly siblings: BranchSiblingDto[]; readonly siblingsMore: number } {
+    return siblingsOf(view.branches, ownBranchKey);
+  }
 
   /**
    * Aprovação do DFD (US-017 · RN-DFD-62..66), no `tx` da decisão (US-052) e depois da mudança de

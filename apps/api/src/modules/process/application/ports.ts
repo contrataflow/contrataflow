@@ -235,6 +235,8 @@ export interface ProcessListRow extends Omit<
   readonly slaType: DayCountType | null;
   /** `pausedAt` da passagem ativa (processo suspenso). */
   readonly stagePausedAt: Date | null;
+  /** US-125: o processo está em ramificação (a passagem corrente é um split ativo). */
+  readonly inBranching: boolean;
 }
 
 export interface ProcessListPage {
@@ -427,6 +429,14 @@ export interface ProcessRepository {
     tx: TenantTx,
     processIds: readonly string[],
   ): Promise<Map<string, { readonly code: string | null; readonly isBudgetConfidential: boolean }>>;
+  /**
+   * US-125: o ramo de cada passagem informada que é de ramo (as do tronco ficam fora do mapa) —
+   * filtro barato antes de carregar o agregado nas leituras de aprovações.
+   */
+  branchKeysOf(
+    tx: TenantTx,
+    processStageIds: readonly string[],
+  ): Promise<Map<string, { readonly processId: string; readonly branchKey: string }>>;
   /** Etapa de workflow e versão fixada de cada passagem (fonte `PROCESS_STAGE` da timeline). */
   stageRefs(
     tx: TenantTx,

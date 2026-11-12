@@ -21,6 +21,7 @@ import { ApprovalStatusBadge } from './approval-status-badge';
 import { canDecide } from './decision-model';
 import type { DecisionProblem } from './decision-model';
 import { DocumentCoverageList } from './document-coverage-list';
+import { BranchLabelChip, SiblingsSummary } from '../process-actions/branch-summary';
 
 export interface ApprovalDetailProps {
   readonly approvalId: string;
@@ -114,6 +115,21 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
             approval.dueAt === null ? t('facts.noDueAt') : formatDateTime(approval.dueAt, timeZone),
         },
         { id: 'approver', label: t('facts.approver'), value: approval.approver.label },
+        // US-125 (RN-WF2-37): a aprovação de etapa de ramo mostra o ramo e os outros ramos.
+        ...((approval.branchLabel ?? null) === null
+          ? []
+          : [
+              {
+                id: 'branch',
+                label: t('facts.branch'),
+                value: (
+                  <span className="inline-flex flex-col gap-1">
+                    <BranchLabelChip label={approval.branchLabel} />
+                    <SiblingsSummary siblings={approval.siblings} more={approval.siblingsMore} />
+                  </span>
+                ),
+              },
+            ]),
       ]}
       notices={
         <div aria-live="polite" className="flex flex-col gap-2 empty:hidden">

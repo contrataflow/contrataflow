@@ -87,6 +87,8 @@ export interface ApprovalListRow {
   readonly subjectType: ApprovalSubjectType;
   readonly title: string;
   readonly documentId: string | null;
+  /** US-125: etapa da aprovação de etapa (o ramo dela vem do `process`); ausente = desconhecida. */
+  readonly processStageId?: string | null;
   readonly status: ApprovalStatus;
   readonly requestedById: string;
   readonly requestedAt: Date;

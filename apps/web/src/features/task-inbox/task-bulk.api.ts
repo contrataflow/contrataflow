@@ -22,12 +22,18 @@ async function postBulk(
   return bulkResultResponseSchema.parse({ data: result.data, meta: result.meta });
 }
 
-/** TSK-03. */
+/** TSK-03 — `processIds` (MVP 1) ou `items[]` por ramo (US-125 · RN-WF2-32). */
 export function bulkClaim(
-  processIds: readonly string[],
+  selection:
+    | readonly string[]
+    | { readonly processIds: readonly string[] }
+    | {
+        readonly items: readonly { readonly processId: string; readonly processStageId: string }[];
+      },
   idempotencyKey: string,
 ): Promise<BulkResultResponse> {
-  return postBulk('/tasks/bulk-claim', { processIds }, idempotencyKey);
+  const body = Array.isArray(selection) ? { processIds: selection } : selection;
+  return postBulk('/tasks/bulk-claim', body, idempotencyKey);
 }
 
 /** TSK-04. */

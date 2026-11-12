@@ -173,6 +173,10 @@ function inboxRow(n: number, patch: Partial<InboxProcessRow> = {}): InboxProcess
     assignmentDepartmentId: MANUT,
     assigneeId: GESTORA,
     assignmentType: 'STAGE_ENTRY',
+    branchKey: null,
+    stageWorkflowStageId: null,
+    stageDepartmentId: null,
+    activeStagesCount: 1,
     ...patch,
   };
 }

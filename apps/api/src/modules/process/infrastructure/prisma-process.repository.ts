@@ -1253,6 +1253,21 @@ export class PrismaProcessRepository implements ProcessRepository {
     );
   }
 
+  async branchKeysOf(tx: TenantTx, processStageIds: readonly string[]) {
+    const result = new Map<string, { processId: string; branchKey: string }>();
+    if (processStageIds.length === 0) return result;
+    const stages = await tx.processStage.findMany({
+      where: { id: { in: [...processStageIds] }, branchKey: { not: null } },
+      select: { id: true, processId: true, branchKey: true },
+    });
+    for (const stage of stages) {
+      if (stage.branchKey !== null) {
+        result.set(stage.id, { processId: stage.processId, branchKey: stage.branchKey });
+      }
+    }
+    return result;
+  }
+
   async stageRefs(tx: TenantTx, processStageIds: readonly string[]) {
     const stages = await tx.processStage.findMany({
       where: { id: { in: [...processStageIds] } },

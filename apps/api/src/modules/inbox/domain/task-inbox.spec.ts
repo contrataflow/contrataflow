@@ -13,6 +13,7 @@ import {
   isReturned,
   itemsOfView,
   matchesRestriction,
+  rowFocusOf,
   unitQueueApplies,
 } from './task-inbox.js';
 import type {
@@ -61,6 +62,10 @@ function row(n: number, patch: Partial<InboxProcessRow> = {}): InboxProcessRow {
     assignmentDepartmentId: COMPRAS,
     assigneeId: null,
     assignmentType: 'STAGE_ENTRY',
+    branchKey: null,
+    stageWorkflowStageId: null,
+    stageDepartmentId: null,
+    activeStagesCount: 1,
     ...patch,
   };
 }
@@ -85,6 +90,8 @@ function approval(n: number, patch: Partial<InboxApprovalRow> = {}): InboxApprov
     approverRoleId: null,
     approverDepartmentId: null,
     allowDeputy: false,
+    processStageId: null,
+    branchKey: null,
     ...patch,
   };
 }
@@ -288,6 +295,7 @@ describe('RN-INBOX-07 · POL-03: aprovações pendentes do usuário', () => {
       key: pid(3001),
       process: { ...process, dueAt: stageDue },
       approval: approval(1, patch),
+      stageId: null,
     });
     expect(dueAtOf(item({ dueAt: approvalDue, lineDueAt: lineDue }))).toBe(lineDue);
     expect(dueAtOf(item({ dueAt: approvalDue }))).toBe(approvalDue);
@@ -324,7 +332,13 @@ describe('RN-INBOX-10: ordenação', () => {
     n: number,
     patch: Partial<InboxProcessRow> = {},
     extra: Partial<InboxItemRow> = {},
-  ): InboxItemRow => ({ key: pid(n), process: row(n, patch), approval: null, ...extra });
+  ): InboxItemRow => ({
+    key: pid(n),
+    process: row(n, patch),
+    approval: null,
+    stageId: null,
+    ...extra,
+  });
   const keys = (items: InboxItemRow[]) => items.map((entry) => entry.key);
 
   it('prazo: nulos por último nas duas direções; desempate pela chave (desc)', () => {
@@ -400,5 +414,139 @@ describe('matchesRestriction (US-076 · RN-DASH-09)', () => {
     expect(matchesRestriction(row, { secretariatId: COMPRAS, departmentIds: null })).toBe(false);
     expect(matchesRestriction(row, { secretariatId: OBRAS, departmentIds: [MANUT] })).toBe(true);
     expect(matchesRestriction(row, { secretariatId: null, departmentIds: [COMPRAS] })).toBe(false);
+  });
+});
+
+describe('US-125 — uma linha por etapa ativa (RN-WF2-29/30/32)', () => {
+  const PROCURADORIA = '0192e056-0000-7000-8000-0000000000a4';
+  const SPLIT_WS = pid(9000);
+  const JUR_WS = pid(9001);
+  const CI_WS = pid(9002);
+  /** O processo 45 em ramificação: uma linha por ramo, com a etapa, a unidade e a custódia dela. */
+  const branchRow = (key: 'JURIDICO' | 'CONTROLE_INTERNO', patch: Partial<InboxProcessRow> = {}) =>
+    row(45, {
+      currentWorkflowStageId: SPLIT_WS,
+      currentDepartmentId: PROCURADORIA,
+      currentResponsibleId: null,
+      activeStagesCount: 2,
+      branchKey: key,
+      stageId: key === 'JURIDICO' ? pid(4501) : pid(4502),
+      stageWorkflowStageId: key === 'JURIDICO' ? JUR_WS : CI_WS,
+      stageDepartmentId: key === 'JURIDICO' ? PROCURADORIA : COMPRAS,
+      assignmentDepartmentId: key === 'JURIDICO' ? PROCURADORIA : COMPRAS,
+      dueAt:
+        key === 'JURIDICO'
+          ? new Date('2026-11-18T02:59:59.999Z')
+          : new Date('2026-11-20T02:59:59.999Z'),
+      ...patch,
+    });
+  const sources = (processes: InboxProcessRow[], approvals: InboxApprovalRow[] = []) => ({
+    processes,
+    approvals,
+    participations: [{ tenantId: T, processId: pid(45), userId: ANA, expiresAt: null }],
+  });
+
+  it('tabela de verdade: cada ramo é avaliado na sua visão; FA-01 com os dois ramos = duas linhas', () => {
+    const v = viewer();
+    const juridico = branchRow('JURIDICO', { assigneeId: ANA });
+    const controle = branchRow('CONTROLE_INTERNO');
+    const both = sources([juridico, controle]);
+    expect(itemsOfView('MINE', both, v, NOW).map((item) => item.stageId)).toEqual([pid(4501)]);
+    expect(itemsOfView('UNIT_QUEUE', both, v, NOW).map((item) => item.stageId)).toEqual([
+      pid(4502),
+    ]);
+    const returned = sources([juridico, { ...controle, assignmentType: 'RETURN' }]);
+    expect(itemsOfView('RETURNED', returned, v, NOW).map((item) => item.stageId)).toEqual([
+      pid(4502),
+    ]);
+    const overdue = sources([
+      { ...juridico, overdueSince: new Date('2026-11-18T03:15:00.000Z') },
+      controle,
+    ]);
+    expect(itemsOfView('OVERDUE', overdue, v, NOW).map((item) => item.stageId)).toEqual([
+      pid(4501),
+    ]);
+    // FA-01: com a custódia dos dois ramos, duas linhas do mesmo processo.
+    const twice = sources([juridico, { ...controle, assigneeId: ANA }]);
+    const mine = itemsOfView('MINE', twice, v, NOW);
+    expect(mine.map((item) => [item.key, item.stageId])).toEqual([
+      [pid(45), pid(4501)],
+      [pid(45), pid(4502)],
+    ]);
+    // `branchKey` restringe às linhas do ramo.
+    expect(
+      itemsOfView('MINE', twice, v, NOW, 'CONTROLE_INTERNO').map((item) => item.stageId),
+    ).toEqual([pid(4502)]);
+  });
+
+  it('FOLLOWING: uma linha por processo, a da etapa crítica, sem ramo (linha do processo)', () => {
+    const items = itemsOfView(
+      'FOLLOWING',
+      sources([branchRow('CONTROLE_INTERNO'), branchRow('JURIDICO')]),
+      viewer(),
+      NOW,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.stageId).toBeNull();
+    expect(items[0]?.process.branchKey).toBeNull();
+    expect(items[0]?.process.dueAt).toEqual(new Date('2026-11-18T02:59:59.999Z'));
+  });
+
+  it('PENDING_APPROVALS: a linha de aprovação casa com a linha da etapa da aprovação', () => {
+    const v = viewer({ leadership: { headOf: [OBRAS], deputyOf: [] } });
+    const inBranch = approval(1, {
+      processId: pid(45),
+      processStageId: pid(4502),
+      branchKey: 'CONTROLE_INTERNO',
+      approverType: 'DEPARTMENT_HEAD',
+      approverDepartmentId: OBRAS,
+    });
+    const items = itemsOfView(
+      'PENDING_APPROVALS',
+      sources([branchRow('JURIDICO'), branchRow('CONTROLE_INTERNO')], [inBranch]),
+      v,
+      NOW,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.stageId).toBe(pid(4502));
+    expect(items[0]?.process.branchKey).toBe('CONTROLE_INTERNO');
+    // Aprovação fora de ramo num processo em ramificação: uma linha, a do processo.
+    const outside = { ...inBranch, processStageId: null, branchKey: null };
+    const [single] = itemsOfView(
+      'PENDING_APPROVALS',
+      sources([branchRow('JURIDICO'), branchRow('CONTROLE_INTERNO')], [outside]),
+      v,
+      NOW,
+    );
+    expect(single?.stageId).toBeNull();
+    expect(single?.process.branchKey).toBeNull();
+  });
+
+  it('a linha de ramo descreve a etapa: unidade e responsável DELA; "Assumir" pela unidade da etapa', () => {
+    const controle = branchRow('CONTROLE_INTERNO');
+    expect(rowFocusOf(controle)).toEqual({
+      workflowStageId: CI_WS,
+      departmentId: COMPRAS,
+      responsibleId: null,
+    });
+    // Lotada em Compras (a unidade do ramo CONTROLE_INTERNO), não na do processo (Procuradoria).
+    expect(canClaim(controle, viewer())).toBe(true);
+    expect(canClaim(branchRow('JURIDICO'), viewer())).toBe(false);
+    // Tronco: os campos do processo, como no MVP 1.
+    expect(rowFocusOf(row(1)).departmentId).toBe(COMPRAS);
+  });
+
+  it('ordenação: linhas do mesmo processo desempatam pela etapa (paginação determinística)', () => {
+    const due = new Date('2026-11-18T02:59:59.999Z');
+    const a: InboxItemRow = {
+      key: pid(45),
+      process: row(45, { dueAt: due }),
+      approval: null,
+      stageId: pid(1),
+    };
+    const b: InboxItemRow = { ...a, stageId: pid(2) };
+    const c: InboxItemRow = { ...a, stageId: null };
+    const sorted = [c, a, b].sort(compareItems({ field: 'dueAt', direction: 'asc' }));
+    expect(sorted.map((item) => item.stageId)).toEqual([pid(2), pid(1), null]);
   });
 });

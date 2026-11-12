@@ -1,4 +1,4 @@
-import { TASK_BULK_MESSAGES } from '@contrataflow/validation';
+import { TASK_BULK_MESSAGES, bulkTargetsOf } from '@contrataflow/validation';
 import type { BulkAssign, BulkClaim } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
@@ -36,6 +36,9 @@ export interface BulkAssignInput {
  * base (`PROCESS_CLAIM` em algum escopo) é do guard da rota; cada item é o PRC-21 inteiro
  * (`ClaimProcessCommand`, POL-04 por item, na sua transação), sem `If-Match` por item — a trava do
  * processo decide a corrida entre dois lotes (o perdedor recebe `PROCESS_ALREADY_ASSIGNED`).
+ * US-125 (RN-WF2-32): com `items[]`, cada item leva a etapa do ramo (`processStageId`); com
+ * `processIds`, o processo com mais de um ramo ativo sai com `PROCESS_STAGE_REQUIRED` (FA-07) e a
+ * etapa que deixou de estar ativa, com `STAGE_CHANGED` — o PRC-21 decide os dois.
  */
 @Injectable()
 export class BulkClaimProcessesCommand {
@@ -46,9 +49,15 @@ export class BulkClaimProcessesCommand {
   async execute({ body, idempotencyKey }: BulkClaimInput): Promise<BulkOutcome> {
     const startedAt = performance.now();
     const batch = { batchId: newId(), idempotencyKey };
+    const targets = bulkTargetsOf(body);
     try {
-      const results = await runBulkItems(body.processIds, async (processId) => {
-        const claimed = await this.claims.execute({ processId, expectedVersion: null, batch });
+      const results = await runBulkItems(targets, async ({ processId, processStageId }) => {
+        const claimed = await this.claims.execute({
+          processId,
+          processStageId,
+          expectedVersion: null,
+          batch,
+        });
         return bulkProcessRefOf(claimed.dto);
       });
       const outcome = toBulkOutcome(results);
@@ -61,7 +70,7 @@ export class BulkClaimProcessesCommand {
       );
       return outcome;
     } catch (error) {
-      reportBulkFailed(this.logger, 'claim', error, body.processIds.length);
+      reportBulkFailed(this.logger, 'claim', error, targets.length);
       throw error;
     }
   }
@@ -90,12 +99,17 @@ export class BulkAssignProcessesCommand {
   async execute({ body, idempotencyKey }: BulkAssignInput): Promise<BulkOutcome> {
     const startedAt = performance.now();
     const batch = { batchId: newId(), idempotencyKey };
+    const targets = bulkTargetsOf(body);
     try {
       await this.assertBasePermission();
-      const results = await runBulkItems(body.processIds, async (processId) => {
+      const results = await runBulkItems(targets, async ({ processId, processStageId }) => {
         const assigned = await this.assignments.execute({
           processId,
-          body: { assigneeId: body.assigneeId, reason: body.reason },
+          body: {
+            assigneeId: body.assigneeId,
+            reason: body.reason,
+            ...(processStageId === null ? {} : { processStageId }),
+          },
           expectedVersion: null,
           batch,
         });
@@ -111,7 +125,7 @@ export class BulkAssignProcessesCommand {
       );
       return outcome;
     } catch (error) {
-      reportBulkFailed(this.logger, 'assign', error, body.processIds.length);
+      reportBulkFailed(this.logger, 'assign', error, targets.length);
       throw error;
     }
   }

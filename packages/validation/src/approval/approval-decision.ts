@@ -15,6 +15,7 @@ import {
   PROCESS_STATUSES,
   checklistViolationSchema,
 } from '../process/process-actions.js';
+import { branchRowFields } from '../process/process-branch-views.js';
 import { APPROVAL_DECISIONS } from '../process/process-movements.js';
 import type { ApprovalDecision } from '../process/process-movements.js';
 import { STAGE_TYPES } from '../workflow/workflow.js';
@@ -253,6 +254,8 @@ export const approvalSchema = z
     /** US-136 (aditivo · RN-APV-70): o andamento, com o mesmo texto da caixa e da lista. */
     progress: approvalProgressSchema.optional(),
     version: z.int().min(1),
+    /** US-125 (aditivo · RN-WF2-37): o ramo da etapa da aprovação e os outros ramos. */
+    ...branchRowFields,
   })
   .meta({ id: 'Approval' });
 export type ApprovalDto = z.infer<typeof approvalSchema>;

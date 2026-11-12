@@ -51,6 +51,15 @@ export interface InboxProcessRow {
   readonly assignmentDepartmentId: string | null;
   readonly assigneeId: string | null;
   readonly assignmentType: InboxAssignmentType | null;
+  /**
+   * US-125 (RN-WF2-29): ramo da etapa da linha (`null` no tronco). No paralelismo a view tem uma
+   * linha por etapa ativa de ramo, com a unidade, a etapa da versão e a responsabilidade DELA.
+   */
+  readonly branchKey: string | null;
+  readonly stageWorkflowStageId: string | null;
+  readonly stageDepartmentId: string | null;
+  /** Etapas ativas do processo (US-124; 1 fora do paralelismo). */
+  readonly activeStagesCount: number;
 }
 
 /**
@@ -80,6 +89,9 @@ export interface InboxApprovalRow {
   readonly approverRoleId: string | null;
   readonly approverDepartmentId: string | null;
   readonly allowDeputy: boolean;
+  /** US-125: etapa da aprovação e o ramo dela (`null` fora de ramo). */
+  readonly processStageId: string | null;
+  readonly branchKey: string | null;
 }
 
 /** Linha de `v_inbox_participations` (participação individual não revogada). */
@@ -284,23 +296,89 @@ export function canClaim(row: InboxProcessRow, viewer: InboxViewer): boolean {
   if (claim === null || row.assigneeId !== null || row.assignmentDepartmentId === null) {
     return false;
   }
-  if (!viewer.ownDepartmentIds.includes(row.currentDepartmentId)) return false;
+  // US-125 (RN-WF2-32 · POL-04): na linha de um ramo, a unidade DA ETAPA.
+  const departmentId = rowFocusOf(row).departmentId;
+  if (!viewer.ownDepartmentIds.includes(departmentId)) return false;
   if (!CLAIMABLE_STATUSES.includes(row.status)) return false;
   return (
     claim.tenantWide ||
     claim.organizationIds.includes(row.organizationId) ||
-    [row.currentDepartmentId, row.requestingSecretariatId, row.requestingDepartmentId].some((id) =>
+    [departmentId, row.requestingSecretariatId, row.requestingDepartmentId].some((id) =>
       claim.departmentIds.includes(id),
     )
   );
 }
 
-/** Item de uma visão: o processo e, em `PENDING_APPROVALS`, a linha de aprovação. */
+/**
+ * US-125 (RN-WF2-30): o que a linha descreve — na linha de um ramo, a etapa, a unidade e o
+ * responsável DA ETAPA; no tronco (e nas linhas "do processo"), os campos desnormalizados do
+ * processo, como no MVP 1.
+ */
+export function rowFocusOf(row: InboxProcessRow): {
+  readonly workflowStageId: string | null;
+  readonly departmentId: string;
+  readonly responsibleId: string | null;
+} {
+  if (row.branchKey === null) {
+    return {
+      workflowStageId: row.currentWorkflowStageId,
+      departmentId: row.currentDepartmentId,
+      responsibleId: row.currentResponsibleId,
+    };
+  }
+  return {
+    workflowStageId: row.stageWorkflowStageId ?? row.currentWorkflowStageId,
+    departmentId: row.stageDepartmentId ?? row.currentDepartmentId,
+    responsibleId: row.assigneeId,
+  };
+}
+
+/**
+ * Item de uma visão: o processo e, em `PENDING_APPROVALS`, a linha de aprovação. US-125: com
+ * ramos, o processo aparece uma vez por etapa ativa — `stageId` (não nulo) marca a linha de ramo.
+ */
 export interface InboxItemRow {
   /** Chave da linha (processo; linha de aprovação em `PENDING_APPROVALS` — RN-APV-62). */
   readonly key: string;
   readonly process: InboxProcessRow;
   readonly approval: InboxApprovalRow | null;
+  /**
+   * US-125 (RN-WF2-30): a etapa de ramo que a linha descreve; `null` = linha do processo (tronco,
+   * "Acompanhando" ou aprovação fora de ramo). Compõe o `rowKey` e desempata a ordenação.
+   */
+  readonly stageId: string | null;
+}
+
+/**
+ * Linha "do processo" (US-125): representa o processo inteiro — "Acompanhando" (RN-WF2-29: sem
+ * ramo) e a aprovação fora de ramo. No paralelismo, a linha de ramo vira linha do processo pelos
+ * campos desnormalizados (`branchKey = null` → `rowFocusOf` lê o processo).
+ */
+function processLevel(row: InboxProcessRow): InboxProcessRow {
+  return row.branchKey === null ? row : { ...row, branchKey: null };
+}
+
+/** Uma linha por processo: a de menor `dueAt` (etapa crítica — RN-WF2-34), desempate pela etapa. */
+export function onePerProcess(rows: readonly InboxProcessRow[]): InboxProcessRow[] {
+  const chosen = new Map<string, InboxProcessRow>();
+  for (const row of rows) {
+    const current = chosen.get(row.id);
+    if (current === undefined || compareCritical(row, current) < 0) chosen.set(row.id, row);
+  }
+  return [...chosen.values()];
+}
+
+function compareCritical(left: InboxProcessRow, right: InboxProcessRow): number {
+  const a = left.dueAt?.getTime() ?? null;
+  const b = right.dueAt?.getTime() ?? null;
+  if (a !== b) {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a - b;
+  }
+  const x = left.stageId ?? '';
+  const y = right.stageId ?? '';
+  return x < y ? -1 : x > y ? 1 : 0;
 }
 
 /**
@@ -311,7 +389,12 @@ export function dueAtOf(item: InboxItemRow): Date | null {
   return item.approval?.lineDueAt ?? item.approval?.dueAt ?? item.process.dueAt;
 }
 
-/** Itens da visão (fontes já restritas ao tenant e à visibilidade), um por chave. */
+/**
+ * Itens da visão (fontes já restritas ao tenant e à visibilidade), um por chave. US-125
+ * (RN-WF2-29): `MINE`/`UNIT_QUEUE`/`RETURNED`/`OVERDUE` dão uma linha por etapa ativa (a fonte já
+ * tem uma linha por etapa); `FOLLOWING`, uma por processo; `PENDING_APPROVALS`, uma por linha de
+ * aprovação, casada com a linha da etapa da aprovação. `branchKey` restringe às linhas do ramo.
+ */
 export function itemsOfView(
   view: TaskInboxView,
   sources: {
@@ -321,37 +404,61 @@ export function itemsOfView(
   },
   viewer: InboxViewer,
   now: Date,
+  branchKey: string | null = null,
 ): InboxItemRow[] {
   const item = (process: InboxProcessRow): InboxItemRow => ({
     key: process.id,
     process,
     approval: null,
+    stageId: process.branchKey === null ? null : process.stageId,
   });
+  const rows = sources.processes.filter((row) => branchKey === null || row.branchKey === branchKey);
   switch (view) {
     case 'MINE':
-      return sources.processes.filter((row) => isMine(row, viewer)).map(item);
+      return rows.filter((row) => isMine(row, viewer)).map(item);
     case 'UNIT_QUEUE':
-      return sources.processes.filter((row) => isInUnitQueue(row, viewer)).map(item);
+      return rows.filter((row) => isInUnitQueue(row, viewer)).map(item);
     case 'RETURNED':
-      return sources.processes.filter((row) => isReturned(row, viewer)).map(item);
+      return rows.filter((row) => isReturned(row, viewer)).map(item);
     case 'OVERDUE':
-      return sources.processes.filter((row) => isOverdueTask(row, viewer)).map(item);
+      return rows.filter((row) => isOverdueTask(row, viewer)).map(item);
     case 'FOLLOWING':
-      return sources.processes
-        .filter((row) => isFollowing(row, sources.participations, viewer, now))
-        .map(item);
+      return onePerProcess(
+        rows.filter((row) => isFollowing(row, sources.participations, viewer, now)),
+      ).map((row) => item(processLevel(row)));
     case 'PENDING_APPROVALS': {
       // RN-APV-62: uma linha por `ApprovalApprover` coberta (a fonte já tem uma linha por id — a
       // cobertura por dois caminhos não multiplica); duas linhas da mesma aprovação = dois itens.
-      const byId = new Map(sources.processes.map((row) => [row.id, row]));
+      // US-125: a linha do processo é a da etapa da aprovação; sem ela, a da etapa crítica.
+      const byProcess = new Map<string, InboxProcessRow[]>();
+      for (const row of sources.processes) {
+        byProcess.set(row.id, [...(byProcess.get(row.id) ?? []), row]);
+      }
       const seen = new Set<string>();
       return sources.approvals.flatMap((approval) => {
-        const process = byId.get(approval.processId);
-        if (!process || seen.has(approval.id) || !isDesignatedApprover(approval, process, viewer)) {
+        const candidates = byProcess.get(approval.processId) ?? [];
+        const own = candidates.find(
+          (row) => approval.processStageId !== null && row.stageId === approval.processStageId,
+        );
+        const process = own ?? onePerProcess(candidates)[0];
+        if (
+          !process ||
+          seen.has(approval.id) ||
+          (branchKey !== null && approval.branchKey !== branchKey) ||
+          !isDesignatedApprover(approval, process, viewer)
+        ) {
           return [];
         }
         seen.add(approval.id);
-        return [{ key: approval.id, process, approval }];
+        const inBranchStage = own !== undefined && approval.branchKey !== null;
+        return [
+          {
+            key: approval.id,
+            process: inBranchStage ? process : processLevel(process),
+            approval,
+            stageId: inBranchStage ? process.stageId : null,
+          },
+        ];
       });
     }
   }
@@ -386,6 +493,13 @@ export function compareItems(sort: TaskInboxSort): (a: InboxItemRow, b: InboxIte
       if (y === null) return -1;
       return (x - y) * factor;
     }
-    return a.key < b.key ? 1 : a.key > b.key ? -1 : 0;
+    if (a.key !== b.key) return a.key < b.key ? 1 : -1;
+    // US-125: o mesmo processo em várias linhas (ramos) — desempate pela etapa, nulos ao final.
+    const x = a.stageId;
+    const y = b.stageId;
+    if (x === y) return 0;
+    if (x === null) return 1;
+    if (y === null) return -1;
+    return x < y ? 1 : -1;
   };
 }

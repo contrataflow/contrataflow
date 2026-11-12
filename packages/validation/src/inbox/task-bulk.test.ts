@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { TASK_BULK_MESSAGES, bulkAssignSchema, bulkClaimSchema } from './task-bulk.js';
+import {
+  TASK_BULK_MESSAGES,
+  bulkAssignSchema,
+  bulkClaimSchema,
+  bulkTargetsOf,
+} from './task-bulk.js';
 
 const ids = (count: number) =>
   Array.from(
@@ -68,5 +73,55 @@ describe('bulkAssignSchema (US-058 · TSK-04 · RN-INBOX-21)', () => {
       bulkAssignSchema.safeParse({ processIds: ids(2), assigneeId, reason: 'x'.repeat(2001) }),
     );
     expect(long?.message).toBe(TASK_BULK_MESSAGES.reasonTooLong);
+  });
+});
+
+describe('US-125 — lote por ramo (`items[]` · RN-WF2-32)', () => {
+  const [p1 = '', p2 = '', s1 = '', s2 = ''] = ids(4);
+  const items = [
+    { processId: p1, processStageId: s1 },
+    { processId: p1, processStageId: s2 },
+  ];
+
+  it('aceita `items[]` no lugar de `processIds`, inclusive dois ramos do mesmo processo', () => {
+    expect(bulkClaimSchema.parse({ items }).items).toEqual(items);
+    expect(bulkTargetsOf({ items })).toEqual(items);
+    expect(bulkTargetsOf({ processIds: [p1, p2] })).toEqual([
+      { processId: p1, processStageId: null },
+      { processId: p2, processStageId: null },
+    ]);
+  });
+
+  it('V-03: `items` e `processIds` juntos → NOT_ALLOWED; nenhum dos dois → REQUIRED', () => {
+    const both = issuesOf(bulkClaimSchema.safeParse({ items, processIds: [p1, p2] }));
+    expect(both).toContainEqual(
+      expect.objectContaining({
+        path: ['items'],
+        message: TASK_BULK_MESSAGES.selectionFormat,
+        params: { code: 'NOT_ALLOWED' },
+      }) as unknown,
+    );
+    const none = issuesOf(bulkClaimSchema.safeParse({}));
+    expect(none[0]).toMatchObject({ path: ['processIds'], params: { code: 'REQUIRED' } });
+  });
+
+  it('V-03/V-04: de 2 a 50 itens, sem repetir o par', () => {
+    const [short] = issuesOf(bulkClaimSchema.safeParse({ items: [items[0]] }));
+    expect(short).toMatchObject({ code: 'too_small', message: TASK_BULK_MESSAGES.tooShort });
+    const [repeated] = issuesOf(bulkClaimSchema.safeParse({ items: [items[0], items[0]] }));
+    expect(repeated).toMatchObject({
+      message: TASK_BULK_MESSAGES.duplicateItems,
+      params: { code: 'DUPLICATE_IN_LIST' },
+    });
+    expect(
+      bulkClaimSchema.safeParse({ items: [{ processId: p1 }, { processId: p2 }] }).success,
+    ).toBe(false);
+  });
+
+  it('TSK-04 aceita `items[]` com o mesmo responsável e motivo', () => {
+    const [assigneeId = ''] = ids(1);
+    expect(
+      bulkAssignSchema.parse({ items, assigneeId, reason: 'Mutirão de triagem' }).items,
+    ).toEqual(items);
   });
 });

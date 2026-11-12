@@ -54,6 +54,7 @@ function toRow(
     subjectType: row.subject_type as ApprovalSubjectType,
     title: row.title,
     documentId: row.document_id,
+    processStageId: row.process_stage_id,
     status: row.status as ApprovalStatus,
     requestedById: row.requested_by_id,
     requestedAt: row.requested_at,

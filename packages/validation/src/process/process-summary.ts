@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { PROCESS_ACTIONS, PROCESS_STAGE_STATUSES, PROCESS_STATUSES } from './process-actions.js';
+import { BRANCH_SIBLING_STATUSES } from './process-branch-views.js';
+import { activeStageSchema } from './process-branches.js';
 import { processDeadlineSchema } from './process-list.js';
 import { ESTIMATED_VALUE_SOURCES, PRIORITIES } from './process.js';
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
@@ -86,6 +88,24 @@ const summaryWhereSchema = z.object({
   completedAt: isoDateTimeSchema.nullable(),
   canceledAt: isoDateTimeSchema.nullable(),
   cancellationReason: z.string().nullable(),
+  /**
+   * US-125 (aditivo · RN-WF2-33): no paralelismo, as etapas ativas lado a lado ("Onde está?"), com
+   * a do usuário destacada; ausente fora da ramificação (`stage` continua o split).
+   */
+  stages: z
+    .array(activeStageSchema.extend({ branchLabel: z.string().nullable(), isMine: z.boolean() }))
+    .optional(),
+  /** US-125: os ramos da rodada atual — em andamento ou "Concluído em {data}" (FA-02). */
+  branches: z
+    .array(
+      z.object({
+        branchKey: z.string(),
+        branchLabel: z.string(),
+        status: z.enum(BRANCH_SIBLING_STATUSES),
+        arrivedAt: isoDateTimeSchema.nullable(),
+      }),
+    )
+    .optional(),
 });
 
 const summaryApproverSchema = z.object({
@@ -103,6 +123,18 @@ const summaryResponsibleSchema = z.object({
   since: isoDateTimeSchema.nullable(),
   /** Em `AWAITING_APPROVAL`: o aprovador designado da aprovação pendente. */
   approver: summaryApproverSchema.nullable(),
+  /** US-125 (aditivo · RN-WF2-33): no paralelismo, quem está com cada etapa ativa. */
+  byStage: z
+    .array(
+      z.object({
+        processStageId: z.uuid(),
+        branchKey: z.string().nullable(),
+        user: refSchema.nullable(),
+        queueDepartment: refSchema.nullable(),
+        since: isoDateTimeSchema.nullable(),
+      }),
+    )
+    .optional(),
 });
 
 /** Atalho da pendência: o documento existente ou a criação do tipo (RN-PROC-51). */
@@ -121,6 +153,9 @@ export const pendingItemSchema = z.object({
   /** Regra que não pôde ser avaliada (contada como pendência — FA-10). */
   evaluationFailed: z.boolean(),
   link: pendingLinkSchema.nullable(),
+  /** US-125 (aditivo): no paralelismo, a etapa (ramo) cuja regra gerou a pendência. */
+  processStageId: z.uuid().optional(),
+  branchKey: z.string().nullable().optional(),
 });
 export type PendingItem = z.infer<typeof pendingItemSchema>;
 
@@ -160,6 +195,8 @@ export const summaryApprovalSchema = z.object({
   isOverdue: z.boolean(),
   /** O usuário é o aprovador designado (POL-03) — "Aguardando sua decisão". */
   isMine: z.boolean(),
+  /** US-125 (aditivo): ramo da etapa da aprovação (`null` fora de ramo). */
+  branchKey: z.string().nullable().optional(),
 });
 export type SummaryApproval = z.infer<typeof summaryApprovalSchema>;
 
@@ -179,6 +216,23 @@ export const processSummarySchema = z
       action: summaryActionSchema.nullable(),
       /** `WorkflowStage.instructions` (Markdown — o web renderiza sanitizado). */
       instructions: z.string().nullable(),
+      /**
+       * US-125 (aditivo · RN-WF2-33): no paralelismo, uma entrada por etapa ativa — a ação da
+       * etapa do usuário (`isMine`) ou, nas demais, `waitingFor` ("Aguardando").
+       */
+      byStage: z
+        .array(
+          z.object({
+            processStageId: z.uuid(),
+            branchKey: z.string().nullable(),
+            branchLabel: z.string().nullable(),
+            stageName: z.string(),
+            isMine: z.boolean(),
+            action: summaryActionSchema.nullable(),
+            waitingFor: z.object({ stageName: z.string(), departmentName: z.string() }).nullable(),
+          }),
+        )
+        .optional(),
     }),
     /** DTO `deadline` da etapa (US-002); `null` em status final (sem badges — RN-PROC-53). */
     deadline: processDeadlineSchema.nullable(),

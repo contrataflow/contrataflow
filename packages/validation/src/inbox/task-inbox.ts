@@ -7,7 +7,9 @@ import { isoDateTimeSchema } from '../common/dates.js';
 import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
 import { pageMetaSchema, pageQuerySchema } from '../http/pagination.js';
 import { PROCESS_STATUSES } from '../process/process-actions.js';
+import { branchRowFields } from '../process/process-branch-views.js';
 import { processDeadlineSchema } from '../process/process-list.js';
+import { WORKFLOW_ITEM_KEY_PATTERN } from '../workflow/workflow.js';
 
 /*
  * Caixa de tarefas (US-056 · TSK-01/TSK-02 · SCR-013): consulta sobre as etapas/responsabilidades
@@ -74,11 +76,15 @@ export const TASK_INBOX_MESSAGES = Object.freeze({
   rateLimited: 'Muitas tentativas. Aguarde alguns segundos.',
 });
 
-/** TSK-01 — `?view=&page=&pageSize=&sort=` (V-01..V-03). */
+/**
+ * TSK-01 — `?view=&page=&pageSize=&sort=&branchKey=` (V-01..V-03). US-125 (aditivo): `branchKey`
+ * restringe às linhas daquele ramo (filtro local da tela — V-02 fora do formato da chave).
+ */
 export const taskInboxQuerySchema = pageQuerySchema
   .extend({
     view: z.enum(TASK_INBOX_VIEWS).default(TASK_INBOX_DEFAULT_VIEW),
     sort: z.string().max(40).default(TASK_INBOX_DEFAULT_SORT),
+    branchKey: z.string().max(60).regex(WORKFLOW_ITEM_KEY_PATTERN).optional(),
   })
   .transform((query, context) => {
     const sort = parseTaskInboxSort(query.sort, query.view);
@@ -91,7 +97,13 @@ export const taskInboxQuerySchema = pageQuerySchema
       });
       return z.NEVER;
     }
-    return { view: query.view, page: query.page, pageSize: query.pageSize, sort };
+    return {
+      view: query.view,
+      page: query.page,
+      pageSize: query.pageSize,
+      sort,
+      branchKey: query.branchKey ?? null,
+    };
   })
   .meta({ id: 'TaskInboxQuery' });
 export type TaskInboxQuery = z.output<typeof taskInboxQuerySchema>;
@@ -151,6 +163,19 @@ export const taskInboxItemSchema = z
     /** RN-INBOX-11: a ação rápida "Assumir" está disponível para quem consulta. */
     canClaim: z.boolean(),
     approval: taskInboxApprovalSchema.optional(),
+    /**
+     * US-125 (aditivo · RN-WF2-30): chave única da linha — `processId` fora de ramo,
+     * `processId:processStageId` na linha de um ramo, a linha de aprovação em
+     * `PENDING_APPROVALS`. Com ramos, `currentStage`, `currentDepartment`, `currentResponsible`,
+     * `enteredAt`, `dueAt`, `isOverdue`, `overdueSince`, `deadline` e `canClaim` descrevem a etapa
+     * da linha.
+     */
+    rowKey: z.string().optional(),
+    /** Etapa ativa da linha (o alvo do "Assumir" — PRC-21); `null` sem etapa ativa. */
+    processStageId: z.uuid().nullable().optional(),
+    /** Etapas ativas do processo (1 fora do paralelismo). */
+    activeStagesCount: z.int().min(0).optional(),
+    ...branchRowFields,
   })
   .meta({ id: 'TaskInboxItem' });
 export type TaskInboxItemDto = z.infer<typeof taskInboxItemSchema>;
@@ -174,7 +199,13 @@ export const taskInboxCountersSchema = z
   .meta({ id: 'TaskInboxCounters' });
 export type TaskInboxCountersDto = z.infer<typeof taskInboxCountersSchema>;
 
-export const taskInboxCountersResponseSchema = z.object({ data: taskInboxCountersSchema });
+/** US-125 (RN-WF2-31): os contadores contam LINHAS (um processo com dois ramos visíveis conta 2). */
+export const TASK_INBOX_COUNT_UNIT = 'ROW' as const;
+
+export const taskInboxCountersResponseSchema = z.object({
+  data: taskInboxCountersSchema,
+  meta: z.object({ countUnit: z.literal(TASK_INBOX_COUNT_UNIT) }).optional(),
+});
 
 /** Chave do contador de cada visão. */
 export const TASK_INBOX_COUNTER_KEYS: Readonly<Record<TaskInboxView, keyof TaskInboxCountersDto>> =

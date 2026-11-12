@@ -18,3 +18,9 @@ Caixa de tarefas — somente consultas sobre views publicadas (DEC-040, DEC-026)
 - **Fachada (US-076):** `InboxFacade.countersIn(tx, now, restriction)` — os contadores de TSK-02 no
   `tx` do chamador, com recorte opcional pela unidade solicitante (`matchesRestriction`), para o
   `PENDING_ITEMS`/`pendingCount` do dashboard nunca divergirem da caixa (RN-DASH-03 · DEC-088).
+- **Ramos paralelos (US-125 · RN-WF2-29..31):** `v_inbox_processes` tem uma linha por etapa ativa
+  de trabalho (o split fica de fora; no ramo, a responsabilidade é a da etapa). `InboxItemRow.stageId`
+  marca a linha de ramo (`rowKey = processId:processStageId`); `FOLLOWING` e a aprovação fora de
+  ramo são "linha do processo" (`onePerProcess` — a etapa crítica). `rowFocusOf` dá a etapa, a
+  unidade e o responsável que a linha descreve; o rótulo do ramo e os irmãos vêm de
+  `ProcessFacade.branchViewsIn`. Os contadores contam linhas (`meta.countUnit = "ROW"`).

@@ -11,8 +11,10 @@ import { requireRequestContext } from '#shared/context/request-context.js';
 import { DatabaseUnavailableError, isStatementTimeout } from '#shared/database/errors.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
+import { ProcessBranchContextRegistry } from '#shared/process/process-branch-context.js';
 
 import { recordApprovalListQuery } from './approval-telemetry.js';
+import { branchFieldsOf } from './approval.presenter.js';
 import { ApproverResolver } from './approver-resolver.js';
 import { APPROVAL_CLOCK, APPROVAL_LIST_READER, APPROVAL_TRANSACTIONS } from './ports.js';
 import type {
@@ -53,6 +55,7 @@ export class ApprovalListPresenter {
     private readonly organization: OrganizationFacade,
     private readonly access: AccessFacade,
     private readonly resolver: ApproverResolver,
+    private readonly branches: ProcessBranchContextRegistry,
   ) {}
 
   async present(
@@ -77,6 +80,15 @@ export class ApprovalListPresenter {
       rows.map((row) => (row.approverType === 'ROLE' ? row.approverRoleId : null)),
     );
     const roles = await this.access.roleSummaries(tx, roleIds);
+    // US-125 (RN-WF2-37): ramo e irmãos das aprovações de etapa de ramo.
+    const branchOf = await this.branches.forStages(
+      tx,
+      rows.flatMap((row) =>
+        (row.processStageId ?? null) === null
+          ? []
+          : [{ processId: row.processId, processStageId: row.processStageId ?? '' }],
+      ),
+    );
 
     const label = (row: ApprovalListRow): string => {
       switch (row.approverType) {
@@ -147,6 +159,7 @@ export class ApprovalListPresenter {
       currentApprover: ((current) => (current === undefined ? null : { label: current.label }))(
         currentLabels.get(row.id),
       ),
+      ...branchFieldsOf(branchOf.get(row.processStageId ?? '')),
     }));
   }
 }

@@ -26,5 +26,22 @@
     "label": "Ramo em que você quer agir",
     "current": "Ramo selecionado: {name}",
     "mine": "sua etapa"
+  },
+  "branchReads": {
+    "chip": "Ramo: {branch}",
+    "chipLabel": "Etapa do ramo {branch}",
+    "siblings": "Também em andamento: {list}",
+    "more": "e mais {count}",
+    "arrived": "concluído",
+    "overdue": "atrasado",
+    "whereTitle": "Onde está? — {count} etapas em paralelo",
+    "inProgress": "Em andamento",
+    "arrivedOn": "Concluído em {date}",
+    "mine": "Sua etapa",
+    "waiting": "Aguardando: {stage} ({department})",
+    "criticalStage": "Prazo do processo definido pela etapa {stage}",
+    "noResponsible": "Na fila de {department}",
+    "dueOn": "vence {date}",
+    "stagesLabel": "Etapas ativas: {list}"
   }
 }

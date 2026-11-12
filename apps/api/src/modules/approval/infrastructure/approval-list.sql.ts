@@ -140,7 +140,8 @@ export function buildApprovalListPageSql(search: ApprovalListSearch): Prisma.Sql
   return Prisma.sql`
     WITH items AS (
       SELECT ap.id, ap.tenant_id, ap.process_id, ap.subject_type::text AS subject_type, ap.title,
-             ap.document_id, ap.status::text AS status, ap.requested_by_id, ap.requested_at,
+             ap.document_id, ap.process_stage_id, ap.status::text AS status, ap.requested_by_id,
+             ap.requested_at,
              ap.due_at, ap.approver_type::text AS approver_type, ap.approver_user_id,
              ap.approver_role_id, ap.approver_department_id, ap.allow_deputy, ap.decided_by_id,
              ap.decision_policy::text AS decision_policy,
@@ -170,6 +171,7 @@ export interface ApprovalListDbRow {
   readonly subject_type: string;
   readonly title: string;
   readonly document_id: string | null;
+  readonly process_stage_id: string | null;
   readonly status: string;
   readonly requested_by_id: string;
   readonly requested_at: Date;

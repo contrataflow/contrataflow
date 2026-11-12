@@ -598,3 +598,18 @@ para a única etapa ativa ou, no paralelismo, para a passagem do `PARALLEL_SPLIT
 - **Pendências**: PRC-09 por etapa (`processStageId?`), PRC-10 com `branchKey`/`isCurrent` por
   etapa, caixa de tarefas/painel/prazos por ramo (US-125) e a view `v_inbox_processes` (junta por
   etapa ativa — no paralelismo devolve uma linha por etapa).
+
+## Ramos paralelos nas leituras (US-125 · DEC-194)
+
+- `ProcessBranchViews` (`application/process-branch-views.ts`): a fotografia da rodada atual de um
+  processo em ramificação — etapas ativas, ramos (`OPEN`/`ARRIVED`, com `branchLabel` = nome da
+  primeira etapa do ramo) e a etapa crítica (menor `dueAt` — `domain/branch-views.ts`). Fora da
+  ramificação não há fotografia e as leituras do MVP 1 não mudam. Também implementa o
+  `ProcessBranchContextReader` do shared kernel, lido pela `approval` (APV-01/APV-02).
+- PRC-07: `domain/parallel-summary.ts` monta `where.stages[]`/`where.branches[]`,
+  `responsible.byStage[]` e `nextStep.byStage[]`; as pendências são as regras de cada etapa ativa
+  sobre a visão focada (`focusRuntime`). PRC-01: filtros de etapa, unidade e responsável casam com
+  qualquer etapa ativa de ramo (`anyBranchStage` no SQL, `branchStages` em memória) e a linha em
+  ramificação (`inBranching`) ganha `activeStages[]` e `deadline.criticalStage`.
+- TSK-03/TSK-04: `items[]` por ramo (`bulkTargetsOf`), cada item vai ao PRC-21/PRC-22 com o
+  `processStageId`; a auditoria leva `branchKey` no paralelismo.

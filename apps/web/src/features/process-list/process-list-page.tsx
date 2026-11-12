@@ -79,6 +79,7 @@ import {
   ConfidentialValue,
   DueDateText,
   PriorityBadge,
+  ProcessStageChips,
   formatBrl,
 } from './process-list-badges';
 import {
@@ -1331,7 +1332,12 @@ function Cell({ column, item }: { readonly column: ColumnId; readonly item: Proc
     case 'status':
       return <ProcessStatusBadge status={item.status} />;
     case 'stage':
-      return <>{item.currentStage?.name ?? t('table.none')}</>;
+      // US-125 (RN-WF2-36): no paralelismo, os chips das etapas ativas ("Jurídico · Controle").
+      return item.activeStages !== undefined && item.activeStages.length > 0 ? (
+        <ProcessStageChips stages={item.activeStages} />
+      ) : (
+        <>{item.currentStage?.name ?? t('table.none')}</>
+      );
     case 'currentDepartment':
       return <>{item.currentDepartment.name}</>;
     case 'responsible':

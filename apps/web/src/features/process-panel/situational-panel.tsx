@@ -23,6 +23,7 @@ import { formatCivilDate, formatDate } from '@/lib/i18n/format';
 
 import { SafeMarkdown } from './safe-markdown';
 import { DOCUMENT_STATUS_TONE } from '../documents/document-status-badge';
+import { BranchLabelChip } from '../process-actions/branch-summary';
 import { StageChecklist } from '../process-actions/stage-checklist';
 import { DueDateBadge } from '../process-list/process-list-badges';
 
@@ -116,7 +117,74 @@ function WhereCard({
           {line}
         </p>
       ))}
+      <ActiveStagesPanel summary={summary} timeZone={timeZone} />
     </Card>
+  );
+}
+
+/**
+ * US-125 (RN-WF2-33 · `ActiveStagesPanel`): no paralelismo, "Onde está?" lista as etapas ativas
+ * lado a lado — uma seção por ramo (`h3`, texto e não só cor) com a etapa, a unidade, quem está com
+ * ela e o prazo — e os ramos já concluídos. Fora do paralelismo não renderiza nada (MVP 1).
+ */
+function ActiveStagesPanel({
+  summary,
+  timeZone,
+}: {
+  readonly summary: ProcessSummaryDto;
+  readonly timeZone: string;
+}) {
+  const t = useTranslations('processActions.branchReads');
+  const stages = summary.where.stages;
+  if (stages === undefined || stages.length === 0) return null;
+  const arrived = (summary.where.branches ?? []).filter((branch) => branch.status === 'ARRIVED');
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium text-muted-foreground">
+        {t('whereTitle', { count: stages.length })}
+      </p>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {stages.map((stage) => (
+          <li
+            key={stage.processStageId}
+            className={cx(
+              'flex flex-col gap-1 rounded-control border p-2 text-sm',
+              stage.isMine ? 'border-primary' : 'border-border',
+            )}
+          >
+            <h3 className="font-medium">{stage.stageName}</h3>
+            <BranchLabelChip label={stage.branchLabel} />
+            <span className="text-muted-foreground">{stage.department.name}</span>
+            <span>
+              {stage.responsible === null
+                ? t('noResponsible', { department: stage.department.name })
+                : stage.responsible.name}
+            </span>
+            <span className="text-xs">
+              {t('inProgress')}
+              {stage.dueAt === null
+                ? ''
+                : ` · ${t('dueOn', { date: formatDate(stage.dueAt, timeZone) })}`}
+              {stage.isOverdue ? ` · ${t('overdue')}` : ''}
+            </span>
+            {stage.isMine ? <StatusChip tone="success">{t('mine')}</StatusChip> : null}
+          </li>
+        ))}
+        {arrived.map((branch) => (
+          <li
+            key={branch.branchKey}
+            className="flex flex-col gap-1 rounded-control border border-border p-2 text-sm"
+          >
+            <h3 className="font-medium">{branch.branchLabel}</h3>
+            <span className="text-xs text-muted-foreground">
+              {branch.arrivedAt === null
+                ? t('arrived')
+                : t('arrivedOn', { date: formatDate(branch.arrivedAt, timeZone) })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -270,7 +338,9 @@ function NextStepCard({
   readonly actions?: ReactNode;
 }) {
   const t = useTranslations('processes.panel.next');
+  const branches = useTranslations('processActions.branchReads');
   const instructions = summary.nextStep.instructions?.trim();
+  const byStage = summary.nextStep.byStage ?? [];
   return (
     <Card title={t('title')}>
       {instructions ? (
@@ -278,6 +348,21 @@ function NextStepCard({
       ) : (
         <p className="text-sm text-muted-foreground">{t('none')}</p>
       )}
+      {/* US-125 (RN-WF2-33): a minha etapa × "Aguardando" as dos outros ramos. */}
+      {byStage.length > 0 ? (
+        <ul className="flex flex-col gap-1 text-sm">
+          {byStage.map((entry) => (
+            <li key={entry.processStageId}>
+              {entry.isMine || entry.waitingFor === null
+                ? `${branches('mine')}: ${entry.stageName}`
+                : branches('waiting', {
+                    stage: entry.waitingFor.stageName,
+                    department: entry.waitingFor.departmentName,
+                  })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </Card>
   );
@@ -292,6 +377,7 @@ function DeadlinesCard({
   readonly timeZone: string;
 }) {
   const t = useTranslations('processes.panel.deadlines');
+  const branches = useTranslations('processActions.branchReads');
   const { deadline, target } = summary;
   if (deadline === null) {
     return (
@@ -311,6 +397,11 @@ function DeadlinesCard({
           </span>
         ) : null}
       </div>
+      {deadline.criticalStage ? (
+        <p className="text-xs text-muted-foreground">
+          {branches('criticalStage', { stage: deadline.criticalStage.stageName })}
+        </p>
+      ) : null}
       <p className="text-sm">
         {target === null
           ? t('noTarget')
