@@ -2,13 +2,21 @@ import { describe, expect, it } from 'vitest';
 
 import {
   compareApprovalRows,
+  currentLineOf,
   isApprovalOverdue,
   isDesignatedApprover,
   isInApprovalList,
   matchesCriteria,
+  myLineOf,
   normalizeSearch,
 } from './approval-list.js';
-import type { ApprovalListCriteria, ApprovalListRow, ApproverCoverage } from './approval-list.js';
+import type {
+  ApprovalListCriteria,
+  ApprovalListLine,
+  ApprovalListRow,
+  ApproverCoverage,
+} from './approval-list.js';
+import { mirrorListLineOf } from '../../../../test/support/approval-fixtures.js';
 
 /* US-057 — cobertura POL-03 como filtro (RN-INBOX-14), filtros (RN-INBOX-15), atraso e ordenação. */
 
@@ -26,7 +34,9 @@ function row(
   patch: Partial<ApprovalListRow> = {},
   process: Partial<ApprovalListRow['process']> = {},
 ): ApprovalListRow {
-  return {
+  const base: ApprovalListRow = {
+    decisionPolicy: 'ANY',
+    lines: [],
     tenantId: T,
     id: id(1),
     processId: id(100),
@@ -56,6 +66,7 @@ function row(
     },
     ...patch,
   };
+  return patch.lines === undefined ? { ...base, lines: [mirrorListLineOf(base, id(500))] } : base;
 }
 
 const coverage = (patch: Partial<ApproverCoverage> = {}): ApproverCoverage => ({
@@ -74,6 +85,10 @@ const role = (patch: Partial<ApproverCoverage['roles'][number]> = {}) => ({
   ...patch,
 });
 
+/** A linha espelhada da aprovação (o aprovador das colunas da `Approval`). */
+const designated = (r: ApprovalListRow, c: ApproverCoverage) =>
+  isDesignatedApprover(r, r.process, c);
+
 describe('isDesignatedApprover (POL-03)', () => {
   it('USER: só o próprio aprovador', () => {
     const direct = row({
@@ -81,49 +96,34 @@ describe('isDesignatedApprover (POL-03)', () => {
       approverUserId: BEATRIZ,
       approverDepartmentId: null,
     });
-    expect(isDesignatedApprover(direct, coverage())).toBe(true);
-    expect(isDesignatedApprover({ ...direct, approverUserId: OUTRA }, coverage())).toBe(false);
+    expect(designated(direct, coverage())).toBe(true);
+    expect(designated({ ...direct, approverUserId: OUTRA }, coverage())).toBe(false);
   });
 
   it('DEPARTMENT_HEAD: titular; substituto só com allowDeputy; outra secretaria nunca', () => {
-    expect(isDesignatedApprover(row(), coverage({ headOf: [OBRAS] }))).toBe(true);
-    expect(isDesignatedApprover(row(), coverage({ deputyOf: [OBRAS] }))).toBe(false);
-    expect(isDesignatedApprover(row({ allowDeputy: true }), coverage({ deputyOf: [OBRAS] }))).toBe(
-      true,
+    expect(designated(row(), coverage({ headOf: [OBRAS] }))).toBe(true);
+    expect(designated(row(), coverage({ deputyOf: [OBRAS] }))).toBe(false);
+    expect(designated(row({ allowDeputy: true }), coverage({ deputyOf: [OBRAS] }))).toBe(true);
+    expect(designated(row({ approverDepartmentId: SAUDE }), coverage({ headOf: [OBRAS] }))).toBe(
+      false,
     );
-    expect(
-      isDesignatedApprover(row({ approverDepartmentId: SAUDE }), coverage({ headOf: [OBRAS] })),
-    ).toBe(false);
-    expect(
-      isDesignatedApprover(row({ approverDepartmentId: null }), coverage({ headOf: [OBRAS] })),
-    ).toBe(false);
+    expect(designated(row({ approverDepartmentId: null }), coverage({ headOf: [OBRAS] }))).toBe(
+      false,
+    );
   });
 
   it('ROLE: perfil com escopo do tenant, do órgão ou da secretaria/setor solicitante', () => {
     const byRole = row({ approverType: 'ROLE', approverRoleId: ROLE, approverDepartmentId: null });
-    expect(isDesignatedApprover(byRole, coverage({ roles: [role({ tenantWide: true })] }))).toBe(
-      true,
-    );
-    expect(isDesignatedApprover(byRole, coverage({ roles: [role({ organizationId: ORG })] }))).toBe(
-      true,
-    );
-    expect(
-      isDesignatedApprover(byRole, coverage({ roles: [role({ departmentIds: [OBRAS] })] })),
-    ).toBe(true);
-    expect(
-      isDesignatedApprover(byRole, coverage({ roles: [role({ departmentIds: [SETOR] })] })),
-    ).toBe(true);
+    expect(designated(byRole, coverage({ roles: [role({ tenantWide: true })] }))).toBe(true);
+    expect(designated(byRole, coverage({ roles: [role({ organizationId: ORG })] }))).toBe(true);
+    expect(designated(byRole, coverage({ roles: [role({ departmentIds: [OBRAS] })] }))).toBe(true);
+    expect(designated(byRole, coverage({ roles: [role({ departmentIds: [SETOR] })] }))).toBe(true);
     // Escopo sobre outra unidade, ou outro perfil: fora da cobertura.
+    expect(designated(byRole, coverage({ roles: [role({ departmentIds: [SAUDE] })] }))).toBe(false);
     expect(
-      isDesignatedApprover(byRole, coverage({ roles: [role({ departmentIds: [SAUDE] })] })),
+      designated(byRole, coverage({ roles: [role({ roleId: id(9), tenantWide: true })] })),
     ).toBe(false);
-    expect(
-      isDesignatedApprover(
-        byRole,
-        coverage({ roles: [role({ roleId: id(9), tenantWide: true })] }),
-      ),
-    ).toBe(false);
-    expect(isDesignatedApprover(byRole, coverage())).toBe(false);
+    expect(designated(byRole, coverage())).toBe(false);
   });
 });
 
@@ -132,7 +132,9 @@ describe('isInApprovalList (RN-INBOX-14)', () => {
     expect(isInApprovalList(row(), coverage({ headOf: [OBRAS] }))).toBe(true);
     const decided = row({ status: 'APPROVED', decidedById: BEATRIZ });
     expect(isInApprovalList(decided, coverage())).toBe(true);
-    expect(isInApprovalList({ ...decided, decidedById: OUTRA }, coverage())).toBe(false);
+    expect(isInApprovalList(row({ status: 'APPROVED', decidedById: OUTRA }), coverage())).toBe(
+      false,
+    );
   });
 });
 
@@ -144,6 +146,8 @@ describe('matchesCriteria (RN-INBOX-15)', () => {
     requestedFrom: null,
     requestedTo: null,
     q: null,
+    decisionPolicies: null,
+    myLineStatus: null,
     timezone: 'America/Sao_Paulo',
     ...patch,
   });
@@ -228,5 +232,83 @@ describe('isApprovalOverdue (RN-INBOX-16) e ordenação (RN-INBOX-18)', () => {
     expect(
       ids([a, b, c].sort(compareApprovalRows({ field: 'requestedAt', direction: 'desc' }))),
     ).toEqual([id(3), id(2), id(1)]);
+  });
+});
+
+describe('US-136 — linha de quem consulta e linha corrente (RN-APV-66/67)', () => {
+  const line = (sequence: number, patch: Partial<ApprovalListLine> = {}): ApprovalListLine => ({
+    id: id(800 + sequence),
+    sequence,
+    status: 'PENDING',
+    approverType: 'USER',
+    approverUserId: OUTRA,
+    approverRoleId: null,
+    approverDepartmentId: null,
+    allowDeputy: false,
+    decidedById: null,
+    skippedReason: null,
+    ...patch,
+  });
+  const multi = (lines: readonly ApprovalListLine[]) => row({ decisionPolicy: 'ALL', lines });
+
+  it('myLineOf: a PENDING de menor ordem, senão a WAITING, senão a que decidiu', () => {
+    const mine = { approverUserId: BEATRIZ };
+    expect(myLineOf(multi([line(1), line(2, mine), line(3, mine)]), coverage())?.sequence).toBe(2);
+    expect(
+      myLineOf(multi([line(1), line(2, { ...mine, status: 'WAITING' })]), coverage()),
+    ).toMatchObject({ sequence: 2, status: 'WAITING' });
+    expect(
+      myLineOf(
+        multi([line(1, { status: 'APPROVED', decidedById: BEATRIZ, approverUserId: OUTRA })]),
+        coverage(),
+      ),
+    ).toMatchObject({ sequence: 1, status: 'APPROVED' });
+    // Titular (DEPARTMENT_HEAD) e linha USER: as duas cobertas, uma só escolhida.
+    const head = line(1, {
+      approverType: 'DEPARTMENT_HEAD',
+      approverUserId: null,
+      approverDepartmentId: OBRAS,
+    });
+    expect(myLineOf(multi([head, line(2, mine)]), coverage({ headOf: [OBRAS] }))?.sequence).toBe(1);
+    expect(myLineOf(multi([line(1)]), coverage())).toBeNull();
+  });
+
+  it('a linha substituída por redirecionamento sai da cobertura; a retirada continua', () => {
+    const superseded = line(1, {
+      approverUserId: BEATRIZ,
+      status: 'CANCELED',
+      skippedReason: 'REASSIGNED',
+    });
+    expect(isInApprovalList(multi([superseded, line(1)]), coverage())).toBe(false);
+    const withdrawn = line(1, { approverUserId: BEATRIZ, status: 'CANCELED', skippedReason: null });
+    expect(isInApprovalList(multi([withdrawn]), coverage())).toBe(true);
+  });
+
+  it('filtros decisionPolicy e myLineStatus', () => {
+    const criteria: ApprovalListCriteria = {
+      statuses: ['PENDING'],
+      subjectType: null,
+      requestingDepartmentId: null,
+      requestedFrom: null,
+      requestedTo: null,
+      q: null,
+      decisionPolicies: ['ALL'],
+      myLineStatus: 'WAITING',
+      timezone: 'America/Sao_Paulo',
+    };
+    const waiting = { id: id(1), sequence: 2, status: 'WAITING' as const };
+    expect(matchesCriteria(multi([line(1)]), criteria, waiting)).toBe(true);
+    expect(matchesCriteria(multi([line(1)]), criteria, { ...waiting, status: 'PENDING' })).toBe(
+      false,
+    );
+    expect(matchesCriteria(row(), criteria, waiting)).toBe(false);
+    expect(matchesCriteria(multi([line(1)]), criteria, null)).toBe(false);
+  });
+
+  it('currentLineOf: só em SEQUENTIAL pendente, a PENDING de menor ordem', () => {
+    const lines = [line(1, { status: 'APPROVED' }), line(2), line(3, { status: 'WAITING' })];
+    expect(currentLineOf('SEQUENTIAL', 'PENDING', lines)?.sequence).toBe(2);
+    expect(currentLineOf('ALL', 'PENDING', lines)).toBeNull();
+    expect(currentLineOf('SEQUENTIAL', 'RETURNED', lines)).toBeNull();
   });
 });

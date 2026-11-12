@@ -21,10 +21,21 @@ describe('approvalListQuerySchema', () => {
       requestedFrom: null,
       requestedTo: null,
       q: null,
+      decisionPolicies: null,
+      myLineStatus: null,
       sort: { field: 'requestedAt', direction: 'desc' },
       page: 1,
       pageSize: 20,
     });
+  });
+
+  it('US-136: decisionPolicy múltiplo (OU, sem duplicatas) e myLineStatus sem CANCELED', () => {
+    expect(
+      approvalListQuerySchema.parse({ decisionPolicy: ['ALL', 'SEQUENTIAL,ALL'] }).decisionPolicies,
+    ).toEqual(['ALL', 'SEQUENTIAL']);
+    expect(approvalListQuerySchema.parse({ myLineStatus: 'WAITING' }).myLineStatus).toBe('WAITING');
+    expect(approvalListQuerySchema.safeParse({ decisionPolicy: 'MAJORITY' }).success).toBe(false);
+    expect(approvalListQuerySchema.safeParse({ myLineStatus: 'CANCELED' }).success).toBe(false);
   });
 
   it('status múltiplo por vírgula ou repetição, sem duplicatas (OU)', () => {

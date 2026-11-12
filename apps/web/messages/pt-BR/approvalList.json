@@ -33,7 +33,9 @@
     "periodSeparator": "a",
     "invalidPeriod": "O período informado é inválido.",
     "chip": "{label}: {value}",
-    "remove": "Remover o filtro {label}"
+    "remove": "Remover o filtro {label}",
+    "decisionPolicy": "Política de decisão",
+    "myLineStatus": "Minha situação"
   },
   "status": {
     "PENDING": "Pendente",
@@ -70,7 +72,8 @@
     "actionsColumn": "Ações",
     "actions": "Ações de {title}",
     "openApproval": "Abrir aprovação",
-    "openProcess": "Abrir processo"
+    "openProcess": "Abrir processo",
+    "progress": "Andamento"
   },
   "empty": {
     "pendingTitle": "Nenhuma aprovação pendente",
@@ -107,5 +110,29 @@
     "copied": "Código copiado.",
     "retry": "Tentar novamente",
     "clearDepartment": "Limpar unidade"
+  },
+  "decisionPolicy": {
+    "ANY": "Qualquer um aprova",
+    "ALL": "Todos aprovam",
+    "SEQUENTIAL": "Aprovam em sequência"
+  },
+  "myLineStatus": {
+    "PENDING": "Sua vez",
+    "WAITING": "Aguardando a vez",
+    "APPROVED": "Você já aprovou",
+    "RETURNED": "Você devolveu",
+    "REJECTED": "Você indeferiu",
+    "SKIPPED": "Encerrada para você"
+  },
+  "progress": {
+    "currentApprover": "Aprovador atual: {label}",
+    "mine": {
+      "PENDING": "Sua vez",
+      "WAITING": "Aguardando a vez",
+      "APPROVED": "Você já aprovou",
+      "RETURNED": "Você devolveu",
+      "REJECTED": "Você indeferiu",
+      "SKIPPED": "Encerrada para você"
+    }
   }
 }

@@ -11,7 +11,8 @@ import type { ApprovalListCriteria, ApproverCoverage } from '../domain/approval-
  * POL-03 como predicado — o mesmo de `domain/approval-list.ts`, linha a linha — e os filtros de
  * RN-INBOX-15. Página e total de uma instrução; ordenação de lista fechada; todo valor do usuário é
  * parâmetro (`Prisma.sql`). Cada aprovação é uma linha (sem junção multiplicadora): coberta por
- * perfil E por titularidade, aparece uma vez.
+ * perfil E por titularidade, aparece uma vez. US-136: a cobertura é por linha (`ApprovalApprover`,
+ * LATERAL `ml` com `LIMIT 1`), com os filtros `decisionPolicy` e `myLineStatus`.
  */
 
 const SQL_FALSE = Prisma.sql`FALSE`;
@@ -19,8 +20,12 @@ const SQL_FALSE = Prisma.sql`FALSE`;
 const uuidAny = (column: Prisma.Sql, ids: readonly string[]) =>
   ids.length === 0 ? SQL_FALSE : Prisma.sql`${column} = ANY(${[...ids]}::uuid[])`;
 
-/** POL-03 (`isDesignatedApprover`): direto, titular/substituto com `allowDeputy`, perfil. */
-export function designatedSql(coverage: ApproverCoverage): Prisma.Sql {
+/**
+ * POL-03 (`isDesignatedApprover`): direto, titular/substituto com `allowDeputy`, perfil — sobre a
+ * linha de alias `alias` (US-136: a `ApprovalApprover`, `l`).
+ */
+export function designatedSql(coverage: ApproverCoverage, alias = 'l'): Prisma.Sql {
+  const col = (name: string) => Prisma.raw(`${alias}.${name}`);
   const byRole = coverage.roles.map((role) => {
     const scope: Prisma.Sql[] = [];
     if (role.tenantWide) scope.push(Prisma.sql`TRUE`);
@@ -35,21 +40,40 @@ export function designatedSql(coverage: ApproverCoverage): Prisma.Sql {
     }
     return scope.length === 0
       ? SQL_FALSE
-      : Prisma.sql`(ap.approver_role_id = ${role.roleId}::uuid AND (${Prisma.join(scope, ' OR ')}))`;
+      : Prisma.sql`(${col('approver_role_id')} = ${role.roleId}::uuid AND (${Prisma.join(scope, ' OR ')}))`;
   });
   return Prisma.sql`(
-        (ap.approver_type::text = 'USER' AND ap.approver_user_id = ${coverage.userId}::uuid)
-     OR (ap.approver_type::text = 'DEPARTMENT_HEAD'
-         AND (${uuidAny(Prisma.sql`ap.approver_department_id`, coverage.headOf)}
-              OR (ap.allow_deputy
-                  AND ${uuidAny(Prisma.sql`ap.approver_department_id`, coverage.deputyOf)})))
-     OR (ap.approver_type::text = 'ROLE'
+        (${col('approver_type')}::text = 'USER' AND ${col('approver_user_id')} = ${coverage.userId}::uuid)
+     OR (${col('approver_type')}::text = 'DEPARTMENT_HEAD'
+         AND (${uuidAny(col('approver_department_id'), coverage.headOf)}
+              OR (${col('allow_deputy')}
+                  AND ${uuidAny(col('approver_department_id'), coverage.deputyOf)})))
+     OR (${col('approver_type')}::text = 'ROLE'
          AND (${byRole.length === 0 ? SQL_FALSE : Prisma.join(byRole, ' OR ')})))`;
 }
 
-/** RN-INBOX-14 (`isInApprovalList`): designado agora ou quem decidiu. */
+/**
+ * US-136 (`myLineOf` · RN-APV-66 · FA-04): a linha não substituída de quem consulta — designado
+ * nela ou quem a decidiu —, a `PENDING` de menor ordem, senão a `WAITING`, senão a que decidiu. LATERAL
+ * sobre `approval_approvers` (índice `approval_approvers_approval_idx`): uma linha por aprovação.
+ */
+export function myLineSql(coverage: ApproverCoverage): Prisma.Sql {
+  return Prisma.sql`LEFT JOIN LATERAL (
+        SELECT l.id, l.sequence, l.status::text AS status
+          FROM approval_approvers l
+         WHERE l.tenant_id = ap.tenant_id AND l.approval_id = ap.id
+           AND NOT (l.status = 'CANCELED' AND l.skipped_reason IS NOT DISTINCT FROM 'REASSIGNED')
+           AND (l.decided_by_id = ${coverage.userId}::uuid OR ${designatedSql(coverage)})
+         ORDER BY CASE l.status WHEN 'PENDING' THEN 0 WHEN 'WAITING' THEN 1
+                                WHEN 'CANCELED' THEN 3 ELSE 2 END,
+                  CASE WHEN l.decided_by_id = ${coverage.userId}::uuid THEN 0 ELSE 1 END,
+                  l.sequence
+         LIMIT 1) ml ON TRUE`;
+}
+
+/** RN-INBOX-14 · RN-APV-66 (`isInApprovalList`): com linha vigente minha ou decidida por mim. */
 export function coverageSql(coverage: ApproverCoverage): Prisma.Sql {
-  return Prisma.sql`(ap.decided_by_id = ${coverage.userId}::uuid OR ${designatedSql(coverage)})`;
+  return Prisma.sql`(ap.decided_by_id = ${coverage.userId}::uuid OR ml.id IS NOT NULL)`;
 }
 
 /** RN-INBOX-15 (`matchesCriteria`). */
@@ -59,6 +83,14 @@ export function criteriaSql(criteria: ApprovalListCriteria): Prisma.Sql {
   ];
   if (criteria.subjectType !== null) {
     parts.push(Prisma.sql`ap.subject_type::text = ${criteria.subjectType}`);
+  }
+  if (criteria.decisionPolicies !== null) {
+    parts.push(
+      Prisma.sql`ap.decision_policy::text = ANY(${[...criteria.decisionPolicies]}::text[])`,
+    );
+  }
+  if (criteria.myLineStatus !== null) {
+    parts.push(Prisma.sql`ml.status = ${criteria.myLineStatus}`);
   }
   if (criteria.requestingDepartmentId !== null) {
     parts.push(Prisma.sql`(pr.requesting_secretariat_id = ${criteria.requestingDepartmentId}::uuid
@@ -111,10 +143,13 @@ export function buildApprovalListPageSql(search: ApprovalListSearch): Prisma.Sql
              ap.document_id, ap.status::text AS status, ap.requested_by_id, ap.requested_at,
              ap.due_at, ap.approver_type::text AS approver_type, ap.approver_user_id,
              ap.approver_role_id, ap.approver_department_id, ap.allow_deputy, ap.decided_by_id,
+             ap.decision_policy::text AS decision_policy,
+             ml.id AS my_line_id, ml.sequence AS my_line_sequence, ml.status AS my_line_status,
              pr.code, pr.number, pr.year, pr.title AS process_title, pr.organization_id,
              pr.requesting_secretariat_id, pr.requesting_department_id, pr.is_budget_confidential
         FROM approvals ap
         JOIN v_inbox_processes pr ON pr.tenant_id = ap.tenant_id AND pr.id = ap.process_id
+        ${myLineSql(search.coverage)}
        WHERE ${coverageSql(search.coverage)} AND ${criteriaSql(search.criteria)}
     )
     SELECT t.total, page.*
@@ -145,6 +180,10 @@ export interface ApprovalListDbRow {
   readonly approver_department_id: string | null;
   readonly allow_deputy: boolean;
   readonly decided_by_id: string | null;
+  readonly decision_policy: string;
+  readonly my_line_id: string | null;
+  readonly my_line_sequence: number | null;
+  readonly my_line_status: string | null;
   readonly code: string | null;
   readonly number: number | null;
   readonly year: number;

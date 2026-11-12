@@ -1,6 +1,10 @@
 import { localDateOf } from '@contrataflow/types';
 import type {
+  ApprovalApproverStatus,
+  ApprovalDecisionPolicy,
+  ApprovalSkippedReason,
   ApprovalListSort,
+  ApprovalMyLineStatus,
   ApprovalStatus,
   ApprovalSubjectType,
   ApproverType,
@@ -43,6 +47,38 @@ export interface ApprovalListProcess {
   readonly isBudgetConfidential: boolean;
 }
 
+/** Linha `ApprovalApprover` da aprovação (US-136): a cobertura e o andamento por linha. */
+export interface ApprovalListLine {
+  readonly id: string;
+  readonly sequence: number;
+  readonly status: ApprovalApproverStatus;
+  readonly approverType: ApproverType;
+  readonly approverUserId: string | null;
+  readonly approverRoleId: string | null;
+  readonly approverDepartmentId: string | null;
+  readonly allowDeputy: boolean;
+  readonly decidedById: string | null;
+  readonly skippedReason: ApprovalSkippedReason | null;
+}
+
+/**
+ * A linha substituída por redirecionamento (`CANCELED` + `REASSIGNED`) não é mais de ninguém: sai
+ * da cobertura (como a troca no lugar do MVP 1). As demais `CANCELED` (aprovação retirada ou
+ * cancelada) continuam cobrindo quem estava nelas — a lista do MVP 1 mostrava as canceladas.
+ */
+export function isSupersededLine(
+  line: Pick<ApprovalListLine, 'status' | 'skippedReason'>,
+): boolean {
+  return line.status === 'CANCELED' && line.skippedReason === 'REASSIGNED';
+}
+
+/** `myLine` (RN-APV-67): a linha de quem consulta. */
+export interface ApprovalListMyLine {
+  readonly id: string;
+  readonly sequence: number;
+  readonly status: ApprovalApproverStatus;
+}
+
 /** Linha de `approvals` com o processo. */
 export interface ApprovalListRow {
   readonly tenantId: string;
@@ -62,6 +98,10 @@ export interface ApprovalListRow {
   readonly allowDeputy: boolean;
   readonly decidedById: string | null;
   readonly process: ApprovalListProcess;
+  /** US-136: a política copiada na solicitação (`ANY` nas do MVP 1). */
+  readonly decisionPolicy: ApprovalDecisionPolicy;
+  /** US-136: todas as linhas, em ordem de `sequence` e criação (inclusive as `CANCELED`). */
+  readonly lines: readonly ApprovalListLine[];
 }
 
 /**
@@ -70,34 +110,80 @@ export interface ApprovalListRow {
  * órgão ou a secretaria/setor solicitante do processo. O mesmo de `designationOf` (US-052), sobre os
  * fatos de quem consulta em vez dos detentores do perfil.
  */
-export function isDesignatedApprover(row: ApprovalListRow, coverage: ApproverCoverage): boolean {
-  switch (row.approverType) {
+export function isDesignatedApprover(
+  line: Pick<
+    ApprovalListLine,
+    'approverType' | 'approverUserId' | 'approverRoleId' | 'approverDepartmentId' | 'allowDeputy'
+  >,
+  process: Pick<
+    ApprovalListProcess,
+    'organizationId' | 'requestingSecretariatId' | 'requestingDepartmentId'
+  >,
+  coverage: ApproverCoverage,
+): boolean {
+  switch (line.approverType) {
     case 'USER':
-      return row.approverUserId !== null && row.approverUserId === coverage.userId;
+      return line.approverUserId !== null && line.approverUserId === coverage.userId;
     case 'DEPARTMENT_HEAD':
       return (
-        row.approverDepartmentId !== null &&
-        (coverage.headOf.includes(row.approverDepartmentId) ||
-          (row.allowDeputy && coverage.deputyOf.includes(row.approverDepartmentId)))
+        line.approverDepartmentId !== null &&
+        (coverage.headOf.includes(line.approverDepartmentId) ||
+          (line.allowDeputy && coverage.deputyOf.includes(line.approverDepartmentId)))
       );
     case 'ROLE':
       return coverage.roles.some(
         (role) =>
-          role.roleId === row.approverRoleId &&
+          role.roleId === line.approverRoleId &&
           (role.tenantWide ||
-            role.organizationId === row.process.organizationId ||
-            role.departmentIds.includes(row.process.requestingSecretariatId) ||
-            role.departmentIds.includes(row.process.requestingDepartmentId)),
+            role.organizationId === process.organizationId ||
+            role.departmentIds.includes(process.requestingSecretariatId) ||
+            role.departmentIds.includes(process.requestingDepartmentId)),
       );
   }
 }
 
+/** Prioridade da linha de quem consulta: a vez, a espera, as demais. */
+const MY_LINE_RANK: Readonly<Record<ApprovalApproverStatus, number>> = {
+  PENDING: 0,
+  WAITING: 1,
+  APPROVED: 2,
+  RETURNED: 2,
+  REJECTED: 2,
+  SKIPPED: 2,
+  CANCELED: 3,
+};
+
 /**
- * RN-INBOX-14: na lista entram as aprovações em que o usuário PRECISA atuar (designado agora) ou
- * PRECISOU atuar (decidiu — o histórico não some quando a titularidade muda depois).
+ * US-136 (RN-APV-66 · FA-04): a linha de quem consulta — entre as não substituídas
+ * (`isSupersededLine`) em que está designado ou que decidiu, a `PENDING` de menor `sequence`, senão a `WAITING`, senão a que
+ * decidiu, senão a primeira. O mesmo `ORDER BY` do SQL (`myLineSql`).
+ */
+export function myLineOf(
+  row: Pick<ApprovalListRow, 'lines' | 'process'>,
+  coverage: ApproverCoverage,
+): ApprovalListMyLine | null {
+  const candidates = row.lines.filter(
+    (line) =>
+      !isSupersededLine(line) &&
+      (line.decidedById === coverage.userId || isDesignatedApprover(line, row.process, coverage)),
+  );
+  const ranked = [...candidates].sort(
+    (a, b) =>
+      MY_LINE_RANK[a.status] - MY_LINE_RANK[b.status] ||
+      Number(b.decidedById === coverage.userId) - Number(a.decidedById === coverage.userId) ||
+      a.sequence - b.sequence,
+  );
+  const mine = ranked[0];
+  return mine === undefined ? null : { id: mine.id, sequence: mine.sequence, status: mine.status };
+}
+
+/**
+ * RN-INBOX-14 · US-136 (RN-APV-66): na lista entram as aprovações em que o usuário tem linha não
+ * substituída (designado nela agora — em qualquer estado, como no MVP 1, inclusive `WAITING`) ou que
+ * decidiu (a linha ou, no MVP 1, a aprovação — o histórico não some quando a titularidade muda).
  */
 export function isInApprovalList(row: ApprovalListRow, coverage: ApproverCoverage): boolean {
-  return row.decidedById === coverage.userId || isDesignatedApprover(row, coverage);
+  return row.decidedById === coverage.userId || myLineOf(row, coverage) !== null;
 }
 
 /** Filtros de APV-01 já resolvidos (RN-INBOX-15); período em datas locais do tenant. */
@@ -109,6 +195,10 @@ export interface ApprovalListCriteria {
   readonly requestedFrom: string | null;
   readonly requestedTo: string | null;
   readonly q: string | null;
+  /** US-136 (RN-APV-67): políticas (OU); `null` = todas. */
+  readonly decisionPolicies: readonly ApprovalDecisionPolicy[] | null;
+  /** US-136 (RN-APV-67): a situação da linha de quem consulta; `null` = qualquer. */
+  readonly myLineStatus: ApprovalMyLineStatus | null;
   /** Fuso IANA do tenant (o dia local de `requestedAt`). */
   readonly timezone: string;
 }
@@ -121,8 +211,19 @@ export function normalizeSearch(value: string): string {
     .toLowerCase();
 }
 
-export function matchesCriteria(row: ApprovalListRow, criteria: ApprovalListCriteria): boolean {
+export function matchesCriteria(
+  row: ApprovalListRow,
+  criteria: ApprovalListCriteria,
+  myLine: ApprovalListMyLine | null = null,
+): boolean {
   if (!criteria.statuses.includes(row.status)) return false;
+  if (
+    criteria.decisionPolicies !== null &&
+    !criteria.decisionPolicies.includes(row.decisionPolicy)
+  ) {
+    return false;
+  }
+  if (criteria.myLineStatus !== null && myLine?.status !== criteria.myLineStatus) return false;
   if (criteria.subjectType !== null && row.subjectType !== criteria.subjectType) return false;
   if (
     criteria.requestingDepartmentId !== null &&
@@ -180,4 +281,19 @@ export function compareApprovalRows(
     }
     return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
   };
+}
+
+/**
+ * US-136 (RN-APV-67/70 · `currentApprover`, `waitingFor`): em `SEQUENTIAL` pendente, a linha
+ * corrente — a `PENDING` de menor `sequence`; senão `null`.
+ */
+export function currentLineOf<
+  L extends { readonly sequence: number; readonly status: ApprovalApproverStatus },
+>(policy: ApprovalDecisionPolicy, approvalStatus: ApprovalStatus, lines: readonly L[]): L | null {
+  if (policy !== 'SEQUENTIAL' || approvalStatus !== 'PENDING') return null;
+  return (
+    [...lines]
+      .filter((line) => line.status === 'PENDING')
+      .sort((a, b) => a.sequence - b.sequence)[0] ?? null
+  );
 }

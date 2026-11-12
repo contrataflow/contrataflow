@@ -29,7 +29,8 @@
       "RETURNED": "Devolvida",
       "REJECTED": "Indeferida",
       "CANCELED": "Cancelada"
-    }
+    },
+    "closed": "Esta aprovação foi encerrada."
   },
   "coverage": {
     "heading": "Documentos cobertos",
@@ -68,7 +69,8 @@
       "INVALID_PROCESS_STATUS": "O processo está em uma situação que não permite decidir esta aprovação agora.",
       "UNKNOWN": "As ações de decisão não estão disponíveis para você."
     },
-    "waitingTitle": "Aguardando a vez"
+    "waitingTitle": "Aguardando a vez",
+    "waitingFor": "Aguardando a aprovação de {label} antes da sua."
   },
   "panel": {
     "heading": "Sua decisão",
@@ -231,12 +233,31 @@
     },
     "status": {
       "WAITING": "Aguardando a vez",
-      "PENDING": "Aguardando decisão",
+      "PENDING": "Pendente",
       "APPROVED": "Aprovou",
       "RETURNED": "Devolveu",
       "REJECTED": "Indeferiu",
       "SKIPPED": "Dispensada",
       "CANCELED": "Cancelada"
+    },
+    "skipped": {
+      "NEGATIVE_DECISION": "Dispensada — encerrada por decisão negativa",
+      "ANY_DECIDED": "Dispensada — decidida por outro aprovador",
+      "WITHDRAWN": "Dispensada — aprovação retirada",
+      "REASSIGNED": "Substituída"
+    },
+    "replaced": "Substituída",
+    "replacedBy": "Substituída por {approver}",
+    "comment": "Comentário: {comment}",
+    "progress": "Andamento: {label}",
+    "current": "Vez atual",
+    "history": {
+      "open": "Histórico de linhas",
+      "close": "Ocultar histórico de linhas",
+      "heading": "Histórico de linhas",
+      "loading": "Carregando o histórico de linhas…",
+      "failed": "Não foi possível carregar as aprovações agora.",
+      "retry": "Tentar novamente"
     }
   }
 }

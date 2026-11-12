@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
+import { APPROVAL_LINES_MAX } from '../approval/approval-approvers.js';
+import { approvalProgressSchema } from '../approval/approval-progress.js';
 import { APPROVAL_SUBJECT_TYPES } from '../approval/events.js';
 import { isoDateTimeSchema } from '../common/dates.js';
+import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
 import { pageMetaSchema, pageQuerySchema } from '../http/pagination.js';
 import { PROCESS_STATUSES } from '../process/process-actions.js';
 import { processDeadlineSchema } from '../process/process-list.js';
@@ -96,10 +99,18 @@ export type TaskInboxQuery = z.output<typeof taskInboxQuerySchema>;
 const unitRefSchema = z.object({ id: z.uuid(), name: z.string() });
 const userRefSchema = z.object({ id: z.uuid(), name: z.string() });
 
-/** Aprovação pendente da linha (só na visão `PENDING_APPROVALS`). */
+/**
+ * Aprovação pendente da linha (só na visão `PENDING_APPROVALS`). US-136 (aditivo · RN-APV-62): a
+ * linha de aprovação (`ApprovalApprover` `PENDING`) que cabe a quem consulta, a ordem, a política e
+ * o andamento (RN-APV-70); `id` continua sendo a `Approval`.
+ */
 export const taskInboxApprovalSchema = z
   .object({
     id: z.uuid(),
+    approvalApproverId: z.uuid().optional(),
+    sequence: z.int().min(1).max(APPROVAL_LINES_MAX).optional(),
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES).optional(),
+    progress: approvalProgressSchema.optional(),
     title: z.string(),
     subjectType: z.enum(APPROVAL_SUBJECT_TYPES),
     requestedBy: userRefSchema,
@@ -111,7 +122,10 @@ export const taskInboxApprovalSchema = z
 /** Linha da caixa de tarefas (TSK-01). Sem valores monetários (FA-05). */
 export const taskInboxItemSchema = z
   .object({
-    /** Chave da linha: o processo; em `PENDING_APPROVALS`, a aprovação. */
+    /**
+     * Chave da linha: o processo; em `PENDING_APPROVALS`, a linha de aprovação
+     * (`approvalApproverId` — US-136 · RN-APV-62).
+     */
     id: z.uuid(),
     processId: z.uuid(),
     code: z.string().nullable(),
@@ -124,7 +138,10 @@ export const taskInboxItemSchema = z
     currentResponsible: userRefSchema.nullable(),
     /** Entrada na etapa ativa. */
     enteredAt: isoDateTimeSchema.nullable(),
-    /** Prazo da etapa ativa (em `PENDING_APPROVALS`, o da aprovação quando houver). */
+    /**
+     * Prazo da etapa ativa; em `PENDING_APPROVALS`, o da linha, senão o da aprovação, senão o da
+     * etapa (US-136 · RN-APV-63).
+     */
     dueAt: isoDateTimeSchema.nullable(),
     /** Derivado de `overdueSince` da etapa ativa. */
     isOverdue: z.boolean(),

@@ -37,6 +37,7 @@ import {
   testConfig,
 } from '../support/api-test-app.js';
 import type { TestApi } from '../support/api-test-app.js';
+import { MIRROR_APPROVAL_LINE_SQL } from '../support/approval-fixtures.js';
 import { runTenantSeeders } from '../support/process-fixtures.js';
 
 const A = '0192c056-0000-7000-8000-00000000010a';
@@ -270,6 +271,8 @@ describe('Feature: Caixa de tarefas unificada sobre PostgreSQL (US-056)', () => 
         approver.allowDeputy ?? false,
       ],
     );
+    // US-136: a linha de backfill (M2-03) — a caixa lê a view v2, uma linha por linha PENDING.
+    await db.admin(MIRROR_APPROVAL_LINE_SQL, [id]);
     return id;
   }
 
@@ -429,10 +432,11 @@ describe('Feature: Caixa de tarefas unificada sobre PostgreSQL (US-056)', () => 
     if (!authority) throw new Error('perfil AUTORIDADE_COMPETENTE ausente');
     const byRole = await approvalOn({ type: 'ROLE', roleId: authority.id });
     const ana = await list('?view=PENDING_APPROVALS&pageSize=100');
-    const anaRows = ana.data.map((item) => item.id);
+    // US-136 (RN-APV-62): `id` é a linha de aprovação; `approval.id`, a aprovação.
+    const anaRows = ana.data.map((item) => item.approval?.id);
     expect(anaRows.sort()).toEqual([direct, asHead, deputyAllowed].sort());
     expect(anaRows).not.toContain(deputyDenied);
-    expect(ana.data.find((item) => item.id === direct)).toMatchObject({
+    expect(ana.data.find((item) => item.approval?.id === direct)).toMatchObject({
       dueAt: '2026-10-24T02:59:59.000Z',
       approval: {
         id: direct,
@@ -443,7 +447,7 @@ describe('Feature: Caixa de tarefas unificada sobre PostgreSQL (US-056)', () => 
       },
     });
     const rui = await list('?view=PENDING_APPROVALS&pageSize=100', RUI);
-    expect(rui.data.map((item) => item.id)).toEqual([byRole.id]);
+    expect(rui.data.map((item) => item.approval?.id)).toEqual([byRole.id]);
     expect(rui.data[0]?.processId).toBe(byRole.process.id);
     expect((await list('?view=PENDING_APPROVALS&pageSize=100', CARLOS)).data).toEqual([]);
   });
@@ -494,6 +498,73 @@ describe('Feature: Caixa de tarefas unificada sobre PostgreSQL (US-056)', () => 
     }
   });
 
+  it('[US-136] view v2: uma linha por linha PENDING coberta; WAITING, SKIPPED e substituída ficam fora', async () => {
+    const process = await processInQueue(MANUTENCAO);
+    await db.admin(
+      `INSERT INTO process_access (id, tenant_id, process_id, principal_type, user_id, reason)
+       VALUES ($1, $2, $3, 'USER', $4, 'APPROVER')`,
+      [randomUUID(), A, process.id, ANA],
+    );
+    const approvalId = await pendingApproval(process, { type: 'USER', userId: ANA });
+    await db.admin(`UPDATE approvals SET decision_policy = 'ALL' WHERE id = $1`, [approvalId]);
+    const line = async (
+      sequence: number,
+      status: string,
+      approver: { readonly userId?: string; readonly departmentId?: string },
+      skippedReason: string | null = null,
+    ) => {
+      const id = randomUUID();
+      await db.admin(
+        `INSERT INTO approval_approvers (id, tenant_id, approval_id, sequence, approver_type,
+                                        approver_user_id, approver_department_id, allow_deputy,
+                                        status, skipped_reason, activated_at)
+         VALUES ($1, $2, $3, $4, $5::approver_type, $6, $7, true,
+                 $8::approval_approver_status, $9,
+                 CASE WHEN $8 = 'WAITING' THEN NULL ELSE '2026-10-12T12:00:00Z'::timestamptz END)`,
+        [
+          id,
+          A,
+          approvalId,
+          sequence,
+          approver.userId === undefined ? 'DEPARTMENT_HEAD' : 'USER',
+          approver.userId ?? null,
+          approver.departmentId ?? null,
+          status,
+          skippedReason,
+        ],
+      );
+      return id;
+    };
+    // A linha 1 (backfill) já é da Ana; a 2 é da Ana como titular do Planejamento.
+    const [first] = await db.admin<{ id: string }>(
+      'SELECT id FROM approval_approvers WHERE approval_id = $1 AND sequence = 1',
+      [approvalId],
+    );
+    const asHead = await line(2, 'PENDING', { departmentId: PLANEJAMENTO });
+    const waiting = await line(3, 'WAITING', { userId: ANA });
+    const skipped = await line(4, 'SKIPPED', { userId: ANA }, 'ANY_DECIDED');
+    const superseded = await line(5, 'CANCELED', { userId: ANA }, 'REASSIGNED');
+
+    const body = await list('?view=PENDING_APPROVALS&pageSize=100');
+    const mine = body.data.filter((item) => item.approval?.id === approvalId);
+    expect(mine.map((item) => item.id).sort()).toEqual([first?.id, asHead].sort());
+    for (const id of [waiting, skipped, superseded]) {
+      expect(body.data.map((item) => item.id)).not.toContain(id);
+    }
+    expect(mine[0]?.approval).toMatchObject({
+      decisionPolicy: 'ALL',
+      progress: {
+        totalLines: 4,
+        approvedLines: 0,
+        pendingLines: 2,
+        waitingLines: 1,
+        label: '0 de 4 aprovaram',
+      },
+    });
+    // Contador e lista no mesmo predicado (RN-APV-64): linhas, não aprovações.
+    expect((await counters()).pendingApprovals).toBe(body.meta.totalItems);
+  });
+
   it('[Permissão] sem PROCESS_CLAIM e sem titularidade: sem a fila da unidade (contador ausente e lista vazia)', async () => {
     await processInQueue(MANUTENCAO);
     expect(await counters(BRUNO)).not.toHaveProperty('unitQueue');
@@ -527,6 +598,7 @@ describe('Feature: Caixa de tarefas unificada sobre PostgreSQL (US-056)', () => 
             tx.$queryRaw<{ id: string }[]>`
               SELECT id FROM v_inbox_processes WHERE tenant_id = ${A}::uuid
               UNION ALL SELECT process_id FROM v_inbox_pending_approvals WHERE tenant_id = ${A}::uuid
+              UNION ALL SELECT process_id FROM v_inbox_pending_approvals_v2 WHERE tenant_id = ${A}::uuid
               UNION ALL SELECT process_id FROM v_inbox_participations WHERE tenant_id = ${A}::uuid`,
         ),
       );

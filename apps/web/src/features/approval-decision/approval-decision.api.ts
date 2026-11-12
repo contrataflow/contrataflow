@@ -1,5 +1,6 @@
 import type {
   ApprovalDto,
+  ApprovalLinesResponse,
   ApprovalMeta,
   DecideApprovalInput,
   DecideApprovalMeta,
@@ -32,6 +33,9 @@ import { useTenantId } from '@/lib/session/session-context';
 export const approvalKeys = {
   all: (tenantId: string) => tenantKey(tenantId, 'approvals'),
   detail: (tenantId: string, approvalId: string) => tenantKey(tenantId, 'approvals', approvalId),
+  /** APV-31 (US-136): o histórico de linhas, sob a chave do detalhe (invalidado junto). */
+  lines: (tenantId: string, approvalId: string) =>
+    tenantKey(tenantId, 'approvals', approvalId, 'approvers'),
   /** Busca de novo aprovador (USR-02/DEP-02), por tipo e termo. */
   candidates: (tenantId: string, type: string, q: string) =>
     tenantKey(tenantId, 'approvals', 'candidates', type, q),
@@ -69,6 +73,10 @@ export async function fetchApproval(
       decisionBlocker: meta.decisionBlocker ?? EMPTY_META.decisionBlocker,
       myLine: meta.myLine ?? EMPTY_META.myLine,
       decidableLineIds: meta.decidableLineIds ?? EMPTY_META.decidableLineIds,
+      // US-136 (aditivo): a linha de quem consulta, as ações por linha e de quem é a vez.
+      myApproverLineId: meta.myApproverLineId ?? meta.myLine?.id ?? null,
+      lineActions: meta.lineActions ?? [],
+      waitingFor: meta.waitingFor ?? null,
     },
     etag: result.meta.etag,
   };
@@ -84,6 +92,29 @@ export function useApproval(approvalId: string) {
     queryKey: approvalKeys.detail(tenantId, approvalId),
     queryFn: ({ signal }) => fetchApproval(approvalId, signal),
     refetchOnWindowFocus: 'always',
+    throwOnError: false,
+  });
+}
+
+/** APV-31 (US-136): todas as linhas, inclusive as substituídas por redirecionamento. */
+export async function fetchApprovalLines(
+  approvalId: string,
+  signal?: AbortSignal,
+): Promise<ApprovalLinesResponse> {
+  const result = await apiRequest<ApprovalLinesResponse['data']>(
+    `/approvals/${approvalId}/approvers`,
+    { signal },
+  );
+  return { data: result.data, meta: result.meta as unknown as ApprovalLinesResponse['meta'] };
+}
+
+/** "Histórico de linhas" (SCR-015): só lido quando a pessoa abre o bloco. */
+export function useApprovalLines(approvalId: string, enabled: boolean) {
+  const tenantId = useTenantId();
+  return useQuery({
+    queryKey: approvalKeys.lines(tenantId, approvalId),
+    queryFn: ({ signal }) => fetchApprovalLines(approvalId, signal),
+    enabled,
     throwOnError: false,
   });
 }

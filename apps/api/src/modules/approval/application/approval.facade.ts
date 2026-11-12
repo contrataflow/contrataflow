@@ -16,7 +16,11 @@ import type { StageApprover } from './approver-resolver.js';
 import { APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalRepository, ApprovalSummaryRow, DocumentDecisionRow } from './ports.js';
 import type { ApprovalConfigSource } from '../domain/approval-lines.js';
-import type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
+import type {
+  RequestingUnitsOf,
+  ResolvedApprover,
+  StageApproverConfig,
+} from '../domain/approval.js';
 
 export type { CanceledApproval } from './approval-cancellation.service.js';
 export type {
@@ -27,7 +31,11 @@ export type {
 } from './approval-request.service.js';
 export type { ApprovalConfigSource } from '../domain/approval-lines.js';
 export type { StageApprover } from './approver-resolver.js';
-export type { RequestingUnitsOf, StageApproverConfig } from '../domain/approval.js';
+export type {
+  RequestingUnitsOf,
+  ResolvedApprover,
+  StageApproverConfig,
+} from '../domain/approval.js';
 
 /** Resumo de uma aprovação vinculada a uma tramitação (US-054 · FA-03). */
 export type ApprovalSummaryFact = Omit<ApprovalSummaryRow, 'id'>;
@@ -179,6 +187,17 @@ export class ApprovalFacade {
   }
 
   /** Aprovações `PENDING` do processo (mais antigas primeiro), no `tx` do chamador. Leitura. */
+  /**
+   * US-136 (RN-APV-70): o rótulo de cada linha de aprovação — o mesmo do APV-02 (`approvers[].label`)
+   * — para o andamento da caixa de tarefas ("Etapa n de N — {rótulo}").
+   */
+  async lineLabelsIn(tx: TenantTx, lines: readonly ResolvedApprover[]): Promise<string[]> {
+    const labels: string[] = [];
+    // Em sequência: a transação interativa executa uma consulta por vez.
+    for (const line of lines) labels.push(await this.resolver.labelOf(tx, line));
+    return labels;
+  }
+
   async listPendingForProcess(tx: TenantTx, processId: string): Promise<PendingApprovalFact[]> {
     const rows = await this.approvals.listPendingByProcess(tx, processId);
     return rows.map((row) => ({

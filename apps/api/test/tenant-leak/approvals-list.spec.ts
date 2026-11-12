@@ -32,6 +32,7 @@ import {
   testConfig,
 } from '../support/api-test-app.js';
 import type { TestApi } from '../support/api-test-app.js';
+import { MIRROR_APPROVAL_LINE_SQL, SYNC_APPROVAL_LINE_SQL } from '../support/approval-fixtures.js';
 import { runTenantSeeders } from '../support/process-fixtures.js';
 
 const A = '0192c057-0000-7000-8000-00000000010a';
@@ -229,16 +230,20 @@ describe('Feature: Lista de aprovações sobre PostgreSQL (US-057)', () => {
         approver.allowDeputy ?? false,
       ],
     );
+    // US-136: a linha de backfill (M2-03) — a cobertura da APV-01 é por linha.
+    await db.admin(MIRROR_APPROVAL_LINE_SQL, [id]);
     return { id, process };
   }
 
-  const decideBySql = (approvalId: string, status: 'APPROVED' | 'REJECTED', by: string) =>
-    db.admin(
+  const decideBySql = async (approvalId: string, status: 'APPROVED' | 'REJECTED', by: string) => {
+    await db.admin(
       `UPDATE approvals SET status = $2::approval_status, decision = $3::approval_decision,
               decided_by_id = $4, decided_at = '2026-10-19T14:00:00Z', version = version + 1
         WHERE id = $1`,
       [approvalId, status, status === 'APPROVED' ? 'APPROVE' : 'REJECT', by],
     );
+    await db.admin(SYNC_APPROVAL_LINE_SQL, [approvalId]);
+  };
 
   beforeAll(async () => {
     vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -463,6 +468,8 @@ describe('Feature: Lista de aprovações sobre PostgreSQL (US-057)', () => {
                 requestedFrom: null,
                 requestedTo: null,
                 q: null,
+                decisionPolicies: null,
+                myLineStatus: null,
                 timezone: 'America/Sao_Paulo',
               },
               sort: { field: 'requestedAt', direction: 'desc' },
@@ -476,5 +483,41 @@ describe('Feature: Lista de aprovações sobre PostgreSQL (US-057)', () => {
     } finally {
       await client.$disconnect();
     }
+  });
+
+  it('[US-136] cobertura por linha: WAITING entra com myLine; substituída sai; filtros de política e situação', async () => {
+    // Linha 1 do Diego (backfill, PENDING); a 2 da Beatriz, em espera (SEQUENTIAL).
+    const sequential = await approvalOn({ type: 'USER', userId: DIEGO });
+    await db.admin(`UPDATE approvals SET decision_policy = 'SEQUENTIAL' WHERE id = $1`, [
+      sequential.id,
+    ]);
+    const waitingLine = randomUUID();
+    await db.admin(
+      `INSERT INTO approval_approvers (id, tenant_id, approval_id, sequence, approver_type,
+                                      approver_user_id, allow_deputy, status)
+       VALUES ($1, $2, $3, 2, 'USER', $4, true, 'WAITING')`,
+      [waitingLine, A, sequential.id, BIA],
+    );
+    // Linha da Beatriz substituída por redirecionamento: a aprovação não é mais dela.
+    const reassigned = await approvalOn({ type: 'USER', userId: DIEGO });
+    await db.admin(
+      `INSERT INTO approval_approvers (id, tenant_id, approval_id, sequence, approver_type,
+                                      approver_user_id, allow_deputy, status, skipped_reason)
+       VALUES ($1, $2, $3, 2, 'USER', $4, true, 'CANCELED', 'REASSIGNED')`,
+      [randomUUID(), A, reassigned.id, BIA],
+    );
+
+    const body = await list('?pageSize=100');
+    expect(ids(body)).toContain(sequential.id);
+    expect(ids(body)).not.toContain(reassigned.id);
+    expect(body.data.find((item) => item.id === sequential.id)).toMatchObject({
+      decisionPolicy: 'SEQUENTIAL',
+      myLine: { approvalApproverId: waitingLine, sequence: 2, status: 'WAITING' },
+      progress: { totalLines: 2, pendingLines: 1, waitingLines: 1 },
+      currentApprover: { label: 'Diego Substituto' },
+    });
+    expect(ids(await list('?pageSize=100&myLineStatus=WAITING'))).toEqual([sequential.id]);
+    expect(ids(await list('?pageSize=100&decisionPolicy=SEQUENTIAL'))).toEqual([sequential.id]);
+    expect(ids(await list('?pageSize=100&decisionPolicy=ALL'))).toEqual([]);
   });
 });

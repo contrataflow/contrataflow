@@ -227,6 +227,64 @@ describe('SCR-013 — Caixa de tarefas (US-056)', () => {
     );
   });
 
+  it('US-136: uma linha por linha de aprovação, com o selo de andamento ("Sua vez · …"); a do MVP 1 sem selo', async () => {
+    const user = userEvent.setup();
+    const approvalOf = (n: number, extra: Partial<NonNullable<TaskInboxItemDto['approval']>>) =>
+      item(n, {
+        id: pid(3000 + n),
+        approval: {
+          id: pid(2000 + n),
+          approvalApproverId: pid(3000 + n),
+          title: 'Aprovação da demanda',
+          subjectType: 'PROCESS_STAGE',
+          requestedBy: { id: ANA, name: 'Ana Souza' },
+          requestedAt: '2026-10-12T12:00:00.000Z',
+          dueAt: null,
+          ...extra,
+        },
+      });
+    mockApi({
+      list: (url) =>
+        url.searchParams.get('view') === 'PENDING_APPROVALS'
+          ? page([
+              approvalOf(4, {
+                sequence: 1,
+                decisionPolicy: 'ALL',
+                progress: {
+                  totalLines: 3,
+                  approvedLines: 1,
+                  pendingLines: 2,
+                  waitingLines: 0,
+                  label: '1 de 3 aprovaram',
+                },
+              }),
+              approvalOf(5, {
+                sequence: 2,
+                decisionPolicy: 'SEQUENTIAL',
+                progress: {
+                  totalLines: 3,
+                  approvedLines: 1,
+                  pendingLines: 1,
+                  waitingLines: 1,
+                  label: 'Etapa 2 de 3 — Paula Reis',
+                },
+              }),
+              approvalOf(6, {
+                sequence: 1,
+                decisionPolicy: 'ANY',
+                progress: { totalLines: 1, approvedLines: 0, pendingLines: 1, waitingLines: 0 },
+              }),
+            ])
+          : page([item(1)]),
+    });
+    renderPage();
+    await screen.findByRole('link', { name: 'Aquisição de materiais 1' });
+    await user.click(screen.getByRole('tab', { name: /Aprovações pendentes/ }));
+    expect(await screen.findByText('Sua vez · aprovação conjunta (1 de 3 aprovaram)')).toBeTruthy();
+    expect(screen.getByText('Sua vez · etapa 2 de 3')).toBeTruthy();
+    expect(screen.getAllByText(/^Sua vez/)).toHaveLength(2);
+  });
+
   it('"Assumir" na fila: PRC-21 com If-Match e Idempotency-Key; sucesso recarrega lista e contadores', async () => {
     const user = userEvent.setup();
     const fetchMock = mockApi({

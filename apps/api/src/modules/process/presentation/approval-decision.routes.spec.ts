@@ -967,6 +967,10 @@ describe('Feature: Decidir aprovação (US-052)', () => {
         // US-134 (aditivo): sem linha da solicitante.
         myLine: null,
         decidableLineIds: [],
+        // US-136 (aditivo): sem linha própria, nenhuma ação por linha e ninguém na vez (ANY).
+        myApproverLineId: null,
+        lineActions: [{ approvalApproverId: expect.any(String) as unknown, actions: [] }],
+        waitingFor: null,
       });
     });
 

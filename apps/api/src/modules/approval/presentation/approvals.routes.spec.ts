@@ -13,6 +13,7 @@ import { FAKE_MEMBERSHIPS, FAKE_TENANTS, FAKE_USERS } from '#shared/testing/fake
 
 import { createTestApi } from '../../../../test/support/api-test-app.js';
 import type { TestApi } from '../../../../test/support/api-test-app.js';
+import { mirrorListLineOf } from '../../../../test/support/approval-fixtures.js';
 import { CATALOG_CLOCK, runTenantSeeders } from '../../../../test/support/process-fixtures.js';
 import {
   assignRole,
@@ -26,7 +27,7 @@ import {
   APPROVAL_TRANSACTIONS,
 } from '../application/ports.js';
 import type { ApprovalTransactions } from '../application/ports.js';
-import type { ApprovalListRow } from '../domain/approval-list.js';
+import type { ApprovalListLine, ApprovalListRow } from '../domain/approval-list.js';
 import { InMemoryApprovalListReader } from '../infrastructure/approval-list.readers.js';
 
 /*
@@ -60,7 +61,9 @@ function approval(
   patch: Partial<ApprovalListRow> = {},
   process: Partial<ApprovalListRow['process']> = {},
 ): ApprovalListRow {
-  return {
+  const base: ApprovalListRow = {
+    decisionPolicy: 'ANY',
+    lines: [],
     tenantId: A,
     id: aid(n),
     processId: aid(1000 + n),
@@ -90,6 +93,9 @@ function approval(
     },
     ...patch,
   };
+  return patch.lines === undefined
+    ? { ...base, lines: [mirrorListLineOf(base, aid(500 + n))] }
+    : base;
 }
 
 class FlakyTransactions implements ApprovalTransactions {
@@ -212,6 +218,11 @@ describe('Feature: Lista de aprovações (US-057)', () => {
           label: `${FAKE_USERS.ana.name} (titular da Secretaria de Obras)`,
         },
         isBudgetConfidential: true,
+        // US-136 (aditivo · RN-APV-74): a do MVP 1 é `ANY` de uma linha, sem texto de andamento.
+        decisionPolicy: 'ANY',
+        progress: { totalLines: 1, approvedLines: 0, pendingLines: 1, waitingLines: 0 },
+        myLine: { approvalApproverId: aid(501), sequence: 1, status: 'PENDING' },
+        currentApprover: null,
       });
       // FA-04: nenhum valor monetário na linha.
       expect(JSON.stringify(body)).not.toMatch(/estimatedValue/);
@@ -523,6 +534,117 @@ describe('Feature: Lista de aprovações (US-057)', () => {
       } finally {
         await degraded.close();
       }
+    });
+  });
+
+  describe('US-136 — aprovação múltipla na lista (APV-01)', () => {
+    /** Linha `ApprovalApprover` de pessoa (`USER`). */
+    const userLine = (
+      n: number,
+      sequence: number,
+      userId: string,
+      patch: Partial<ApprovalListLine> = {},
+    ): ApprovalListLine => ({
+      id: aid(700 + n * 10 + sequence),
+      sequence,
+      status: 'PENDING',
+      approverType: 'USER',
+      approverUserId: userId,
+      approverRoleId: null,
+      approverDepartmentId: null,
+      allowDeputy: false,
+      decidedById: null,
+      skippedReason: null,
+      ...patch,
+    });
+    /** Aprovação múltipla com as linhas dadas (o espelho na linha corrente/primeira). */
+    const multi = (
+      n: number,
+      decisionPolicy: ApprovalListRow['decisionPolicy'],
+      lines: readonly ApprovalListLine[],
+    ) =>
+      approval(n, {
+        decisionPolicy,
+        lines,
+        approverType: 'USER',
+        approverUserId: lines[0]?.approverUserId ?? null,
+        approverDepartmentId: null,
+      });
+
+    it('[Sucesso] ALL: política, andamento e a minha linha', async () => {
+      reader.seed([multi(1, 'ALL', [userLine(1, 1, ANA), userLine(1, 2, FABIO)])]);
+      const body = await list();
+      expect(body.data[0]).toMatchObject({
+        decisionPolicy: 'ALL',
+        progress: {
+          totalLines: 2,
+          approvedLines: 0,
+          pendingLines: 2,
+          waitingLines: 0,
+          label: '0 de 2 aprovaram',
+        },
+        myLine: { approvalApproverId: aid(711), sequence: 1, status: 'PENDING' },
+        currentApprover: null,
+      });
+    });
+
+    it('[Sucesso] SEQUENTIAL: linha em espera aparece com "Aguardando a vez" e o aprovador atual', async () => {
+      reader.seed([
+        multi(1, 'SEQUENTIAL', [userLine(1, 1, ANA), userLine(1, 2, FABIO, { status: 'WAITING' })]),
+      ]);
+      const body = await list('', 'sub-fabio');
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).toMatchObject({
+        myLine: { sequence: 2, status: 'WAITING' },
+        progress: { label: `Etapa 1 de 2 — ${FAKE_USERS.ana.name}`, waitingLines: 1 },
+        currentApprover: { label: FAKE_USERS.ana.name },
+      });
+      // RN-APV-67: "Minha situação".
+      expect(ids(await list('?myLineStatus=WAITING', 'sub-fabio'))).toEqual([aid(1)]);
+      expect(ids(await list('?myLineStatus=PENDING', 'sub-fabio'))).toEqual([]);
+      expect(ids(await list('?myLineStatus=PENDING'))).toEqual([aid(1)]);
+    });
+
+    it('[Sucesso] Filtro de política (vários = OU) e a aprovação do MVP 1 como ANY', async () => {
+      reader.seed([approval(1), multi(2, 'ALL', [userLine(2, 1, ANA), userLine(2, 2, FABIO)])]);
+      expect(ids(await list('?decisionPolicy=ALL'))).toEqual([aid(2)]);
+      expect(ids(await list('?decisionPolicy=ANY'))).toEqual([aid(1)]);
+      expect(ids(await list('?decisionPolicy=ALL,ANY')).sort()).toEqual([aid(1), aid(2)].sort());
+      const mvp1 = (await list('?decisionPolicy=ANY')).data[0];
+      expect(mvp1?.progress).toEqual({
+        totalLines: 1,
+        approvedLines: 0,
+        pendingLines: 1,
+        waitingLines: 0,
+      });
+    });
+
+    it('[Validação] decisionPolicy e myLineStatus fora do enum → 422 INVALID_ENUM', async () => {
+      const policy = expectProblem(await get('?decisionPolicy=MAJORITY'), 422, 'VALIDATION_ERROR');
+      expect(policy.errors[0]?.field).toMatch(/^decisionPolicy/);
+      expect(policy.errors[0]?.code).toBe('INVALID_ENUM');
+      const mine = expectProblem(await get('?myLineStatus=CANCELED'), 422, 'VALIDATION_ERROR');
+      expect(mine.errors[0]).toMatchObject({ field: 'myLineStatus', code: 'INVALID_ENUM' });
+    });
+
+    it('[Duplicidade] Duas linhas minhas na mesma aprovação: uma linha na lista, myLine a de menor ordem', async () => {
+      reader.seed([
+        multi(1, 'ALL', [userLine(1, 1, FABIO), userLine(1, 2, ANA), userLine(1, 3, ANA)]),
+      ]);
+      const body = await list();
+      expect(ids(body)).toEqual([aid(1)]);
+      expect(body.data[0]?.myLine).toMatchObject({ sequence: 2, status: 'PENDING' });
+    });
+
+    it('[Permissão] Linha substituída por redirecionamento sai da cobertura; a nova entra', async () => {
+      const old = userLine(1, 2, FABIO, { status: 'CANCELED', skippedReason: 'REASSIGNED' });
+      reader.seed([
+        multi(1, 'ALL', [userLine(1, 1, LUCIA), old, { ...userLine(1, 3, ANA), sequence: 2 }]),
+      ]);
+      expect(ids(await list('', 'sub-fabio'))).toEqual([]);
+      const ana = await list();
+      expect(ids(ana)).toEqual([aid(1)]);
+      expect(ana.data[0]?.progress?.totalLines).toBe(2);
     });
   });
 });

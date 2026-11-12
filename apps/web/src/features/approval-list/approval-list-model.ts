@@ -8,7 +8,9 @@ import {
   parseApprovalListSort,
 } from '@contrataflow/validation';
 import type {
+  ApprovalDecisionPolicy,
   ApprovalListSort,
+  ApprovalMyLineStatus,
   ApprovalStatus,
   ApprovalSubjectType,
 } from '@contrataflow/validation';
@@ -28,6 +30,10 @@ export interface ApprovalFilters {
   readonly requestedFrom: string;
   readonly requestedTo: string;
   readonly q: string;
+  /** US-136 (RN-APV-67): "Política de decisão" (`''` = todas). */
+  readonly decisionPolicy: ApprovalDecisionPolicy | '';
+  /** US-136 (RN-APV-67): "Minha situação" (`''` = qualquer). */
+  readonly myLineStatus: ApprovalMyLineStatus | '';
 }
 
 export const DEFAULT_FILTERS: ApprovalFilters = {
@@ -37,6 +43,8 @@ export const DEFAULT_FILTERS: ApprovalFilters = {
   requestedFrom: '',
   requestedTo: '',
   q: '',
+  decisionPolicy: '',
+  myLineStatus: '',
 };
 
 export const DEFAULT_SORT: ApprovalListSort = { field: 'requestedAt', direction: 'desc' };
@@ -63,6 +71,8 @@ export function hasActiveFilters(filters: ApprovalFilters): boolean {
     filters.requestingDepartmentId !== '' ||
     filters.requestedFrom !== '' ||
     filters.requestedTo !== '' ||
+    filters.decisionPolicy !== '' ||
+    filters.myLineStatus !== '' ||
     effectiveSearch(filters.q) !== undefined
   );
 }
@@ -75,9 +85,13 @@ export function statusTabOf(filters: ApprovalFilters): ApprovalStatus {
 /** Filtros do popover e busca, além da aba (o vazio "você está em dia" só vale sem eles). */
 export function activeRefinements(
   filters: ApprovalFilters,
-): ('subjectType' | 'requestingDepartmentId' | 'period' | 'q')[] {
+): (
+  'subjectType' | 'requestingDepartmentId' | 'period' | 'q' | 'decisionPolicy' | 'myLineStatus'
+)[] {
   return [
     ...(filters.subjectType === '' ? [] : (['subjectType'] as const)),
+    ...(filters.decisionPolicy === '' ? [] : (['decisionPolicy'] as const)),
+    ...(filters.myLineStatus === '' ? [] : (['myLineStatus'] as const)),
     ...(filters.requestingDepartmentId === '' ? [] : (['requestingDepartmentId'] as const)),
     ...(filters.requestedFrom === '' && filters.requestedTo === '' ? [] : (['period'] as const)),
     ...(effectiveSearch(filters.q) === undefined ? [] : (['q'] as const)),
@@ -109,6 +123,8 @@ export function approvalListQuery(
     requestedFrom: orEmpty(filters.requestedFrom),
     requestedTo: orEmpty(filters.requestedTo),
     q: effectiveSearch(filters.q),
+    decisionPolicy: orEmpty(filters.decisionPolicy),
+    myLineStatus: orEmpty(filters.myLineStatus),
     sort: formatApprovalListSort(sort),
     page,
     pageSize: APPROVAL_LIST_DEFAULT_PAGE_SIZE,

@@ -172,6 +172,9 @@ const APPROVAL_DECISION_ROUTE =
 const APPROVAL_WITHDRAWAL_ROUTE =
   'Retirar/redirecionar aprovação (US-053 · APV-04/APV-05/DOC-11): exigem uma aprovação PENDING do tenant (etapa APPROVAL ou submissão avulsa), If-Match e Idempotency-Key, que a suíte genérica não tem. O isolamento (id de aprovação de B → 404 APPROVAL_NOT_FOUND na retirada e no redirecionamento sem alterar nada, documento de B → 404 no DOC-11, a retirada atômica com falha induzida e a troca do ProcessAccess APPROVER na mesma transação) é coberto em test/tenant-leak/approval-withdrawal.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/approval-withdrawal.routes.spec.ts.';
 
+const APPROVAL_LINES_HISTORY_ROUTE =
+  'Histórico de linhas da aprovação (US-136 · APV-31): exige uma aprovação do tenant com linhas (inclusive a substituída por redirecionamento), que a suíte genérica não tem. O isolamento (aprovação de A pedida no tenant B → 404 APPROVAL_NOT_FOUND sem revelar dados) é coberto em src/modules/process/presentation/multi-approval-views.routes.spec.ts; a RLS de approval_approvers e da view v_inbox_pending_approvals_v2 com app.tenant_id diferente retornando vazio, em test/tenant-leak/task-inbox.spec.ts e test/tenant-leak/approval-approvers.spec.ts, com PostgreSQL real.';
+
 const APPROVAL_LINE_REASSIGN_ROUTE =
   'Redirecionar linha da aprovação múltipla (US-135 · APV-06): exige uma aprovação PENDING do tenant com linhas, a linha no caminho, If-Match da linha e Idempotency-Key, que a suíte genérica não tem. O isolamento (aprovação de A pedida no tenant B → 404 APPROVAL_NOT_FOUND sem revelar dados, novo aprovador de B → 422 APPROVER_NOT_ELIGIBLE, RLS de approval_approvers retornando vazio e UPDATE sem efeito para B, a troca atômica com falha induzida) é coberto em test/tenant-leak/approval-line-reassign.spec.ts, com PostgreSQL real, e em src/modules/process/presentation/multi-approver-reassign.routes.spec.ts.';
 
@@ -428,6 +431,7 @@ export const TENANT_LEAK_MANIFEST: Readonly<Record<string, TenantLeakCase>> = Ob
   'APV-04': { kind: 'exempt', reason: APPROVAL_WITHDRAWAL_ROUTE },
   'APV-05': { kind: 'exempt', reason: APPROVAL_WITHDRAWAL_ROUTE },
   'APV-06': { kind: 'exempt', reason: APPROVAL_LINE_REASSIGN_ROUTE },
+  'APV-31': { kind: 'exempt', reason: APPROVAL_LINES_HISTORY_ROUTE },
   'PRC-19': { kind: 'exempt', reason: PROCESS_FORWARD_ROUTE },
   'PRC-20': { kind: 'exempt', reason: PROCESS_RETURN_ROUTE },
   'PRC-21': { kind: 'exempt', reason: PROCESS_CLAIM_ROUTE },

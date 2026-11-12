@@ -1,10 +1,13 @@
 import type {
   ApprovalAction,
+  ApprovalApproverDto,
   ApprovalDecisionOption,
   ApprovalDto,
+  ApprovalLineAction,
+  ApprovalLinesResponse,
   ApprovalMeta,
 } from '@contrataflow/validation';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ApprovalSubjectRegistry } from '#shared/approval/approval-subject.js';
 import { ProcessAccessRegistry, isProcessVisible } from '#shared/auth/process-access.js';
@@ -21,6 +24,7 @@ import { AccessFacade } from '../../access/application/access.facade.js';
 import { isDecidableProcessStatus, isSelfApproval } from '../domain/approval-decision.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
 import type { ApprovalApprover } from '../domain/approval-lines.js';
+import { currentLineOf } from '../domain/approval-list.js';
 import {
   coveredLinesOf,
   lineDecisionBlockerOf,
@@ -48,6 +52,8 @@ export interface ApprovalDetail {
  */
 @Injectable()
 export class GetApprovalQuery {
+  private readonly logger = new Logger('ApprovalLines');
+
   constructor(
     @Inject(APPROVAL_TRANSACTIONS) private readonly transactions: ApprovalTransactions,
     @Inject(APPROVAL_REPOSITORY) private readonly approvals: ApprovalRepository,
@@ -116,8 +122,11 @@ export class GetApprovalQuery {
           allowedActions.push('REASSIGN');
         }
       }
+      const dto = await this.presenter.present(tx, approval, view, { liveOnly: true });
+      const decidableLineIds = blocker === null ? decidable.map((item) => item.line.id) : [];
+      const waiting = currentLineOf(dto.decisionPolicy, approval.status, dto.approvers);
       return {
-        dto: await this.presenter.present(tx, approval, view),
+        dto,
         meta: {
           allowedActions,
           decisionOptions,
@@ -132,7 +141,60 @@ export class GetApprovalQuery {
                   status: mine.line.status,
                   etag: `"${String(voteExpectedVersion(approval, mine.line))}"`,
                 },
-          decidableLineIds: blocker === null ? decidable.map((item) => item.line.id) : [],
+          decidableLineIds,
+          // US-136 (aditivo · RN-APV-68).
+          myApproverLineId: mine?.line.id ?? null,
+          lineActions: lineActionsOf(dto.approvers, decidableLineIds, allowedActions),
+          waitingFor:
+            waiting === null ? null : { sequence: waiting.sequence, label: waiting.label },
+        },
+      };
+    });
+  }
+
+  /**
+   * APV-31 (US-136 · RN-APV-69): todas as linhas, inclusive as `CANCELED` substituídas por
+   * redirecionamento (com `includeHistory`), em ordem de `sequence` e criação, com a MESMA
+   * autorização do APV-02. Somente leitura: sem auditoria (exceto o `access.denied` do 403).
+   */
+  lines(approvalId: string, includeHistory: boolean): Promise<ApprovalLinesResponse> {
+    const startedAt = performance.now();
+    return this.transactions.read(async (tx) => {
+      const context = requireRequestContext();
+      const userId = context.actor.userId ?? '';
+      const found = await this.approvals.findById(tx, approvalId);
+      if (found === null) throw approvalNotFound();
+      const { approval, lines } = found;
+      const handler = this.subjects.handlerFor(approval.subjectType);
+      const view =
+        handler === null ? null : await handler.describeSubject(tx, withdrawalSubjectOf(found));
+      if (view === null) throw approvalNotFound();
+      const facts = await this.policy.lineDesignationFactsIn(tx, lines, view, userId, this.clock());
+      const involved =
+        coveredLinesOf(lines, facts).length > 0 ||
+        lines.some((line) => line.decidedById === userId);
+      await this.assertVisible(tx, approval, involved, userId);
+      const shown = includeHistory ? lines : lines.filter((line) => line.status !== 'CANCELED');
+      const data: ApprovalApproverDto[] = await this.presenter.presentLines(tx, shown);
+      this.logger.log(
+        {
+          event: 'approvals.lines_query',
+          approvalId,
+          includeHistory,
+          linesCount: data.length,
+          durationMs: Math.round(performance.now() - startedAt),
+          tenantId: context.tenantId,
+          userId: context.actor.userId,
+          correlationId: context.correlationId,
+        },
+        'approvals.lines_query',
+      );
+      return {
+        data,
+        meta: {
+          decisionPolicy: approval.decisionPolicy ?? 'ANY',
+          totalLines: lines.filter((line) => line.status !== 'CANCELED').length,
+          approvalStatus: approval.status,
         },
       };
     });
@@ -153,12 +215,36 @@ export class GetApprovalQuery {
       throw approvalNotFound();
     }
     if (!this.access.can('APPROVAL_VIEW')) {
+      // US-136: o `access.denied` registra a aprovação negada (`approvalId`).
       throw new ApiError('PERMISSION_DENIED', {
         detail: 'Você não tem permissão para ver esta aprovação.',
         auditReasonCode: 'APPROVAL_VIEW',
+        auditEntity: { type: 'Approval', id: approval.id },
+        auditMetadata: { approvalId: approval.id },
       });
     }
   }
+}
+
+/**
+ * US-136 (RN-APV-68): as ações de quem consulta em cada linha vigente — `DECIDE` nas linhas que ele
+ * pode decidir agora (US-134) e `REASSIGN` nas vivas (`PENDING`/`WAITING`) quando pode redirecionar
+ * (US-135). Nada é executado aqui.
+ */
+function lineActionsOf(
+  lines: readonly ApprovalApproverDto[],
+  decidableLineIds: readonly string[],
+  allowedActions: readonly ApprovalAction[],
+): { approvalApproverId: string; actions: ApprovalLineAction[] }[] {
+  const canReassign = allowedActions.includes('REASSIGN');
+  return lines.map((line) => {
+    const actions: ApprovalLineAction[] = [];
+    if (decidableLineIds.includes(line.id)) actions.push('DECIDE');
+    if (canReassign && (line.status === 'PENDING' || line.status === 'WAITING')) {
+      actions.push('REASSIGN');
+    }
+    return { approvalApproverId: line.id, actions };
+  });
 }
 
 /**

@@ -113,7 +113,7 @@ Garantir que 100% das linhas `PENDING` cobertas pelo usuário apareçam exatamen
 |---|---|---|---|---|
 | V-01 | `decisionPolicy` fora do enum | API (Zod) | — (a UI só envia valores válidos) | `VALIDATION_ERROR` (`INVALID_ENUM`) |
 | V-02 | `myLineStatus` fora do enum | API (Zod) | — | `VALIDATION_ERROR` (`INVALID_ENUM`) |
-| V-03 | `includeHistory` não booleano em APV-31 | API (Zod) | — | `VALIDATION_ERROR` (`INVALID_TYPE`) |
+| V-03 | `includeHistory` não booleano em APV-31 | API (Zod) | — | `VALIDATION_ERROR` (`INVALID_FORMAT`) |
 | V-04 | `view`, `sort`, `status`, `subjectType` ou período inválidos (herdados do MVP 1) | API (Zod) | "Revise os filtros selecionados." | `VALIDATION_ERROR` |
 | V-05 | `{id}` de aprovação inexistente, de outro tenant ou fora da visibilidade (APV-02, APV-31) | API | "Aprovação não encontrada." | `APPROVAL_NOT_FOUND` |
 | V-06 | Usuário sem `APPROVAL_VIEW`, sem linha e que não é solicitante nem decisor (APV-02, APV-31) | API | "Você não tem acesso a esta aprovação." | `PERMISSION_DENIED` |
@@ -195,7 +195,7 @@ Feature: Aprovação múltipla na caixa de tarefas, na lista e no detalhe da apr
     When "Marcos Lima" chamar "GET /approvals?myLineStatus=CANCELED"
     Then a API deve responder 422 com código "VALIDATION_ERROR" e erro "INVALID_ENUM" no campo "myLineStatus"
     When "Marcos Lima" chamar "GET /approvals/{id}/approvers?includeHistory=talvez"
-    Then a API deve responder 422 com código "VALIDATION_ERROR" e erro "INVALID_TYPE" no campo "includeHistory"
+    Then a API deve responder 422 com código "VALIDATION_ERROR" e erro "INVALID_FORMAT" no campo "includeHistory"
 
   Scenario: [Permissão] Cobertura e permissão por linha
     Given que "Bruno Lopes" não tem linha na aprovação, não é solicitante nem decisor e não tem "APPROVAL_VIEW"
@@ -266,7 +266,11 @@ Códigos de decisão (`APPROVAL_NOT_PENDING`, `APPROVAL_LINE_NOT_PENDING`, `NOT_
 - **Stories:** US-056 (caixa de tarefas — `view=PENDING_APPROVALS`, TSK-01/TSK-02), US-057 (lista de aprovações — APV-01), US-134 (decisão e encerramento por linha — estados das linhas, `APPROVAL_LINE_NOT_PENDING`). Indiretas: US-133 (solicitação com várias linhas e rótulos), US-135 (redirecionamento e retirada — origem das linhas `CANCELED`), US-052 (detalhe APV-02 do MVP 1), US-190 (prazo por linha, `ApprovalApprover.dueAt`), US-125 (ramos paralelos na caixa — mesma tela SCR-013, sem sobreposição de colunas), US-106 (dias úteis).
 - **Decisões/ADRs:** DEC-193, DEC-022, DEC-024, DEC-026, DEC-108, DEC-205 (prazo por linha); POL-03, POL-17, POL-09.
 - **Configurações:** `approval.preventSelfApproval`, `deadlines.warnBeforeBusinessDays` (selo de prazo da caixa).
-- **Lacunas nas fontes canônicas:**
+- **Lacunas nas fontes canônicas** (resolvidas na implementação — spec-645, 2026-11-12):
+  - **Resolução 1:** contratos consolidados em `docs/mvp-02/api/20-workflow-v2.md` (APV-01/02/31, TSK-01/02); `progress` também em `data` do APV-02 (o mesmo texto da caixa e da lista). `includeHistory` inválido responde `INVALID_FORMAT` — a taxonomia de api.md §2.1.1 não tem `INVALID_TYPE`.
+  - **Resolução 2:** a view v2 é desta story: migração `20261112110000_inbox_pending_approval_lines`, publicada como `v_inbox_pending_approvals_v2` (a v1 continua publicada até o contract M2-22), com os contadores das linhas vigentes para o andamento.
+  - **Resolução 3:** a cobertura de APV-01 é por linha em qualquer estado (como o "designado agora" do MVP 1), menos a linha substituída por redirecionamento (`CANCELED` + `REASSIGNED`); as `CANCELED` por retirada continuam cobrindo quem estava nelas (a aba "Canceladas" do MVP 1 não muda).
+  - **Resolução 4:** `process` nulo (assunto `PCA`) fica para o EP-023: a caixa e a lista continuam exigindo processo.
   1. **Endpoint APV-31 e campos aditivos** (`progress`, `myLine`, `currentApprover`, `approvers[]`, `meta.lineActions`, `meta.waitingFor`, valor `LINE_NOT_PENDING` em `decisionBlocker`) não constam do catálogo de API do MVP 2 (ainda não escrito); serão consolidados no `api.md` do MVP 2 (card 9). O front fala em `GET /inbox/tasks` na feature; o contrato real do MVP 1 é `GET /tasks` (TSK-01), e é ele que esta story estende.
   2. **Migração M2-03** (view `v_inbox_pending_approvals` v2): `entities.md §10` a atribui ao FT-066 sem dizer a qual story; esta story é só consumidora e exige a migração aplicada e reconciliada. O coordenador deve confirmar o dono (US-133 ou US-134).
   3. **Cobertura de `ROLE` em linhas `WAITING`/`SKIPPED`:** `permissions.md` (POL-03) define apenas a decisão por linha; a regra de visibilidade na lista (RN-APV-66) é proposta nesta story.

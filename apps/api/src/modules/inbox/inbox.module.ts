@@ -21,6 +21,7 @@ import {
 } from './infrastructure/task-inbox.readers.js';
 import { TasksController } from './presentation/tasks.controller.js';
 import { AccessModule } from '../access/access.module.js';
+import { ApprovalModule } from '../approval/approval.module.js';
 import { IdentityModule } from '../identity/identity.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { ProcessModule } from '../process/process.module.js';
@@ -35,6 +36,7 @@ import { WorkflowModule } from '../workflow/workflow.module.js';
 @Module({
   imports: [
     AccessModule,
+    ApprovalModule,
     IdentityModule,
     OrganizationModule,
     ProcessModule,

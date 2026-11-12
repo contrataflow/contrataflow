@@ -243,6 +243,8 @@ export interface ApprovalApiOptions {
   readonly lookup?: Handler;
   /** APV-06 (US-135 · `POST /approvals/{id}/approvers/{lineId}/reassign`). */
   readonly reassignLine?: Handler;
+  /** APV-31 (US-136 · `GET /approvals/{id}/approvers`). */
+  readonly lines?: Handler;
 }
 
 /** US-135: a URL do APV-06 de uma linha. */
@@ -311,6 +313,9 @@ export function mockApprovalApi(options: ApprovalApiOptions = {}) {
     if (method === 'POST' && url === DECIDE_URL) return answer(decide);
     if (method === 'POST' && url === WITHDRAW_URL) return answer(withdraw);
     if (method === 'POST' && url === REASSIGN_URL) return answer(reassign);
+    if (method === 'GET' && options.lines !== undefined && url === `${APPROVAL_URL}/approvers`) {
+      return answer(options.lines);
+    }
     if (
       method === 'POST' &&
       options.reassignLine !== undefined &&

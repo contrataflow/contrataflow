@@ -708,7 +708,7 @@ describe('SCR-015 · Detalhe da aprovação (US-052)', () => {
     ]);
     const [current, waiting] = items;
     if (!current || !waiting) throw new Error('linhas ausentes');
-    expect(within(current).getByText('Aguardando decisão')).toBeTruthy();
+    expect(within(current).getByText('Pendente')).toBeTruthy();
     expect(within(waiting).getByText('Aguardando a vez')).toBeTruthy();
     expect(await seriousA11yViolations()).toEqual([]);
     unmount();
@@ -898,5 +898,146 @@ describe('SCR-015 · Detalhe da aprovação (US-052)', () => {
     renderDetail(withMeta(readOnlyMeta('SELF_APPROVAL_FORBIDDEN')));
     await screen.findAllByText('Você não pode decidir esta aprovação.');
     expect(await seriousA11yViolations()).toEqual([]);
+  });
+});
+
+describe('US-136 · linhas, vez e histórico no detalhe (SCR-015)', () => {
+  const first = () => {
+    const [line] = approvalDto().approvers;
+    if (!line) throw new Error('linha ausente');
+    return line;
+  };
+  const LINE_B = '0192a000-0000-7000-8000-000000001161';
+  const LINE_C = '0192a000-0000-7000-8000-000000001162';
+
+  it('SEQUENTIAL em espera: explica de quem é a vez, o andamento e a linha corrente (aria-current)', async () => {
+    const line1 = first();
+    const sequential = approvalDto({
+      decisionPolicy: 'SEQUENTIAL',
+      progress: {
+        totalLines: 2,
+        approvedLines: 0,
+        pendingLines: 1,
+        waitingLines: 1,
+        label: `Etapa 1 de 2 — ${line1.label}`,
+      },
+      approvers: [
+        line1,
+        {
+          ...line1,
+          id: LINE_B,
+          sequence: 2,
+          status: 'WAITING',
+          label: 'Paula Reis',
+          activatedAt: null,
+        },
+      ],
+    });
+    renderDetail(
+      withMeta(
+        readOnlyMeta('NOT_DESIGNATED_APPROVER', {
+          myLine: { id: LINE_B, sequence: 2, status: 'WAITING', etag: '"1"' },
+          waitingFor: { sequence: 1, label: line1.label },
+        }),
+        sequential,
+      ),
+    );
+    expect(
+      await screen.findByText(`Aguardando a aprovação de ${line1.label} antes da sua.`),
+    ).toBeTruthy();
+    expect(screen.getByText(`Andamento: Etapa 1 de 2 — ${line1.label}`)).toBeTruthy();
+    const lines = screen.getByRole('region', { name: 'Aprovadores' });
+    const [current, waiting] = within(lines).getAllByRole('listitem');
+    expect(current?.getAttribute('aria-current')).toBe('step');
+    expect(waiting?.getAttribute('aria-current')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Aprovar' })).toBeNull();
+    expect(await seriousA11yViolations()).toEqual([]);
+  });
+
+  it('encerrada por decisão negativa: banner, linha dispensada com o motivo e sem cartão de decisão', async () => {
+    const line1 = first();
+    const closed = approvalDto({
+      status: 'RETURNED',
+      decisionPolicy: 'ALL',
+      approvers: [
+        {
+          ...line1,
+          status: 'RETURNED',
+          decision: 'RETURN',
+          decisionComment: 'Rever a planilha de custos',
+        },
+        {
+          ...line1,
+          id: LINE_B,
+          sequence: 2,
+          status: 'SKIPPED',
+          skippedReason: 'NEGATIVE_DECISION',
+          label: 'Paula Reis',
+        },
+      ],
+    });
+    renderDetail(withMeta(readOnlyMeta('NOT_PENDING'), closed));
+    expect(await screen.findByText('Esta aprovação foi encerrada.')).toBeTruthy();
+    expect(screen.getByText('Dispensada — encerrada por decisão negativa')).toBeTruthy();
+    expect(screen.getByText('Comentário: Rever a planilha de custos')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Aprovar' })).toBeNull();
+  });
+
+  it('"Histórico de linhas" lê o APV-31 sob demanda e mostra a substituída por redirecionamento', async () => {
+    const user = userEvent.setup();
+    const line1 = first();
+    const all = approvalDto({
+      decisionPolicy: 'ALL',
+      approvers: [line1, { ...line1, id: LINE_C, sequence: 2, label: 'Carla Nunes' }],
+    });
+    const api = mockApprovalApi({
+      ...withMeta(approvalMeta(), all),
+      lines: () =>
+        jsonResponse({
+          data: [
+            line1,
+            {
+              ...line1,
+              id: LINE_B,
+              sequence: 2,
+              status: 'CANCELED',
+              skippedReason: 'REASSIGNED',
+              label: 'Paula Reis',
+            },
+            { ...line1, id: LINE_C, sequence: 2, label: 'Carla Nunes', reassignedFromId: LINE_B },
+          ],
+          meta: { decisionPolicy: 'ALL', totalLines: 2, approvalStatus: 'PENDING' },
+        }),
+    });
+    renderWithShell(<ApprovalDetail approvalId={APPROVAL_ID} retry={{ retries: 0 }} />, {
+      queryClient: noRetryClient(),
+    });
+    const open = await screen.findByRole('button', { name: 'Histórico de linhas' });
+    expect(callsTo(api, 'GET', `${APPROVAL_URL}/approvers`)).toHaveLength(0);
+    await user.click(open);
+    const history = await screen.findByRole('region', { name: 'Histórico de linhas' });
+    expect(await within(history).findByText('Substituída por Carla Nunes')).toBeTruthy();
+    expect(within(history).getByText('Substituída')).toBeTruthy();
+    expect(within(history).getAllByRole('listitem')).toHaveLength(3);
+    expect(callsTo(api, 'GET', `${APPROVAL_URL}/approvers`)).toHaveLength(1);
+  });
+
+  it('[Falha de banco] histórico indisponível: "Não foi possível carregar as aprovações agora." e "Tentar novamente"', async () => {
+    const user = userEvent.setup();
+    const line1 = first();
+    const all = approvalDto({
+      decisionPolicy: 'ALL',
+      approvers: [line1, { ...line1, id: LINE_C, sequence: 2, label: 'Carla Nunes' }],
+    });
+    mockApprovalApi({
+      ...withMeta(approvalMeta(), all),
+      lines: () => problemResponse(503, 'DEPENDENCY_UNAVAILABLE'),
+    });
+    renderWithShell(<ApprovalDetail approvalId={APPROVAL_ID} retry={{ retries: 0 }} />, {
+      queryClient: noRetryClient(),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Histórico de linhas' }));
+    expect(await screen.findByText('Não foi possível carregar as aprovações agora.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
   });
 });

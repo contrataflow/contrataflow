@@ -282,6 +282,8 @@ describe('approval-list-model', () => {
       requestedFrom: undefined,
       requestedTo: undefined,
       q: undefined,
+      decisionPolicy: undefined,
+      myLineStatus: undefined,
       sort: 'code',
       page: 2,
       pageSize: 20,
@@ -325,5 +327,51 @@ describe('approval-list-model', () => {
       describeLoadError(new ApiError({ status: 500, code: 'INTERNAL_ERROR', correlationId: 'c1' })),
     ).toEqual({ kind: 'unexpected', correlationId: 'c1' });
     expect(describeLoadError(new Error('rede'))).toEqual({ kind: 'unavailable' });
+  });
+
+  it('US-136: coluna "Andamento" (texto do servidor, aprovador atual, minha situação) e filtros de política e situação', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi(() =>
+      page([
+        item(1, {
+          decisionPolicy: 'SEQUENTIAL',
+          progress: {
+            totalLines: 2,
+            approvedLines: 0,
+            pendingLines: 1,
+            waitingLines: 1,
+            label: 'Etapa 1 de 2 — Secretário de Administração',
+          },
+          myLine: { approvalApproverId: aid(501), sequence: 2, status: 'WAITING' },
+          currentApprover: { label: 'Secretário de Administração' },
+        }),
+        item(2, {
+          decisionPolicy: 'ANY',
+          progress: { totalLines: 1, approvedLines: 0, pendingLines: 1, waitingLines: 0 },
+          myLine: { approvalApproverId: aid(502), sequence: 1, status: 'PENDING' },
+          currentApprover: null,
+        }),
+      ]),
+    );
+    renderWithShell(<ApprovalListPage />);
+    expect(await screen.findByText('Etapa 1 de 2 — Secretário de Administração')).toBeTruthy();
+    expect(screen.getByText('Aprovador atual: Secretário de Administração')).toBeTruthy();
+    expect(screen.getByText('Aguardando a vez')).toBeTruthy();
+    expect(screen.getByText('Sua vez')).toBeTruthy();
+
+    const region = screen.getByRole('region', { name: 'Filtros' });
+    await chooseOption(user, 'Política de decisão', 'Aprovam em sequência', region);
+    await waitFor(() => {
+      expect(calls(fetchMock).at(-1)?.searchParams.get('decisionPolicy')).toBe('SEQUENTIAL');
+    });
+    await chooseOption(user, 'Minha situação', 'Aguardando a vez', region);
+    await waitFor(() => {
+      expect(calls(fetchMock).at(-1)?.searchParams.get('myLineStatus')).toBe('WAITING');
+    });
+    expect(hasActiveFilters({ ...DEFAULT_FILTERS, myLineStatus: 'WAITING' })).toBe(true);
+    expect(activeRefinements({ ...DEFAULT_FILTERS, decisionPolicy: 'ALL' })).toEqual([
+      'decisionPolicy',
+    ]);
+    expect(await seriousA11yViolations()).toEqual([]);
   });
 });

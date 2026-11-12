@@ -69,6 +69,11 @@ function approval(n: number, patch: Partial<InboxApprovalRow> = {}): InboxApprov
   return {
     tenantId: T,
     id: pid(2000 + n),
+    approvalId: pid(2000 + n),
+    sequence: 1,
+    decisionPolicy: 'ANY',
+    lineDueAt: null,
+    lineCounts: { totalLines: 1, approvedLines: 0, pendingLines: 1, waitingLines: 0 },
     processId: pid(n),
     subjectType: 'PROCESS_STAGE',
     title: 'Aprovação do DFD',
@@ -260,6 +265,33 @@ describe('RN-INBOX-07 · POL-03: aprovações pendentes do usuário', () => {
       NOW,
     );
     expect(items.map((item) => item.key)).toEqual([pid(2001), pid(2999)]);
+  });
+
+  it('US-136 (RN-APV-62): uma linha por ApprovalApprover; a mesma linha lida duas vezes conta uma', () => {
+    const lineOf = (sequence: number) =>
+      approval(1, { id: pid(3000 + sequence), approvalId: pid(2001), sequence });
+    const items = itemsOfView(
+      'PENDING_APPROVALS',
+      { processes: [process], approvals: [lineOf(1), lineOf(2), lineOf(2)], participations: [] },
+      viewer(),
+      NOW,
+    );
+    expect(items.map((item) => item.key)).toEqual([pid(3001), pid(3002)]);
+    expect(new Set(items.map((item) => item.approval?.approvalId))).toEqual(new Set([pid(2001)]));
+  });
+
+  it('US-136 (RN-APV-63): prazo da linha, senão da aprovação, senão da etapa', () => {
+    const stageDue = new Date('2026-10-30T02:59:59.999Z');
+    const approvalDue = new Date('2026-10-25T02:59:59.999Z');
+    const lineDue = new Date('2026-10-20T02:59:59.999Z');
+    const item = (patch: Partial<InboxApprovalRow>) => ({
+      key: pid(3001),
+      process: { ...process, dueAt: stageDue },
+      approval: approval(1, patch),
+    });
+    expect(dueAtOf(item({ dueAt: approvalDue, lineDueAt: lineDue }))).toBe(lineDue);
+    expect(dueAtOf(item({ dueAt: approvalDue }))).toBe(approvalDue);
+    expect(dueAtOf(item({ dueAt: null }))).toBe(stageDue);
   });
 });
 

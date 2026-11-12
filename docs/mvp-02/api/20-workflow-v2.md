@@ -95,8 +95,8 @@ Mudanças **aditivas** (campos opcionais, enums ampliados, filtros novos) sobre 
 ### APV-31 — GET `/approvals/{id}/approvers`
 **Permissão:** `APPROVAL_VIEW` · **Story:** US-136
 - **Cabeçalhos:** `Idempotency-Key` — · `If-Match` —
-- **Request:** path `id`; query `includeHistory` (padrão `true`)
-- **Response:** `200 { data: [{ id, sequence, label, approverType, status, activatedAt, dueAt, decision, decidedBy, decidedAt, decidedAsDeputy, decisionComment, reassignedFromId, skippedReason }], meta: { decisionPolicy, totalLines, approvalStatus } }`; `Cache-Control: no-store`
+- **Request:** path `id`; query `includeHistory` (padrão `true`; fora de `true`/`false` → 422 `VALIDATION_ERROR` `INVALID_FORMAT`)
+- **Response:** `200 { data: [{ id, sequence, label, approverType, status, activatedAt, dueAt, decision, decidedBy, decidedAt, decidedAsDeputy, decisionComment, reassignedFromId, skippedReason }], meta: { decisionPolicy, totalLines, approvalStatus } }`; `Cache-Control: no-store`. Ordem `sequence`, `createdAt`; `totalLines` conta as vigentes. Autorização igual à do APV-02 (403 com `access.denied` `APPROVAL_VIEW` + `approvalId`; 404 `APPROVAL_NOT_FOUND`)
 - **Códigos:** 200, 401, 403, 404, 422, 429, 503
 
 ### PRC-39 — GET `/processes/{id}/branches`
@@ -261,7 +261,7 @@ Mudanças **aditivas** (campos opcionais, enums ampliados, filtros novos) sobre 
 ### APV-01 — GET `/approvals` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
 - **US-125:** request MVP 1 → response linha com `branchKey`, `branchLabel`, `siblings[]` (quando de ramo) · códigos 200, 422
-- **US-136:** request MVP 1 + `decisionPolicy`, `myLineStatus` → response `data[]` do MVP 1 + `decisionPolicy`, `progress`, `myLine`, `currentApprover` (aditivo) · códigos 200, 401, 422, 429, 503
+- **US-136:** request MVP 1 + `decisionPolicy` (múltiplo, OU), `myLineStatus` (sem `CANCELED`) → response `data[]` do MVP 1 + `decisionPolicy`, `progress`, `myLine { approvalApproverId, sequence, status } | null`, `currentApprover { label } | null` (aditivo); cobertura por linha (a substituída por redirecionamento sai) · códigos 200, 401, 422, 429, 503
 - **US-137:** request MVP 1 + `overdue`, `dueFrom`, `dueTo` → response `dueAt` e `isOverdue` (já existentes) agora preenchidos para `DOCUMENT` · códigos 200, 401, 422, 429, 503
 
 ### APV-02 — GET `/approvals/{id}` (ampliação do MVP 1)
@@ -269,7 +269,7 @@ Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approv
 - **US-125:** request — → response detalhe com `branchKey`, `branchLabel`, `siblings[]` · códigos 200, 403, 404
 - **US-133:** request — → response `200 { data: Approval }` com `decisionPolicy` e `approvers[]` (`id`, `sequence`, `status`, `approverType`, `userId`, `roleId`, `departmentId`, `allowDeputy`, `label`, `activatedAt`, `dueAt`, `decision`, `decidedBy`, `decidedAt`, `decidedAsDeputy`, `skippedReason`) · `ETag` · códigos 200, 403, 404. Aprovações do MVP 1 vêm com `ANY` e a linha do backfill
 - **US-134:** request — → response `200 { data: Approval }` com `decisionPolicy`, `approvers[]` (`id`, `sequence`, `status`, `label`, `decision?`, `decidedBy?`, `decidedAt?`, `decidedAsDeputy`, `version`) e `meta` (`myLine { id, sequence, status, etag }` — `etag` = o `If-Match` do voto: versão da aprovação em `ANY`, da linha em `ALL`/`SEQUENTIAL` —, `decidableLineIds[]`, `allowedActions`, `decisionOptions[]` com `closesApproval` — a opção que não encerra vem habilitada e sem `violations` —, `decisionBlocker` + `ALREADY_VOTED`, `LINE_NOT_PENDING`; linha `WAITING` = `NOT_DESIGNATED_APPROVER`) · `ETag` · códigos 200, 403, 404
-- **US-136:** request path `id` → response `data` do MVP 1 + `decisionPolicy`, `approvers[]`; `meta` + `myApproverLineId`, `lineActions`, `waitingFor`; `decisionBlocker` + `LINE_NOT_PENDING`; `ETag` · códigos 200, 401, 403, 404, 429, 503
+- **US-136:** request path `id` → response `data` do MVP 1 + `decisionPolicy`, `approvers[]` (só as vigentes — as `CANCELED` ficam no APV-31; cada linha com `decisionComment`), `progress { totalLines, approvedLines, pendingLines, waitingLines, label? }`; `meta` + `myApproverLineId`, `lineActions [{ approvalApproverId, actions: DECIDE|REASSIGN }]`, `waitingFor { sequence, label } | null`; `decisionBlocker` + `LINE_NOT_PENDING`; `ETag` · códigos 200, 401, 403, 404, 429, 503
 - **US-137:** request path `id` → response `dueAt` preenchido; sem campo novo · códigos 200, 401, 403, 404, 429, 503
 
 ### APV-03 — POST `/approvals/{id}/decide` (ampliação do MVP 1)
@@ -366,7 +366,7 @@ Contrato original: [mvp-01/api/02-processes.md](../../mvp-01/api/02-processes.md
 ### TSK-01 — GET `/tasks` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
 - **US-125:** request MVP 1 + `branchKey?` (filtro opcional) → response Linha por etapa ativa com `rowKey`, `processStageId`, `branchKey`, `branchLabel`, `activeStagesCount`, `siblings[]`, `siblingsMore` (RN-WF2-30) · códigos 200, 403, 422
-- **US-136:** request `?view=PENDING_APPROVALS&page=&pageSize=&sort=` (MVP 1) → response `data[]` do MVP 1; em `PENDING_APPROVALS`, `id` = `approvalApproverId` e `approval { id, approvalApproverId, sequence, decisionPolicy, progress, title, subjectType, requestedBy, requestedAt, dueAt }` (aditivo); `process` nulo em assunto `PCA` · códigos 200, 401, 403, 422, 429, 500, 503
+- **US-136:** request `?view=PENDING_APPROVALS&page=&pageSize=&sort=` (MVP 1) → response `data[]` do MVP 1; em `PENDING_APPROVALS`, `id` = `approvalApproverId` e `approval { id, approvalApproverId, sequence, decisionPolicy, progress, title, subjectType, requestedBy, requestedAt, dueAt }` (aditivo; lê `v_inbox_pending_approvals_v2`; `dueAt` = o da linha, senão o da aprovação); `process` nulo em assunto `PCA` (pendente — EP-023) · códigos 200, 401, 403, 422, 429, 500, 503
 - **US-137:** request `view=PENDING_APPROVALS` → response `approval.dueAt` com o prazo próprio da aprovação avulsa (antes, o da etapa) · códigos 200, 401, 403, 422, 429, 503
 
 ### TSK-02 — GET `/tasks/counters` (ampliação do MVP 1)

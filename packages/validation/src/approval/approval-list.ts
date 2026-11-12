@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
+import {
+  APPROVAL_MY_LINE_STATUSES,
+  approvalListMyLineSchema,
+  approvalProgressSchema,
+} from './approval-progress.js';
 import { APPROVAL_SUBJECT_TYPES } from './events.js';
 import { isoDateSchema, isoDateTimeSchema } from '../common/dates.js';
+import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
 import { APPROVER_TYPES } from '../document/document-type.js';
 import { pageMetaSchema, pageQuerySchema } from '../http/pagination.js';
 import { APPROVAL_STATUSES } from '../process/process-actions.js';
@@ -67,6 +73,18 @@ const statusParam = z
   .pipe(z.array(z.enum(APPROVAL_STATUSES)).max(APPROVAL_STATUSES.length))
   .optional();
 
+/** US-136 (RN-APV-67): `decisionPolicy` múltiplo, como `status` (repetição ou vírgula, OU). */
+const decisionPolicyParam = z
+  .union([z.string(), z.array(z.string())])
+  .transform((value) =>
+    (Array.isArray(value) ? value.join(',') : value)
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part !== ''),
+  )
+  .pipe(z.array(z.enum(APPROVAL_DECISION_POLICIES)).max(APPROVAL_DECISION_POLICIES.length))
+  .optional();
+
 /** V-03: o front ignora a busca curta; a API recusa (o parâmetro nunca chega com menos de 2). */
 const searchParam = z
   .string()
@@ -82,6 +100,10 @@ export const approvalListFiltersShape = {
   requestedFrom: isoDateSchema.optional(),
   requestedTo: isoDateSchema.optional(),
   q: searchParam.optional(),
+  /** US-136 (RN-APV-67): política de decisão (vários = OU). */
+  decisionPolicy: decisionPolicyParam,
+  /** US-136 (RN-APV-67): a situação da linha de quem consulta (`CANCELED` não se filtra). */
+  myLineStatus: z.enum(APPROVAL_MY_LINE_STATUSES).optional(),
 };
 
 /** V-02: `requestedFrom` ≤ `requestedTo` (datas `YYYY-MM-DD` comparáveis como texto). */
@@ -126,6 +148,11 @@ export const approvalListQuerySchema = pageQuerySchema
       requestedFrom: query.requestedFrom ?? null,
       requestedTo: query.requestedTo ?? null,
       q: query.q ?? null,
+      decisionPolicies:
+        query.decisionPolicy === undefined || query.decisionPolicy.length === 0
+          ? null
+          : [...new Set(query.decisionPolicy)],
+      myLineStatus: query.myLineStatus ?? null,
       sort,
       page: query.page,
       pageSize: query.pageSize,
@@ -157,6 +184,14 @@ export const approvalListItemSchema = z
     /** FA-02: no perfil, "Aguardando: qualquer titular de {perfil}". */
     approver: z.object({ type: z.enum(APPROVER_TYPES), label: z.string() }),
     isBudgetConfidential: z.boolean(),
+    /** US-136 (aditivo): a política copiada na solicitação (`ANY` nas do MVP 1). */
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES).optional(),
+    /** US-136 (aditivo · RN-APV-67/70): contadores das linhas vigentes e o texto de andamento. */
+    progress: approvalProgressSchema.optional(),
+    /** US-136 (aditivo): a linha de quem consulta (`null` = só decidiu no MVP 1 ou não tem linha). */
+    myLine: approvalListMyLineSchema.nullable().optional(),
+    /** US-136 (aditivo): o rótulo da linha corrente em `SEQUENTIAL` pendente; senão `null`. */
+    currentApprover: z.object({ label: z.string() }).nullable().optional(),
   })
   .meta({ id: 'ApprovalListItem' });
 export type ApprovalListItemDto = z.infer<typeof approvalListItemSchema>;

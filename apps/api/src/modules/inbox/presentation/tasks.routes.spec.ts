@@ -89,6 +89,11 @@ function approvalRow(n: number, patch: Partial<InboxApprovalRow> = {}): InboxApp
   return {
     tenantId: A,
     id: pid(2000 + n),
+    approvalId: pid(2000 + n),
+    sequence: 1,
+    decisionPolicy: 'ANY',
+    lineDueAt: null,
+    lineCounts: { totalLines: 1, approvedLines: 0, pendingLines: 1, waitingLines: 0 },
     processId: pid(n),
     subjectType: 'PROCESS_STAGE',
     title: 'Aprovação do DFD',
@@ -468,6 +473,91 @@ describe('Feature: Caixa de tarefas unificada (US-056)', () => {
       } finally {
         await degraded.close();
       }
+    });
+  });
+
+  describe('US-136 — uma linha por linha de aprovação PENDING (RN-APV-61..64)', () => {
+    /** Linha `n` da aprovação `approvalN` (id próprio; a aprovação é `pid(2000 + approvalN)`). */
+    const line = (approvalN: number, sequence: number, patch: Partial<InboxApprovalRow> = {}) =>
+      approvalRow(approvalN, {
+        id: pid(3000 + approvalN * 10 + sequence),
+        approvalId: pid(2000 + approvalN),
+        sequence,
+        ...patch,
+      });
+    const twoLines = { totalLines: 2, approvedLines: 0, pendingLines: 2, waitingLines: 0 };
+
+    it('[Sucesso] ALL: o id é a linha, a aprovação vem em approval.id e o andamento é do servidor', async () => {
+      reader.seed({
+        processes: [processRow(4)],
+        approvals: [
+          line(4, 1, { decisionPolicy: 'ALL', lineCounts: twoLines }),
+          line(4, 2, { decisionPolicy: 'ALL', lineCounts: twoLines, approverUserId: LUCIA }),
+        ],
+      });
+      const body = await list('?view=PENDING_APPROVALS');
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]?.id).toBe(pid(3041));
+      expect(body.data[0]?.approval).toMatchObject({
+        id: pid(2004),
+        approvalApproverId: pid(3041),
+        sequence: 1,
+        decisionPolicy: 'ALL',
+        progress: { ...twoLines, label: '0 de 2 aprovaram' },
+      });
+      expect((await counters()).pendingApprovals).toBe(1);
+    });
+
+    it('[Sucesso] SEQUENTIAL: a linha corrente traz "Etapa n de N — rótulo"', async () => {
+      reader.seed({
+        processes: [processRow(4)],
+        approvals: [
+          line(4, 2, {
+            decisionPolicy: 'SEQUENTIAL',
+            lineCounts: { totalLines: 2, approvedLines: 1, pendingLines: 1, waitingLines: 0 },
+          }),
+        ],
+      });
+      const body = await list('?view=PENDING_APPROVALS');
+      expect(body.data[0]?.approval?.progress?.label).toBe(`Etapa 2 de 2 — ${FAKE_USERS.ana.name}`);
+    });
+
+    it('[Sucesso] Prazo da linha antes do da aprovação (RN-APV-63); aprovação do MVP 1 sem texto de andamento', async () => {
+      const lineDue = new Date('2026-10-20T02:59:59.999Z');
+      reader.seed({
+        processes: [processRow(4), processRow(5)],
+        approvals: [line(4, 1, { lineDueAt: lineDue }), approvalRow(5)],
+      });
+      const body = await list('?view=PENDING_APPROVALS&sort=dueAt');
+      expect(body.data.map((item) => item.dueAt)).toEqual([
+        lineDue.toISOString(),
+        '2026-10-24T02:59:59.999Z',
+      ]);
+      expect(body.data[0]?.approval?.dueAt).toBe(lineDue.toISOString());
+      const mvp1 = body.data[1]?.approval;
+      expect(mvp1?.progress).toEqual({
+        totalLines: 1,
+        approvedLines: 0,
+        pendingLines: 1,
+        waitingLines: 0,
+      });
+      expect(mvp1?.id).toBe(pid(2005));
+    });
+
+    it('[Duplicidade] Duas linhas minhas da mesma aprovação aparecem duas vezes e contam 2', async () => {
+      reader.seed({
+        processes: [processRow(4)],
+        approvals: [
+          line(4, 1, { decisionPolicy: 'ALL', lineCounts: twoLines }),
+          line(4, 2, { decisionPolicy: 'ALL', lineCounts: twoLines }),
+          // A mesma linha lida duas vezes (dois caminhos de cobertura) conta uma vez.
+          line(4, 2, { decisionPolicy: 'ALL', lineCounts: twoLines }),
+        ],
+      });
+      const body = await list('?view=PENDING_APPROVALS');
+      expect(body.data.map((item) => item.id).sort()).toEqual([pid(3041), pid(3042)]);
+      expect(new Set(body.data.map((item) => item.approval?.id))).toEqual(new Set([pid(2004)]));
+      expect((await counters()).pendingApprovals).toBe(2);
     });
   });
 });

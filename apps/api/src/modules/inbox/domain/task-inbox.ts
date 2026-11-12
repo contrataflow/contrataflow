@@ -1,4 +1,6 @@
 import type {
+  ApprovalDecisionPolicy,
+  ApprovalLineCounts,
   ApprovalSubjectType,
   DayCountType,
   ProcessStatus,
@@ -51,16 +53,28 @@ export interface InboxProcessRow {
   readonly assignmentType: InboxAssignmentType | null;
 }
 
-/** Linha de `v_inbox_pending_approvals`. */
+/**
+ * Linha de `v_inbox_pending_approvals_v2` (US-136 · RN-APV-61/62): uma por `ApprovalApprover`
+ * `PENDING` de aprovação `PENDING` — `id` é a linha; `approvalId`, a `Approval`. O aprovador é o da
+ * linha; `lineCounts` são as linhas vigentes da aprovação (andamento — RN-APV-67).
+ */
 export interface InboxApprovalRow {
   readonly tenantId: string;
+  /** `approvalApproverId`. */
   readonly id: string;
+  readonly approvalId: string;
+  readonly sequence: number;
+  readonly decisionPolicy: ApprovalDecisionPolicy;
   readonly processId: string;
   readonly subjectType: ApprovalSubjectType;
   readonly title: string;
   readonly requestedById: string;
   readonly requestedAt: Date;
+  /** Prazo da aprovação (o conjunto — DEC-193). */
   readonly dueAt: Date | null;
+  /** Prazo próprio da linha (SLA por linha — US-190); `null` = vale o da aprovação. */
+  readonly lineDueAt: Date | null;
+  readonly lineCounts: ApprovalLineCounts;
   readonly approverType: InboxApproverType;
   readonly approverUserId: string | null;
   readonly approverRoleId: string | null;
@@ -281,17 +295,20 @@ export function canClaim(row: InboxProcessRow, viewer: InboxViewer): boolean {
   );
 }
 
-/** Item de uma visão: o processo e, em `PENDING_APPROVALS`, a aprovação da linha. */
+/** Item de uma visão: o processo e, em `PENDING_APPROVALS`, a linha de aprovação. */
 export interface InboxItemRow {
-  /** Chave da linha (processo; aprovação em `PENDING_APPROVALS`). */
+  /** Chave da linha (processo; linha de aprovação em `PENDING_APPROVALS` — RN-APV-62). */
   readonly key: string;
   readonly process: InboxProcessRow;
   readonly approval: InboxApprovalRow | null;
 }
 
-/** RN-INBOX-10: o prazo da linha — o da aprovação, quando houver, senão o da etapa ativa. */
+/**
+ * RN-INBOX-10 · RN-APV-63: o prazo da linha — o da linha de aprovação, senão o da aprovação, senão
+ * o da etapa ativa.
+ */
 export function dueAtOf(item: InboxItemRow): Date | null {
-  return item.approval?.dueAt ?? item.process.dueAt;
+  return item.approval?.lineDueAt ?? item.approval?.dueAt ?? item.process.dueAt;
 }
 
 /** Itens da visão (fontes já restritas ao tenant e à visibilidade), um por chave. */
@@ -324,12 +341,17 @@ export function itemsOfView(
         .filter((row) => isFollowing(row, sources.participations, viewer, now))
         .map(item);
     case 'PENDING_APPROVALS': {
+      // RN-APV-62: uma linha por `ApprovalApprover` coberta (a fonte já tem uma linha por id — a
+      // cobertura por dois caminhos não multiplica); duas linhas da mesma aprovação = dois itens.
       const byId = new Map(sources.processes.map((row) => [row.id, row]));
+      const seen = new Set<string>();
       return sources.approvals.flatMap((approval) => {
         const process = byId.get(approval.processId);
-        return process && isDesignatedApprover(approval, process, viewer)
-          ? [{ key: approval.id, process, approval }]
-          : [];
+        if (!process || seen.has(approval.id) || !isDesignatedApprover(approval, process, viewer)) {
+          return [];
+        }
+        seen.add(approval.id);
+        return [{ key: approval.id, process, approval }];
       });
     }
   }

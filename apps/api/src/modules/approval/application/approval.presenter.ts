@@ -1,3 +1,4 @@
+import { approvalLineCountsOf, approvalProgressOf } from '@contrataflow/validation';
 import type { ApprovalApproverDto, ApprovalDto } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -9,11 +10,15 @@ import { APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalRepository } from './ports.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
+import type { ApprovalApprover } from '../domain/approval-lines.js';
+import { currentLineOf } from '../domain/approval-list.js';
 
 /**
  * `Approval` de APV-02/APV-03 (US-052): os nomes de quem solicitou e decidiu, o rótulo do aprovador
  * (o mesmo da solicitação — US-051) e os documentos cobertos lidos pelo dono do sujeito. US-133
  * (aditivo): a política e as linhas (`approvers[]`) como estão no `tx` — sempre depois da escrita.
+ * US-136 (aditivo): o comentário da decisão por linha, o andamento (RN-APV-70) e, no APV-02
+ * (`liveOnly`), só a composição vigente — as `CANCELED` ficam no histórico (APV-31 · RN-APV-68).
  */
 @Injectable()
 export class ApprovalPresenter {
@@ -27,38 +32,18 @@ export class ApprovalPresenter {
     tx: TenantTx,
     approval: ApprovalRecord,
     subject: DecisionSubjectView,
+    options: { readonly liveOnly?: boolean } = {},
   ): Promise<ApprovalDto> {
-    const lines = await this.approvals.findLines(tx, approval.id);
-    const userIds = [
-      approval.requestedById,
-      approval.decidedById,
-      ...lines.map((line) => line.decidedById),
-    ].filter((id): id is string => id !== null);
-    const names = await this.identity.userDisplayNames(tx, [...new Set(userIds)]);
+    const all = await this.approvals.findLines(tx, approval.id);
+    const lines = options.liveOnly === true ? all.filter((l) => l.status !== 'CANCELED') : all;
+    const approvers = await this.presentLines(tx, lines);
+    const policy = approval.decisionPolicy ?? 'ANY';
+    const current = currentLineOf(policy, approval.status, approvers);
+    const names = await this.identity.userDisplayNames(
+      tx,
+      [approval.requestedById, approval.decidedById].filter((id): id is string => id !== null),
+    );
     const person = (id: string) => ({ id, name: names.get(id) ?? null });
-    const approvers: ApprovalApproverDto[] = [];
-    for (const line of lines) {
-      approvers.push({
-        id: line.id,
-        sequence: line.sequence,
-        status: line.status,
-        approverType: line.approverType,
-        userId: line.approverUserId,
-        roleId: line.approverRoleId,
-        departmentId: line.approverDepartmentId,
-        allowDeputy: line.allowDeputy,
-        label: await this.resolver.labelOf(tx, line),
-        activatedAt: line.activatedAt?.toISOString() ?? null,
-        dueAt: line.dueAt?.toISOString() ?? null,
-        decision: line.decision,
-        decidedBy: line.decidedById === null ? null : person(line.decidedById),
-        decidedAt: line.decidedAt?.toISOString() ?? null,
-        decidedAsDeputy: line.decidedAsDeputy,
-        skippedReason: line.skippedReason,
-        reassignedFromId: line.reassignedFromId,
-        version: line.version,
-      });
-    }
     return {
       id: approval.id,
       subjectType: approval.subjectType,
@@ -85,9 +70,51 @@ export class ApprovalPresenter {
       decisionComment: approval.decisionComment,
       decidedAsDeputy: approval.decidedAsDeputy,
       documents: [...subject.documents],
-      decisionPolicy: approval.decisionPolicy ?? 'ANY',
+      decisionPolicy: policy,
       approvers,
+      progress: approvalProgressOf({
+        policy,
+        approvalStatus: approval.status,
+        counts: approvalLineCountsOf(all),
+        current: current === null ? null : { sequence: current.sequence, label: current.label },
+      }),
       version: approval.version,
     };
+  }
+
+  /** As linhas como APV-02/APV-31 as devolvem (nomes de quem decidiu por lote). */
+  async presentLines(
+    tx: TenantTx,
+    lines: readonly ApprovalApprover[],
+  ): Promise<ApprovalApproverDto[]> {
+    const names = await this.identity.userDisplayNames(tx, [
+      ...new Set(lines.flatMap((line) => (line.decidedById === null ? [] : [line.decidedById]))),
+    ]);
+    const person = (id: string) => ({ id, name: names.get(id) ?? null });
+    const approvers: ApprovalApproverDto[] = [];
+    for (const line of lines) {
+      approvers.push({
+        id: line.id,
+        sequence: line.sequence,
+        status: line.status,
+        approverType: line.approverType,
+        userId: line.approverUserId,
+        roleId: line.approverRoleId,
+        departmentId: line.approverDepartmentId,
+        allowDeputy: line.allowDeputy,
+        label: await this.resolver.labelOf(tx, line),
+        activatedAt: line.activatedAt?.toISOString() ?? null,
+        dueAt: line.dueAt?.toISOString() ?? null,
+        decision: line.decision,
+        decidedBy: line.decidedById === null ? null : person(line.decidedById),
+        decidedAt: line.decidedAt?.toISOString() ?? null,
+        decidedAsDeputy: line.decidedAsDeputy,
+        decisionComment: line.decisionComment,
+        skippedReason: line.skippedReason,
+        reassignedFromId: line.reassignedFromId,
+        version: line.version,
+      });
+    }
+    return approvers;
   }
 }

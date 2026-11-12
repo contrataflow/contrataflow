@@ -10,6 +10,7 @@ import type { ApprovalRecord } from '../domain/approval-decision.js';
 import type { ApprovalApprover } from '../domain/approval-lines.js';
 import type {
   ApprovalListCriteria,
+  ApprovalListMyLine,
   ApprovalListRow,
   ApproverCoverage,
 } from '../domain/approval-list.js';
@@ -195,8 +196,11 @@ export interface ApprovalListSearch {
   readonly pageSize: number;
 }
 
+/** US-136: a linha da página com a linha de quem consulta (`myLineOf`, já calculada na leitura). */
+export type ApprovalListPageRow = ApprovalListRow & { readonly myLine: ApprovalListMyLine | null };
+
 export interface ApprovalListPage {
-  readonly rows: ApprovalListRow[];
+  readonly rows: ApprovalListPageRow[];
   readonly totalItems: number;
 }
 

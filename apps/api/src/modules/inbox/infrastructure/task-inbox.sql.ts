@@ -9,7 +9,8 @@ import type { InboxProcessRestriction, InboxViewer } from '../domain/task-inbox.
 
 /*
  * `TaskInboxQueryBuilder` (US-056 · DEC-026): cada visão é UMA consulta sobre as views publicadas
- * (`v_inbox_processes`, `v_inbox_participations`, `v_inbox_pending_approvals`), com o predicado de
+ * (`v_inbox_processes`, `v_inbox_participations`, `v_inbox_pending_approvals_v2` — US-136: uma
+ * linha por `ApprovalApprover` `PENDING`, RN-APV-61), com o predicado de
  * visibilidade único (`buildVisibilityPredicate`, DEC-024) e o predicado da visão — o mesmo de
  * `domain/task-inbox.ts`, linha a linha. Página e total saem de uma instrução; os contadores, de
  * outra, compondo os MESMOS `itemsSql` (RN-INBOX-09). Ordenação de lista fechada; todo valor do
@@ -77,7 +78,11 @@ const PROCESS_COLUMNS = Prisma.sql`pr.id AS process_id, pr.tenant_id, pr.organiz
        pr.paused_at, pr.assignment_department_id, pr.assignee_id,
        pr.assignment_type::text AS assignment_type`;
 
-const NO_APPROVAL_COLUMNS = Prisma.sql`NULL::uuid AS approval_id, NULL::text AS approval_subject_type,
+const NO_APPROVAL_COLUMNS = Prisma.sql`NULL::uuid AS approval_id, NULL::uuid AS approval_approver_id,
+       NULL::int AS approval_sequence, NULL::text AS approval_decision_policy,
+       NULL::timestamptz AS approval_line_due_at, NULL::int AS approval_total_lines,
+       NULL::int AS approval_approved_lines, NULL::int AS approval_pending_lines,
+       NULL::int AS approval_waiting_lines, NULL::text AS approval_subject_type,
        NULL::text AS approval_title, NULL::uuid AS approval_requested_by_id,
        NULL::timestamptz AS approval_requested_at, NULL::timestamptz AS approval_due_at,
        NULL::text AS approver_type, NULL::uuid AS approver_user_id, NULL::uuid AS approver_role_id,
@@ -108,15 +113,23 @@ export function itemsSql(
     historicalDepartmentsCanView: viewer.historicalDepartmentsCanView,
   })} AND ${restrictionSql(restriction)}`;
   if (view === 'PENDING_APPROVALS') {
+    // RN-APV-62: `ap` é a linha (uma por `approval_approver_id`); a cobertura por dois caminhos é
+    // um OR no predicado — nunca uma junção que multiplique.
     return Prisma.sql`
-      SELECT ap.id AS row_key, ${PROCESS_COLUMNS},
-             ap.id AS approval_id, ap.subject_type::text AS approval_subject_type,
+      SELECT ap.approval_approver_id AS row_key, ${PROCESS_COLUMNS},
+             ap.approval_id, ap.approval_approver_id, ap.sequence AS approval_sequence,
+             ap.decision_policy AS approval_decision_policy,
+             ap.line_due_at AS approval_line_due_at, ap.total_lines AS approval_total_lines,
+             ap.approved_lines AS approval_approved_lines,
+             ap.pending_lines AS approval_pending_lines,
+             ap.waiting_lines AS approval_waiting_lines,
+             ap.subject_type::text AS approval_subject_type,
              ap.title AS approval_title, ap.requested_by_id AS approval_requested_by_id,
              ap.requested_at AS approval_requested_at, ap.due_at AS approval_due_at,
              ap.approver_type::text AS approver_type, ap.approver_user_id, ap.approver_role_id,
              ap.approver_department_id, ap.allow_deputy,
-             COALESCE(ap.due_at, pr.due_at) AS row_due_at
-        FROM v_inbox_pending_approvals ap
+             COALESCE(ap.line_due_at, ap.due_at, pr.due_at) AS row_due_at
+        FROM v_inbox_pending_approvals_v2 ap
         JOIN v_inbox_processes pr ON pr.tenant_id = ap.tenant_id AND pr.id = ap.process_id
        WHERE ${visible} AND ${designatedSql(viewer)}`;
   }
@@ -215,6 +228,14 @@ export interface TaskInboxDbRow {
   readonly assignee_id: string | null;
   readonly assignment_type: string | null;
   readonly approval_id: string | null;
+  readonly approval_approver_id: string | null;
+  readonly approval_sequence: number | null;
+  readonly approval_decision_policy: string | null;
+  readonly approval_line_due_at: Date | null;
+  readonly approval_total_lines: number | null;
+  readonly approval_approved_lines: number | null;
+  readonly approval_pending_lines: number | null;
+  readonly approval_waiting_lines: number | null;
   readonly approval_subject_type: string | null;
   readonly approval_title: string | null;
   readonly approval_requested_by_id: string | null;

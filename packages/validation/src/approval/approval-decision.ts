@@ -5,6 +5,7 @@ import {
   APPROVAL_LINES_MAX,
   APPROVAL_SKIPPED_REASONS,
 } from './approval-approvers.js';
+import { approvalProgressSchema } from './approval-progress.js';
 import { APPROVAL_SUBJECT_TYPES } from './events.js';
 import { isoDateTimeSchema } from '../common/dates.js';
 import { APPROVAL_DECISION_POLICIES } from '../document/approver-lines.js';
@@ -200,6 +201,8 @@ export const approvalApproverSchema = z
     decidedAt: isoDateTimeSchema.nullable(),
     decidedAsDeputy: z.boolean(),
     skippedReason: z.enum(APPROVAL_SKIPPED_REASONS).nullable(),
+    /** US-136 (aditivo · RN-APV-68/72): o comentário da decisão da linha (visível a quem vê a aprovação). */
+    decisionComment: z.string().nullable().optional(),
     /**
      * US-135 (aditivo): a linha cancelada pelo redirecionamento que esta substitui (mesmo
      * `sequence` — RN-APV-52); `null` na linha original.
@@ -242,8 +245,13 @@ export const approvalSchema = z
     documents: z.array(approvalDocumentSchema),
     /** US-133 (aditivo): a política copiada na solicitação (`ANY` nas aprovações do MVP 1). */
     decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
-    /** US-133 (aditivo): as linhas em ordem de `sequence` (uma nas aprovações do MVP 1). */
+    /**
+     * US-133 (aditivo): as linhas em ordem de `sequence` (uma nas aprovações do MVP 1). US-136
+     * (RN-APV-68): só a composição vigente — as `CANCELED` ficam no histórico (APV-31).
+     */
     approvers: z.array(approvalApproverSchema),
+    /** US-136 (aditivo · RN-APV-70): o andamento, com o mesmo texto da caixa e da lista. */
+    progress: approvalProgressSchema.optional(),
     version: z.int().min(1),
   })
   .meta({ id: 'Approval' });
@@ -318,6 +326,18 @@ export const approvalMyLineSchema = z
   .meta({ id: 'ApprovalMyLine' });
 export type ApprovalMyLine = z.infer<typeof approvalMyLineSchema>;
 
+/** US-136 (RN-APV-68): ações por linha — `DECIDE` (US-134) e `REASSIGN` (US-135). */
+export const APPROVAL_LINE_ACTIONS = ['DECIDE', 'REASSIGN'] as const;
+export type ApprovalLineAction = (typeof APPROVAL_LINE_ACTIONS)[number];
+
+export const approvalLineActionsSchema = z
+  .object({
+    approvalApproverId: z.uuid(),
+    actions: z.array(z.enum(APPROVAL_LINE_ACTIONS)),
+  })
+  .meta({ id: 'ApprovalLineActions' });
+export type ApprovalLineActionsDto = z.infer<typeof approvalLineActionsSchema>;
+
 /** `meta` de APV-02: ações, opções de decisão e o motivo de não poder decidir. */
 export const approvalMetaSchema = z
   .object({
@@ -333,6 +353,15 @@ export const approvalMetaSchema = z
      * painel pede a escolha (`approvalApproverId` obrigatório).
      */
     decidableLineIds: z.array(z.uuid()),
+    /** US-136 (aditivo · RN-APV-68): o id de `myLine` (`null` sem linha). */
+    myApproverLineId: z.uuid().nullable().optional(),
+    /** US-136 (aditivo · RN-APV-68): as ações de quem consulta em cada linha vigente. */
+    lineActions: z.array(approvalLineActionsSchema).optional(),
+    /** US-136 (aditivo · RN-APV-68): a linha corrente em `SEQUENTIAL` pendente; senão `null`. */
+    waitingFor: z
+      .object({ sequence: z.int().min(1).max(APPROVAL_LINES_MAX), label: z.string() })
+      .nullable()
+      .optional(),
   })
   .meta({ id: 'ApprovalMeta' });
 export type ApprovalMeta = z.infer<typeof approvalMetaSchema>;
@@ -377,3 +406,38 @@ export const decidedApprovalSchema = approvalSchema
   })
   .meta({ id: 'DecidedApproval' });
 export type DecidedApprovalDto = z.infer<typeof decidedApprovalSchema>;
+
+/** APV-31 (US-136 · RN-APV-69): `includeHistory` só aceita `true`/`false` (padrão `true`). */
+export const approvalLinesQuerySchema = z
+  .object({
+    includeHistory: z
+      .string()
+      .optional()
+      .transform((value, context) => {
+        if (value === undefined || value === 'true') return true;
+        if (value === 'false') return false;
+        context.addIssue({
+          code: 'custom',
+          message: 'Informe "true" ou "false" em "includeHistory".',
+          params: { code: 'INVALID_FORMAT' },
+        });
+        return z.NEVER;
+      }),
+  })
+  .meta({ id: 'ApprovalLinesQuery' });
+export type ApprovalLinesQuery = z.output<typeof approvalLinesQuerySchema>;
+
+/**
+ * APV-31 (US-136 · RN-APV-69): todas as linhas da aprovação, inclusive as `CANCELED` substituídas
+ * por redirecionamento (`reassignedFromId` na nova), em ordem de `sequence` e criação.
+ */
+export const approvalLinesResponseSchema = z.object({
+  data: z.array(approvalApproverSchema),
+  meta: z.object({
+    decisionPolicy: z.enum(APPROVAL_DECISION_POLICIES),
+    /** Linhas vigentes (sem as `CANCELED`). */
+    totalLines: z.int().min(0),
+    approvalStatus: z.enum(APPROVAL_STATUSES),
+  }),
+});
+export type ApprovalLinesResponse = z.infer<typeof approvalLinesResponseSchema>;

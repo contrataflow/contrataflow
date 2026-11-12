@@ -1,4 +1,6 @@
 import {
+  approvalLinesQuerySchema,
+  approvalLinesResponseSchema,
   approvalListQuerySchema,
   approvalListResponseSchema,
   approvalMetaSchema,
@@ -14,7 +16,10 @@ import {
   withdrawnApprovalSchema,
 } from '@contrataflow/validation';
 import type {
+  ApprovalApproverDto,
   ApprovalDto,
+  ApprovalLinesQuery,
+  ApprovalLinesResponse,
   ApprovalListItemDto,
   ApprovalListQuery,
   ApprovalMeta,
@@ -138,6 +143,32 @@ export class ApprovalController {
     response.setHeader('ETag', `"${dto.version}"`);
     noStore(response);
     return new DataResult(dto, meta);
+  }
+
+  @Get(':id/approvers')
+  @ImplicitAccess(
+    'APV-31 (US-136): a mesma autorização do APV-02 — APPROVAL_VIEW sobre processo visível OU designação em alguma linha, solicitante ou decisor, conferidos no caso de uso; não visível = 404 APPROVAL_NOT_FOUND.',
+  )
+  @ApiOperation({
+    operationId: 'APV-31',
+    summary: 'Listar o histórico de linhas da aprovação',
+    tags: TAGS,
+    responses: {
+      200: {
+        description:
+          'Todas as linhas da aprovação (RN-APV-69), em ordem de `sequence` e criação, inclusive as `CANCELED` substituídas por redirecionamento (`skippedReason = REASSIGNED`; a nova traz `reassignedFromId`) — `includeHistory=false` as omite. `meta`: política, total de linhas vigentes e o status da aprovação. Somente leitura, sem paginação (até 20 linhas vigentes mais as substituídas). Sem `APPROVAL_VIEW` nem designação = 403 `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.',
+        schema: approvalLinesResponseSchema,
+      },
+    },
+  })
+  async listApprovalLines(
+    @ApprovalId() id: string,
+    @ZodQuery(approvalLinesQuerySchema) query: ApprovalLinesQuery,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<ApprovalApproverDto[], ApprovalLinesResponse['meta']>> {
+    const { data, meta } = await this.detail.lines(id, query.includeHistory);
+    noStore(response);
+    return new DataResult(data, meta);
   }
 
   @Post(':id/decide')

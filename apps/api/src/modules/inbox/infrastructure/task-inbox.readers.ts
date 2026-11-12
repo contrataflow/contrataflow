@@ -1,5 +1,10 @@
 import { TASK_INBOX_VIEWS } from '@contrataflow/validation';
-import type { ApprovalSubjectType, DayCountType, ProcessStatus } from '@contrataflow/validation';
+import type {
+  ApprovalDecisionPolicy,
+  ApprovalSubjectType,
+  DayCountType,
+  ProcessStatus,
+} from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
@@ -60,10 +65,26 @@ function toProcessRow(row: Omit<TaskInboxDbRow, 'total'>): InboxProcessRow {
 }
 
 function toApprovalRow(row: Omit<TaskInboxDbRow, 'total'>): InboxApprovalRow | null {
-  if (row.approval_id === null || row.approval_requested_at === null) return null;
+  if (
+    row.approval_id === null ||
+    row.approval_approver_id === null ||
+    row.approval_requested_at === null
+  ) {
+    return null;
+  }
   return {
     tenantId: row.tenant_id,
-    id: row.approval_id,
+    id: row.approval_approver_id,
+    approvalId: row.approval_id,
+    sequence: row.approval_sequence ?? 1,
+    decisionPolicy: (row.approval_decision_policy ?? 'ANY') as ApprovalDecisionPolicy,
+    lineDueAt: row.approval_line_due_at,
+    lineCounts: {
+      totalLines: row.approval_total_lines ?? 1,
+      approvedLines: row.approval_approved_lines ?? 0,
+      pendingLines: row.approval_pending_lines ?? 1,
+      waitingLines: row.approval_waiting_lines ?? 0,
+    },
     processId: row.process_id,
     subjectType: row.approval_subject_type as ApprovalSubjectType,
     title: row.approval_title ?? '',

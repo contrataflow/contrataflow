@@ -1,5 +1,9 @@
 import { withSpan } from '@contrataflow/observability';
-import { APPROVAL_LIST_MESSAGES } from '@contrataflow/validation';
+import {
+  APPROVAL_LIST_MESSAGES,
+  approvalLineCountsOf,
+  approvalProgressOf,
+} from '@contrataflow/validation';
 import type { ApprovalListItemDto, ApprovalListQuery, PageMeta } from '@contrataflow/validation';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
@@ -9,13 +13,19 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError, validationError } from '#shared/errors/api-error.js';
 
 import { recordApprovalListQuery } from './approval-telemetry.js';
+import { ApproverResolver } from './approver-resolver.js';
 import { APPROVAL_CLOCK, APPROVAL_LIST_READER, APPROVAL_TRANSACTIONS } from './ports.js';
-import type { ApprovalClock, ApprovalListReader, ApprovalTransactions } from './ports.js';
+import type {
+  ApprovalClock,
+  ApprovalListPageRow,
+  ApprovalListReader,
+  ApprovalTransactions,
+} from './ports.js';
 import { AccessFacade } from '../../access/application/access.facade.js';
 import { BusinessCalendarFacade } from '../../catalog/application/business-calendar.facade.js';
 import { IdentityFacade } from '../../identity/application/identity.facade.js';
 import { OrganizationFacade } from '../../organization/application/organization.facade.js';
-import { isApprovalOverdue } from '../domain/approval-list.js';
+import { currentLineOf, isApprovalOverdue } from '../domain/approval-list.js';
 import type { ApprovalListRow, ApproverCoverage } from '../domain/approval-list.js';
 
 /*
@@ -31,18 +41,23 @@ export interface ApprovalListResult {
   readonly meta: PageMeta;
 }
 
-/** Nomes por lote (sem N+1) e o rótulo do aprovador (FA-02). */
+/**
+ * Nomes por lote (sem N+1) e o rótulo do aprovador (FA-02). US-136 (aditivo · RN-APV-67/70): a
+ * política, o andamento (o texto do servidor), a linha de quem consulta e, em `SEQUENTIAL`
+ * pendente, o rótulo da linha corrente (o mesmo do APV-02).
+ */
 @Injectable()
 export class ApprovalListPresenter {
   constructor(
     private readonly identity: IdentityFacade,
     private readonly organization: OrganizationFacade,
     private readonly access: AccessFacade,
+    private readonly resolver: ApproverResolver,
   ) {}
 
   async present(
     tx: TenantTx,
-    rows: readonly ApprovalListRow[],
+    rows: readonly ApprovalListPageRow[],
     now: Date,
   ): Promise<ApprovalListItemDto[]> {
     if (rows.length === 0) return [];
@@ -81,6 +96,17 @@ export class ApprovalListPresenter {
       }
     };
 
+    const currentLabels = new Map<string, { sequence: number; label: string }>();
+    for (const row of rows) {
+      const current = currentLineOf(row.decisionPolicy, row.status, row.lines);
+      if (current !== null) {
+        currentLabels.set(row.id, {
+          sequence: current.sequence,
+          label: await this.resolver.labelOf(tx, current),
+        });
+      }
+    }
+
     return rows.map((row) => ({
       id: row.id,
       subjectType: row.subjectType,
@@ -103,6 +129,24 @@ export class ApprovalListPresenter {
       isOverdue: isApprovalOverdue(row, now),
       approver: { type: row.approverType, label: label(row) },
       isBudgetConfidential: row.process.isBudgetConfidential,
+      decisionPolicy: row.decisionPolicy,
+      progress: approvalProgressOf({
+        policy: row.decisionPolicy,
+        approvalStatus: row.status,
+        counts: approvalLineCountsOf(row.lines),
+        current: currentLabels.get(row.id) ?? null,
+      }),
+      myLine:
+        row.myLine === null
+          ? null
+          : {
+              approvalApproverId: row.myLine.id,
+              sequence: row.myLine.sequence,
+              status: row.myLine.status,
+            },
+      currentApprover: ((current) => (current === undefined ? null : { label: current.label }))(
+        currentLabels.get(row.id),
+      ),
     }));
   }
 }
@@ -139,6 +183,8 @@ export class ListApprovalsHandler {
               requestedFrom: query.requestedFrom,
               requestedTo: query.requestedTo,
               hasSearch: query.q !== null,
+              decisionPolicy: query.decisionPolicies,
+              myLineStatus: query.myLineStatus,
               sort: `${query.sort.direction === 'desc' ? '-' : ''}${query.sort.field}`,
               page: query.page,
               pageSize: query.pageSize,
@@ -176,6 +222,8 @@ export class ListApprovalsHandler {
           requestedFrom: query.requestedFrom,
           requestedTo: query.requestedTo,
           q: query.q,
+          decisionPolicies: query.decisionPolicies,
+          myLineStatus: query.myLineStatus,
           timezone: await this.calendar.timezone(tx),
         },
         sort: query.sort,

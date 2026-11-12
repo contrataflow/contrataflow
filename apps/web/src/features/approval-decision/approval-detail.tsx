@@ -62,6 +62,8 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
   const { approval, meta } = query.data;
   const pending = approval.status === 'PENDING';
   const decidable = canDecide(meta) && pending;
+  // FA-01 (US-136): a aprovação do MVP 1 (`ANY`, uma linha) não mostra o bloco de linhas.
+  const multiLine = approval.decisionPolicy !== 'ANY' || approval.approvers.length > 1;
   const refresh = () => {
     void query.refetch();
   };
@@ -124,10 +126,12 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
             <Alert tone="info" live={false} title={t('decidesAsDeputy')} />
           ) : null}
           {approval.status === 'CANCELED' ? <CanceledNotice /> : null}
+          {!pending && multiLine ? <Alert tone="info" title={t('closed')} /> : null}
           {pending && !decidable ? (
             <BlockedExplanation
               blocker={meta.decisionBlocker}
               waiting={meta.myLine?.status === 'WAITING'}
+              waitingFor={meta.waitingFor?.label ?? null}
             />
           ) : null}
         </div>
@@ -145,12 +149,29 @@ export function ApprovalDetail({ approvalId, retry }: ApprovalDetailProps) {
       }
       asideLabel={t('decisionAside')}
     >
-      {approval.decisionPolicy !== 'ANY' || approval.approvers.length > 1 ? (
-        <ApprovalLinesList policy={approval.decisionPolicy} approvers={approval.approvers} />
+      {multiLine ? (
+        <ApprovalLinesList
+          approvalId={approval.id}
+          policy={approval.decisionPolicy}
+          approvers={approval.approvers}
+          progress={approval.progress}
+          currentLineId={currentLineIdOf(approval, meta)}
+        />
       ) : null}
       <DocumentCoverageList processId={approval.process.id} documents={approval.documents} />
       <ApprovalHistory approval={approval} />
     </DetailPage>
+  );
+}
+
+/** US-136: a linha corrente em `SEQUENTIAL` (a `PENDING` da posição de `meta.waitingFor`). */
+function currentLineIdOf(approval: ApprovalDto, meta: ApprovalMeta): string | null {
+  const waiting = meta.waitingFor ?? null;
+  if (waiting === null) return null;
+  return (
+    approval.approvers.find(
+      (line) => line.sequence === waiting.sequence && line.status === 'PENDING',
+    )?.id ?? null
   );
 }
 
@@ -295,14 +316,20 @@ function CanceledNotice() {
 function BlockedExplanation({
   blocker,
   waiting,
+  waitingFor,
 }: {
   readonly blocker: ApprovalMeta['decisionBlocker'];
   readonly waiting: boolean;
+  /** US-136: o rótulo da linha corrente (`meta.waitingFor`). */
+  readonly waitingFor: string | null;
 }) {
   const t = useTranslations('approvals.blocked');
   if (waiting && blocker === 'NOT_DESIGNATED_APPROVER') {
     return (
       <Alert tone="info" title={t('waitingTitle')}>
+        {waitingFor === null ? null : (
+          <p className="text-sm">{t('waitingFor', { label: waitingFor })}</p>
+        )}
         <p className="text-sm">{t('reasons.LINE_WAITING')}</p>
       </Alert>
     );

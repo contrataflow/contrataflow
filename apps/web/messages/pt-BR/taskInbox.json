@@ -191,5 +191,10 @@
   "footer": {
     "count": "{count, plural, =0 {Nenhum processo} one {# processo} other {# processos}} nesta visão",
     "allProcesses": "Ver todos os processos"
+  },
+  "turn": {
+    "all": "Sua vez · aprovação conjunta ({label})",
+    "sequential": "Sua vez · etapa {line} de {total}",
+    "any": "Sua vez · {label}"
   }
 }

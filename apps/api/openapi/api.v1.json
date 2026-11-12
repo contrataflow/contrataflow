@@ -813,6 +813,34 @@
           },
           "isBudgetConfidential": {
             "type": "boolean"
+          },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ApprovalProgress"
+          },
+          "myLine": {
+            "$ref": "#/components/schemas/ApprovalListMyLine"
+          },
+          "currentApprover": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "label"
+            ]
           }
         },
         "required": [
@@ -829,6 +857,74 @@
           "isOverdue",
           "approver",
           "isBudgetConfidential"
+        ]
+      },
+      "ApprovalProgress": {
+        "type": "object",
+        "properties": {
+          "totalLines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "approvedLines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "pendingLines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "waitingLines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "totalLines",
+          "approvedLines",
+          "pendingLines",
+          "waitingLines"
+        ]
+      },
+      "ApprovalListMyLine": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "approvalApproverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "WAITING",
+              "PENDING",
+              "APPROVED",
+              "RETURNED",
+              "REJECTED",
+              "SKIPPED",
+              "CANCELED"
+            ]
+          }
+        },
+        "required": [
+          "approvalApproverId",
+          "sequence",
+          "status"
         ]
       },
       "PageMeta": {
@@ -1076,6 +1172,9 @@
               "$ref": "#/components/schemas/ApprovalApprover"
             }
           },
+          "progress": {
+            "$ref": "#/components/schemas/ApprovalProgress"
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -1296,6 +1395,12 @@
               null
             ]
           },
+          "decisionComment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "reassignedFromId": {
             "type": [
               "string",
@@ -1376,6 +1481,39 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          "myApproverLineId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lineActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalLineActions"
+            }
+          },
+          "waitingFor": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "sequence": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sequence",
+              "label"
+            ]
           }
         },
         "required": [
@@ -1599,6 +1737,29 @@
           "sequence",
           "status",
           "etag"
+        ]
+      },
+      "ApprovalLineActions": {
+        "type": "object",
+        "properties": {
+          "approvalApproverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "DECIDE",
+                "REASSIGN"
+              ]
+            }
+          }
+        },
+        "required": [
+          "approvalApproverId",
+          "actions"
         ]
       },
       "ReassignApprovalLineMeta": {
@@ -1862,6 +2023,9 @@
             "items": {
               "$ref": "#/components/schemas/ApprovalApprover"
             }
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ApprovalProgress"
           },
           "version": {
             "type": "integer",
@@ -2263,6 +2427,9 @@
             "items": {
               "$ref": "#/components/schemas/ApprovalApprover"
             }
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ApprovalProgress"
           },
           "version": {
             "type": "integer",
@@ -18974,6 +19141,26 @@
             "type": "string",
             "format": "uuid"
           },
+          "approvalApproverId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "decisionPolicy": {
+            "type": "string",
+            "enum": [
+              "ANY",
+              "ALL",
+              "SEQUENTIAL"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ApprovalProgress"
+          },
           "title": {
             "type": "string"
           },
@@ -23640,6 +23827,40 @@
           },
           {
             "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ]
+            },
+            "required": false,
+            "name": "decisionPolicy",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "WAITING",
+                "PENDING",
+                "APPROVED",
+                "RETURNED",
+                "REJECTED",
+                "SKIPPED"
+              ]
+            },
+            "required": false,
+            "name": "myLineStatus",
+            "in": "query"
+          },
+          {
+            "schema": {
               "type": "string",
               "maxLength": 40,
               "default": "-requestedAt"
@@ -23797,6 +24018,167 @@
                     },
                     "meta": {
                       "$ref": "#/components/schemas/ApprovalMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/approvals/{id}/approvers": {
+      "get": {
+        "operationId": "APV-31",
+        "summary": "Listar o histórico de linhas da aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "includeHistory",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todas as linhas da aprovação (RN-APV-69), em ordem de `sequence` e criação, inclusive as `CANCELED` substituídas por redirecionamento (`skippedReason = REASSIGNED`; a nova traz `reassignedFromId`) — `includeHistory=false` as omite. `meta`: política, total de linhas vigentes e o status da aprovação. Somente leitura, sem paginação (até 20 linhas vigentes mais as substituídas). Sem `APPROVAL_VIEW` nem designação = 403 `PERMISSION_DENIED`; inexistente, de outro tenant ou não visível = 404 `APPROVAL_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApprovalApprover"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "decisionPolicy": {
+                          "type": "string",
+                          "enum": [
+                            "ANY",
+                            "ALL",
+                            "SEQUENTIAL"
+                          ]
+                        },
+                        "totalLines": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "approvalStatus": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING",
+                            "APPROVED",
+                            "RETURNED",
+                            "REJECTED",
+                            "CANCELED"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "decisionPolicy",
+                        "totalLines",
+                        "approvalStatus"
+                      ]
                     }
                   },
                   "required": [

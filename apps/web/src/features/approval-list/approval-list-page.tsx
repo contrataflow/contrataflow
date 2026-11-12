@@ -35,12 +35,16 @@ import {
 } from '@contrataflow/ui';
 import type { DateRange } from '@contrataflow/ui';
 import {
+  APPROVAL_DECISION_POLICIES,
+  APPROVAL_MY_LINE_STATUSES,
   APPROVAL_LIST_QUERY_LIMITS,
   APPROVAL_STATUSES,
   APPROVAL_SUBJECT_TYPES,
   formatApprovalListSort,
 } from '@contrataflow/validation';
 import type {
+  ApprovalDecisionPolicy,
+  ApprovalMyLineStatus,
   ApprovalListItemDto,
   ApprovalListSort,
   ApprovalStatus,
@@ -367,6 +371,52 @@ function ApprovalToolbar({
           </SelectContent>
         </Select>
       </Field>
+      <Field label={t('filters.decisionPolicy')}>
+        <Select
+          value={filters.decisionPolicy === '' ? ANY : filters.decisionPolicy}
+          onValueChange={(value) => {
+            onChange({
+              ...filters,
+              decisionPolicy: value === ANY ? '' : (value as ApprovalDecisionPolicy),
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>{t('filters.any')}</SelectItem>
+            {APPROVAL_DECISION_POLICIES.map((policy) => (
+              <SelectItem key={policy} value={policy}>
+                {t(`decisionPolicy.${policy}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label={t('filters.myLineStatus')}>
+        <Select
+          value={filters.myLineStatus === '' ? ANY : filters.myLineStatus}
+          onValueChange={(value) => {
+            onChange({
+              ...filters,
+              myLineStatus: value === ANY ? '' : (value as ApprovalMyLineStatus),
+            });
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>{t('filters.any')}</SelectItem>
+            {APPROVAL_MY_LINE_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {t(`myLineStatus.${status}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
       <Field label={t('filters.department')}>
         <Combobox
           clearable
@@ -510,6 +560,7 @@ function ApprovalTable({ items }: { readonly items: readonly ApprovalListItemDto
           <Th>{t('table.requestedBy')}</Th>
           <Th>{t('table.requestedAt')}</Th>
           <Th>{t('table.dueAt')}</Th>
+          <Th>{t('table.progress')}</Th>
           <Th>{t('table.status')}</Th>
           <Th className="w-14">
             <span className="sr-only">{t('table.actionsColumn')}</span>
@@ -581,6 +632,10 @@ function ApprovalTable({ items }: { readonly items: readonly ApprovalListItemDto
                 )}
               </Td>
               <Td className={CELL}>
+                <span className="md:sr-only">{t('table.progress')}: </span>
+                <ApprovalProgressCell item={item} />
+              </Td>
+              <Td className={CELL}>
                 <ApprovalStatusBadge status={item.status} />
               </Td>
               <Td className="text-right max-md:absolute max-md:top-2 max-md:right-2 max-md:p-0">
@@ -591,6 +646,35 @@ function ApprovalTable({ items }: { readonly items: readonly ApprovalListItemDto
         })}
       </TableBody>
     </Table>
+  );
+}
+
+/**
+ * US-136 (RN-APV-67/70 · SCR-014): "Andamento" — o texto do servidor, o aprovador atual
+ * (`SEQUENTIAL`) e a situação de quem consulta ("Sua vez", "Aguardando a vez", "Você já aprovou",
+ * "Encerrada para você"). A aprovação do MVP 1 (`ANY`, uma linha) mostra só a situação.
+ */
+function ApprovalProgressCell({ item }: { readonly item: ApprovalListItemDto }) {
+  const t = useTranslations('approvalList.progress');
+  const label = item.progress?.label;
+  const current = item.currentApprover ?? null;
+  const mine = item.myLine ?? null;
+  const myStatus = mine === null || mine.status === 'CANCELED' ? null : mine.status;
+  return (
+    <span className="inline-flex min-w-0 flex-col gap-0.5">
+      {label === undefined ? null : <span className="text-sm break-words">{label}</span>}
+      {current === null ? null : (
+        <span className="text-xs break-words text-muted-foreground">
+          {t('currentApprover', { label: current.label })}
+        </span>
+      )}
+      {myStatus === null || item.status !== 'PENDING' ? null : (
+        <span className="text-xs font-medium">{t(`mine.${myStatus}`)}</span>
+      )}
+      {label === undefined && (myStatus === null || item.status !== 'PENDING') ? (
+        <span className="text-muted-foreground">—</span>
+      ) : null}
+    </span>
   );
 }
 

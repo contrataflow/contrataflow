@@ -1,4 +1,11 @@
-import type { ApprovalStatus, ApprovalSubjectType, ApproverType } from '@contrataflow/validation';
+import type {
+  ApprovalApproverStatus,
+  ApprovalDecisionPolicy,
+  ApprovalSkippedReason,
+  ApprovalStatus,
+  ApprovalSubjectType,
+  ApproverType,
+} from '@contrataflow/validation';
 import { Injectable } from '@nestjs/common';
 
 import { currentRequestContext } from '#shared/context/request-context.js';
@@ -11,14 +18,36 @@ import type {
   ApprovalListReader,
   ApprovalListSearch,
 } from '../application/ports.js';
-import { compareApprovalRows, isInApprovalList, matchesCriteria } from '../domain/approval-list.js';
-import type { ApprovalListRow } from '../domain/approval-list.js';
+import {
+  compareApprovalRows,
+  isInApprovalList,
+  matchesCriteria,
+  myLineOf,
+} from '../domain/approval-list.js';
+import type {
+  ApprovalListLine,
+  ApprovalListMyLine,
+  ApprovalListRow,
+} from '../domain/approval-list.js';
 
 /** Teto de cada leitura da lista (story US-057 · p95 < 400 ms; acima disto, 503). */
 export const APPROVAL_LIST_STATEMENT_TIMEOUT_MS = 3000;
 
-function toRow(row: ApprovalListDbRow & { readonly id: string }): ApprovalListRow {
+function toRow(
+  row: ApprovalListDbRow & { readonly id: string },
+  lines: readonly ApprovalListLine[],
+): ApprovalListRow & { readonly myLine: ApprovalListMyLine | null } {
   return {
+    decisionPolicy: row.decision_policy as ApprovalDecisionPolicy,
+    lines,
+    myLine:
+      row.my_line_id === null
+        ? null
+        : {
+            id: row.my_line_id,
+            sequence: row.my_line_sequence ?? 1,
+            status: row.my_line_status as ApprovalApproverStatus,
+          },
     tenantId: row.tenant_id,
     id: row.id,
     processId: row.process_id,
@@ -54,9 +83,37 @@ export class PrismaApprovalListReader implements ApprovalListReader {
   async page(tx: TenantTx, search: ApprovalListSearch): Promise<ApprovalListPage> {
     await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(APPROVAL_LIST_STATEMENT_TIMEOUT_MS)}, true)`;
     const rows = await tx.$queryRaw<ApprovalListDbRow[]>(buildApprovalListPageSql(search));
+    const ids = rows.flatMap((row) => (row.id === null ? [] : [row.id]));
+    // US-136: as linhas das aprovações da página (andamento e aprovador atual), numa leitura.
+    const lines =
+      ids.length === 0
+        ? []
+        : await tx.approvalApprover.findMany({
+            where: { approvalId: { in: ids } },
+            orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+          });
+    const linesOf = new Map<string, ApprovalListLine[]>();
+    for (const line of lines) {
+      const list = linesOf.get(line.approvalId) ?? [];
+      list.push({
+        id: line.id,
+        sequence: line.sequence,
+        status: line.status,
+        approverType: line.approverType,
+        approverUserId: line.approverUserId,
+        approverRoleId: line.approverRoleId,
+        approverDepartmentId: line.approverDepartmentId,
+        allowDeputy: line.allowDeputy,
+        decidedById: line.decidedById,
+        skippedReason: line.skippedReason as ApprovalSkippedReason | null,
+      });
+      linesOf.set(line.approvalId, list);
+    }
     return {
       totalItems: rows[0]?.total ?? 0,
-      rows: rows.flatMap((row) => (row.id === null ? [] : [toRow({ ...row, id: row.id })])),
+      rows: rows.flatMap((row) =>
+        row.id === null ? [] : [toRow({ ...row, id: row.id }, linesOf.get(row.id) ?? [])],
+      ),
     };
   }
 }
@@ -87,12 +144,9 @@ export class InMemoryApprovalListReader implements ApprovalListReader {
   page(_tx: TenantTx, search: ApprovalListSearch): Promise<ApprovalListPage> {
     const tenantId = currentRequestContext()?.tenantId ?? null;
     const items = this.rows
-      .filter(
-        (row) =>
-          row.tenantId === tenantId &&
-          isInApprovalList(row, search.coverage) &&
-          matchesCriteria(row, search.criteria),
-      )
+      .filter((row) => row.tenantId === tenantId && isInApprovalList(row, search.coverage))
+      .map((row) => ({ ...row, myLine: myLineOf(row, search.coverage) }))
+      .filter((row) => matchesCriteria(row, search.criteria, row.myLine))
       .sort(compareApprovalRows(search.sort));
     const start = (search.page - 1) * search.pageSize;
     return Promise.resolve({

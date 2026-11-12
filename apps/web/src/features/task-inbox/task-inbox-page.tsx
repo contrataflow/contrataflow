@@ -33,6 +33,7 @@ import {
   Th,
   Tr,
   TriangleAlert,
+  Users,
   ViewTabs,
   buttonClassName,
   toast,
@@ -593,6 +594,7 @@ function InboxTable({
                   <span className="text-xs text-muted-foreground">
                     {item.approval ? `${code} · ${item.approval.title}` : code}
                   </span>
+                  <ApprovalTurnBadge item={item} />
                   {item.isBudgetConfidential ? (
                     <span className="mt-1">
                       <ConfidentialBadge />
@@ -651,6 +653,31 @@ function InboxTable({
 }
 
 /** Um só chip de prazo (FA-03): sempre ícone + texto, nunca só cor. */
+/**
+ * US-136 (RN-APV-70 · SCR-013): o selo de andamento da linha de aprovação — "Sua vez · aprovação
+ * conjunta (1 de 3 aprovaram)" em `ALL`, "Sua vez · etapa 2 de 3" em `SEQUENTIAL`, "Sua vez ·
+ * Qualquer um dos N aprovadores" em `ANY` com várias linhas; nada na aprovação de uma linha.
+ */
+function ApprovalTurnBadge({ item }: { readonly item: TaskInboxItemDto }) {
+  const t = useTranslations('taskInbox.turn');
+  const approval = item.approval;
+  const progress = approval?.progress;
+  if (approval === undefined || progress?.label === undefined) return null;
+  const text =
+    approval.decisionPolicy === 'ALL'
+      ? t('all', { label: progress.label })
+      : approval.decisionPolicy === 'SEQUENTIAL'
+        ? t('sequential', { line: approval.sequence ?? 1, total: progress.totalLines })
+        : t('any', { label: progress.label });
+  return (
+    <span className="mt-1">
+      <StatusChip tone="approval" icon={<Users aria-hidden="true" />}>
+        {text}
+      </StatusChip>
+    </span>
+  );
+}
+
 function DeadlineChip({ item }: { readonly item: TaskInboxItemDto }) {
   const t = useTranslations('taskInbox.deadline');
   const deadline = inboxDeadlineOf(item);

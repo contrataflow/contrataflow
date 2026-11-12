@@ -248,3 +248,23 @@ inteira e as linhas não decididas, preservando os votos.
   (`BusinessCalendarFacade.timezone`) para o período. Leitor em memória no modo de identidade fake.
 - **Observabilidade:** `info approvals.query` (forma dos filtros; nunca `q` nem título),
   `error approvals.query_failed`, histograma `cf_approval_list_query_duration_ms`.
+
+## Aprovação múltipla na caixa, na lista e no detalhe (US-136)
+
+Só leitura (DEC-193 · RN-APV-61..76); nada é gravado.
+
+- **Caixa (TSK-01/02):** a perna `PENDING_APPROVALS` do `inbox` lê `v_inbox_pending_approvals_v2`
+  (migração `20261112110000_inbox_pending_approval_lines`; a v1 continua publicada até o M2-22):
+  uma linha por `ApprovalApprover` `PENDING` de aprovação `PENDING`, com política, ordem, prazo
+  da linha e os contadores das linhas vigentes. `id` do item = linha; `approval.id` = aprovação. O
+  rótulo da linha corrente (`SEQUENTIAL`) vem de `ApprovalFacade.lineLabelsIn`.
+- **Lista (APV-01):** cobertura por linha (LATERAL `ml` em `approval-list.sql.ts` = `myLineOf`):
+  linha em qualquer estado, menos a substituída por redirecionamento (`isSupersededLine`); filtros
+  `decisionPolicy`/`myLineStatus`; `progress`, `myLine`, `currentApprover` no presenter (as linhas
+  da página vêm numa segunda leitura do leitor).
+- **Detalhe (APV-02):** `approvers[]` só vigentes (`present(..., { liveOnly: true })`), `progress`,
+  `decisionComment` por linha; `meta.myApproverLineId`, `lineActions`, `waitingFor`. O 403 grava
+  `access.denied` com `approvalId`.
+- **Histórico (APV-31):** `GetApprovalQuery.lines` — mesma autorização do APV-02; log
+  `approvals.lines_query` sem nomes.
+- Texto de andamento e situação das linhas: `packages/validation/src/approval/approval-progress.ts`.
