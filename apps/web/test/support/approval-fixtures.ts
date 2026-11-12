@@ -241,7 +241,12 @@ export interface ApprovalApiOptions {
   readonly reassign?: Handler;
   /** USR-02/DEP-02 (padrão: Diego / Secretaria de Saúde). */
   readonly lookup?: Handler;
+  /** APV-06 (US-135 · `POST /approvals/{id}/approvers/{lineId}/reassign`). */
+  readonly reassignLine?: Handler;
 }
+
+/** US-135: a URL do APV-06 de uma linha. */
+export const reassignLineUrl = (lineId: string) => `${APPROVAL_URL}/approvers/${lineId}/reassign`;
 
 /** `fetch` simulado do SCR-015: APV-02, APV-03 e (US-053) APV-04, APV-05 e as buscas. */
 export function mockApprovalApi(options: ApprovalApiOptions = {}) {
@@ -306,6 +311,13 @@ export function mockApprovalApi(options: ApprovalApiOptions = {}) {
     if (method === 'POST' && url === DECIDE_URL) return answer(decide);
     if (method === 'POST' && url === WITHDRAW_URL) return answer(withdraw);
     if (method === 'POST' && url === REASSIGN_URL) return answer(reassign);
+    if (
+      method === 'POST' &&
+      options.reassignLine !== undefined &&
+      url.startsWith(`${APPROVAL_URL}/approvers/`)
+    ) {
+      return answer(options.reassignLine);
+    }
     if (url.startsWith(USERS_LOOKUP_URL) || url.startsWith(DEPARTMENTS_LOOKUP_URL)) {
       return answer(lookup);
     }

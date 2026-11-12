@@ -16,16 +16,12 @@ import type {
   DocumentDecisionRow,
   ApprovalTransactions,
   ApprovalWithCoverage,
-  ReassignmentRecord,
+  LineReassignmentWrite,
   VoteWrite,
 } from '../application/ports.js';
 import { recordOf } from '../domain/approval-decision.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
-import {
-  backfillLineOf,
-  lineAfterReassignment,
-  linesAfterCancellation,
-} from '../domain/approval-lines.js';
+import { backfillLineOf, linesAfterCancellation } from '../domain/approval-lines.js';
 import type { ApprovalApprover } from '../domain/approval-lines.js';
 import type { Approval, ApprovalCoverage, ApprovalStatus } from '../domain/approval.js';
 
@@ -362,30 +358,32 @@ export class PrismaApprovalRepository implements ApprovalRepository {
     return true;
   }
 
-  async recordReassignment(
+  async recordLineReassignment(
     tx: TenantTx,
-    reassigned: ApprovalRecord,
+    write: LineReassignmentWrite,
     expectedVersion: number,
     userId: string,
-  ): Promise<ReassignmentRecord> {
+  ): Promise<boolean> {
+    const { approval, lineBefore, canceled, created } = write;
     const updated = await tx.approval.updateMany({
-      where: { id: reassigned.id, status: 'PENDING', version: expectedVersion },
+      where: { id: approval.id, status: 'PENDING', version: expectedVersion },
       data: {
-        approverType: reassigned.approverType,
-        approverUserId: reassigned.approverUserId,
-        approverRoleId: reassigned.approverRoleId,
-        approverDepartmentId: reassigned.approverDepartmentId,
-        allowDeputy: reassigned.allowDeputy,
-        updatedAt: reassigned.updatedAt,
+        // RN-APV-24: o espelho da linha corrente (muda só quando a redirecionada era ela).
+        approverType: approval.approverType,
+        approverUserId: approval.approverUserId,
+        approverRoleId: approval.approverRoleId,
+        approverDepartmentId: approval.approverDepartmentId,
+        allowDeputy: approval.allowDeputy,
+        updatedAt: approval.updatedAt,
         updatedById: userId,
-        version: reassigned.version,
+        version: approval.version,
       },
     });
-    if (updated.count !== 1) return { recorded: false, approvalApproverId: null };
-    const lines = await this.linesOf(tx, reassigned.id);
-    const line = lineAfterReassignment(reassigned.decisionPolicy ?? 'ANY', lines, reassigned);
-    if (line !== null) await this.saveChangedLines(tx, lines, [line], userId);
-    return { recorded: true, approvalApproverId: line?.id ?? null };
+    if (updated.count !== 1) return false;
+    // A antiga sai da posição ANTES da nova entrar (índice único parcial por `sequence`).
+    if (!(await this.saveChangedLines(tx, [lineBefore], [canceled], userId))) return false;
+    await tx.approvalApprover.create({ data: lineData(approval.tenantId, created) });
+    return true;
   }
 
   async updatePendingDueAt(
@@ -639,24 +637,34 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
     return Promise.resolve(true);
   }
 
-  recordReassignment(
+  recordLineReassignment(
     _tx: TenantTx,
-    reassigned: ApprovalRecord,
+    write: LineReassignmentWrite,
     expectedVersion: number,
-  ): Promise<ReassignmentRecord> {
-    const lines = this.linesOf(reassigned.id);
-    if (this.pendingAt(reassigned.id, expectedVersion) === null) {
-      return Promise.resolve({ recorded: false, approvalApproverId: null });
+  ): Promise<boolean> {
+    const { approval, lineBefore, canceled, created } = write;
+    if (this.pendingAt(approval.id, expectedVersion) === null) return Promise.resolve(false);
+    const lines = this.linesOf(approval.id);
+    const stored = lines.find((line) => line.id === lineBefore.id);
+    if (stored?.version !== lineBefore.version) return Promise.resolve(false);
+    if (
+      lines.some(
+        (line) =>
+          line.sequence === created.sequence &&
+          line.id !== lineBefore.id &&
+          line.status !== 'CANCELED',
+      )
+    ) {
+      return Promise.reject(new Error('approval_approvers_sequence_key'));
     }
-    this.rows.set(reassigned.id, reassigned);
-    const line = lineAfterReassignment(reassigned.decisionPolicy ?? 'ANY', lines, reassigned);
-    if (line !== null) {
-      this.lines.set(
-        reassigned.id,
-        lines.map((candidate) => (candidate.id === line.id ? line : candidate)),
-      );
-    }
-    return Promise.resolve({ recorded: true, approvalApproverId: line?.id ?? null });
+    this.rows.set(approval.id, approval);
+    this.lines.set(
+      approval.id,
+      [...lines.map((line) => (line.id === canceled.id ? canceled : line)), created].sort(
+        (a, b) => a.sequence - b.sequence,
+      ),
+    );
+    return Promise.resolve(true);
   }
 
   listPendingByProcess(_tx: TenantTx, processId: string): Promise<Approval[]> {

@@ -6,6 +6,7 @@ import type {
   DecidedApprovalDto,
   DepartmentLookupItem,
   ReassignApprovalInput,
+  ReassignApprovalLineMeta,
   UserLookupItem,
   WithdrawApprovalInput,
   WithdrawnApprovalDto,
@@ -24,7 +25,8 @@ import { useTenantId } from '@/lib/session/session-context';
  * (`POST /approvals/{id}/decide`) de api/11-approvals-inbox.md. Chaves
  * `['t', tenantId, 'approvals', id]` (RN-FND-90); depois da decisão se invalida o prefixo
  * `['t', tenantId, 'approvals']`, o processo e a caixa de tarefas. US-053: APV-04 (retirar) e APV-05
- * (redirecionar), com as buscas de novo aprovador (USR-02 e DEP-02).
+ * (redirecionar), com as buscas de novo aprovador (USR-02 e DEP-02); US-135: APV-06 (redirecionar
+ * uma linha da aprovação múltipla).
  */
 
 export const approvalKeys = {
@@ -192,6 +194,55 @@ export function useReassignApproval(retry?: RetryOptions) {
   return useIdempotentMutation<ReassignVariables, ApprovalDto>({
     mutationFn: (variables, context) =>
       reassignApproval(variables.approvalId, variables.body, variables.version, context),
+    retry,
+  });
+}
+
+/** APV-06 (US-135): redirecionar UMA linha (`If-Match` = `approvers[].version` da linha). */
+export async function reassignApprovalLine(
+  approvalId: string,
+  lineId: string,
+  body: ReassignApprovalInput,
+  lineVersion: number,
+  context: IdempotentContext,
+): Promise<ReassignedLineResult> {
+  const result = await apiRequest<ApprovalDto>(
+    `/approvals/${approvalId}/approvers/${lineId}/reassign`,
+    {
+      method: 'POST',
+      body,
+      ifMatch: `"${String(lineVersion)}"`,
+      idempotencyKey: context.idempotencyKey,
+      correlationId: context.correlationId,
+    },
+  );
+  const meta = result.meta as Partial<ReassignApprovalLineMeta>;
+  return { approval: result.data, newApproverId: meta.newApproverId ?? null };
+}
+
+export interface ReassignedLineResult {
+  readonly approval: ApprovalDto;
+  /** A linha nova (`meta.newApproverId`). */
+  readonly newApproverId: string | null;
+}
+
+export interface ReassignLineVariables {
+  readonly approvalId: string;
+  readonly lineId: string;
+  readonly body: ReassignApprovalInput;
+  readonly lineVersion: number;
+}
+
+export function useReassignApprovalLine(retry?: RetryOptions) {
+  return useIdempotentMutation<ReassignLineVariables, ReassignedLineResult>({
+    mutationFn: (variables, context) =>
+      reassignApprovalLine(
+        variables.approvalId,
+        variables.lineId,
+        variables.body,
+        variables.lineVersion,
+        context,
+      ),
     retry,
   });
 }

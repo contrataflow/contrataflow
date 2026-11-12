@@ -200,6 +200,11 @@ export const approvalApproverSchema = z
     decidedAt: isoDateTimeSchema.nullable(),
     decidedAsDeputy: z.boolean(),
     skippedReason: z.enum(APPROVAL_SKIPPED_REASONS).nullable(),
+    /**
+     * US-135 (aditivo): a linha cancelada pelo redirecionamento que esta substitui (mesmo
+     * `sequence` — RN-APV-52); `null` na linha original.
+     */
+    reassignedFromId: z.uuid().nullable().optional(),
     /** US-134 (aditivo): versão da linha — o `If-Match` do voto em `ALL`/`SEQUENTIAL` (RN-APV-41). */
     version: z.int().min(1),
   })

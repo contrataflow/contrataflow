@@ -39,7 +39,7 @@ const DECISION_STUBS = {
   lockForUpdate: () => Promise.resolve(null),
   recordVote: () => Promise.resolve(false),
   recordWithdrawal: () => Promise.resolve(false),
-  recordReassignment: () => Promise.resolve({ recorded: false, approvalApproverId: null }),
+  recordLineReassignment: () => Promise.resolve(false),
   latestDecisionForDocument: () => Promise.resolve(null),
   findLines: () => Promise.resolve([]),
 } satisfies Pick<
@@ -49,7 +49,7 @@ const DECISION_STUBS = {
   | 'lockForUpdate'
   | 'recordVote'
   | 'recordWithdrawal'
-  | 'recordReassignment'
+  | 'recordLineReassignment'
   | 'latestDecisionForDocument'
 >;
 

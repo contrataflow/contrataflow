@@ -1,4 +1,5 @@
 import {
+  ApprovalCanceled,
   ApprovalReassigned,
   ApprovalRequested,
   ProcessAssigned,
@@ -37,7 +38,8 @@ const REQUESTING_FIELDS = new Set(['requestingSecretariatId', 'requestingDepartm
  * tem o `CURRENT`); US-133 (RN-APV-25): com `approvers[]`, um `APPROVER` por aprovador de linha —
  * inclusive `WAITING` — com `sourceId` = id da linha; `approval.reassigned` (US-053 · RN-TRAM-70)
  * → revoga os `APPROVER` da aprovação (e da linha redirecionada) e concede ao novo aprovador (e ao
- * substituto, com `allowDeputy`).
+ * substituto, com `allowDeputy`) — US-135: pela linha nova, revogando a antiga; `approval.canceled`
+ * (US-135 · retirada) → revoga os `APPROVER` das linhas não decididas canceladas.
  */
 @Injectable()
 export class ProcessAccessProjector implements SyncEventHandler {
@@ -49,6 +51,7 @@ export class ProcessAccessProjector implements SyncEventHandler {
     'process.assigned',
     'approval.requested',
     'approval.reassigned',
+    'approval.canceled',
   ];
 
   constructor(
@@ -137,10 +140,13 @@ export class ProcessAccessProjector implements SyncEventHandler {
         // desta aprovação; o novo aprovador ganha.
         const payload = ApprovalReassigned.payloadSchema.parse(event.payload);
         if (event.processId === null) return;
+        // US-135 (RN-APV-54): a linha antiga foi cancelada e outra criada — revoga a antiga
+        // (`fromApprovalApproverId`) e concede pela nova; no MVP 1, a linha era a mesma.
         const lineId = payload.approvalApproverId ?? null;
+        const fromLineId = payload.fromApprovalApproverId ?? lineId;
         await this.processes.revokeApproverAccess(
           tx,
-          lineId === null ? [payload.approvalId] : [payload.approvalId, lineId],
+          fromLineId === null ? [payload.approvalId] : [payload.approvalId, fromLineId],
           at,
         );
         await this.grantApprover(
@@ -154,6 +160,13 @@ export class ProcessAccessProjector implements SyncEventHandler {
           },
           at,
         );
+        return;
+      }
+      case ApprovalCanceled.eventType: {
+        // US-135 (RN-APV-57): a retirada cancela as linhas não decididas — os aprovadores delas
+        // perdem o `APPROVER`; quem já votou mantém (o voto fica no histórico).
+        const payload = ApprovalCanceled.payloadSchema.parse(event.payload);
+        await this.processes.revokeApproverAccess(tx, payload.approvalApproverIds ?? [], at);
         return;
       }
       default:

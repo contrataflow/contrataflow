@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { Toaster, clearToasts } from '@contrataflow/ui';
+import type { ApprovalApproverDto } from '@contrataflow/validation';
 import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeQueryClient } from '@/lib/query/query-client';
 import {
   APPROVAL_ID,
+  APPROVAL_URL,
   DIEGO,
   REASSIGN_URL,
   WITHDRAW_URL,
@@ -15,6 +17,7 @@ import {
   approvalResponse,
   mockApprovalApi,
   readOnlyMeta,
+  reassignLineUrl,
 } from '@test/support/approval-fixtures';
 import type { ApprovalApiOptions } from '@test/support/approval-fixtures';
 import { seriousA11yViolations } from '@test/support/axe';
@@ -119,7 +122,7 @@ describe('SCR-015 · Retirar aprovação (US-053)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar retirada' }));
 
     expect(
-      await screen.findByText('Aprovação retirada. O processo voltou para você.'),
+      await screen.findByText('Aprovação retirada. O processo voltou para a etapa anterior.'),
     ).toBeTruthy();
     const [call] = callsTo(api, 'POST', WITHDRAW_URL);
     expect(call?.body).toEqual({ reason: 'Enviado antes da hora.' });
@@ -275,5 +278,191 @@ describe('SCR-015 · Redirecionar aprovação (US-053 · FA-02)', () => {
         .getByRole('radio', { name: 'Secretaria de Saúde' })
         .getAttribute('aria-checked') === 'true',
     ).toBe(false);
+  });
+});
+
+/*
+ * US-135 · SCR-015 — aprovação com várias linhas: "Redirecionar linha N" por linha ainda não
+ * decidida (APV-06, If-Match da linha), toast com o novo aprovador, erros por linha e a retirada que
+ * explica que os votos ficam no histórico.
+ */
+const ID_LINE = (n: number) => `0192f135-0000-7000-8000-${n.toString(16).padStart(12, '0')}`;
+const multiLine = (
+  status: { readonly second: ApprovalApproverDto['status'] } = { second: 'PENDING' },
+): ApprovalApproverDto[] => {
+  const base = approvalDto().approvers[0];
+  if (!base) throw new Error('linha base ausente');
+  return [
+    {
+      ...base,
+      id: ID_LINE(1),
+      sequence: 1,
+      status: 'APPROVED',
+      label: 'Roberto Lima',
+      decision: 'APPROVE',
+      version: 2,
+    },
+    {
+      ...base,
+      id: ID_LINE(2),
+      sequence: 2,
+      status: status.second,
+      label: 'Marcos Prado',
+      version: 3,
+    },
+    {
+      ...base,
+      id: ID_LINE(3),
+      sequence: 3,
+      status: 'WAITING',
+      label: 'Autoridade competente',
+      activatedAt: null,
+      version: 1,
+    },
+  ];
+};
+const multiApproval = () =>
+  approvalDto({ decisionPolicy: 'SEQUENTIAL', approvers: multiLine(), version: 5 });
+const multiManager = () => ({
+  approval: () =>
+    approvalResponse(
+      multiApproval(),
+      approvalMeta({ allowedActions: ['WITHDRAW', 'REASSIGN'], decisionOptions: [] }),
+    ),
+});
+
+describe('SCR-015 · Redirecionar linha e retirar aprovação múltipla (US-135)', () => {
+  it('[Sucesso] um item por linha não decidida; envia o APV-06 com o If-Match da linha e avisa o novo aprovador', async () => {
+    const user = userEvent.setup();
+    const second = multiLine()[1];
+    if (!second) throw new Error('linha 2 ausente');
+    const created = { ...second, id: ID_LINE(4), label: DIEGO.name, version: 1 };
+    const { api, invalidate } = renderDetail({
+      ...multiManager(),
+      reassignLine: () =>
+        new Response(
+          JSON.stringify({
+            data: approvalDto({
+              decisionPolicy: 'SEQUENTIAL',
+              approvers: [...multiLine(), created],
+              version: 6,
+            }),
+            meta: { newApproverId: created.id },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json', ETag: '"6"' } },
+        ),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    const items = (await screen.findAllByRole('menuitem')).map((item) => item.textContent);
+    expect(items).toEqual([
+      'Retirar aprovação',
+      'Redirecionar linha 2 — Marcos Prado',
+      'Redirecionar linha 3 — Autoridade competente',
+    ]);
+    await user.click(screen.getByRole('menuitem', { name: 'Redirecionar linha 2 — Marcos Prado' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Redirecionar linha 2' });
+    expect(
+      within(dialog).getByText(
+        'Escolha quem decide esta linha no lugar de Marcos Prado. Os votos já dados, a ordem e o prazo são mantidos.',
+      ),
+    ).toBeTruthy();
+    expect(await seriousA11yViolations(dialog)).toEqual([]);
+    await user.type(
+      within(dialog).getByRole('searchbox', { name: 'Buscar pessoa por nome ou e-mail' }),
+      'Die',
+    );
+    await user.click(await within(dialog).findByRole('radio', { name: new RegExp(DIEGO.name) }));
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Motivo do redirecionamento' }),
+      LEAVE,
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar redirecionamento' }));
+
+    expect(await screen.findByText(`Linha redirecionada para ${DIEGO.name}.`)).toBeTruthy();
+    const [call] = callsTo(api, 'POST', reassignLineUrl(ID_LINE(2)));
+    expect(call?.body).toEqual({
+      approverType: 'USER',
+      targetApproverUserId: DIEGO.id,
+      reason: LEAVE,
+    });
+    expect(call?.headers.get('If-Match')).toBe('"3"');
+    expect(call?.headers.get('Idempotency-Key')).toBeTruthy();
+    expect(callsTo(api, 'POST', REASSIGN_URL)).toEqual([]);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['t', TENANT_A.id, 'tasks'] });
+  });
+
+  it('[Validação] pessoa de outra linha: 422 APPROVER_DUPLICATED mantém o diálogo', async () => {
+    const user = userEvent.setup();
+    renderDetail({
+      ...multiManager(),
+      reassignLine: () => problemResponse(422, 'APPROVER_DUPLICATED'),
+    });
+
+    await openAction(user, 'Redirecionar linha 2 — Marcos Prado');
+    const dialog = await screen.findByRole('dialog', { name: 'Redirecionar linha 2' });
+    await user.type(
+      within(dialog).getByRole('searchbox', { name: 'Buscar pessoa por nome ou e-mail' }),
+      'Die',
+    );
+    await user.click(await within(dialog).findByRole('radio', { name: new RegExp(DIEGO.name) }));
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Motivo do redirecionamento' }),
+      LEAVE,
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar redirecionamento' }));
+
+    expect(
+      await within(dialog).findByText('Esta pessoa já participa desta aprovação em outra linha.'),
+    ).toBeTruthy();
+  });
+
+  it('[Concorrência] linha decidida no meio do caminho: 409 APPROVAL_LINE_NOT_PENDING fecha, explica e recarrega', async () => {
+    const user = userEvent.setup();
+    const { api } = renderDetail({
+      ...multiManager(),
+      reassignLine: () => problemResponse(409, 'APPROVAL_LINE_NOT_PENDING'),
+    });
+
+    await openAction(user, 'Redirecionar linha 2 — Marcos Prado');
+    const dialog = await screen.findByRole('dialog', { name: 'Redirecionar linha 2' });
+    await user.type(
+      within(dialog).getByRole('searchbox', { name: 'Buscar pessoa por nome ou e-mail' }),
+      'Die',
+    );
+    await user.click(await within(dialog).findByRole('radio', { name: new RegExp(DIEGO.name) }));
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Motivo do redirecionamento' }),
+      LEAVE,
+    );
+    const reads = callsTo(api, 'GET', APPROVAL_URL).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar redirecionamento' }));
+
+    expect(
+      await screen.findByText('Esta linha já foi decidida e não pode ser redirecionada.'),
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => {
+      expect(callsTo(api, 'GET', APPROVAL_URL).length).toBeGreaterThan(reads);
+    });
+  });
+
+  it('[Sucesso] a retirada explica que os votos ficam no histórico e usa o If-Match da aprovação', async () => {
+    const user = userEvent.setup();
+    const { api } = renderDetail(multiManager());
+
+    await openAction(user, 'Retirar aprovação');
+    const dialog = await screen.findByRole('dialog', { name: 'Retirar aprovação' });
+    expect(
+      within(dialog).getByText(
+        'A aprovação inteira será cancelada. Os votos já dados ficam no histórico e o processo voltará para a etapa anterior. Será preciso solicitar a aprovação de novo.',
+      ),
+    ).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar retirada' }));
+
+    expect(
+      await screen.findByText('Aprovação retirada. O processo voltou para a etapa anterior.'),
+    ).toBeTruthy();
+    expect(callsTo(api, 'POST', WITHDRAW_URL)[0]?.headers.get('If-Match')).toBe('"5"');
   });
 });

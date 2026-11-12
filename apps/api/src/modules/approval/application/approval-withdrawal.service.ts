@@ -1,5 +1,5 @@
 import { APPROVAL_WITHDRAWAL_MESSAGES, ApprovalCanceled } from '@contrataflow/validation';
-import type { ProcessStatus } from '@contrataflow/validation';
+import type { ApprovalWithdrawalActorRole, ProcessStatus } from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { ApprovalSubjectRegistry } from '#shared/approval/approval-subject.js';
@@ -11,6 +11,7 @@ import type {
 } from '#shared/approval/approval-subject.js';
 import { AUDIT_TRAIL } from '#shared/audit/audit-trail.js';
 import type { AuditTrailPort } from '#shared/audit/audit-trail.js';
+import { ProcessAccessRegistry } from '#shared/auth/process-access.js';
 import { requireRequestContext } from '#shared/context/request-context.js';
 import type { TenantTx } from '#shared/database/prisma.js';
 import type { DocumentWithdrawalRequest } from '#shared/document/document-approval.js';
@@ -21,8 +22,10 @@ import type { OutboxWriterPort } from '#shared/outbox/outbox-writer.js';
 import { approvalNotFound } from './approval-decision.policy.js';
 import { APPROVAL_CLOCK, APPROVAL_REPOSITORY } from './ports.js';
 import type { ApprovalClock, ApprovalRepository, ApprovalWithCoverage } from './ports.js';
+import { AccessFacade } from '../../access/application/access.facade.js';
 import { isDecidableProcessStatus } from '../domain/approval-decision.js';
 import type { ApprovalRecord } from '../domain/approval-decision.js';
+import { withdrawalTallyOf } from '../domain/approval-line-reassignment.js';
 import { WITHDRAWN, withdrawApproval } from '../domain/approval-withdrawal.js';
 
 /** 409 `APPROVAL_NOT_PENDING` (RN-TRAM-65 · V-03): a situação registrada vai na extensão. */
@@ -91,6 +94,11 @@ export interface WithdrawalOutcome {
   readonly handler: ApprovalSubjectHandler;
   readonly facts: DecisionSubjectFacts;
   readonly effects: SubjectWithdrawalResult;
+  /** US-135 (RN-APV-56): por qual caminho a retirada foi autorizada. */
+  readonly actorRole: ApprovalWithdrawalActorRole;
+  /** US-135 (RN-APV-57): linhas não decididas canceladas e votos que ficam no histórico. */
+  readonly linesCanceled: number;
+  readonly votesKept: number;
 }
 
 /**
@@ -99,8 +107,9 @@ export interface WithdrawalOutcome {
  * porta `DocumentApprovalRegistry`). Ordem (passos 4.1–4.8): a aprovação do tenant (404) → o dono
  * do sujeito trava o processo (ordem processo → aprovação → documentos) → `SELECT … FOR UPDATE` na
  * aprovação: não `PENDING` = 409 `APPROVAL_NOT_PENDING` antes do `If-Match` (412) → POL-17 (403
- * auditado) → processo suspenso/final = 409 → `CANCELED` (`WITHDRAWN`; `WHERE status = PENDING AND
- * version`) e `ApprovalCanceled` (timeline `APPROVAL_CANCELED` no mesmo `tx`) → efeitos do dono do
+ * auditado; US-135: também o gestor com `PROCESS_ASSIGN` amplo — RN-APV-56) → processo
+ * suspenso/final = 409 → `CANCELED` (`WITHDRAWN`; `WHERE status = PENDING AND version`), as linhas
+ * não decididas `CANCELED` (os votos ficam — RN-APV-57) e `ApprovalCanceled` (timeline `APPROVAL_CANCELED` no mesmo `tx`) → efeitos do dono do
  * sujeito (documentos e, na etapa, a devolução com `metadata.withdrawn`) → `approval.withdraw`. O
  * motivo nunca vai a log nem a payload.
  */
@@ -112,7 +121,35 @@ export class ApprovalWithdrawalService {
     @Inject(AUDIT_TRAIL) private readonly audit: AuditTrailPort,
     @Inject(OUTBOX_WRITER) private readonly outbox: OutboxWriterPort,
     private readonly subjects: ApprovalSubjectRegistry,
+    private readonly processes: ProcessAccessRegistry,
+    private readonly access: AccessFacade,
   ) {}
+
+  /**
+   * RN-APV-56 (POL-17 + DEC-193) — quem pode retirar, e por qual caminho: (a) o solicitante ou a
+   * custódia anterior com `PROCESS_FORWARD` (o dono do sujeito decide — US-053); (b) o gestor com
+   * `PROCESS_ASSIGN` de escopo `TENANT`/`ORGANIZATION` que cubra o processo (POL-05 — escopo de
+   * unidade não basta). `null` = não pode. Leitura (sem MFA nem auditoria — o APV-02 também usa).
+   */
+  async withdrawerRoleIn(
+    tx: TenantTx,
+    handler: ApprovalSubjectHandler,
+    subject: WithdrawalSubject,
+    userId: string,
+  ): Promise<ApprovalWithdrawalActorRole | null> {
+    if (await handler.canWithdraw(tx, subject, userId)) {
+      return subject.requestedById === userId ? 'REQUESTER' : 'CUSTODIAN';
+    }
+    const target = await this.processes.load(tx, subject.processId);
+    if (target === null) return null;
+    const permissions = await this.access.effectivePermissions();
+    return permissions.roleCoversProcess('PROCESS_ASSIGN', {
+      organizationId: target.organizationId,
+      departmentIds: [],
+    })
+      ? 'MANAGER'
+      : null;
+  }
 
   async withdrawIn(tx: TenantTx, request: WithdrawalRequest): Promise<WithdrawalOutcome> {
     const userId = requireRequestContext().actor.userId ?? '';
@@ -133,13 +170,17 @@ export class ApprovalWithdrawalService {
       throw withdrawalVersionConflict(request.expectedVersion, approval.version);
     }
 
-    // 4.2 — POL-17 (custódia anterior / permissão de submissão) e processo nem suspenso nem final.
-    if (!(await handler.canWithdraw(tx, subject, userId))) throw withdrawalDenied(approval.id);
+    // 4.2 — POL-17 (custódia anterior / permissão de submissão) ∪ gestor com `PROCESS_ASSIGN`
+    // amplo (US-135 · RN-APV-56) e processo nem suspenso nem final.
+    const actorRole = await this.withdrawerRoleIn(tx, handler, subject, userId);
+    if (actorRole === null) throw withdrawalDenied(approval.id);
     if (!isDecidableProcessStatus(facts.processStatus)) {
       throw processNotWithdrawable(facts.processStatus);
     }
 
-    // 4.3 — a aprovação cancelada (a trava garante a versão; o WHERE é a rede) e o evento.
+    // 4.3 — a aprovação cancelada (a trava garante a versão; o WHERE é a rede), todas as linhas
+    // não decididas `CANCELED` (`WITHDRAWN`) — os votos ficam (RN-APV-57) — e o evento.
+    const tally = withdrawalTallyOf(await this.approvals.findLines(tx, approval.id));
     const canceled = withdrawApproval(approval, { withdrawnById: userId, now });
     if (!(await this.approvals.recordWithdrawal(tx, canceled, approval.version))) {
       throw withdrawalVersionConflict(
@@ -152,7 +193,11 @@ export class ApprovalWithdrawalService {
       ApprovalCanceled.of({
         aggregateId: canceled.id,
         processId: canceled.processId,
-        payload: { approvalId: canceled.id, reason: WITHDRAWN },
+        payload: {
+          approvalId: canceled.id,
+          reason: WITHDRAWN,
+          approvalApproverIds: [...tally.canceledLineIds],
+        },
       }),
     );
 
@@ -175,6 +220,10 @@ export class ApprovalWithdrawalService {
         processCode: facts.processCode,
         documentCodes: [...effects.documentCodes],
         subjectType: canceled.subjectType,
+        decisionPolicy: canceled.decisionPolicy ?? 'ANY',
+        actorRole,
+        linesCanceled: tally.linesCanceled,
+        votesKept: tally.votesKept,
         documentIds: subject.coverage.map((item) => item.documentId),
         fromStatus: effects.fromStatus,
         toStatus: effects.toStatus,
@@ -184,7 +233,16 @@ export class ApprovalWithdrawalService {
         idempotencyKey: request.idempotencyKey,
       },
     });
-    return { canceled, subject, handler, facts, effects };
+    return {
+      canceled,
+      subject,
+      handler,
+      facts,
+      effects,
+      actorRole,
+      linesCanceled: tally.linesCanceled,
+      votesKept: tally.votesKept,
+    };
   }
 
   /** DOC-11 pela porta `DocumentApprovalRegistry` (o documento já foi travado e autorizado). */

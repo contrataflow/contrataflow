@@ -88,7 +88,8 @@ Mudanças **aditivas** (campos opcionais, enums ampliados, filtros novos) sobre 
 **Permissão:** `APPROVAL_REASSIGN` + POL-17 · **Story:** US-135
 - **Cabeçalhos:** `Idempotency-Key` Obrigatório · `If-Match` Obrigatório
 - **Request:** `Idempotency-Key`, `If-Match` (linha); `{ approverType, targetApproverUserId?, targetApproverRoleId?, targetApproverDepartmentId?, reason }`
-- **Response:** `200 { data: Approval }` com `approvers[]` e `meta.newApproverId` · `ETag`
+- **Response:** `200 { data: Approval }` com `approvers[]` (cada linha com `reassignedFromId`, aditivo) e `meta.newApproverId` (a linha nova) · `ETag` da aprovação (`version + 1`)
+- **Erros (US-135):** 409 `APPROVAL_NOT_PENDING`; 409 `APPROVAL_LINE_NOT_PENDING` (`meta.approvalApproverId`, `meta.lineStatus`); linha de outra aprovação ou de outro tenant = 404 `APPROVAL_NOT_FOUND`; 412 `VERSION_CONFLICT` (versão da **linha**); 403 `PERMISSION_DENIED`; 409 `INVALID_PROCESS_STATUS`; 422 `APPROVER_NOT_ELIGIBLE`; 403 `SELF_APPROVAL_FORBIDDEN` (titular autor → substituto ativo da unidade, `allowDeputy = false`); 422 `APPROVER_DUPLICATED` (`meta.sequences`); 422 `VALIDATION_ERROR`
 - **Códigos:** 200, 403, 404, 409, 412, 422, 428, 503
 
 ### APV-31 — GET `/approvals/{id}/approvers`
@@ -277,11 +278,11 @@ Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approv
 
 ### APV-04 — POST `/approvals/{id}/withdraw` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
-- **US-135:** request `Idempotency-Key`, `If-Match` (aprovação); `{ reason? }` → response `200 { data: Approval }` com `processStage` atual · `ETag` · códigos 200, 403, 404, 409, 412, 422, 428, 503
+- **US-135:** request `Idempotency-Key`, `If-Match` (aprovação — qualquer voto ou redirecionamento muda a versão); `{ reason? }` → response `200 { data: Approval }` com `processStage` atual · `ETag` · permissão: POL-17 do MVP 1 (solicitante/custódia anterior com `PROCESS_FORWARD`) **ou** `PROCESS_ASSIGN` com escopo `TENANT`/`ORGANIZATION` que cubra o processo (RN-APV-56) · efeitos: linhas não decididas `CANCELED` (`WITHDRAWN`), linhas decididas preservadas, `ApprovalCanceled.approvalApproverIds` (as canceladas — o `APPROVER` delas é revogado) · códigos 200, 403, 404, 409, 412, 422, 428, 503
 
 ### APV-05 — POST `/approvals/{id}/reassign` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/11-approvals-inbox.md](../../mvp-01/api/11-approvals-inbox.md). Mudanças do MVP 2, todas aditivas:
-- **US-135:** request como no MVP 1 → response `200 { data: Approval }`; aprovação com várias linhas → `422 APPROVAL_LINE_REQUIRED` · códigos 200, 403, 404, 409, 412, 422, 428
+- **US-135:** request como no MVP 1 → response `200 { data: Approval }`; age sobre a única linha com o mesmo mecanismo do APV-06 (linha antiga `CANCELED`/`REASSIGNED`, nova no mesmo `sequence`); aprovação com várias linhas → `422 APPROVAL_LINE_REQUIRED` (`meta.linesCount`) · códigos 200, 403, 404, 409, 412, 422, 428
 
 ### CAL-06 — POST `/calendar/add-business-days` (ampliação do MVP 1)
 Contrato original: [mvp-01/api/14-tenant-administration.md](../../mvp-01/api/14-tenant-administration.md). Mudanças do MVP 2, todas aditivas:

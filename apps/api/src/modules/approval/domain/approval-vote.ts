@@ -157,10 +157,15 @@ export function selectVoteLine(
   if (requestedLineId !== null) {
     chosen = covered.find((item) => item.line.id === requestedLineId);
     if (chosen === undefined) {
-      throw new LineSelectionError(
-        'NOT_LINE_APPROVER',
-        lines.find((line) => line.id === requestedLineId) ?? null,
-      );
+      const requested = lines.find((line) => line.id === requestedLineId) ?? null;
+      // US-135 (FA-08): a linha da pessoa foi redirecionada (cancelada) antes do voto — 409, não 403.
+      if (
+        requested?.status === 'CANCELED' &&
+        lineDesignationOf({ ...requested, status: 'PENDING' }, facts).designated
+      ) {
+        throw new LineSelectionError('LINE_NOT_PENDING', requested);
+      }
+      throw new LineSelectionError('NOT_LINE_APPROVER', requested);
     }
   } else {
     const pending = covered.filter((item) => item.line.status === 'PENDING');

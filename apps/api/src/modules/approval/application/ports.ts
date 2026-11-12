@@ -73,11 +73,15 @@ export interface VoteWrite {
   readonly linesAfter: readonly ApprovalApprover[];
 }
 
-/** Resultado do redirecionamento do MVP 1 (US-053): a linha que recebeu o novo aprovador. */
-export interface ReassignmentRecord {
-  /** `false` = perdeu a corrida (a aprovação deixou de estar pendente na versão lida). */
-  readonly recorded: boolean;
-  readonly approvalApproverId: string | null;
+/**
+ * O redirecionamento a gravar (US-135 · RN-APV-52): a aprovação com o espelho e `version + 1`, a
+ * linha antiga como foi lida, a mesma linha cancelada (`REASSIGNED`) e a linha nova.
+ */
+export interface LineReassignmentWrite {
+  readonly approval: ApprovalRecord;
+  readonly lineBefore: ApprovalApprover;
+  readonly canceled: ApprovalApprover;
+  readonly created: ApprovalApprover;
 }
 
 export interface ApprovalRepository {
@@ -114,16 +118,18 @@ export interface ApprovalRepository {
     expectedVersion: number,
   ): Promise<boolean>;
   /**
-   * US-053 (RN-TRAM-70/71): grava o novo aprovador (`approverType`, ids, `allowDeputy`) SE a
-   * aprovação ainda está `PENDING` na versão lida; título, prazo e cobertura ficam. US-133: a linha
-   * espelhada recebe o novo aprovador (no lugar — `lineAfterReassignment`).
+   * US-135 (RN-APV-52/59 · US-053 RN-TRAM-70/71): "cancelar e criar" — a aprovação (espelho,
+   * `version + 1`) SE ainda está `PENDING` na versão lida (`UPDATE … WHERE status = 'PENDING' AND
+   * version`), a linha antiga `CANCELED` (`REASSIGNED`) na versão lida dela e a linha nova (o
+   * índice único parcial `(…, sequence) WHERE status <> 'CANCELED'` garante uma ativa por posição).
+   * `false` = perdeu a corrida (o chamador desfaz a transação).
    */
-  recordReassignment(
+  recordLineReassignment(
     tx: TenantTx,
-    reassigned: ApprovalRecord,
+    write: LineReassignmentWrite,
     expectedVersion: number,
     userId: string,
-  ): Promise<ReassignmentRecord>;
+  ): Promise<boolean>;
   /**
    * Grava a aprovação, os documentos cobertos e as linhas (US-133) no `tx` do chamador.
    * @throws PendingApprovalExistsError

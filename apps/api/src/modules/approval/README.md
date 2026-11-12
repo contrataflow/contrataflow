@@ -120,6 +120,42 @@ activatedApproverId, approvalApproverId } }`; erros novos `APPROVAL_LINE_NOT_PEN
   (8 categorias, memória) e `test/tenant-leak/approval-votes.spec.ts` (PostgreSQL: trava, corridas,
   gatilho, rollback do encerramento, RLS).
 
+## Redirecionar linha e retirar aprovação múltipla (US-135)
+
+DEC-193 · POL-17 · RN-APV-51..60. O redirecionamento age **por linha**; a retirada cancela a aprovação
+inteira e as linhas não decididas, preservando os votos.
+
+- **Domínio puro:** `domain/approval-line-reassignment.ts` — `reassignableLineOf` (APV-06: linha
+  `PENDING`/`WAITING` da aprovação; senão `ApprovalLineNotFoundError`/`ApprovalLineNotReassignableError`),
+  `singleLineOf` (APV-05: a única posição; várias = `ApprovalLineRequiredError`), `isSameLineApprover`,
+  `guardLineTarget` (segregação por linha: `USER` autor = recusa; titular autor → substituto ativo,
+  `allowDeputy = false`), `assertNotInOtherLine` (pessoa única com o histórico: aprovador de outra
+  posição, inclusive cancelada, ou quem votou numa linha de perfil), `reassignLine` ("cancelar e
+  criar": antiga `CANCELED`/`REASSIGNED`, nova com o mesmo `sequence`, estado, `activatedAt`, `dueAt`
+  e `reassignedFromId`; espelho da aprovação e `version + 1`) e `withdrawalTallyOf`.
+  `lineAfterReassignment`, `reassignApproval` e `isSameApprover` (MVP 1, troca no lugar) foram
+  removidos. `selectVoteLine` (US-134) devolve `LINE_NOT_PENDING` (409) para o voto com o id da linha
+  já redirecionada da própria pessoa (FA-08).
+- **Coordenador:** `ReassignApprovalCommand` atende APV-06 (`approvalApproverId`, `If-Match` da
+  linha) e APV-05 (`null`, `If-Match` da aprovação; segregação do MVP 1). Ordem: 404 → trava do
+  processo e da aprovação → linhas relidas → `APPROVAL_NOT_PENDING` → `APPROVAL_LINE_NOT_PENDING` /
+  `APPROVAL_LINE_REQUIRED` → `If-Match` → `APPROVAL_REASSIGN` cobrindo o processo → processo
+  decidível → elegibilidade (`ApproverResolver.preview`; `activeDeputyOf` para o desvio) →
+  `APPROVER_DUPLICATED` → `ApprovalRepository.recordLineReassignment` (aprovação na versão lida;
+  linha antiga cancelada ANTES de inserir a nova — índice `approval_approvers_sequence_key`) →
+  `ApprovalReassigned` (`approvalApproverId` = nova, `sequence`, `fromApprovalApproverId`) →
+  `approval.reassign`. Log `approval.line_reassigned`; recusas `warn approval.reassign_rejected`.
+- **Retirada:** `ApprovalWithdrawalService.withdrawerRoleIn` — POL-17 do dono do sujeito
+  (`REQUESTER`/`CUSTODIAN`) ∪ gestor com `PROCESS_ASSIGN` `TENANT`/`ORGANIZATION` (`MANAGER`); usado
+  também pelo APV-02 (`WITHDRAW`). `ApprovalCanceled.approvalApproverIds` = linhas canceladas;
+  auditoria com `actorRole`, `linesCanceled`, `votesKept`.
+- **Acesso:** `ProcessAccessProjector` revoga o `APPROVER` da linha antiga (`fromApprovalApproverId`)
+  e concede pela nova; em `approval.canceled`, revoga o das linhas canceladas.
+- **Testes:** `domain/approval-line-reassignment.spec.ts`,
+  `process/presentation/multi-approver-reassign.routes.spec.ts` (8 categorias, memória) e
+  `test/tenant-leak/approval-line-reassign.spec.ts` (PostgreSQL: rollback, índice único, gatilho,
+  corridas, idempotência em paralelo, RLS, motivo nunca gravado).
+
 ## Decidir aprovação (US-052)
 
 - **Rotas:** APV-02 `GET /approvals/{id}` e APV-03 `POST /approvals/{id}/decide`
@@ -159,6 +195,9 @@ activatedApproverId, approvalApproverId } }`; erros novos `APPROVAL_LINE_NOT_PEN
   (PostgreSQL: falha induzida, corrida, RLS).
 
 ## Retirar ou redirecionar aprovação pendente (US-053)
+
+> US-135: o redirecionamento passou a "cancelar e criar" a linha (ver a seção acima); o APV-05 só
+> vale para aprovação de uma linha e a retirada também é do gestor com `PROCESS_ASSIGN` amplo.
 
 - **Rotas:** APV-04 `POST /approvals/{id}/withdraw` (`@ImplicitAccess` + `@Policy('POL-17')` — a
   regra é do dono do sujeito), APV-05 `POST /approvals/{id}/reassign` (`APPROVAL_REASSIGN` em algum

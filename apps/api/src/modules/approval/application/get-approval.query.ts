@@ -13,7 +13,7 @@ import type { TenantTx } from '#shared/database/prisma.js';
 import { ApiError } from '#shared/errors/api-error.js';
 
 import { ApprovalDecisionPolicy, approvalNotFound } from './approval-decision.policy.js';
-import { withdrawalSubjectOf } from './approval-withdrawal.service.js';
+import { ApprovalWithdrawalService, withdrawalSubjectOf } from './approval-withdrawal.service.js';
 import { ApprovalPresenter } from './approval.presenter.js';
 import { APPROVAL_CLOCK, APPROVAL_REPOSITORY, APPROVAL_TRANSACTIONS } from './ports.js';
 import type { ApprovalClock, ApprovalRepository, ApprovalTransactions } from './ports.js';
@@ -57,6 +57,7 @@ export class GetApprovalQuery {
     private readonly presenter: ApprovalPresenter,
     private readonly access: AccessFacade,
     private readonly processes: ProcessAccessRegistry,
+    private readonly withdrawals: ApprovalWithdrawalService,
   ) {}
 
   execute(approvalId: string): Promise<ApprovalDetail> {
@@ -104,9 +105,12 @@ export class GetApprovalQuery {
           ? []
           : withClosure(approval, lines, mine.line, await handler.decisionOptions(tx, subject));
       const allowedActions: ApprovalAction[] = blocker === null ? ['DECIDE'] : [];
-      // US-053: retirar (POL-17) e redirecionar (`APPROVAL_REASSIGN` cobrindo o processo).
+      // US-053: retirar (POL-17; US-135: também o gestor com `PROCESS_ASSIGN` amplo) e redirecionar
+      // (`APPROVAL_REASSIGN` cobrindo o processo — por linha na aprovação múltipla, APV-06).
       if (approval.status === 'PENDING' && isDecidableProcessStatus(view.processStatus)) {
-        if (await handler.canWithdraw(tx, subject, userId)) allowedActions.push('WITHDRAW');
+        if ((await this.withdrawals.withdrawerRoleIn(tx, handler, subject, userId)) !== null) {
+          allowedActions.push('WITHDRAW');
+        }
         const target = await this.processes.load(tx, approval.processId);
         if (target !== null && (await this.access.canOnProcess('APPROVAL_REASSIGN', target))) {
           allowedActions.push('REASSIGN');

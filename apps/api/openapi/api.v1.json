@@ -1296,6 +1296,13 @@
               null
             ]
           },
+          "reassignedFromId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
           "version": {
             "type": "integer",
             "minimum": 1
@@ -1593,6 +1600,51 @@
           "status",
           "etag"
         ]
+      },
+      "ReassignApprovalLineMeta": {
+        "type": "object",
+        "properties": {
+          "newApproverId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "newApproverId"
+        ]
+      },
+      "ReassignApprovalLineRequest": {
+        "type": "object",
+        "properties": {
+          "approverType": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ROLE",
+              "DEPARTMENT_HEAD"
+            ]
+          },
+          "targetApproverUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetApproverRoleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetApproverDepartmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "approverType"
+        ],
+        "additionalProperties": false
       },
       "DecidedApproval": {
         "type": "object",
@@ -23818,6 +23870,170 @@
         }
       }
     },
+    "/approvals/{id}/approvers/{approverId}/reassign": {
+      "post": {
+        "operationId": "APV-06",
+        "summary": "Redirecionar linha da aprovação",
+        "tags": [
+          "Aprovações"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-tenant-scope": "TENANT",
+        "x-audit-actions": [
+          "approval.reassign"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "approverId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Órgão ativo (DEC-132 · RN-TEN-19)."
+            },
+            "required": true,
+            "description": "Órgão ativo (DEC-132 · RN-TEN-19).",
+            "name": "X-Tenant-Id",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Chave de idempotência (DEC-105)."
+            },
+            "required": false,
+            "description": "Chave de idempotência (DEC-105).",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReassignApprovalLineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "US-135 (DEC-193 · RN-APV-51..55): a linha `{approverId}` ainda `PENDING` ou `WAITING` vira `CANCELED` (`skippedReason = REASSIGNED`) e nasce outra com o mesmo `sequence`, estado, `activatedAt` e `dueAt` e `reassignedFromId` (`meta.newApproverId`); votos das demais linhas, título, prazo, solicitante, política e cobertura preservados; o espelho da aprovação segue a linha corrente (`ETag` = nova versão da aprovação). `If-Match` = `approvers[].version` da linha (APV-02). Uma transação com a trava da aprovação: já encerrada = 409 `APPROVAL_NOT_PENDING`; linha decidida, dispensada ou cancelada = 409 `APPROVAL_LINE_NOT_PENDING`; linha de outra aprovação ou de outro tenant = 404 `APPROVAL_NOT_FOUND`; `If-Match` divergente = 412 `VERSION_CONFLICT`; `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED` (`access.denied`); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual da linha ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente; titular atual da unidade; de outro tenant) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto = 403 `SELF_APPROVAL_FORBIDDEN` (titular autor: a linha vai ao substituto ativo, `allowDeputy = false`); quem ocupa ou ocupou outra linha desta aprovação = 422 `APPROVER_DUPLICATED`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`) — o motivo nunca é gravado. Efeitos: `ProcessAccess` `APPROVER` da linha antiga revogado e o da nova concedido, `ApprovalReassigned` (com `approvalApproverId`, `sequence`, `fromApprovalApproverId`; timeline `APPROVAL_REASSIGNED`; aviso `APPROVAL_REASSIGNED` ao novo e ao anterior), auditoria `approval.reassign`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Approval"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/ReassignApprovalLineMeta"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "MALFORMED_REQUEST",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED · SESSION_EXPIRED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TENANT_SUSPENDED · MEMBERSHIP_INACTIVE · MFA_REQUIRED · PERMISSION_DENIED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_IN_PROGRESS",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR · BUSINESS_RULE_VIOLATION",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/approvals/{id}/decide": {
       "post": {
         "operationId": "APV-03",
@@ -24038,7 +24254,7 @@
         },
         "responses": {
           "200": {
-            "description": "Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).",
+            "description": "Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). US-135: age sobre a única linha (cancela a antiga — `REASSIGNED` — e cria outra no mesmo `sequence`); aprovação com mais de uma linha = 422 `APPROVAL_LINE_REQUIRED` (use o APV-06). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -24190,7 +24406,7 @@
         },
         "responses": {
           "200": {
-            "description": "Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) = 403 `PERMISSION_DENIED` auditado; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.",
+            "description": "Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match` — versão da APROVAÇÃO, que qualquer voto ou redirecionamento muda: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) nem `PROCESS_ASSIGN` amplo (DEC-193) = 403 `PERMISSION_DENIED` auditado; US-135: todas as linhas não decididas viram `CANCELED` (`WITHDRAWN`) e as decididas ficam com os votos no histórico (RN-APV-57); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.",
             "content": {
               "application/json": {
                 "schema": {

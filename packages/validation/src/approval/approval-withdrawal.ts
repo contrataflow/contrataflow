@@ -42,7 +42,21 @@ export const APPROVAL_WITHDRAWAL_MESSAGES = Object.freeze({
    * comentário — `process_movements_comment_required`).
    */
   movementComment: 'Aprovação retirada por quem encaminhou o processo.',
+  /** US-135 (V-05 · RN-APV-53): o novo aprovador já ocupa ou ocupou outra linha. */
+  approverDuplicated: 'Esta pessoa já participa desta aprovação em outra linha.',
+  /** US-135 (V-07 · RN-APV-51): a linha já foi decidida, dispensada ou cancelada. */
+  lineNotPending: 'Esta linha já foi decidida e não pode ser redirecionada.',
+  /** US-135 (V-08 · RN-APV-60): APV-05 numa aprovação com várias linhas. */
+  lineRequired: 'Esta aprovação tem vários aprovadores. Redirecione a linha desejada.',
 });
+
+/**
+ * US-135 (RN-APV-56 · log `approval.withdrawn` e auditoria `approval.withdraw`): por qual caminho a
+ * retirada foi autorizada — o solicitante, a custódia anterior (`PROCESS_FORWARD`) ou o gestor
+ * (`PROCESS_ASSIGN` com escopo `TENANT`/`ORGANIZATION` — DEC-193).
+ */
+export const APPROVAL_WITHDRAWAL_ACTOR_ROLES = ['REQUESTER', 'CUSTODIAN', 'MANAGER'] as const;
+export type ApprovalWithdrawalActorRole = (typeof APPROVAL_WITHDRAWAL_ACTOR_ROLES)[number];
 
 const reasonSchema = z
   .string()
@@ -164,3 +178,20 @@ export const withdrawnApprovalSchema = approvalSchema
   })
   .meta({ id: 'WithdrawnApproval' });
 export type WithdrawnApprovalDto = z.infer<typeof withdrawnApprovalSchema>;
+
+/**
+ * Corpo de APV-06 (US-135 · `POST /approvals/{id}/approvers/{approverId}/reassign`): o mesmo do
+ * APV-05 — `approverType`, exatamente um `targetApprover*` e o motivo de 10 a 2.000 (nunca
+ * persistido — RN-APV-55).
+ */
+export const reassignApprovalLineSchema = reassignApprovalSchema.meta({
+  id: 'ReassignApprovalLineRequest',
+});
+export type ReassignApprovalLine = z.output<typeof reassignApprovalLineSchema>;
+export type ReassignApprovalLineInput = z.input<typeof reassignApprovalLineSchema>;
+
+/** `meta` de APV-06 (US-135): a linha nova, criada no lugar da redirecionada. */
+export const reassignApprovalLineMetaSchema = z
+  .object({ newApproverId: z.uuid() })
+  .meta({ id: 'ReassignApprovalLineMeta' });
+export type ReassignApprovalLineMeta = z.infer<typeof reassignApprovalLineMetaSchema>;

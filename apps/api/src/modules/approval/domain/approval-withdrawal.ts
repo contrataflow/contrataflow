@@ -60,28 +60,6 @@ export function approverConfigOfTarget(target: ReassignTarget): ApproverConfig {
 }
 
 /**
- * RN-TRAM-69 (V-02): o novo aprovador é o mesmo registro atual — mesmo usuário (`USER`), mesmo
- * perfil (`ROLE`) ou mesma unidade (`DEPARTMENT_HEAD`).
- */
-export function isSameApprover(
-  approval: Pick<
-    ApprovalRecord,
-    'approverType' | 'approverUserId' | 'approverRoleId' | 'approverDepartmentId'
-  >,
-  target: ResolvedApprover,
-): boolean {
-  if (approval.approverType !== target.approverType) return false;
-  switch (target.approverType) {
-    case 'USER':
-      return approval.approverUserId === target.approverUserId;
-    case 'ROLE':
-      return approval.approverRoleId === target.approverRoleId;
-    case 'DEPARTMENT_HEAD':
-      return approval.approverDepartmentId === target.approverDepartmentId;
-  }
-}
-
-/**
  * RN-TRAM-69 + RN-TRAM-62 (V-05): com `approval.preventSelfApproval`, a pessoa que passaria a
  * decidir (o `USER` ou o titular da unidade) não pode ser autora de documento coberto. Perfil
  * (`ROLE`) não nomeia ninguém: a segregação vale na decisão (POL-03).
@@ -97,26 +75,4 @@ export function violatesSegregation(
     target.approverType !== 'ROLE' &&
     authorIds.includes(target.approverUserId)
   );
-}
-
-/**
- * RN-TRAM-70: troca SOMENTE o aprovador (`approverType`, ids e `allowDeputy` da resolução); título,
- * prazo, solicitante e cobertura ficam. `version + 1`. Só `PENDING` (RN-TRAM-65).
- */
-export function reassignApproval(
-  approval: ApprovalRecord,
-  target: ResolvedApprover,
-  now: Date,
-): ApprovalRecord {
-  if (approval.status !== 'PENDING') throw new ApprovalNotPendingError(approval.status);
-  return {
-    ...approval,
-    approverType: target.approverType,
-    approverUserId: target.approverUserId,
-    approverRoleId: target.approverRoleId,
-    approverDepartmentId: target.approverDepartmentId,
-    allowDeputy: target.allowDeputy,
-    updatedAt: now,
-    version: approval.version + 1,
-  };
 }

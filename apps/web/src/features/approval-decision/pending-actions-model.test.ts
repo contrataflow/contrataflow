@@ -7,7 +7,9 @@ import {
   canWithdraw,
   describePendingActionError,
   isClosingProblem,
+  isMultiLine,
   reassignBodyOf,
+  reassignableLinesOf,
   validateReassign,
   withdrawBodyOf,
 } from './pending-actions-model';
@@ -103,6 +105,10 @@ describe('describePendingActionError (Casos de erro)', () => {
     [422, 'APPROVER_NOT_ELIGIBLE', 'notEligible', false],
     [422, 'IDEMPOTENCY_KEY_REUSED', 'idempotencyReused', false],
     [503, 'DEPENDENCY_UNAVAILABLE', 'unavailable', false],
+    // US-135: erros por linha.
+    [409, 'APPROVAL_LINE_NOT_PENDING', 'lineNotPending', true],
+    [422, 'APPROVAL_LINE_REQUIRED', 'lineRequired', true],
+    [422, 'APPROVER_DUPLICATED', 'duplicated', false],
   ] as const)('%i %s → %s (fecha: %s)', (status, code, kind, closing) => {
     const problem = describePendingActionError(apiError(status, code));
     expect(problem.kind).toBe(kind);
@@ -129,5 +135,35 @@ describe('describePendingActionError (Casos de erro)', () => {
       kind: 'unexpected',
       correlationId: '—',
     });
+  });
+});
+
+describe('US-135 — linhas redirecionáveis (RN-APV-51/60)', () => {
+  const line = (
+    id: string,
+    sequence: number,
+    status: 'PENDING' | 'WAITING' | 'APPROVED' | 'CANCELED',
+  ) => ({ id, sequence, status }) as never;
+
+  it('várias posições = redirecionar por linha; a cancelada não conta como posição', () => {
+    expect(isMultiLine({ approvers: [line('a', 1, 'PENDING')] })).toBe(false);
+    expect(isMultiLine({ approvers: [line('a', 1, 'CANCELED'), line('b', 1, 'PENDING')] })).toBe(
+      false,
+    );
+    expect(isMultiLine({ approvers: [line('a', 1, 'APPROVED'), line('b', 2, 'PENDING')] })).toBe(
+      true,
+    );
+  });
+
+  it('só linhas PENDING ou WAITING, em ordem de sequence', () => {
+    const lines = reassignableLinesOf({
+      approvers: [
+        line('c', 3, 'WAITING'),
+        line('a', 1, 'APPROVED'),
+        line('x', 2, 'CANCELED'),
+        line('b', 2, 'PENDING'),
+      ],
+    });
+    expect(lines.map((item) => item.id)).toEqual(['b', 'c']);
   });
 });

@@ -156,6 +156,11 @@ export const GENERIC_ERRORS: Readonly<Record<ErrorCode, ErrorDefinition>> = Obje
     title: 'Linha da aprovação não pendente',
     detail: 'Esta linha já foi decidida.',
   },
+  APPROVAL_LINE_REQUIRED: {
+    status: 422,
+    title: 'Linha da aprovação obrigatória',
+    detail: 'Esta aprovação tem vários aprovadores. Redirecione a linha desejada.',
+  },
   APPROVER_ALREADY_VOTED: {
     status: 409,
     title: 'Voto já registrado',

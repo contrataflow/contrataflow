@@ -18,8 +18,8 @@ import type { ApproverConfig, ResolvedApprover } from './approval.js';
  * (`SelfApprovalGuard` — substituto ou recusa), a pessoa única (`DistinctApproversPolicy`), o
  * espelho da linha corrente nas colunas da `Approval` (fase expand), o mapeamento do backfill
  * (M2-03) e a sincronização das linhas com as ações do MVP 1 que ainda encerram a aprovação inteira
- * (retirada, cancelamento e redirecionamento — substituídas pela US-135). A decisão por linha é de
- * `approval-vote.ts` (US-134).
+ * (retirada e cancelamento). A decisão por linha é de `approval-vote.ts` (US-134) e o
+ * redirecionamento por linha, de `approval-line-reassignment.ts` (US-135).
  */
 
 /** Linha configurada: o aprovador como na US-051 mais a posição e o rótulo. */
@@ -377,31 +377,4 @@ export function linesAfterCancellation(
         }
       : line,
   );
-}
-
-/**
- * Redirecionamento do MVP 1 (US-053 · APV-05): o novo aprovador assume a linha espelhada, no lugar
- * (mesmo id — as concessões `APPROVER` seguem pela linha). O redirecionamento por linha (cancelar e
- * recriar com `reassignedFromId`) é da US-135. `null` = nenhuma linha viva.
- */
-export function lineAfterReassignment(
-  policy: ApprovalDecisionPolicy,
-  lines: readonly ApprovalApprover[],
-  reassigned: ApprovalRecord,
-): ApprovalApprover | null {
-  const current = mirroredLineOf(
-    policy,
-    lines.filter((line) => LIVE_STATUSES.has(line.status)),
-  );
-  if (current === null) return null;
-  return {
-    ...current,
-    approverType: reassigned.approverType,
-    approverUserId: reassigned.approverUserId,
-    approverRoleId: reassigned.approverRoleId,
-    approverDepartmentId: reassigned.approverDepartmentId,
-    allowDeputy: reassigned.allowDeputy,
-    updatedAt: reassigned.updatedAt,
-    version: current.version + 1,
-  };
 }

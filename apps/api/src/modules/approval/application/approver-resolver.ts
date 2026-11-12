@@ -261,6 +261,17 @@ export class ApproverResolver {
   }
 
   /** Usuários com vínculo `ACTIVE` não vencido no tenant (RN-TRAM-49), numa leitura. */
+  /**
+   * US-135 (RN-APV-53 · RN-APV-20): o substituto da unidade com vínculo ativo — o desvio da linha
+   * redirecionada para o titular autor de documento coberto. `null` = sem substituto elegível.
+   */
+  async activeDeputyOf(tx: TenantTx, departmentId: string, now: Date): Promise<string | null> {
+    const unit = await this.organization.findDepartmentForApproval(tx, departmentId);
+    const deputy = unit?.deputyUserId ?? null;
+    if (deputy === null) return null;
+    return (await this.activeMembers(tx, [deputy], now)).has(deputy) ? deputy : null;
+  }
+
   private async activeMembers(
     tx: TenantTx,
     userIds: readonly string[],

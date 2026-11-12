@@ -5,8 +5,6 @@ import type { ApprovalRecord } from './approval-decision.js';
 import {
   WITHDRAWN,
   approverConfigOfTarget,
-  isSameApprover,
-  reassignApproval,
   violatesSegregation,
   withdrawApproval,
 } from './approval-withdrawal.js';
@@ -23,7 +21,6 @@ const DIEGO = '0192d053-0000-7000-8000-0000000000d1';
 const ANA = '0192d053-0000-7000-8000-0000000000a1';
 const ROLE = '0192d053-0000-7000-8000-0000000000e5';
 const UNIT = '0192d053-0000-7000-8000-0000000000e4';
-const OTHER_UNIT = '0192d053-0000-7000-8000-0000000000e6';
 const NOW = new Date('2026-10-20T12:00:00.000Z');
 
 const approval: Approval = {
@@ -117,47 +114,6 @@ describe('approverConfigOfTarget (RN-TRAM-69)', () => {
   });
 });
 
-describe('isSameApprover (V-02)', () => {
-  it('mesmo usuário, perfil ou unidade é o mesmo aprovador', () => {
-    expect(isSameApprover(record(), user(CARLA))).toBe(true);
-    expect(
-      isSameApprover(record({ approverType: 'ROLE', approverUserId: null, approverRoleId: ROLE }), {
-        ...user(CARLA),
-        approverType: 'ROLE',
-        approverUserId: null,
-        approverRoleId: ROLE,
-      }),
-    ).toBe(true);
-    const head = {
-      approverType: 'DEPARTMENT_HEAD' as const,
-      approverUserId: CARLA,
-      approverRoleId: null,
-      approverDepartmentId: UNIT,
-      allowDeputy: true,
-    };
-    expect(isSameApprover(record(head), head)).toBe(true);
-  });
-
-  it('outro usuário, outro tipo ou outra unidade é diferente', () => {
-    expect(isSameApprover(record(), user(DIEGO))).toBe(false);
-    expect(
-      isSameApprover(record(), {
-        ...user(CARLA),
-        approverType: 'DEPARTMENT_HEAD',
-        approverDepartmentId: UNIT,
-      }),
-    ).toBe(false);
-    const head = {
-      approverType: 'DEPARTMENT_HEAD' as const,
-      approverUserId: CARLA,
-      approverRoleId: null,
-      approverDepartmentId: UNIT,
-      allowDeputy: true,
-    };
-    expect(isSameApprover(record(head), { ...head, approverDepartmentId: OTHER_UNIT })).toBe(false);
-  });
-});
-
 describe('violatesSegregation (V-05 · RN-TRAM-62)', () => {
   it('autor de documento coberto não vira aprovador com preventSelfApproval', () => {
     expect(violatesSegregation(user(ANA), [ANA], true)).toBe(true);
@@ -180,49 +136,5 @@ describe('violatesSegregation (V-05 · RN-TRAM-62)', () => {
         true,
       ),
     ).toBe(false);
-  });
-});
-
-describe('reassignApproval (RN-TRAM-70)', () => {
-  it('troca só o aprovador; título, prazo, solicitante e status ficam; versão + 1', () => {
-    const before = record();
-    const after = reassignApproval(before, user(DIEGO), NOW);
-    expect(after).toMatchObject({
-      status: 'PENDING',
-      approverType: 'USER',
-      approverUserId: DIEGO,
-      allowDeputy: false,
-      title: before.title,
-      dueAt: before.dueAt,
-      requestedById: ANA,
-      requestedAt: before.requestedAt,
-      updatedAt: NOW,
-      version: 2,
-    });
-  });
-
-  it('para o titular de uma unidade: allowDeputy da resolução', () => {
-    const after = reassignApproval(
-      record(),
-      {
-        approverType: 'DEPARTMENT_HEAD',
-        approverUserId: DIEGO,
-        approverRoleId: null,
-        approverDepartmentId: UNIT,
-        allowDeputy: true,
-      },
-      NOW,
-    );
-    expect(after).toMatchObject({
-      approverType: 'DEPARTMENT_HEAD',
-      approverDepartmentId: UNIT,
-      allowDeputy: true,
-    });
-  });
-
-  it('aprovação já decidida não é redirecionada', () => {
-    expect(() => reassignApproval(record({ status: 'APPROVED' }), user(DIEGO), NOW)).toThrow(
-      ApprovalNotPendingError,
-    );
   });
 });

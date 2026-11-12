@@ -25,8 +25,8 @@ Campos opcionais novos — **mesma `eventVersion`** (regra do MVP 1, §8):
 | `ProcessStageDueSoon` / `ProcessStageOverdue` | `branchKey?`, `slaPolicyKey?`, `escalationLevel?` | SLA (DEC-205) |
 | `ApprovalRequested` | `decisionPolicy`, `approvers[]` (`{ approvalApproverId, sequence, approverType, approverUserId?, approverRoleId?, approverDepartmentId?, allowDeputy, status }` — `allowDeputy` acrescentado na US-133: o substituto é avisado e recebe `APPROVER` por linha), `pcaId?`, `thresholdResolution?`; `subjectType` aceita `PCA`. Os dois campos da US-133 são opcionais no esquema (eventos do MVP 1 no outbox) e sempre gravados nas solicitações novas | Aprovação múltipla e PCA (DEC-193, DEC-197) |
 | `ApprovalCompleted` / `ApprovalReturned` / `ApprovalRejected` | `decisionPolicy`, `decidingApprovalApproverId`, `votes[]` (`{ approvalApproverId, sequence, decision, decidedById, decidedAsDeputy }` — `approvalApproverId` acrescentado na US-134; nunca o comentário), `pcaId?`. Opcionais no esquema (eventos do MVP 1 no outbox); sempre gravados desde a US-134 | Idem |
-| `ApprovalCanceled` | `reason` aceita `BRANCH_CANCELED`, `MIGRATION` | Paralelismo e migração |
-| `ApprovalReassigned` | `approvalApproverId?`, `sequence?` | Redirecionamento por linha |
+| `ApprovalCanceled` | `reason` aceita `BRANCH_CANCELED`, `MIGRATION`; `approvalApproverIds?` (US-135: linhas não decididas canceladas pela retirada — o `ProcessAccessProjector` revoga o `APPROVER` delas) | Paralelismo, migração e retirada |
+| `ApprovalReassigned` | `approvalApproverId?` (a linha **nova**), `sequence?`, `fromApprovalApproverId?` (a linha cancelada — US-135: origem das concessões `APPROVER` revogadas) | Redirecionamento por linha |
 | `DocumentFinalized` (`parecer_juridico`) | `typedSummary: { legalReviewId, round }` (sem a situação) | Parecer |
 | `AiGeneration*`, `AiContent*` | `targetModule` aceita `LEGAL_OPINION`, `TENDER`; `<type>` aceita `parecer_juridico`, `edital` | IA (DEC-202) |
 

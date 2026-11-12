@@ -71,7 +71,8 @@ export type ApprovalCancelReason = (typeof APPROVAL_CANCEL_REASONS)[number];
 /**
  * `ApprovalCanceled` (events.md §4.2): a aprovação `PENDING` foi encerrada sem decisão — retirada da
  * submissão (US-053), cancelamento do processo (US-009, `PROCESS_CANCELED`, no mesmo `tx`) ou
- * reatribuição. Consumidor: `TimelineProjector` (`APPROVAL_CANCELED`) no mesmo `tx`; no worker, só
+ * reatribuição. Consumidores: `TimelineProjector` (`APPROVAL_CANCELED`) e, na retirada (US-135),
+ * `ProcessAccessProjector` (revoga o `APPROVER` das linhas canceladas) no mesmo `tx`; no worker, só
  * métricas. Só ids e o motivo codificado.
  */
 export const ApprovalCanceled = defineDomainEvent({
@@ -81,6 +82,12 @@ export const ApprovalCanceled = defineDomainEvent({
   payload: z.strictObject({
     approvalId: uuid,
     reason: z.enum(APPROVAL_CANCEL_REASONS),
+    /**
+     * US-135 (aditivo · RN-APV-57): as linhas não decididas canceladas com a aprovação — origem
+     * (`sourceId`) das concessões `APPROVER` que o `ProcessAccessProjector` revoga. Ausente nos
+     * eventos anteriores (e no cancelamento do processo).
+     */
+    approvalApproverIds: z.array(uuid).max(APPROVAL_LINES_MAX).optional(),
   }),
   routingKey: 'approval.canceled',
 });
@@ -114,6 +121,12 @@ export const ApprovalReassigned = defineDomainEvent({
      * concessões `APPROVER` a revogar e a conceder (RN-APV-25). Ausente nos eventos do MVP 1.
      */
     approvalApproverId: uuid.optional(),
+    /**
+     * US-135 (aditivo · RN-APV-60): a posição da linha redirecionada e a linha antiga, cancelada
+     * (`REASSIGNED`) — origem das concessões `APPROVER` a revogar. Ausentes nos eventos anteriores.
+     */
+    sequence: z.int().min(1).max(APPROVAL_LINES_MAX).optional(),
+    fromApprovalApproverId: uuid.optional(),
   }),
   routingKey: 'approval.reassigned',
 });

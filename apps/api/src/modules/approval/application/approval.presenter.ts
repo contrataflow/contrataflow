@@ -55,6 +55,7 @@ export class ApprovalPresenter {
         decidedAt: line.decidedAt?.toISOString() ?? null,
         decidedAsDeputy: line.decidedAsDeputy,
         skippedReason: line.skippedReason,
+        reassignedFromId: line.reassignedFromId,
         version: line.version,
       });
     }

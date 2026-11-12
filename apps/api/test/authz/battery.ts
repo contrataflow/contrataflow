@@ -158,8 +158,19 @@ export const POLICY_EVIDENCE: Readonly<Record<PolicyId, readonly PolicyEvidence[
       mentions: ['POL-16'],
     },
   ],
+  // US-135: retirar também pelo gestor (`PROCESS_ASSIGN` amplo — DEC-193) e redirecionar por linha.
   'POL-17': [
     { file: 'src/modules/process/domain/process-withdrawal.spec.ts', mentions: ['POL-17'] },
+    {
+      file: 'src/modules/process/presentation/multi-approver-reassign.routes.spec.ts',
+      mentions: [
+        'POL-17',
+        'PROCESS_ASSIGN',
+        'APPROVAL_LINE_NOT_PENDING',
+        'APPROVER_DUPLICATED',
+        'PERMISSION_DENIED',
+      ],
+    },
   ],
   'POL-18': [
     {

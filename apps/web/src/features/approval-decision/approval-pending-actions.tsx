@@ -22,7 +22,7 @@ import {
   Textarea,
   toast,
 } from '@contrataflow/ui';
-import type { ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
+import type { ApprovalApproverDto, ApprovalDto, ApprovalMeta } from '@contrataflow/validation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -36,6 +36,7 @@ import {
   approvalKeys,
   useApproverCandidates,
   useReassignApproval,
+  useReassignApprovalLine,
   useWithdrawApproval,
 } from './approval-decision.api';
 import {
@@ -44,7 +45,9 @@ import {
   canWithdraw,
   describePendingActionError,
   isClosingProblem,
+  isMultiLine,
   reassignBodyOf,
+  reassignableLinesOf,
   validateReassign,
   withdrawBodyOf,
 } from './pending-actions-model';
@@ -59,7 +62,14 @@ export type PendingActionNotice = Extract<
   PendingActionProblem,
   {
     readonly kind:
-      'notPending' | 'stale' | 'precondition' | 'processStatus' | 'notFound' | 'denied';
+      | 'notPending'
+      | 'stale'
+      | 'precondition'
+      | 'processStatus'
+      | 'notFound'
+      | 'denied'
+      | 'lineNotPending'
+      | 'lineRequired';
   }
 >;
 
@@ -81,10 +91,11 @@ export interface ApprovalPendingActionsProps {
 
 /**
  * Ações sobre a aprovação pendente (US-053 · SCR-015) no menu "Mais" do cabeçalho (prd-5 · regra
- * 1): "Retirar aprovação" (APV-04 — POL-17) e "Redirecionar aprovação" (APV-05 —
- * `APPROVAL_REASSIGN`), cada uma só com a ação em `meta.allowedActions` (sem permissão, o item nem
- * aparece). Cada uma confirma num `Dialog` do kit; sucesso invalida as aprovações, o processo e a
- * caixa de tarefas.
+ * 1): "Retirar aprovação" (APV-04 — POL-17; US-135: também o gestor com `PROCESS_ASSIGN`) e
+ * "Redirecionar aprovação" (APV-05 — `APPROVAL_REASSIGN`) — na aprovação com várias linhas (US-135),
+ * um item "Redirecionar linha N" por linha ainda não decidida (APV-06). Cada uma só com a ação em
+ * `meta.allowedActions` (sem permissão, o item nem aparece) e confirma num `Dialog` do kit; sucesso
+ * invalida as aprovações, o processo e a caixa de tarefas.
  */
 export function ApprovalPendingActions({
   approval,
@@ -95,9 +106,11 @@ export function ApprovalPendingActions({
 }: ApprovalPendingActionsProps) {
   const t = useTranslations('approvals.pendingActions');
   const [open, setOpen] = useState<'withdraw' | 'reassign' | null>(null);
+  const [line, setLine] = useState<ApprovalApproverDto | null>(null);
   const withdrawable = canWithdraw(meta);
   const reassignable = canReassign(meta);
   if (approval.status !== 'PENDING' || (!withdrawable && !reassignable)) return null;
+  const perLine = isMultiLine(approval);
   return (
     <>
       <DropdownMenu>
@@ -116,15 +129,29 @@ export function ApprovalPendingActions({
               {t('withdraw')}
             </DropdownMenuItem>
           ) : null}
-          {reassignable ? (
+          {reassignable && !perLine ? (
             <DropdownMenuItem
               onSelect={() => {
+                setLine(null);
                 setOpen('reassign');
               }}
             >
               {t('reassign')}
             </DropdownMenuItem>
           ) : null}
+          {reassignable && perLine
+            ? reassignableLinesOf(approval).map((candidate) => (
+                <DropdownMenuItem
+                  key={candidate.id}
+                  onSelect={() => {
+                    setLine(candidate);
+                    setOpen('reassign');
+                  }}
+                >
+                  {t('reassignLine', { sequence: candidate.sequence, label: candidate.label })}
+                </DropdownMenuItem>
+              ))
+            : null}
         </DropdownMenuContent>
       </DropdownMenu>
       {withdrawable ? (
@@ -142,6 +169,7 @@ export function ApprovalPendingActions({
       {reassignable ? (
         <ReassignApprovalDialog
           approval={approval}
+          line={line}
           open={open === 'reassign'}
           retry={retry}
           onOpenChange={(next) => {
@@ -210,6 +238,7 @@ function ProblemAlert({
       );
     case 'notEligible':
     case 'selfApproval':
+    case 'duplicated':
     case 'idempotencyReused':
     case 'fields':
       return <Alert tone="error" title={t(problem.kind)} />;
@@ -220,8 +249,9 @@ function ProblemAlert({
 
 /**
  * `WithdrawApprovalDialog` (US-053 · fluxo principal, passos 2–5): explica o efeito (etapa: volta
- * à etapa anterior sob sua responsabilidade; avulsa: o documento volta a rascunho), motivo
- * opcional (≤ 2.000, foco inicial) e confirma com o APV-04 (`If-Match` + `Idempotency-Key`).
+ * à etapa anterior; avulsa: o documento volta a rascunho; US-135: na aprovação com várias linhas,
+ * que os votos dados ficam no histórico e será preciso pedir a aprovação de novo), motivo opcional
+ * (≤ 2.000, foco inicial) e confirma com o APV-04 (`If-Match` da aprovação + `Idempotency-Key`).
  */
 function WithdrawApprovalDialog({
   approval,
@@ -291,7 +321,13 @@ function WithdrawApprovalDialog({
       >
         <DialogTitle>{t('withdrawDialog.title')}</DialogTitle>
         <DialogDescription>
-          {t(stage ? 'withdrawDialog.stageEffect' : 'withdrawDialog.documentEffect')}
+          {t(
+            isMultiLine(approval)
+              ? 'withdrawDialog.multiEffect'
+              : stage
+                ? 'withdrawDialog.stageEffect'
+                : 'withdrawDialog.documentEffect',
+          )}
         </DialogDescription>
         <form
           noValidate
@@ -348,21 +384,25 @@ function WithdrawApprovalDialog({
 /**
  * `ReassignApprovalDialog` (US-053 · FA-02): o tipo do novo aprovador (pessoa ou titular de outra
  * unidade), a busca assíncrona com debounce (USR-02/DEP-02 — a elegibilidade final é da API: 422
- * `APPROVER_NOT_ELIGIBLE` recarrega a lista) e o motivo obrigatório (≥ 10). Confirma com o APV-05.
+ * `APPROVER_NOT_ELIGIBLE` recarrega a lista) e o motivo obrigatório (≥ 10). Confirma com o APV-05;
+ * com `line` (US-135 · `ReassignApprovalLineDialog`), com o APV-06 e o `If-Match` da linha.
  */
 function ReassignApprovalDialog({
   approval,
+  line,
   open,
   retry,
   onOpenChange,
   onNotice,
   onRefresh,
-}: DialogProps) {
+}: DialogProps & { readonly line: ApprovalApproverDto | null }) {
   const t = useTranslations('approvals.pendingActions');
   const ids = useId();
   const searchId = `${ids}-search`;
   const reasonId = `${ids}-reason`;
-  const mutation = useReassignApproval(retry);
+  const single = useReassignApproval(retry);
+  const perLine = useReassignApprovalLine(retry);
+  const submitting = single.isPending || perLine.isPending;
   const invalidate = useInvalidateAfterAction(approval.process.id);
   const [approverType, setApproverType] = useState<ReassignTargetType>('USER');
   const [search, setSearch] = useState('');
@@ -372,7 +412,6 @@ function ReassignApprovalDialog({
   const [errors, setErrors] = useState<ReassignFieldMessages>({});
   const [problem, setProblem] = useState<PendingActionProblem | null>(null);
   const candidates = useApproverCandidates(approverType, term);
-  const submitting = mutation.isPending;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -409,12 +448,26 @@ function ReassignApprovalDialog({
       return;
     }
     setErrors({});
+    let toastTitle = t('toast.reassigned');
     try {
-      await mutation.submit({
-        approvalId: approval.id,
-        body: reassignBodyOf(draft),
-        version: approval.version,
-      });
+      if (line === null) {
+        await single.submit({
+          approvalId: approval.id,
+          body: reassignBodyOf(draft),
+          version: approval.version,
+        });
+      } else {
+        const result = await perLine.submit({
+          approvalId: approval.id,
+          lineId: line.id,
+          body: reassignBodyOf(draft),
+          lineVersion: line.version,
+        });
+        const created = result.approval.approvers.find(
+          (candidate) => candidate.id === result.newApproverId,
+        );
+        toastTitle = t('toast.lineReassigned', { name: created?.label ?? '' });
+      }
     } catch (error) {
       const found = describePendingActionError(error);
       if (isClosingProblem(found)) {
@@ -432,7 +485,7 @@ function ReassignApprovalDialog({
       setProblem(found);
       return;
     }
-    toast({ title: t('toast.reassigned'), tone: 'success' });
+    toast({ title: toastTitle, tone: 'success' });
     invalidate();
     onRefresh();
     close(false);
@@ -450,8 +503,16 @@ function ReassignApprovalDialog({
           document.getElementById(searchId)?.focus();
         }}
       >
-        <DialogTitle>{t('reassignDialog.title')}</DialogTitle>
-        <DialogDescription>{t('reassignDialog.description')}</DialogDescription>
+        <DialogTitle>
+          {line === null
+            ? t('reassignDialog.title')
+            : t('reassignDialog.lineTitle', { sequence: line.sequence })}
+        </DialogTitle>
+        <DialogDescription>
+          {line === null
+            ? t('reassignDialog.description')
+            : t('reassignDialog.lineDescription', { label: line.label })}
+        </DialogDescription>
         <form
           noValidate
           className="flex flex-col gap-4"

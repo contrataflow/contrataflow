@@ -4,6 +4,8 @@ import {
   reassignIssues,
 } from '@contrataflow/validation';
 import type {
+  ApprovalApproverDto,
+  ApprovalDto,
   ApprovalMeta,
   ReassignApprovalInput,
   WithdrawApprovalInput,
@@ -26,6 +28,26 @@ export function canWithdraw(meta: ApprovalMeta): boolean {
 /** `meta.allowedActions` contém `REASSIGN` (`APPROVAL_REASSIGN` cobrindo o processo). */
 export function canReassign(meta: ApprovalMeta): boolean {
   return meta.allowedActions.includes('REASSIGN');
+}
+
+/**
+ * US-135 (RN-APV-60): a aprovação tem mais de uma posição — o redirecionamento passa a ser por
+ * linha (APV-06); as linhas canceladas por redirecionamento não contam como posição.
+ */
+export function isMultiLine(approval: Pick<ApprovalDto, 'approvers'>): boolean {
+  return new Set(approval.approvers.map((line) => line.sequence)).size > 1;
+}
+
+/**
+ * US-135 (RN-APV-51): as linhas que ainda podem ser redirecionadas — `PENDING` ou `WAITING` —, em
+ * ordem de `sequence`. Linha decidida, dispensada ou cancelada não aparece ("não se retira voto").
+ */
+export function reassignableLinesOf(
+  approval: Pick<ApprovalDto, 'approvers'>,
+): ApprovalApproverDto[] {
+  return approval.approvers
+    .filter((line) => line.status === 'PENDING' || line.status === 'WAITING')
+    .sort((a, b) => a.sequence - b.sequence);
 }
 
 /** Tipos de novo aprovador oferecidos na tela (pessoa ou titular de outra unidade — FA-02). */
@@ -80,6 +102,9 @@ export type PendingActionProblem =
   | { readonly kind: 'processStatus' }
   | { readonly kind: 'notFound' }
   | { readonly kind: 'denied' }
+  | { readonly kind: 'lineNotPending' }
+  | { readonly kind: 'lineRequired' }
+  | { readonly kind: 'duplicated' }
   | { readonly kind: 'selfApproval' }
   | { readonly kind: 'notEligible' }
   | { readonly kind: 'idempotencyReused' }
@@ -87,7 +112,7 @@ export type PendingActionProblem =
   | { readonly kind: 'fields'; readonly messages: ReassignFieldMessages }
   | { readonly kind: 'unexpected'; readonly correlationId: string };
 
-/** Tabela "Casos de erro" da US-053. */
+/** Tabelas "Casos de erro" da US-053 e da US-135. */
 export function describePendingActionError(error: unknown): PendingActionProblem {
   if (!isApiError(error)) return { kind: 'unexpected', correlationId: '—' };
   const { status, code } = error;
@@ -95,12 +120,15 @@ export function describePendingActionError(error: unknown): PendingActionProblem
   if (status === 412) return { kind: 'stale' };
   if (status === 409 && code === 'APPROVAL_NOT_PENDING') return { kind: 'notPending' };
   if (status === 409 && code === 'INVALID_PROCESS_STATUS') return { kind: 'processStatus' };
+  if (status === 409 && code === 'APPROVAL_LINE_NOT_PENDING') return { kind: 'lineNotPending' };
   if (status === 403) {
     return code === 'SELF_APPROVAL_FORBIDDEN' ? { kind: 'selfApproval' } : { kind: 'denied' };
   }
   if (status === 404) return { kind: 'notFound' };
   if (status === 422) {
     if (code === 'APPROVER_NOT_ELIGIBLE') return { kind: 'notEligible' };
+    if (code === 'APPROVER_DUPLICATED') return { kind: 'duplicated' };
+    if (code === 'APPROVAL_LINE_REQUIRED') return { kind: 'lineRequired' };
     if (code === 'IDEMPOTENCY_KEY_REUSED') return { kind: 'idempotencyReused' };
     if (code === 'VALIDATION_ERROR') {
       const messages: ReassignFieldMessages = {};
@@ -119,7 +147,8 @@ export function describePendingActionError(error: unknown): PendingActionProblem
 
 /**
  * Recusas que encerram o diálogo e a tela inteira explica (recarregando a aprovação): já decidida
- * ou retirada, atualizada por outra pessoa, processo fora de andamento, sem permissão ou sumiu.
+ * ou retirada, atualizada por outra pessoa, processo fora de andamento, sem permissão ou sumiu;
+ * US-135: a linha já foi decidida (recarrega as linhas) ou a aprovação passou a ter várias linhas.
  */
 export function isClosingProblem(problem: PendingActionProblem): boolean {
   switch (problem.kind) {
@@ -129,6 +158,8 @@ export function isClosingProblem(problem: PendingActionProblem): boolean {
     case 'processStatus':
     case 'notFound':
     case 'denied':
+    case 'lineNotPending':
+    case 'lineRequired':
       return true;
     default:
       return false;

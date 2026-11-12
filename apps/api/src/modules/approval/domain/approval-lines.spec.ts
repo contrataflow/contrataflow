@@ -10,7 +10,6 @@ import {
   backfillLineOf,
   DuplicatedApproverError,
   guardSelfApproval,
-  lineAfterReassignment,
   linesAfterCancellation,
   mirroredLineOf,
   openApprovalLines,
@@ -367,26 +366,5 @@ describe('sincronização provisória com as ações do MVP 1', () => {
       ['APPROVED', null],
       ['CANCELED', 'WITHDRAWN'],
     ]);
-  });
-
-  it('redirecionamento: a linha espelhada recebe o novo aprovador, no lugar; sem linha viva, null', () => {
-    const lines = open('SEQUENTIAL');
-    const reassigned = approval({
-      approverType: 'USER',
-      approverUserId: MARCOS,
-      approverDepartmentId: null,
-      allowDeputy: false,
-      updatedAt: NOW,
-    });
-    expect(lineAfterReassignment('SEQUENTIAL', lines, reassigned)).toMatchObject({
-      id: lines[0]?.id,
-      sequence: 1,
-      approverType: 'USER',
-      approverUserId: MARCOS,
-      allowDeputy: false,
-      status: 'PENDING',
-      version: 2,
-    });
-    expect(lineAfterReassignment('ANY', linesAfterCancellation(lines, NOW), reassigned)).toBeNull();
   });
 });

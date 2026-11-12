@@ -7,6 +7,8 @@ import {
   decideApprovalMetaSchema,
   decideApprovalSchema,
   decidedApprovalSchema,
+  reassignApprovalLineMetaSchema,
+  reassignApprovalLineSchema,
   reassignApprovalSchema,
   withdrawApprovalSchema,
   withdrawnApprovalSchema,
@@ -20,6 +22,8 @@ import type {
   DecideApprovalMeta,
   DecidedApprovalDto,
   ReassignApproval,
+  ReassignApprovalLine,
+  ReassignApprovalLineMeta,
   WithdrawApproval,
   WithdrawnApprovalDto,
 } from '@contrataflow/validation';
@@ -35,7 +39,7 @@ import type { IfMatchValue } from '#shared/http/precondition.js';
 import { Idempotent } from '#shared/idempotency/idempotency.js';
 import { ApiOperation, recordRequestSchema } from '#shared/openapi/api-operation.js';
 import { TenantScope } from '#shared/tenancy/tenant-scope.js';
-import { ZodBody, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
+import { ZodBody, ZodParams, ZodQuery } from '#shared/validation/zod-validation.pipe.js';
 
 import { DecideApprovalCommand } from '../application/decide-approval.command.js';
 import { GetApprovalQuery } from '../application/get-approval.query.js';
@@ -57,6 +61,10 @@ function ApprovalId(): ParameterDecorator {
   };
 }
 
+const approvalLineParamsSchema = z
+  .object({ id: z.uuid(), approverId: z.uuid() })
+  .meta({ id: 'ApprovalLineParams' });
+
 /** Resposta personalizada e mutável: nenhum cache intermediário. */
 function noStore(response: HttpResponse): void {
   response.setHeader('Cache-Control', 'no-store');
@@ -67,7 +75,8 @@ function noStore(response: HttpResponse): void {
  * opções de decisão e o motivo de não poder decidir) e APV-03 (decidir — aprovar, devolver ou
  * indeferir, com os efeitos atômicos no processo e nos documentos). `APPROVAL_DECIDE` em algum
  * escopo no guard (com o 2º fator — risco H, POL-14); POL-03 no caso de uso. US-053: APV-04
- * (retirar — POL-17 no caso de uso) e APV-05 (redirecionar — `APPROVAL_REASSIGN`).
+ * (retirar — POL-17 no caso de uso) e APV-05 (redirecionar — `APPROVAL_REASSIGN`). US-135: APV-06
+ * (redirecionar uma linha da aprovação múltipla) e a retirada também pelo gestor (`PROCESS_ASSIGN`).
  */
 @Controller('approvals')
 @TenantScope('TENANT')
@@ -182,7 +191,7 @@ export class ApprovalController {
   @Idempotent()
   @RequireIfMatch()
   @ImplicitAccess(
-    'APV-04 (US-053): POL-17 no caso de uso — etapa: `PROCESS_FORWARD` sobre a unidade de origem e ser o solicitante ou lotado nela (custódia anterior); avulsa: permissão de submissão do tipo cobrindo o processo. Sem custódia/permissão = 403 PERMISSION_DENIED (`access.denied`).',
+    'APV-04 (US-053 · US-135): POL-17 no caso de uso — etapa: `PROCESS_FORWARD` sobre a unidade de origem e ser o solicitante ou lotado nela (custódia anterior); avulsa: permissão de submissão do tipo cobrindo o processo; ou (DEC-193 · RN-APV-56) `PROCESS_ASSIGN` com escopo TENANT/ORGANIZATION que cubra o processo. Sem nenhum caminho = 403 PERMISSION_DENIED (`access.denied`).',
   )
   @Policy('POL-17')
   @ApiOperation({
@@ -194,7 +203,7 @@ export class ApprovalController {
     responses: {
       200: {
         description:
-          'Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) = 403 `PERMISSION_DENIED` auditado; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.',
+          'Aprovação `CANCELED` (`WITHDRAWN`; `ETag` = nova versão) com a etapa e o status atuais do processo (`null` na avulsa). Uma transação: trava do processo e da aprovação; já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match` — versão da APROVAÇÃO, que qualquer voto ou redirecionamento muda: 412 `VERSION_CONFLICT`); sem custódia anterior (POL-17) nem `PROCESS_ASSIGN` amplo (DEC-193) = 403 `PERMISSION_DENIED` auditado; US-135: todas as linhas não decididas viram `CANCELED` (`WITHDRAWN`) e as decididas ficam com os votos no histórico (RN-APV-57); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`. Efeitos: documentos cobertos `IN_REVIEW` → `DRAFT` (os demais só perdem `pendingApprovalId` — DEC-018) e, na etapa, a devolução à passagem de origem (tramitação `RETURN` com `metadata.withdrawn`, processo `RETURNED`, responsável anterior). Eventos `ApprovalCanceled` (`WITHDRAWN`), `ProcessStageChanged` (`return`), `ProcessStatusChanged`, `DocumentWithdrawn`.',
         schema: dataEnvelope(withdrawnApprovalSchema),
       },
     },
@@ -233,7 +242,7 @@ export class ApprovalController {
     responses: {
       200: {
         description:
-          'Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).',
+          'Aprovação ainda `PENDING` com o novo aprovador (`ETag` = nova versão); título, prazo, solicitante e documentos cobertos preservados (RN-TRAM-70). US-135: age sobre a única linha (cancela a antiga — `REASSIGNED` — e cria outra no mesmo `sequence`); aprovação com mais de uma linha = 422 `APPROVAL_LINE_REQUIRED` (use o APV-06). Uma transação: já decidida ou retirada = 409 `APPROVAL_NOT_PENDING` (antes do `If-Match`: 412 `VERSION_CONFLICT`); `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED`; processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente sobre a unidade solicitante; titular atual da unidade) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto com `approval.preventSelfApproval` = 403 `SELF_APPROVAL_FORBIDDEN`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`). Efeitos: `ApprovalReassigned` (timeline e troca do `ProcessAccess` `APPROVER`; aviso `APPROVAL_REASSIGNED`).',
         schema: dataEnvelope(approvalSchema),
       },
     },
@@ -247,6 +256,7 @@ export class ApprovalController {
   ): Promise<ApprovalDto> {
     const result = await this.reassignCommand.execute({
       approvalId: id,
+      approvalApproverId: null,
       body,
       expectedVersion: ifMatch?.value ?? 0,
       idempotencyKey: idempotencyKey ?? null,
@@ -254,5 +264,46 @@ export class ApprovalController {
     response.setHeader('ETag', `"${result.dto.version}"`);
     noStore(response);
     return result.dto;
+  }
+
+  @Post(':id/approvers/:approverId/reassign')
+  @HttpCode(200)
+  @Idempotent()
+  @RequireIfMatch()
+  @RequirePermission('APPROVAL_REASSIGN', {
+    detail: 'Você não tem permissão para redirecionar aprovações.',
+  })
+  @Policy('POL-17')
+  @ApiOperation({
+    operationId: 'APV-06',
+    summary: 'Redirecionar linha da aprovação',
+    tags: TAGS,
+    idempotent: true,
+    auditActions: ['approval.reassign'],
+    responses: {
+      200: {
+        description:
+          'US-135 (DEC-193 · RN-APV-51..55): a linha `{approverId}` ainda `PENDING` ou `WAITING` vira `CANCELED` (`skippedReason = REASSIGNED`) e nasce outra com o mesmo `sequence`, estado, `activatedAt` e `dueAt` e `reassignedFromId` (`meta.newApproverId`); votos das demais linhas, título, prazo, solicitante, política e cobertura preservados; o espelho da aprovação segue a linha corrente (`ETag` = nova versão da aprovação). `If-Match` = `approvers[].version` da linha (APV-02). Uma transação com a trava da aprovação: já encerrada = 409 `APPROVAL_NOT_PENDING`; linha decidida, dispensada ou cancelada = 409 `APPROVAL_LINE_NOT_PENDING`; linha de outra aprovação ou de outro tenant = 404 `APPROVAL_NOT_FOUND`; `If-Match` divergente = 412 `VERSION_CONFLICT`; `APPROVAL_REASSIGN` que não cobre o processo = 403 `PERMISSION_DENIED` (`access.denied`); processo suspenso ou final = 409 `INVALID_PROCESS_STATUS`; novo aprovador igual ao atual da linha ou inelegível (vínculo ativo; perfil com `APPROVAL_DECIDE` e detentor competente; titular atual da unidade; de outro tenant) = 422 `APPROVER_NOT_ELIGIBLE`; autor de documento coberto = 403 `SELF_APPROVAL_FORBIDDEN` (titular autor: a linha vai ao substituto ativo, `allowDeputy = false`); quem ocupa ou ocupou outra linha desta aprovação = 422 `APPROVER_DUPLICATED`; motivo ausente/curto = 422 `VALIDATION_ERROR` (`TOO_SHORT`) — o motivo nunca é gravado. Efeitos: `ProcessAccess` `APPROVER` da linha antiga revogado e o da nova concedido, `ApprovalReassigned` (com `approvalApproverId`, `sequence`, `fromApprovalApproverId`; timeline `APPROVAL_REASSIGNED`; aviso `APPROVAL_REASSIGNED` ao novo e ao anterior), auditoria `approval.reassign`.',
+        schema: z.object({ data: approvalSchema, meta: reassignApprovalLineMetaSchema }),
+      },
+    },
+  })
+  async reassignLine(
+    @ZodParams(approvalLineParamsSchema) params: { id: string; approverId: string },
+    @ZodBody(reassignApprovalLineSchema) body: ReassignApprovalLine,
+    @IfMatch() ifMatch: IfMatchValue | null,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) response: HttpResponse,
+  ): Promise<DataResult<ApprovalDto, ReassignApprovalLineMeta>> {
+    const result = await this.reassignCommand.execute({
+      approvalId: params.id,
+      approvalApproverId: params.approverId,
+      body,
+      expectedVersion: ifMatch?.value ?? 0,
+      idempotencyKey: idempotencyKey ?? null,
+    });
+    response.setHeader('ETag', `"${result.dto.version}"`);
+    noStore(response);
+    return new DataResult(result.dto, { newApproverId: result.newApproverId });
   }
 }

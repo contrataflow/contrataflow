@@ -1,4 +1,8 @@
-import type { WithdrawApproval, WithdrawnApprovalDto } from '@contrataflow/validation';
+import type {
+  ApprovalWithdrawalActorRole,
+  WithdrawApproval,
+  WithdrawnApprovalDto,
+} from '@contrataflow/validation';
 import { Inject, Injectable } from '@nestjs/common';
 
 import type { ApprovalSubjectKind } from '#shared/approval/approval-subject.js';
@@ -26,6 +30,9 @@ export interface WithdrawnApproval {
   readonly processId: string;
   readonly documentId: string | null;
   readonly subjectType: ApprovalSubjectKind;
+  readonly actorRole: ApprovalWithdrawalActorRole;
+  readonly linesCanceled: number;
+  readonly votesKept: number;
 }
 
 /**
@@ -82,7 +89,8 @@ export class WithdrawApprovalCommand extends TransactionalCommandHandler<
       reason: reason === '' ? null : reason,
       idempotencyKey: input.idempotencyKey,
     });
-    const { canceled, subject, handler, facts, effects } = outcome;
+    const { canceled, subject, handler, facts, effects, actorRole, linesCanceled, votesKept } =
+      outcome;
     const view = (await handler.describeSubject(tx, subject)) ?? { ...facts, documents: [] };
     const dto = await this.presenter.present(tx, canceled, view);
     return {
@@ -90,6 +98,9 @@ export class WithdrawApprovalCommand extends TransactionalCommandHandler<
       processId: canceled.processId,
       documentId: canceled.documentId,
       subjectType: canceled.subjectType,
+      actorRole,
+      linesCanceled,
+      votesKept,
     };
   }
 
@@ -102,6 +113,9 @@ export class WithdrawApprovalCommand extends TransactionalCommandHandler<
         processId: result.processId,
         documentId: result.documentId,
         subjectType: result.subjectType,
+        actorRole: result.actorRole,
+        linesCanceled: result.linesCanceled,
+        votesKept: result.votesKept,
         correlationId: requireRequestContext().correlationId,
       },
       'approval.withdrawn',

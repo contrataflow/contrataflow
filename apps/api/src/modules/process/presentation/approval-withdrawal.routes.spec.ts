@@ -604,8 +604,13 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
       expect(documentOf(processId, documents.get('TR') ?? '')?.status).toBe('FINALIZED');
       expect(documentOf(processId, documents.get('ETP') ?? '')?.status).toBe('APPROVED');
       // Eventos (outbox) e auditoria.
+      // US-135 (RN-APV-57): a linha não decidida cancelada vai no evento (revogação do APPROVER).
       expect(eventsOf(processId, 'ApprovalCanceled').map((row) => row.payload)).toEqual([
-        { approvalId, reason: 'WITHDRAWN' },
+        {
+          approvalId,
+          reason: 'WITHDRAWN',
+          approvalApproverIds: [approvalRepositoryOf(api).linesOf(approvalId)[0]?.id],
+        },
       ]);
       const stageChanged = eventsOf(processId, 'ProcessStageChanged').at(-1);
       expect(stageChanged?.payload).toMatchObject({ cause: 'RETURN', approvalId });
@@ -668,6 +673,7 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
     it('Redirecionar aprovação para outro aprovador elegível: PENDING com Diego, acesso trocado e ApprovalReassigned', async () => {
       const { processId, approvalId } = await pendingApproval('APROVACAO_TECNICA');
       const before = approvalOf(approvalId);
+      const [originalLine] = approvalRepositoryOf(api).linesOf(approvalId);
       expect(approverGrantsOf(processId, approvalId)).toEqual([FAKE_USERS.lucia.id]);
       const detail = await getApproval(approvalId, 'sub-marta');
       expect((detail.body as { meta: ApprovalMeta }).meta.allowedActions).toEqual(['REASSIGN']);
@@ -708,16 +714,26 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
           fromApproverUserId: FAKE_USERS.lucia.id,
           toApproverUserId: FAKE_USERS.fabio.id,
           hasReason: true,
-          // US-133: a linha redirecionada (no lugar — mesma linha sequence 1).
-          approvalApproverId: approvalRepositoryOf(api).linesOf(approvalId)[0]?.id,
+          // US-135 (RN-APV-52/60): a linha única é cancelada e outra nasce no mesmo `sequence`.
+          approvalApproverId: approvalRepositoryOf(api).linesOf(approvalId)[1]?.id,
+          fromApprovalApproverId: originalLine?.id,
+          sequence: 1,
         }),
       ]);
       expect(approvalRepositoryOf(api).linesOf(approvalId)).toEqual([
+        expect.objectContaining({
+          id: originalLine?.id,
+          sequence: 1,
+          status: 'CANCELED',
+          skippedReason: 'REASSIGNED',
+          approverUserId: FAKE_USERS.lucia.id,
+        }),
         expect.objectContaining({
           sequence: 1,
           status: 'PENDING',
           approverType: 'USER',
           approverUserId: FAKE_USERS.fabio.id,
+          reassignedFromId: originalLine?.id,
         }),
       ]);
       expect(JSON.stringify(eventsOf(processId, 'ApprovalReassigned'))).not.toContain(LEAVE);
@@ -730,11 +746,12 @@ describe('Feature: Retirar ou redirecionar aprovação pendente (US-053)', () =>
       });
       expect(log).toHaveBeenCalledWith(
         expect.objectContaining({
-          event: 'approval.reassigned',
-          fromApproverId: FAKE_USERS.lucia.id,
-          toApproverId: FAKE_USERS.fabio.id,
+          event: 'approval.line_reassigned',
+          sequence: 1,
+          fromType: 'USER',
+          toType: 'USER',
         }),
-        'approval.reassigned',
+        'approval.line_reassigned',
       );
       expect(JSON.stringify(log.mock.calls)).not.toContain(LEAVE);
       // Nada muda na etapa nem na tramitação.
